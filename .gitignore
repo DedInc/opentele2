@@ -1,0 +1,11 @@
+.vscode/*
+src/tests.py
+tests.py
+test.py
+__pycache__/
+ *.pyc
+opentele2.egg-info/*
+build/*
+pydoc-markdown.yml
+build_script*
+.generated-files.txt
