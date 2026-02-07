@@ -1,0 +1,14 @@
+// Configurations for pyright type checker
+{
+    "include": [
+        "src"
+    ],
+    "exclude": [
+        "build",
+        "docs",
+        "dist"
+    ],
+    // "ignore": [
+    //   "src/oldstuff"
+    // ]
+}

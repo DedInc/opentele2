@@ -1,0 +1,4 @@
+theme/** linguist-vendored
+.generated-files.txt linguist-generated
+docs/** linguist-generated
+dist/** linguist-generated

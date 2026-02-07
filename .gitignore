@@ -1,0 +1,12 @@
+.vscode/*
+src/tests.py
+tests.py
+test.py
+__pycache__/
+ *.pyc
+build/*
+pydoc-markdown.yml
+build_script*
+.generated-files.txt
+dist/*
+*.egg-info/*
