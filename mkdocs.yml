@@ -77,6 +77,7 @@ nav:
       - Convert tdata to Telethon: examples/convert-tdata-to-telethon.md
       - Convert Telethon to tdata: examples/convert-telethon-to-tdata.md
       - Using official APIs: examples/using-official-apis.md
+      - Session JSON Format: examples/session-json-format.md
   - Documentation:
       - Home: documentation/README.md
       - Telegram Desktop:
@@ -92,6 +93,8 @@ nav:
           - Home: documentation/authorization/README.md
           - API: documentation/authorization/api.md
           - LoginFlag: documentation/authorization/loginflag.md
+      - Fingerprints & Consistency:
+          - Home: documentation/fingerprints/README.md
       - Exceptions:
           - Home: documentation/exceptions/README.md
 repo_url: https://github.com/DedInc/opentele2

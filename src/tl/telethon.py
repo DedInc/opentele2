@@ -17,13 +17,23 @@ from ..exception import (
     TDesktopUnauthorized,
 )
 from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
+from .session_io import (
+    write_session_file,
+    from_session_json,
+    save_session_json,
+)
+from ..fingerprint import (
+    DEFAULT_CONFIG,
+    FingerprintConfig,
+    TransportRecommendation,
+)
 from .. import td
 
 import telethon
 from telethon.crypto import AuthKey
 from telethon import functions, types, password as pwd_mod
 from telethon.network.connection.connection import Connection
-from telethon.network.connection.tcpfull import ConnectionTcpFull
+from telethon.network.connection.tcpobfuscated import ConnectionTcpObfuscated
 from telethon.sessions.abstract import Session
 from telethon.sessions.sqlite import SQLiteSession
 from telethon.sessions.memory import MemorySession
@@ -63,6 +73,18 @@ _API_FIELDS = [
 
 @extend_override_class
 class CustomInitConnectionRequest(functions.InitConnectionRequest):
+    """Overrides Telethon's InitConnectionRequest to inject opentele2 API
+    fingerprint data and validate parameter consistency.
+
+    The field order strictly follows the TL schema::
+
+        initConnection#c1cd5ea9 {X:Type} flags:#
+            api_id:int device_model:string system_version:string
+            app_version:string system_lang_code:string lang_pack:string
+            lang_code:string proxy:flags.0?InputClientProxy
+            params:flags.1?JSONValue query:!X = X;
+    """
+
     def __init__(
         self,
         api_id: int,
@@ -96,6 +118,20 @@ class CustomInitConnectionRequest(functions.InitConnectionRequest):
         self.proxy = proxy
         self.params = params
 
+        # --- Fingerprint validation ---
+        try:
+            DEFAULT_CONFIG.validate_params(
+                api_id=self.api_id,
+                device_model=self.device_model,
+                system_version=self.system_version,
+                app_version=self.app_version,
+                system_lang_code=self.system_lang_code,
+                lang_pack=self.lang_pack,
+                lang_code=self.lang_code,
+            )
+        except Exception:
+            pass  # validation is best-effort; never break the connection
+
 
 @extend_class
 class TelegramClient(telethon.TelegramClient, BaseObject):
@@ -116,7 +152,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         api_id: int = 0,
         api_hash: str = None,
         *,
-        connection: typing.Type[Connection] = ConnectionTcpFull,
+        connection: typing.Type[Connection] = ConnectionTcpObfuscated,
         use_ipv6: bool = False,
         proxy: Union[tuple, dict] = None,
         local_addr: Union[str, tuple] = None,
@@ -136,6 +172,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         loop: asyncio.AbstractEventLoop = None,
         base_logger: Union[str, logging.Logger] = None,
         receive_updates: bool = True,
+        fingerprint_config: FingerprintConfig = None,
     ): ...
 
     @override
@@ -147,6 +184,15 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         api_hash: str = None,
         **kwargs,
     ):
+        # --- Fingerprint config ---
+        self._fingerprint_config: FingerprintConfig = (
+            kwargs.pop("fingerprint_config", None) or DEFAULT_CONFIG
+        )
+
+        # Default to obfuscated transport (what official clients use)
+        if "connection" not in kwargs:
+            kwargs["connection"] = TransportRecommendation.get_connection_class()
+
         if api is not None:
             if isinstance(api, APIData) or (
                 isinstance(api, type)
@@ -171,6 +217,15 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
             api_id = api.api_id
             api_hash = api.api_hash
             kwargs["device_model"] = api.pid  # type: ignore
+
+        # Store API data for session export (SaveSessionJson)
+        if api is not None and (
+            isinstance(api, APIData)
+            or (isinstance(api, type) and APIData.__subclasscheck__(api))
+        ):
+            self._api_data = api.copy()
+        else:
+            self._api_data = None
 
         self._user_id = None
         self.__TelegramClient____init__(session, api_id, api_hash, **kwargs)
@@ -245,6 +300,21 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         auth = await self.GetCurrentSession()
         return False if auth is None else bool(auth.official_app)
 
+    async def RunConsistencyChecks(self, *, auto_warn: bool = True):
+        """Run post-login consistency checks mimicking official client behaviour.
+
+        Returns a :class:`~opentele2.consistency.ConsistencyReport` with
+        per-check results.  Every check is a safe read-only server request
+        that official clients routinely make after connecting.
+
+        Args:
+            auto_warn: If True (default), emit warnings for failed checks.
+        """
+        from ..consistency import ConsistencyChecker
+
+        checker = ConsistencyChecker(self, auto_warn=auto_warn)
+        return await checker.run_all()
+
     @typing.overload
     async def QRLoginToNewClient(
         self,
@@ -252,7 +322,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
         password: str = None,
         *,
-        connection: typing.Type[Connection] = ConnectionTcpFull,
+        connection: typing.Type[Connection] = ConnectionTcpObfuscated,
         use_ipv6: bool = False,
         proxy: Union[tuple, dict] = None,
         local_addr: Union[str, tuple] = None,
@@ -284,7 +354,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
             if newClient.session.dc_id != self.session.dc_id:
                 await newClient._switch_dc(self.session.dc_id)
         except OSError:
-            raise BaseException("Cannot connect")
+            raise OSError("Cannot connect")
 
         if await newClient.is_user_authorized():  # nocov
             return await self._handleExistingSession(
@@ -447,7 +517,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
         password: str = None,
         *,
-        connection: typing.Type[Connection] = ConnectionTcpFull,
+        connection: typing.Type[Connection] = ConnectionTcpObfuscated,
         use_ipv6: bool = False,
         proxy: Union[tuple, dict] = None,
         local_addr: Union[str, tuple] = None,
@@ -566,3 +636,33 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
             raise TypeError("The given session must be a str or a Session instance.")
 
         return session
+
+    @staticmethod
+    def _write_session_file(
+        path: str,
+        dc_id: int,
+        server_address: str,
+        port: int,
+        auth_key_bytes: bytes,
+    ) -> str:
+        return write_session_file(path, dc_id, server_address, port, auth_key_bytes)
+
+    @staticmethod
+    async def FromSessionJson(
+        session_path: str,
+        json_path: str = None,
+        flag: Type[LoginFlag] = UseCurrentSession,
+        password: str = None,
+        **kwargs,
+    ) -> TelegramClient:
+        return await from_session_json(
+            session_path, json_path, flag, password, **kwargs
+        )
+
+    async def SaveSessionJson(
+        self,
+        session_path: str,
+        api: Union[Type[APIData], APIData] = None,
+        fetch_user_info: bool = False,
+    ) -> typing.Tuple[str, str]:
+        return await save_session_json(self, session_path, api, fetch_user_info)

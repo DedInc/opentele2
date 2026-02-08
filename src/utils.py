@@ -49,6 +49,7 @@ class BaseMetaClass(abc.ABCMeta):  # pragma: no cover
                     attr not in ignore_list
                     and callable(val)
                     and not isinstance(val, type)
+                    and not isinstance(val, (staticmethod, classmethod))
                 ):
                     newVal = debug.DebugMethod(val)
                     attrs[attr] = newVal

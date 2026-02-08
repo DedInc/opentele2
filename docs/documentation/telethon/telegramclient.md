@@ -18,8 +18,12 @@ Extended version of [telethon.TelegramClient](https://github.com/LonamiWebs/Tele
 
 - <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.FromTDesktop"><b>FromTDesktop</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
 Create an instance of <a class="codehl codehl_obj" href="#tl.telethon.TelegramClient"><b>TelegramClient</b></a> from <a class="codehl codehl_obj" href="../../telegram-desktop/tdesktop#td.tdesktop.TDesktop"><b>TDesktop</b></a>.
+- <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.FromSessionJson"><b>FromSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
+Create an instance of <a class="codehl codehl_obj" href="#tl.telethon.TelegramClient"><b>TelegramClient</b></a> from `.session + .json` files.
 - <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.ToTDesktop"><b>ToTDesktop</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
 Convert this <a class="codehl codehl_obj" href="#tl.telethon.TelegramClient"><b>TelegramClient</b></a> instance to <a class="codehl codehl_obj" href="../../telegram-desktop/tdesktop#td.tdesktop.TDesktop"><b>TDesktop</b></a>.
+- <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.SaveSessionJson"><b>SaveSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
+Save this client's session to `.session + .json` files.
 - <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.QRLoginToNewClient"><b>QRLoginToNewClient</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
 Return <span class="highlight"><span class="kc">True</span></span> if logged-in using an <a class="codehl codehl_obj" href="../../authorization/api#api.API"><b>official API</b></a>.
 - <a class="codehl codehl_function" href="#tl.telethon.TelegramClient.GetSessions"><b>GetSessions</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
@@ -327,3 +331,72 @@ await client.PrintSessions()
 ```
 
 
+<a id="tl.telethon.TelegramClient.FromSessionJson"></a>
+
+
+---
+### <span class="highlight"><span class="nf">FromSessionJson</span></span><span class="highlight"><span class="o">()</span></span>
+
+```python
+@staticmethod
+async def FromSessionJson(session_path: str, json_path: str = None, flag: Type[LoginFlag] = UseCurrentSession, password: str = None, **kwargs) -> TelegramClient
+```
+
+Create a <a class="codehl codehl_obj" href="#tl.telethon.TelegramClient"><b>TelegramClient</b></a> from `.session + .json` files. See [Session JSON Format](../../examples/session-json-format/) for details.
+<h3>Arguments:</h3>
+
+| Name | Type | Default | Description |
+| :--- | :--: | :-----: | :---------- |
+| <span class="highlight"><span class="n">session_path</span></span> | <span class="highlight"><span class="bp">str</span></span> |  | Path to the `.session` file (with or without extension). |
+| <span class="highlight"><span class="n">json_path</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="kc">None</span></span> | Path to the `.json` metadata file. If `None`, derived from session_path. |
+| <span class="highlight"><span class="n">flag</span></span> | <a class="codehl codehl_obj" href="../../authorization/loginflag#api.LoginFlag"><b>LoginFlag</b></a> | <a class="codehl codehl_obj" href="../../authorization/loginflag#api.UseCurrentSession"><b>UseCurrentSession</b></a> | The login flag. |
+| <span class="highlight"><span class="n">password</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="kc">None</span></span> | Two-step verification password if needed. |
+
+<h3>Raises:</h3>
+
+- `SessionFileNotFound` : If `.session` or `.json` file doesn't exist.
+- `SessionFileInvalid` : If the JSON is malformed or missing required fields.
+
+<h3>Returns:</h3>
+
+- Return an instance of <a class="codehl codehl_obj" href="#tl.telethon.TelegramClient"><b>TelegramClient</b></a> on success.
+
+<h3>Examples:</h3>
+
+```python
+# Import from .session + .json
+client = await TelegramClient.FromSessionJson("path/to/my_account")
+await client.connect()
+await client.PrintSessions()
+```
+
+
+<a id="tl.telethon.TelegramClient.SaveSessionJson"></a>
+
+
+---
+### <span class="highlight"><span class="nf">SaveSessionJson</span></span><span class="highlight"><span class="o">()</span></span>
+
+```python
+async def SaveSessionJson(session_path: str, api: Union[Type[APIData], APIData] = None, fetch_user_info: bool = False) -> Tuple[str, str]
+```
+
+Save this client's session to `.session + .json` files. See [Session JSON Format](../../examples/session-json-format/) for details.
+<h3>Arguments:</h3>
+
+| Name | Type | Default | Description |
+| :--- | :--: | :-----: | :---------- |
+| <span class="highlight"><span class="n">session_path</span></span> | <span class="highlight"><span class="bp">str</span></span> |  | Output path (with or without `.session` extension). |
+| <a class="codehl codehl_name" href="../../telegram-desktop/account#td.account.Account.api"><b>api</b></a> | <a class="codehl codehl_obj" href="../../authorization/api#api.API"><b>API</b></a> | <span class="highlight"><span class="kc">None</span></span> | APIData to write to JSON. If `None`, uses the API from when the client was created. |
+| <span class="highlight"><span class="n">fetch_user_info</span></span> | <span class="highlight"><span class="bp">bool</span></span> | <span class="highlight"><span class="kc">False</span></span> | If `True` and client is connected, fetch user info (phone, username, etc.). |
+
+<h3>Returns:</h3>
+
+- Return a tuple of `(session_file_path, json_file_path)` on success.
+
+<h3>Examples:</h3>
+
+```python
+# Export current session to .session + .json
+session_path, json_path = await client.SaveSessionJson("output/my_account")
+```

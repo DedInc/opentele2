@@ -4,7 +4,7 @@ from setuptools import setup
 README = (pathlib.Path(__file__).parent / "README.md").read_text()
 
 PACKAGE_NAME = "opentele2"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 SOURCE_DIRECTORY = "src"
 
 setup(
@@ -28,11 +28,19 @@ setup(
     ],
     keywords=["tdata", "tdesktop", "telegram", "telethon", "opentele", "opentele2"],
     include_package_data=True,
-    packages=[PACKAGE_NAME, PACKAGE_NAME + ".td", PACKAGE_NAME + ".tl", PACKAGE_NAME + ".devices"],
+    packages=[
+        PACKAGE_NAME,
+        PACKAGE_NAME + ".td",
+        PACKAGE_NAME + ".tl",
+        PACKAGE_NAME + ".devices",
+    ],
     package_dir={PACKAGE_NAME: SOURCE_DIRECTORY},
     package_data={PACKAGE_NAME: ["devices/*.json"]},
     install_requires=[
         "telethon",
         "tgcrypto",
     ],
+    extras_require={
+        "web": ["browserforge"],
+    },
 )

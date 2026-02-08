@@ -392,6 +392,67 @@ class TDesktop(BaseObject):
 
         return _self
 
+    @staticmethod
+    async def FromSessionJson(
+        session_path: str,
+        json_path: str = None,
+        flag: Type[LoginFlag] = UseCurrentSession,
+        api: Union[Type[APIData], APIData] = None,
+        password: str = None,
+    ) -> TDesktop:
+        """Create a TDesktop instance from .session + .json files.
+
+        Args:
+            session_path: Path to the .session file.
+            json_path: Path to the .json metadata file. If None, derived
+                       from session_path.
+            flag: UseCurrentSession or CreateNewSession.
+            api: API to use for the TDesktop. If None, uses the API
+                 from the JSON file.
+            password: 2FA password for CreateNewSession.
+
+        Returns:
+            A loaded TDesktop instance.
+        """
+        client = await tl.TelegramClient.FromSessionJson(
+            session_path, json_path, flag=UseCurrentSession, password=password
+        )
+        use_api = api if api is not None else (client._api_data or API.TelegramDesktop)
+        return await TDesktop.FromTelethon(
+            client, flag=flag, api=use_api, password=password
+        )
+
+    async def SaveSessionJson(
+        self,
+        session_path: str,
+        api: Union[Type[APIData], APIData] = None,
+        fetch_user_info: bool = False,
+    ) -> typing.Tuple[str, str]:
+        """Save this TDesktop's session to .session + .json files.
+
+        Args:
+            session_path: Output path for the .session file.
+            api: APIData for the JSON metadata. Defaults to self.api.
+            fetch_user_info: If True and connected, fetch user info.
+
+        Returns:
+            Tuple of (session_file_path, json_file_path).
+        """
+        Expects(
+            self.isLoaded(),
+            TDesktopNotLoaded("You need to load accounts from a tdata folder first"),
+        )
+        Expects(
+            self.accountsCount > 0,
+            TDesktopHasNoAccount("There is no account in this instance of TDesktop"),
+        )
+
+        use_api = api if api is not None else self.api
+        client = await self.ToTelethon(flag=UseCurrentSession, api=use_api)
+        return await client.SaveSessionJson(
+            session_path, api=use_api, fetch_user_info=fetch_user_info
+        )
+
     @classmethod
     def PerformanceMode(cls, enabled: bool = True):
         """Enable or disable performance mode.

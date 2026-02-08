@@ -43,6 +43,10 @@ Return <span class="highlight"><span class="kc">True</span></span> if the client
 Convert this session to <a class="codehl codehl_obj" href="../../telethon/telegramclient#tl.telethon.TelegramClient"><b>TelegramClient</b></a>.
 - <a class="codehl codehl_function" href="#td.tdesktop.TDesktop.FromTelethon"><b>FromTelethon</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
 Create a new session from <a class="codehl codehl_obj" href="../../telethon/telegramclient#tl.telethon.TelegramClient"><b>TelegramClient</b></a>.
+- <a class="codehl codehl_function" href="#td.tdesktop.TDesktop.FromSessionJson"><b>FromSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
+Create a new instance from `.session + .json` files.
+- <a class="codehl codehl_function" href="#td.tdesktop.TDesktop.SaveSessionJson"><b>SaveSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
+Save this client's session to `.session + .json` files.
 - <a class="codehl codehl_function" href="#td.tdesktop.TDesktop.PerformanceMode"><b>PerformanceMode</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span><span class="highlight"><span class="p">:</span></span>\
 Enable/disable performance mode. When enabled, <span class="highlight"><span class="nf">SavaTData</span></span><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> will be 5000x faster.
 
@@ -247,6 +251,92 @@ tdesk = await TDesktop.FromTelethon(oldclient, flag=CreateNewSession, api=newAPI
 
 # Save the new session to a folder named "new_tdata"
 tdesk.SaveTData("new_tdata")
+```
+
+
+<a id="td.tdesktop.TDesktop.FromSessionJson"></a>
+
+
+---
+### <span class="highlight"><span class="nf">FromSessionJson</span></span><span class="highlight"><span class="o">()</span></span>
+
+```python
+@staticmethod
+async def FromSessionJson(session_path: str, json_path: str = None, flag: Type[LoginFlag] = UseCurrentSession, password: str = None, **kwargs) -> TDesktop
+```
+
+Create an instance of <a class="codehl codehl_obj" href="#td.tdesktop.TDesktop"><b>TDesktop</b></a> from `.session + .json` files. See [Session JSON Format](../../examples/session-json-format/) for details.<br>
+
+Internally, this imports via <a class="codehl codehl_obj" href="../../telethon/telegramclient#tl.telethon.TelegramClient"><b>TelegramClient</b></a>.<a class="codehl codehl_function" href="../../telethon/telegramclient#tl.telethon.TelegramClient.FromSessionJson"><b>FromSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> and then converts to <a class="codehl codehl_obj" href="#td.tdesktop.TDesktop"><b>TDesktop</b></a>.
+<h3>Arguments:</h3>
+
+| Name | Type | Default | Description |
+| :--- | :--: | :-----: | :---------- |
+| <span class="highlight"><span class="n">session_path</span></span> | <span class="highlight"><span class="bp">str</span></span> |  | Path to the `.session` file (with or without extension). |
+| <span class="highlight"><span class="n">json_path</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="kc">None</span></span> | Path to the `.json` metadata file. If `None`, derived from session_path. |
+| <span class="highlight"><span class="n">flag</span></span> | <a class="codehl codehl_obj" href="../../authorization/loginflag#api.LoginFlag"><b>LoginFlag</b></a> | <a class="codehl codehl_obj" href="../../authorization/loginflag#api.UseCurrentSession"><b>UseCurrentSession</b></a> | The login flag. Read more <a class="codehl codehl_obj" href="../../authorization/loginflag#api.LoginFlag"><b>here</b></a>. |
+| <span class="highlight"><span class="n">password</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="kc">None</span></span> | Two-step verification password if needed. |
+
+<h3>Raises:</h3>
+
+- `SessionFileNotFound` : If `.session` or `.json` file doesn't exist.
+- `SessionFileInvalid` : If the JSON is malformed or missing required fields.
+
+<h3>Returns:</h3>
+
+- Return an instance of <a class="codehl codehl_obj" href="#td.tdesktop.TDesktop"><b>TDesktop</b></a> on success.
+
+<h3>Examples:</h3>
+
+Import from `.session + .json` files:
+
+```python
+# Import from .session + .json as TDesktop
+tdesk = await TDesktop.FromSessionJson("path/to/my_account")
+assert tdesk.isLoaded()
+
+# Save as tdata folder
+tdesk.SaveTData("output/tdata")
+```
+
+
+<a id="td.tdesktop.TDesktop.SaveSessionJson"></a>
+
+
+---
+### <span class="highlight"><span class="nf">SaveSessionJson</span></span><span class="highlight"><span class="o">()</span></span>
+
+```python
+async def SaveSessionJson(session_path: str, api: Union[Type[APIData], APIData] = None, fetch_user_info: bool = False) -> Tuple[str, str]
+```
+
+Save this client's session to `.session + .json` files. See [Session JSON Format](../../examples/session-json-format/) for details.<br>
+
+Internally, this converts to <a class="codehl codehl_obj" href="../../telethon/telegramclient#tl.telethon.TelegramClient"><b>TelegramClient</b></a> and then calls <a class="codehl codehl_function" href="../../telethon/telegramclient#tl.telethon.TelegramClient.SaveSessionJson"><b>SaveSessionJson</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span>.
+<h3>Arguments:</h3>
+
+| Name | Type | Default | Description |
+| :--- | :--: | :-----: | :---------- |
+| <span class="highlight"><span class="n">session_path</span></span> | <span class="highlight"><span class="bp">str</span></span> |  | Output path (with or without `.session` extension). |
+| <a class="codehl codehl_name" href="#td.tdesktop.TDesktop.api"><b>api</b></a> | <a class="codehl codehl_obj" href="../../authorization/api#api.APIData"><b>APIData</b></a> | <span class="highlight"><span class="kc">None</span></span> | APIData to write to JSON. If `None`, uses the client's API. |
+| <span class="highlight"><span class="n">fetch_user_info</span></span> | <span class="highlight"><span class="bp">bool</span></span> | <span class="highlight"><span class="kc">False</span></span> | If `True` and client is connected, fetch user info (phone, username, etc.). |
+
+<h3>Returns:</h3>
+
+- Return a tuple of `(session_file_path, json_file_path)` on success.
+
+<h3>Examples:</h3>
+
+Export a tdata session to `.session + .json`:
+
+```python
+# Load from tdata
+tdesk = TDesktop(r"C:\Users\<username>\AppData\Roaming\Telegram Desktop\tdata")
+assert tdesk.isLoaded()
+
+# Export to .session + .json
+session_path, json_path = await tdesk.SaveSessionJson("output/my_account")
+print(f"Exported: {session_path}, {json_path}")
 ```
 
 

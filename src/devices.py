@@ -18,6 +18,7 @@ __all__ = [
     "AndroidDevice",
     "IOSDevice",
     "iOSDevice",
+    "WebBrowserDevice",
 ]
 
 _T = TypeVar("_T")
@@ -376,3 +377,150 @@ class IOSDevice(SystemInfo):
 
 
 iOSDevice = IOSDevice
+
+
+def _get_chrome_last_good_versions():
+    import urllib.request
+    from urllib.error import HTTPError
+
+    url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
+    try:
+        with urllib.request.urlopen(url, timeout=12) as response:
+            if response.getcode() != 200:
+                return None
+            data = response.read()
+            text = data.decode("utf-8")
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return None
+    except (HTTPError, Exception):
+        return None
+
+
+def _parse_os_from_ua(user_agent: str) -> str:
+    """Extract OS name from User-Agent for Web Z / Web A style system_version."""
+    ua_lower = user_agent.lower()
+    if "windows" in ua_lower:
+        return "Windows"
+    elif "macintosh" in ua_lower or "mac os" in ua_lower:
+        return "macOS"
+    elif "cros" in ua_lower:
+        return "ChromeOS"
+    elif "linux" in ua_lower:
+        return "Linux"
+    return "Windows"
+
+
+def _parse_platform_from_ua(user_agent: str) -> str:
+    """Extract navigator.platform value from User-Agent for Web K style system_version."""
+    ua_lower = user_agent.lower()
+    if "win64" in ua_lower or "windows" in ua_lower:
+        return "Win32"
+    elif "macintosh" in ua_lower or "mac os" in ua_lower:
+        return "MacIntel"
+    elif "linux" in ua_lower:
+        if "x86_64" in ua_lower or "x64" in ua_lower:
+            return "Linux x86_64"
+        elif "aarch64" in ua_lower or "arm" in ua_lower:
+            return "Linux aarch64"
+        return "Linux x86_64"
+    return "Win32"
+
+
+class WebBrowserDevice(SystemInfo):
+    """Generates realistic browser fingerprints using browserforge.
+
+    Produces DeviceInfo where:
+    - model = full User-Agent string
+    - version = OS name (for Web Z/A) or navigator.platform (for Web K)
+    """
+
+    deviceList: List[DeviceInfo] = []
+    _k_deviceList: List[DeviceInfo] = []
+    _generated = False
+    _max_chromium = 145
+
+    @classmethod
+    def _fetch_max_chromium(cls) -> int:
+        result = _get_chrome_last_good_versions()
+        if result:
+            try:
+                return int(result["channels"]["Stable"]["version"].split(".")[0])
+            except (KeyError, ValueError, IndexError):
+                pass
+        return 145
+
+    @classmethod
+    def __gen__(cls) -> None:
+        if cls._generated:
+            return
+
+        try:
+            from browserforge.headers import HeaderGenerator, Browser
+        except ImportError:
+            raise ImportError(
+                "browserforge is required for web browser fingerprint generation. "
+                "Install it with: pip install browserforge"
+            )
+
+        import random as _rnd
+
+        cls._max_chromium = cls._fetch_max_chromium()
+        max_v = cls._max_chromium
+
+        chrome_min = max_v - _rnd.randint(2, 5)
+        edge_min = max_v - _rnd.randint(3, 6)
+        firefox_min = max_v - _rnd.randint(5, 8)
+
+        browsers = [
+            Browser(name="chrome", min_version=chrome_min, max_version=max_v),
+            Browser(name="edge", min_version=edge_min, max_version=max_v),
+            Browser(name="firefox", min_version=firefox_min, max_version=max_v - 3),
+        ]
+
+        gen = HeaderGenerator(browser=browsers, os=("windows", "macos"))
+
+        z_a_list = []
+        k_list = []
+        seen_uas = set()
+
+        for _ in range(200):
+            headers = gen.generate()
+            ua = headers.get("User-Agent", "")
+            if not ua or ua in seen_uas:
+                continue
+            seen_uas.add(ua)
+
+            os_name = _parse_os_from_ua(ua)
+            platform_name = _parse_platform_from_ua(ua)
+
+            z_a_list.append(DeviceInfo(ua, os_name))
+            k_list.append(DeviceInfo(ua, platform_name))
+
+        if not z_a_list:
+            default_ua = (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                f"Chrome/{max_v}.0.0.0 Safari/537.36"
+            )
+            z_a_list.append(DeviceInfo(default_ua, "Windows"))
+            k_list.append(DeviceInfo(default_ua, "Win32"))
+
+        cls.deviceList = z_a_list
+        cls._k_deviceList = k_list
+        cls._generated = True
+
+    @classmethod
+    def RandomDevice(cls, unique_id: str = None, variant: str = "z") -> DeviceInfo:
+        """Generate a random web browser device fingerprint.
+
+        Args:
+            unique_id: Deterministic seed string. Random if None.
+            variant: "z" or "a" for Web Z/A style, "k" for Web K style.
+        """
+        hash_id = cls._strtohashid(unique_id)
+        cls.__gen__()
+        if variant == "k":
+            return cls._hashtovalue(hash_id, cls._k_deviceList)
+        return cls._hashtovalue(hash_id, cls.deviceList)

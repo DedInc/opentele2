@@ -11,6 +11,7 @@ from .devices import (
     SystemInfo,
     WindowsDevice,
     LinuxDevice,
+    WebBrowserDevice,
 )
 from .exception import Expects, NoInstanceMatched
 from .utils import BaseMetaClass, BaseObject, sharemethod
@@ -27,6 +28,28 @@ _T = TypeVar("_T")
 
 _X64_ARCHES = ("x86_64", "AMD64")
 _X86_ARCHES = ("i386", "i686", "x86")
+
+_DEFAULT_EXTRA_FIELDS = {
+    "twoFA": None,
+    "role": "",
+    "id": None,
+    "phone": None,
+    "username": None,
+    "date_of_birth": None,
+    "date_of_birth_integrity": None,
+    "is_premium": False,
+    "has_profile_pic": False,
+    "spamblock": None,
+    "register_time": None,
+    "last_check_time": None,
+    "avatar": None,
+    "first_name": "",
+    "last_name": "",
+    "sex": None,
+    "proxy": None,
+    "ipv6": False,
+    "session_file": "",
+}
 
 
 def _coalesce(val, default):
@@ -145,6 +168,69 @@ class APIData(object, metaclass=BaseAPIMetaClass):
         if isinstance(glob, type):
             return
 
+    @classmethod
+    def _web_generate(cls: Type[_T], unique_id: str = None, variant: str = "z") -> _T:
+        deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant=variant)
+        return cls(device_model=deviceInfo.model, system_version=deviceInfo.version)
+
+    @staticmethod
+    def from_json(data: dict) -> APIData:
+        """Create an APIData instance from a session JSON dictionary.
+
+        Args:
+            data: Dictionary loaded from a .json session metadata file.
+                  Expected fields: app_id, app_hash, device, sdk, app_version,
+                  lang_pack, lang_code, and either system_lang_pack or
+                  system_lang_code.
+
+        Returns:
+            APIData instance with all fields populated.
+        """
+        api_id = data.get("app_id")
+        api_hash = data.get("app_hash")
+        system_lang_code = data.get("system_lang_code") or data.get(
+            "system_lang_pack", "en"
+        )
+
+        return APIData(
+            api_id=api_id,
+            api_hash=api_hash,
+            device_model=data.get("device"),
+            system_version=data.get("sdk"),
+            app_version=data.get("app_version"),
+            lang_code=data.get("lang_code", "en"),
+            system_lang_code=system_lang_code,
+            lang_pack=data.get("lang_pack", ""),
+        )
+
+    def to_json(self, extra: dict = None) -> dict:
+        """Serialize this APIData to a session JSON dictionary.
+
+        Args:
+            extra: Optional dictionary of extra fields to include
+                   (twoFA, phone, username, etc.). If None, defaults
+                   are used for all extra fields.
+
+        Returns:
+            Dictionary ready for json.dump().
+        """
+        result = {
+            "app_id": self.api_id,
+            "app_hash": self.api_hash,
+            "device": self.device_model,
+            "sdk": self.system_version,
+            "app_version": self.app_version,
+            "system_lang_pack": self.system_lang_code,
+            "system_lang_code": self.system_lang_code,
+            "lang_pack": self.lang_pack,
+            "lang_code": self.lang_code,
+        }
+        defaults = dict(_DEFAULT_EXTRA_FIELDS)
+        if extra:
+            defaults.update(extra)
+        result.update(defaults)
+        return result
+
     def __eq__(self, __o: APIData) -> bool:
         if not isinstance(__o, APIData):
             return False
@@ -190,6 +276,15 @@ class APIData(object, metaclass=BaseAPIMetaClass):
         elif cls == API.TelegramMacOS:
             deviceInfo = macOSDevice.RandomDevice(unique_id)
 
+        elif cls in (API.TelegramWeb_Z, API.TelegramWeb_A):
+            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="z")
+
+        elif cls == API.TelegramWeb_K:
+            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="k")
+
+        elif cls == API.Webogram:
+            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="k")
+
         else:
             raise NotImplementedError(
                 f"{cls.__name__} device not supported for randomize yet"
@@ -218,8 +313,8 @@ class API(BaseObject):
         api_id = 2040
         api_hash = "b18441a1ff607e10a989891a5462e627"
         device_model = "Desktop"
-        system_version = "Windows 10"
-        app_version = "3.4.3 x64"
+        system_version = "Windows 11"
+        app_version = "5.12.3 x64"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "tdesktop"
@@ -309,6 +404,10 @@ class API(BaseObject):
         system_lang_code = "en-US"
         lang_pack = ""
 
+        @classmethod
+        def Generate(cls: Type[_T], unique_id: str = None) -> _T:
+            return cls._web_generate(unique_id, variant="z")
+
     class TelegramWeb_A(APIData):
         """Official Telegram WebA for Browsers."""
 
@@ -320,6 +419,10 @@ class API(BaseObject):
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = ""
+
+        @classmethod
+        def Generate(cls: Type[_T], unique_id: str = None) -> _T:
+            return cls._web_generate(unique_id, variant="z")
 
     class TelegramWeb_K(APIData):
         """Official Telegram WebK (legacy) for Browsers."""
@@ -333,6 +436,10 @@ class API(BaseObject):
         system_lang_code = "en-US"
         lang_pack = "macos"
 
+        @classmethod
+        def Generate(cls: Type[_T], unique_id: str = None) -> _T:
+            return cls._web_generate(unique_id, variant="k")
+
     class Webogram(APIData):
         """Old Telegram for Browsers (legacy)."""
 
@@ -344,6 +451,10 @@ class API(BaseObject):
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = ""
+
+        @classmethod
+        def Generate(cls: Type[_T], unique_id: str = None) -> _T:
+            return cls._web_generate(unique_id, variant="k")
 
 
 class LoginFlag(int):

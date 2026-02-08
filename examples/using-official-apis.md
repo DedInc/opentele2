@@ -38,10 +38,11 @@ This example will show you how to use Telethon with official APIs.
     ```python
     api = API.TelegramDesktop
     api = API.TelegramAndroid
-    api = API.TelegramAndroidX	
+    api = API.TelegramAndroidX
     api = API.TelegramIOS
     api = API.TelegramMacOS
     api = API.TelegramWeb_Z
+    api = API.TelegramWeb_A
     api = API.TelegramWeb_K
     api = API.Webogram
     ```
@@ -146,3 +147,78 @@ Not using unique_id
 [APIGenerate]: https://opentele2.readthedocs.io/en/latest/documentation/authorization/api/#generate
 [TelegramClient]: https://opentele2.readthedocs.io/en/latest/documentation/telethon/telegramclient/#class-telegramclient
 [TDesktop]: https://opentele2.readthedocs.io/en/latest/documentation/telegram-desktop/tdesktop/#class-tdesktop
+
+## Using web client APIs with browser fingerprints
+
+Web client APIs (`TelegramWeb_Z`, `TelegramWeb_A`, `TelegramWeb_K`, `Webogram`) now support `Generate()` to randomize the browser User-Agent sent as `device_model`.
+
+???+ info "Requires browserforge"
+    Install with: `pip install browserforge` or `pip install opentele2[web]`
+
+### Basic usage
+```python
+from opentele2.tl import TelegramClient
+from opentele2.api import API
+import asyncio
+
+async def main():
+
+    # Generate a random browser fingerprint for Web Z
+    api = API.TelegramWeb_Z.Generate()
+
+    client = TelegramClient("telethon.session", api=api)
+    await client.connect()
+
+asyncio.run(main())
+```
+
+### All web clients
+```python
+# Web Z — User-Agent as device_model, OS name as system_version
+api = API.TelegramWeb_Z.Generate()
+print(api.device_model)     # "Mozilla/5.0 (Windows NT 10.0; ...) Chrome/145.0.0.0 Safari/537.36"
+print(api.system_version)   # "Windows"
+
+# Web A — same behavior as Web Z
+api = API.TelegramWeb_A.Generate()
+
+# Web K — User-Agent as device_model, navigator.platform as system_version
+api = API.TelegramWeb_K.Generate()
+print(api.system_version)   # "Win32" or "MacIntel"
+
+# Webogram (legacy) — same style as Web K
+api = API.Webogram.Generate()
+```
+
+### Deterministic fingerprints with `unique_id`
+```python
+# Same unique_id always produces the same fingerprint
+api1 = API.TelegramWeb_Z.Generate(unique_id="session_abc")
+api2 = API.TelegramWeb_Z.Generate(unique_id="session_abc")
+assert api1.device_model == api2.device_model  # True
+
+# Different unique_id = different fingerprint
+api3 = API.TelegramWeb_Z.Generate(unique_id="session_xyz")
+# api3.device_model will differ from api1.device_model
+
+# No unique_id = random each time
+api4 = API.TelegramWeb_Z.Generate()
+```
+
+### Post-login consistency checks
+After connecting, you can run consistency checks to verify that the session looks like a real official client:
+```python
+from opentele2.consistency import ConsistencyChecker
+
+api = API.TelegramWeb_Z.Generate()
+client = TelegramClient("telethon.session", api=api)
+await client.connect()
+
+checker = ConsistencyChecker(client)
+report = await checker.run_all()
+print(report.summary)
+```
+
+See [Fingerprints & Consistency][Fingerprints] for full documentation.
+
+[Fingerprints]: https://opentele2.readthedocs.io/en/latest/documentation/fingerprints/

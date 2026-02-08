@@ -85,7 +85,7 @@ Generate random device model and system version<br>
 
 <h3>Raises:</h3>
 
-<span class="highlight"><span class="ne">NotImplementedError</span></span> : Not supported for web browser yet
+<span class="highlight"><span class="ne">NotImplementedError</span></span> : Only raised for APIs that do not yet support fingerprint randomization (currently all APIs support it)
 
 <h3>Returns:</h3>
 
@@ -134,6 +134,7 @@ class API(BaseObject)
 | <a class="codehl codehl_obj" href="#api.API.TelegramIOS"><b>TelegramIOS</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram for iOS [View on GitHub](https://github.com/TelegramMessenger/Telegram-iOS) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramMacOS"><b>TelegramMacOS</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram-Swift For MacOS [View on GitHub](https://github.com/overtake/TelegramSwift) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramWeb_Z"><b>TelegramWeb_Z</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Default Official Telegram Web Z For Browsers [View on GitHub](https://github.com/Ajaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/z/) |
+| <a class="codehl codehl_obj" href="#api.API.TelegramWeb_A"><b>TelegramWeb_A</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram Web A For Browsers [View on GitHub](https://github.com/AJaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/a/) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramWeb_K"><b>TelegramWeb_K</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram Web K For Browsers [View on GitHub](https://github.com/morethanwords/tweb)| [Visit on Telegram](https://web.telegram.org/k/) |
 | <a class="codehl codehl_obj" href="#api.API.Webogram"><b>Webogram</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Old Telegram For Browsers [View on GitHub](https://github.com/zhukov/webogram)| [Vist on Telegram](https://web.telegram.org/?legacy=1#/im) |
 
@@ -344,12 +345,49 @@ Default Official Telegram Web Z For Browsers<br>
 | :--- | :--: | :---------- |
 | <span class="highlight"><span class="n">api_id</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">2496</span></span> |
 | <span class="highlight"><span class="n">api_hash</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">8da85b0d5bfe62527e5b244c209159c3</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Windows</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">1.28.3 Z</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">5.0.0 Z</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">"</span></span> |
+
+<h3>Methods:</h3>
+
+- <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
+Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
+
+
+
+<a id="api.API.TelegramWeb_A"></a>
+
+
+---
+### <span class="highlight"><span class="k">class </span></span><span class="highlight"><span class="nc">TelegramWeb_A</span></span>
+
+```python
+class TelegramWeb_A(APIData)
+```
+
+Official Telegram Web A For Browsers<br>
+[View on GitHub](https://github.com/Ajaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/a/)
+<h3>Attributes:</h3>
+
+| Name | Type | Description |
+| :--- | :--: | :---------- |
+| <span class="highlight"><span class="n">api_id</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">2496</span></span> |
+| <span class="highlight"><span class="n">api_hash</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">8da85b0d5bfe62527e5b244c209159c3</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">system_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Windows</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">5.0.0 A</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">"</span></span> |
+
+<h3>Methods:</h3>
+
+- <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
+Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
 
 
 
@@ -371,12 +409,17 @@ Official Telegram Web K For Browsers<br>
 | :--- | :--: | :---------- |
 | <span class="highlight"><span class="n">api_id</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">2496</span></span> |
 | <span class="highlight"><span class="n">api_hash</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">8da85b0d5bfe62527e5b244c209159c3</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Win32</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">1.0.1 K</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">1.4.2 K</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">macos</span></span><span class="highlight"><span class="s2">"</span></span> |
+
+<h3>Methods:</h3>
+
+- <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
+Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
 
 
 
@@ -398,12 +441,17 @@ Old Telegram For Browsers<br>
 | :--- | :--: | :---------- |
 | <span class="highlight"><span class="n">api_id</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">2496</span></span> |
 | <span class="highlight"><span class="n">api_hash</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">8da85b0d5bfe62527e5b244c209159c3</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
+| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Win32</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">0.7.0</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">"</span></span> |
+
+<h3>Methods:</h3>
+
+- <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
+Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
 
 
 

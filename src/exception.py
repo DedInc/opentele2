@@ -30,6 +30,8 @@ __all__ = [
     "PasswordIncorrect",
     "LoginFlagInvalid",
     "NoInstanceMatched",
+    "SessionFileNotFound",
+    "SessionFileInvalid",
     "Expects",
     "ExpectStreamStatus",
 ]
@@ -183,6 +185,14 @@ class LoginFlagInvalid(OpenTeleException):
 
 
 class NoInstanceMatched(OpenTeleException):
+    pass
+
+
+class SessionFileNotFound(OpenTeleException):
+    pass
+
+
+class SessionFileInvalid(OpenTeleException):
     pass
 
 
