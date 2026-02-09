@@ -75,6 +75,3 @@ Create a new session.<br>
 - Although <span class="highlight"><span class="n">Telegram</span></span> <span class="highlight"><span class="n">Desktop</span></span> doesn't let you authorize other sessions via <span class="highlight"><span class="n">QR</span></span> <span class="highlight"><span class="n">Code</span></span> *(or it doesn't have that feature)*, it is still available across all platforms <span class="highlight"><span class="p">(</span></span><a class="codehl codehl_obj" href="../api#api.API"><b>APIs</b></a><span class="highlight"><span class="p">)</span></span>.
 ???+ done "Safe to use"
     You can always use <span class="highlight"><span class="n">CreateNewSessions</span></span> with any APIs, it can be different from the API that originally created the session.
-
-
-

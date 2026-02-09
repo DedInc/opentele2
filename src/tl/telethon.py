@@ -39,6 +39,7 @@ from telethon.sessions.sqlite import SQLiteSession
 from telethon.sessions.memory import MemorySession
 from typing import Optional, Type, Union
 import asyncio
+import random
 import typing
 
 from telethon.errors.rpcerrorlist import (
@@ -68,6 +69,29 @@ _API_FIELDS = [
     "system_lang_code",
     "lang_pack",
     "lang_code",
+]
+
+# Post-login request sequence mimicking official Telegram clients.
+# Each entry: (delay_range, request_factory, condition)
+#   delay_range : None = no delay, (lo_ms, hi_ms) = random delay before request
+#   request_factory : callable(lang_pack) -> TL request object
+#   condition       : None = always run, callable(lang_pack) -> bool
+_POST_LOGIN_STEPS = [
+    (None, lambda lp: functions.help.GetConfigRequest(), None),
+    ((100, 300), lambda lp: functions.help.GetNearestDcRequest(), None),
+    ((200, 400), lambda lp: functions.account.UpdateStatusRequest(offline=False), None),
+    (
+        (100, 200),
+        lambda lp: functions.langpack.GetLanguagesRequest(lang_pack=lp),
+        lambda lp: bool(lp),
+    ),
+    ((300, 500), lambda lp: functions.help.GetAppUpdateRequest(source=""), None),
+    ((100, 300), lambda lp: functions.help.GetTermsOfServiceUpdateRequest(), None),
+    (
+        (50, 150),
+        lambda lp: functions.help.GetCountriesListRequest(lang_code="en", hash=0),
+        None,
+    ),
 ]
 
 
@@ -173,6 +197,7 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         base_logger: Union[str, logging.Logger] = None,
         receive_updates: bool = True,
         fingerprint_config: FingerprintConfig = None,
+        auto_post_login: bool = True,
     ): ...
 
     @override
@@ -188,6 +213,10 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         self._fingerprint_config: FingerprintConfig = (
             kwargs.pop("fingerprint_config", None) or DEFAULT_CONFIG
         )
+
+        # --- Auto post-login requests (mimic official client) ---
+        self._auto_post_login: bool = kwargs.pop("auto_post_login", True)
+        self._post_login_done: bool = False
 
         # Default to obfuscated transport (what official clients use)
         if "connection" not in kwargs:
@@ -237,6 +266,67 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
     @UserId.setter
     def UserId(self, id):
         self._user_id = id
+
+    @override
+    async def connect(self):
+        """Connect to Telegram and auto-fire post-login requests if authorized.
+
+        Official clients always send a burst of ``help.*`` requests immediately
+        after a successful connection when the session is already authorized.
+        This override reproduces that behaviour automatically.
+        """
+        result = await getattr(self, "__TelegramClient__connect")()
+
+        if self._auto_post_login and not self._post_login_done:
+            try:
+                if await self.is_user_authorized():
+                    await self._run_post_login_requests()
+            except Exception:
+                pass  # never break connect over post-login noise
+
+        return result
+
+    def _get_lang_pack(self) -> str:
+        """Extract lang_pack from the sender's init request, if available."""
+        sender = getattr(self, "_sender", None)
+        if sender is not None:
+            init_req = getattr(sender, "_init_request", None)
+            if init_req is not None:
+                return getattr(init_req, "lang_pack", "")
+        return ""
+
+    async def _run_post_login_requests(self):
+        """Fire the post-login API calls that official clients always make.
+
+        Order and timing follow what real Telegram Desktop / Android does
+        after connecting with an authorized session:
+
+        1. ``help.getConfig``            — immediate (always first)
+        2. ``help.getNearestDc``         — +100-300 ms
+        3. ``account.updateStatus``      — +200-400 ms
+        4. ``langpack.getLanguages``     — +100-200 ms  (if lang_pack set)
+        5. ``help.getAppUpdate``         — +300-500 ms
+        6. ``help.getTermsOfServiceUpdate`` — +100-300 ms
+        7. ``help.getCountriesList``     — +50-150 ms
+
+        All calls are fire-and-forget: failures are silently ignored so they
+        never interfere with the user's code.
+        """
+        if self._post_login_done:
+            return
+        self._post_login_done = True
+
+        lang_pack = self._get_lang_pack()
+
+        for delay_range, request_factory, condition in _POST_LOGIN_STEPS:
+            if condition is not None and not condition(lang_pack):
+                continue
+            if delay_range is not None:
+                await asyncio.sleep(random.randint(*delay_range) / 1000.0)
+            try:
+                await self(request_factory(lang_pack))
+            except Exception:
+                pass
 
     async def GetSessions(self) -> Optional[types.account.Authorizations]:
         """Get all logged-in sessions."""
@@ -364,7 +454,18 @@ class TelegramClient(telethon.TelegramClient, BaseObject):
         if not self._self_id:
             await self.get_me()
 
-        return await self._performQRLogin(newClient, session, api, password, **kwargs)
+        newClient = await self._performQRLogin(
+            newClient, session, api, password, **kwargs
+        )
+
+        # Fire post-login requests on the freshly authorized client
+        if newClient._auto_post_login and not newClient._post_login_done:
+            try:
+                await newClient._run_post_login_requests()
+            except Exception:
+                pass
+
+        return newClient
 
     @staticmethod
     async def _cleanup_client(client) -> None:

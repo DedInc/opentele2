@@ -299,79 +299,66 @@ class QDataStream:
             self._status = QDataStream.Status.WriteFailed
         return result
 
+    # --- Numeric helpers ---
+
+    def _read_numeric(self, size: int, fmt: str, default=0):
+        data = self._read(size)
+        if len(data) < size:
+            return default
+        return struct.unpack(fmt, data)[0]
+
+    def _write_numeric(self, fmt: str, value) -> None:
+        self._write(struct.pack(fmt, value))
+
     # --- Integer read/write ---
 
     def readInt8(self) -> int:
-        data = self._read(1)
-        if len(data) < 1:
-            return 0
-        return struct.unpack(">b", data)[0]
+        return self._read_numeric(1, ">b")
 
     def writeInt8(self, i: int) -> None:
-        self._write(struct.pack(">b", i))
+        self._write_numeric(">b", i)
 
     def readUInt8(self) -> int:
-        data = self._read(1)
-        if len(data) < 1:
-            return 0
-        return struct.unpack(">B", data)[0]
+        return self._read_numeric(1, ">B")
 
     def writeUInt8(self, i: int) -> None:
-        self._write(struct.pack(">B", i))
+        self._write_numeric(">B", i)
 
     def readInt16(self) -> int:
-        data = self._read(2)
-        if len(data) < 2:
-            return 0
-        return struct.unpack(">h", data)[0]
+        return self._read_numeric(2, ">h")
 
     def writeInt16(self, i: int) -> None:
-        self._write(struct.pack(">h", i))
+        self._write_numeric(">h", i)
 
     def readUInt16(self) -> int:
-        data = self._read(2)
-        if len(data) < 2:
-            return 0
-        return struct.unpack(">H", data)[0]
+        return self._read_numeric(2, ">H")
 
     def writeUInt16(self, i: int) -> None:
-        self._write(struct.pack(">H", i))
+        self._write_numeric(">H", i)
 
     def readInt32(self) -> int:
-        data = self._read(4)
-        if len(data) < 4:
-            return 0
-        return struct.unpack(">i", data)[0]
+        return self._read_numeric(4, ">i")
 
     def writeInt32(self, i: int) -> None:
-        self._write(struct.pack(">i", i))
+        self._write_numeric(">i", i)
 
     def readUInt32(self) -> int:
-        data = self._read(4)
-        if len(data) < 4:
-            return 0
-        return struct.unpack(">I", data)[0]
+        return self._read_numeric(4, ">I")
 
     def writeUInt32(self, i: int) -> None:
-        self._write(struct.pack(">I", i))
+        self._write_numeric(">I", i)
 
     def readInt64(self) -> int:
-        data = self._read(8)
-        if len(data) < 8:
-            return 0
-        return struct.unpack(">q", data)[0]
+        return self._read_numeric(8, ">q")
 
     def writeInt64(self, i: int) -> None:
-        self._write(struct.pack(">q", i))
+        self._write_numeric(">q", i)
 
     def readUInt64(self) -> int:
-        data = self._read(8)
-        if len(data) < 8:
-            return 0
-        return struct.unpack(">Q", data)[0]
+        return self._read_numeric(8, ">Q")
 
     def writeUInt64(self, i: int) -> None:
-        self._write(struct.pack(">Q", i))
+        self._write_numeric(">Q", i)
 
     def readInt(self) -> int:
         return self.readInt32()
@@ -382,22 +369,16 @@ class QDataStream:
     # --- Float read/write ---
 
     def readFloat(self) -> float:
-        data = self._read(4)
-        if len(data) < 4:
-            return 0.0
-        return struct.unpack(">f", data)[0]
+        return self._read_numeric(4, ">f", 0.0)
 
     def writeFloat(self, f: float) -> None:
-        self._write(struct.pack(">f", f))
+        self._write_numeric(">f", f)
 
     def readDouble(self) -> float:
-        data = self._read(8)
-        if len(data) < 8:
-            return 0.0
-        return struct.unpack(">d", data)[0]
+        return self._read_numeric(8, ">d", 0.0)
 
     def writeDouble(self, f: float) -> None:
-        self._write(struct.pack(">d", f))
+        self._write_numeric(">d", f)
 
     def readBool(self) -> bool:
         data = self._read(1)

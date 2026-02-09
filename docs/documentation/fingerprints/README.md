@@ -58,7 +58,7 @@ api = API.TelegramMacOS.Generate()
 
 ### Web Clients (Browser Fingerprints)
 
-Web APIs (`TelegramWeb_Z`, `TelegramWeb_A`, `TelegramWeb_K`, `Webogram`) now support fingerprint generation using the [browserforge](https://github.com/nicegamer7/browserforge) library. This generates realistic browser User-Agent strings as the `device_model`.
+Web APIs (`TelegramWeb_A`, `TelegramWeb_K`, `Webogram`) now support fingerprint generation using the [browserforge](https://github.com/nicegamer7/browserforge) library. This generates realistic browser User-Agent strings as the `device_model`.
 
 ???+ info "Install browserforge"
     Browser fingerprint generation requires the `browserforge` package:
@@ -72,11 +72,6 @@ Web APIs (`TelegramWeb_Z`, `TelegramWeb_A`, `TelegramWeb_K`, `Webogram`) now sup
 
 ```python
 from opentele2.api import API
-
-# Web Z — random User-Agent + OS name as system_version
-api = API.TelegramWeb_Z.Generate()
-# e.g. device_model="Mozilla/5.0 (Windows NT 10.0; ...) Chrome/145.0.0.0 Safari/537.36"
-#      system_version="Windows"
 
 # Web A — same behavior as Web Z
 api = API.TelegramWeb_A.Generate()
@@ -106,7 +101,6 @@ The web client fingerprint system:
 
 | Client | `system_version` style | `app_version` | `lang_pack` |
 | :--- | :--- | :--- | :--- |
-| Web Z | OS name (`"Windows"`) | `"5.0.0 Z"` | `""` |
 | Web A | OS name (`"macOS"`) | `"5.0.0 A"` | `""` |
 | Web K | `navigator.platform` (`"Win32"`) | `"1.4.2 K"` | `"macos"` |
 | Webogram | `navigator.platform` (`"Win32"`) | `"0.7.0"` | `""` |
@@ -117,13 +111,13 @@ All `Generate()` calls accept an optional `unique_id` parameter. When provided, 
 
 ```python
 # Always produces the same fingerprint for this session
-api = API.TelegramWeb_Z.Generate(unique_id="my_session_1")
+api = API.TelegramWeb_A.Generate(unique_id="my_session_1")
 
 # Different unique_id = different fingerprint
-api2 = API.TelegramWeb_Z.Generate(unique_id="my_session_2")
+api2 = API.TelegramWeb_A.Generate(unique_id="my_session_2")
 
 # No unique_id = random each time
-api3 = API.TelegramWeb_Z.Generate()
+api3 = API.TelegramWeb_A.Generate()
 ```
 
 This is useful when you need consistent device info across restarts for the same session.
@@ -224,7 +218,7 @@ from opentele2.tl import TelegramClient
 from opentele2.api import API
 from opentele2.consistency import ConsistencyChecker
 
-api = API.TelegramWeb_Z.Generate()
+api = API.TelegramWeb_A.Generate()
 client = TelegramClient("session.session", api=api)
 await client.connect()
 
@@ -286,7 +280,7 @@ ConnectionClass = TransportRecommendation.get_connection_class()
 from opentele2.tl import TelegramClient
 from opentele2.api import API
 
-api = API.TelegramWeb_Z.Generate()
+api = API.TelegramWeb_A.Generate()
 client = TelegramClient("session.session", api=api, connection=ConnectionClass)
 ```
 

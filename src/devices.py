@@ -109,6 +109,19 @@ class SystemInfo(BaseObject):
         return [DeviceInfo(m, v) for m in models for v in versions]
 
     @classmethod
+    def _build_weighted_device_list(
+        cls, models: List[str], versions: List[str], weights: dict
+    ) -> List[DeviceInfo]:
+        result = []
+        for m in models:
+            w = weights.get(m, 1)
+            for v in versions:
+                device = DeviceInfo(m, v)
+                for _ in range(w):
+                    result.append(device)
+        return result
+
+    @classmethod
     def _gen_cartesian(cls):
         if not cls.deviceList:
             cls.deviceList = cls._build_device_list(
@@ -120,7 +133,8 @@ _desktop_data = _load_device_data("desktop.json")
 
 
 class GeneralDesktopDevice(SystemInfo):
-    device_models = _desktop_data["models"]
+    device_models = [e["model"] for e in _desktop_data["models"]]
+    _model_weights = {e["model"]: e.get("weight", 1) for e in _desktop_data["models"]}
 
 
 class WindowsDevice(GeneralDesktopDevice):
@@ -130,10 +144,15 @@ class WindowsDevice(GeneralDesktopDevice):
     @classmethod
     def __gen__(cls: Type[WindowsDevice]) -> None:
         if not cls.deviceList:
-            cleaned = [
-                cls._CleanAndSimplify(m.replace("_", "")) for m in cls.device_models
-            ]
-            cls.deviceList = cls._build_device_list(cleaned, cls.system_versions)
+            cleaned_models = []
+            cleaned_weights = {}
+            for m in cls.device_models:
+                c = cls._CleanAndSimplify(m.replace("_", ""))
+                cleaned_models.append(c)
+                cleaned_weights[c] = cls._model_weights.get(m, 1)
+            cls.deviceList = cls._build_weighted_device_list(
+                cleaned_models, cls.system_versions, cleaned_weights
+            )
 
 
 class LinuxDevice(GeneralDesktopDevice):
@@ -145,81 +164,108 @@ class LinuxDevice(GeneralDesktopDevice):
         if cls.system_versions:
             return
 
-        linux_distros = _desktop_data.get("linuxDistros")
+        linux_distros = _desktop_data["linuxDistros"]
+        enviroments = _desktop_data["environments"]
+        wayland = _desktop_data["wayland"]
 
-        if linux_distros:
-            enviroments = _desktop_data["environments"]
-            wayland = _desktop_data["wayland"]
+        versions = []
+        for distro_name, distro_info in linux_distros.items():
+            kernel = distro_info["kernel"]
+            glibc = distro_info["glibc"]
+            distro_weight = distro_info.get("weight", 1)
 
-            versions = []
-            for distro_name, distro_info in linux_distros.items():
-                kernel = distro_info["kernel"]
-                glibc = distro_info["glibc"]
+            for env in enviroments:
+                for wl in wayland:
+                    version = f"Linux {kernel} {distro_name} {env} {wl} glibc {glibc}"
+                    cleaned = cls._CleanAndSimplify(version)
+                    for _ in range(distro_weight):
+                        versions.append(cleaned)
 
-                for env in enviroments:
-                    for wl in wayland:
-                        version = (
-                            f"Linux {kernel} {distro_name} {env} {wl} glibc {glibc}"
-                        )
-                        versions.append(cls._CleanAndSimplify(version))
+        cls.system_versions = versions
 
-            cls.system_versions = versions
-        else:
-            enviroments = _desktop_data["environments"]
-            wayland = _desktop_data["wayland"]
-            libcNames = _desktop_data["libcNames"]
-            libcVers = _desktop_data["libcVersions"]
-
-            def cartesian_join(groups: List[List[str]], prefix: str = "") -> List[str]:
-                prefix = "" if prefix == "" else prefix + " "
-                if len(groups) == 1:
-                    return [prefix + item for item in groups[0]]
-                results = []
-                for item in groups[0]:
-                    results.extend(cartesian_join(groups[1:], prefix + item))
-                return results
-
-            libcFullNames = cartesian_join([libcNames, libcVers], "")
-            cls.system_versions = cartesian_join(
-                [enviroments, wayland, libcFullNames], "Linux"
-            )
-
-        cls.deviceList = cls._build_device_list(cls.device_models, cls.system_versions)
+        cls.deviceList = cls._build_weighted_device_list(
+            cls.device_models, cls.system_versions, cls._model_weights
+        )
 
 
 _mac_data = _load_device_data("mac.json")
 
 
 class macOSDevice(GeneralDesktopDevice):
-    device_models = _mac_data["models"]
-    system_versions = _mac_data["versions"]
+    device_models = [e["model"] for e in _mac_data["models"]]
+    _model_weights = {e["model"]: e.get("weight", 1) for e in _mac_data["models"]}
+    system_versions = [e["version"] for e in _mac_data["versions"]]
+    _version_weights = {e["version"]: e.get("weight", 1) for e in _mac_data["versions"]}
     deviceList: List[DeviceInfo] = []
 
     @classmethod
     def __gen__(cls: Type[macOSDevice]) -> None:
         if not cls.deviceList:
             seen = []
+            seen_weights = {}
             for model in cls.device_models:
                 name = cls._CleanAndSimplify(_mac_identifier_to_name(model))
                 if name not in seen:
                     seen.append(name)
+                    seen_weights[name] = cls._model_weights.get(model, 1)
+                else:
+                    existing_w = seen_weights.get(name, 1)
+                    new_w = cls._model_weights.get(model, 1)
+                    if new_w > existing_w:
+                        seen_weights[name] = new_w
+
+            weighted_versions = []
+            for v in cls.system_versions:
+                w = cls._version_weights.get(v, 1)
+                for _ in range(w):
+                    weighted_versions.append(v)
+
             cls.device_models = seen
-            cls.deviceList = cls._build_device_list(
-                cls.device_models, cls.system_versions
+            cls.deviceList = cls._build_weighted_device_list(
+                cls.device_models, weighted_versions, seen_weights
             )
 
 
 _android_data = _load_device_data("android.json")
 
+# SDK level to Android version string
+_SDK_TO_ANDROID = {
+    24: "7",
+    25: "7.1",
+    26: "8",
+    27: "8.1",
+    28: "9",
+    29: "10",
+    30: "11",
+    31: "12",
+    32: "12",
+    33: "13",
+    34: "14",
+    35: "15",
+}
+
 
 class AndroidDevice(SystemInfo):
-    device_models = _android_data["models"]
-    system_versions = _android_data["versions"]
+    _devices = _android_data["devices"]
     deviceList: List[DeviceInfo] = []
 
     @classmethod
     def __gen__(cls: Type[AndroidDevice]) -> None:
-        cls._gen_cartesian()
+        if cls.deviceList:
+            return
+        result = []
+        for entry in cls._devices:
+            model = entry["model"]
+            min_sdk = entry["min_sdk"]
+            max_sdk = entry["max_sdk"]
+            weight = entry.get("weight", 1)
+            for sdk in range(min_sdk, max_sdk + 1):
+                ver_str = _SDK_TO_ANDROID.get(sdk)
+                if ver_str:
+                    device = DeviceInfo(model, f"SDK {sdk}")
+                    for _ in range(weight):
+                        result.append(device)
+        cls.deviceList = result
 
 
 class IOSDevice(SystemInfo):
@@ -308,6 +354,26 @@ class IOSDevice(SystemInfo):
         17: [26],
     }
 
+    # Weight multipliers for iOS major versions based on market share (Jan 2026).
+    # iOS 26.x ~67%, iOS 18.x ~28%, iOS 17.x ~3%, iOS 16.x ~2%, older <1%.
+    _MAJOR_VERSION_WEIGHTS: Dict[int, int] = {
+        26: 10,
+        25: 1,
+        24: 1,
+        23: 1,
+        22: 1,
+        21: 1,
+        20: 1,
+        19: 1,
+        18: 5,
+        17: 2,
+        16: 1,
+        15: 1,
+        14: 1,
+        13: 1,
+        12: 1,
+    }
+
     deviceList: List[DeviceInfo] = []
 
     @classmethod
@@ -357,26 +423,54 @@ class IOSDevice(SystemInfo):
                 )
 
         results: List[DeviceInfo] = []
+        seen_versions: set = set()
 
-        for id_model, model_suffixes in cls.device_models.items():
-            available_versions = cls._IOS_VERSION_MAP.get(id_model, [12, 13, 14, 15])
-            display_id = "X" if id_model == 10 else str(id_model)
-
-            for suffix in model_suffixes:
-                device_model = f"iPhone {display_id}{suffix}"
-
-                for major in available_versions:
-                    if major not in cls.system_versions:
-                        continue
-
-                    for minor, patches in cls.system_versions[major].items():
-                        for ver in cls._expand_versions(major, minor, patches):
-                            results.append(DeviceInfo(device_model, ver))
+        # Real iOS client sends just "iPhone" as device_model
+        # (UIDevice.current.localizedModel), so we only need unique iOS versions.
+        # Weight each version by its major version's market share.
+        for major in sorted(cls.system_versions.keys()):
+            weight = cls._MAJOR_VERSION_WEIGHTS.get(major, 1)
+            for minor, patches in cls.system_versions[major].items():
+                for ver in cls._expand_versions(major, minor, patches):
+                    if ver not in seen_versions:
+                        seen_versions.add(ver)
+                        device = DeviceInfo("iPhone", ver)
+                        for _ in range(weight):
+                            results.append(device)
 
         cls.deviceList = results
 
 
 iOSDevice = IOSDevice
+
+
+def _get_firefox_latest_version():
+    """Fetch latest Firefox major version from Mozilla product-details.
+
+    Returns (max_version, min_version) tuple where min = max - 3.
+    Falls back to (None, None) on failure.
+    """
+    import urllib.request
+    from urllib.error import HTTPError
+
+    url = "https://product-details.mozilla.org/1.0/firefox_versions.json"
+    try:
+        with urllib.request.urlopen(url, timeout=12) as response:
+            if response.getcode() != 200:
+                return None, None
+            data = response.read()
+            text = data.decode("utf-8")
+            try:
+                versions = json.loads(text)
+            except json.JSONDecodeError:
+                return None, None
+            latest = versions.get("LATEST_FIREFOX_VERSION", "")
+            if not latest:
+                return None, None
+            major = int(latest.split(".")[0])
+            return major, major - 3
+    except (HTTPError, Exception):
+        return None, None
 
 
 def _get_chrome_last_good_versions():
@@ -434,12 +528,24 @@ class WebBrowserDevice(SystemInfo):
     Produces DeviceInfo where:
     - model = full User-Agent string
     - version = OS name (for Web Z/A) or navigator.platform (for Web K)
+
+    Browser selection is weighted by global desktop market share
+    (Statcounter, January 2026).
     """
+
+    # Chrome ~76%, Edge ~9%, Firefox ~4%
+    BROWSER_WEIGHTS: Dict[str, int] = {
+        "chrome": 19,
+        "edge": 2,
+        "firefox": 1,
+    }
 
     deviceList: List[DeviceInfo] = []
     _k_deviceList: List[DeviceInfo] = []
     _generated = False
     _max_chromium = 145
+    _firefox_max = 147
+    _firefox_min = 144
 
     @classmethod
     def _fetch_max_chromium(cls) -> int:
@@ -469,34 +575,79 @@ class WebBrowserDevice(SystemInfo):
         cls._max_chromium = cls._fetch_max_chromium()
         max_v = cls._max_chromium
 
-        chrome_min = max_v - _rnd.randint(2, 5)
-        edge_min = max_v - _rnd.randint(3, 6)
-        firefox_min = max_v - _rnd.randint(5, 8)
+        chrome_min = max_v - _rnd.randint(2, 4)
 
-        browsers = [
-            Browser(name="chrome", min_version=chrome_min, max_version=max_v),
-            Browser(name="edge", min_version=edge_min, max_version=max_v),
-            Browser(name="firefox", min_version=firefox_min, max_version=max_v - 3),
+        ff_max, ff_min = _get_firefox_latest_version()
+        if ff_max is not None:
+            cls._firefox_max = ff_max
+            cls._firefox_min = ff_min
+        ff_max = cls._firefox_max
+        ff_min = cls._firefox_min
+
+        # Per-browser generation configs.
+        # Each browser gets its own HeaderGenerator so we control the
+        # exact proportion of UAs via BROWSER_WEIGHTS.
+        browser_configs = [
+            {
+                "name": "chrome",
+                "browser": Browser(
+                    name="chrome", min_version=chrome_min, max_version=max_v
+                ),
+                "os": ("windows", "macos", "linux"),
+                "count": 60,
+            },
+            {
+                "name": "edge",
+                "browser": Browser(
+                    name="edge", min_version=chrome_min - 2, max_version=max_v
+                ),
+                "os": ("windows", "macos"),
+                "count": 30,
+            },
+            {
+                "name": "firefox",
+                "browser": Browser(
+                    name="firefox", min_version=ff_min, max_version=ff_max
+                ),
+                "os": ("windows", "macos", "linux"),
+                "count": 20,
+            },
         ]
 
-        gen = HeaderGenerator(browser=browsers, os=("windows", "macos"))
+        z_a_list: List[DeviceInfo] = []
+        k_list: List[DeviceInfo] = []
+        seen_uas: set = set()
 
-        z_a_list = []
-        k_list = []
-        seen_uas = set()
-
-        for _ in range(200):
-            headers = gen.generate()
-            ua = headers.get("User-Agent", "")
-            if not ua or ua in seen_uas:
+        for cfg in browser_configs:
+            weight = cls.BROWSER_WEIGHTS.get(cfg["name"], 1)
+            try:
+                gen = HeaderGenerator(
+                    browser=[cfg["browser"]],
+                    os=cfg["os"],
+                    device="desktop",
+                )
+            except Exception:
                 continue
-            seen_uas.add(ua)
 
-            os_name = _parse_os_from_ua(ua)
-            platform_name = _parse_platform_from_ua(ua)
+            for _ in range(cfg["count"]):
+                try:
+                    headers = gen.generate()
+                except Exception:
+                    continue
+                ua = headers.get("User-Agent", "")
+                if not ua or ua in seen_uas:
+                    continue
+                seen_uas.add(ua)
 
-            z_a_list.append(DeviceInfo(ua, os_name))
-            k_list.append(DeviceInfo(ua, platform_name))
+                os_name = _parse_os_from_ua(ua)
+                platform_name = _parse_platform_from_ua(ua)
+
+                z_device = DeviceInfo(ua, os_name)
+                k_device = DeviceInfo(ua, platform_name)
+
+                for _ in range(weight):
+                    z_a_list.append(z_device)
+                    k_list.append(k_device)
 
         if not z_a_list:
             default_ua = (

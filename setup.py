@@ -4,7 +4,7 @@ from setuptools import setup
 README = (pathlib.Path(__file__).parent / "README.md").read_text()
 
 PACKAGE_NAME = "opentele2"
-VERSION = "1.1.0"
+VERSION = "1.1.5"
 SOURCE_DIRECTORY = "src"
 
 setup(

@@ -43,6 +43,3 @@ It's also used to encrypt and decrypt local tdata<br>
 | <span class="highlight"><span class="nc">DcId</span></span> | <span class="highlight"><span class="nc">DcId</span></span> | Data Center ID (from 1 to 5). |
 | <span class="highlight"><span class="bp">type</span></span> | <a class="codehl codehl_obj" href="#td.auth.AuthKeyType"><b>AuthKeyType</b></a> | Type of the key. |
 | <span class="highlight"><span class="n">key</span></span> | <span class="highlight"><span class="bp">bytes</span></span> | The actual key, 256 <span class="highlight"><span class="bp">bytes</span></span> in length. |
-
-
-

@@ -18,10 +18,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, List, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass  # avoid circular imports
+from typing import Any, List
 
 __all__ = [
     "ConsistencyChecker",
@@ -85,6 +82,7 @@ class ConsistencyChecker:
 
         checks = [
             self.check_get_config,
+            self.check_nearest_dc,
             self.check_current_session,
             self.check_layer_match,
             self.check_lang_pack,
@@ -135,6 +133,33 @@ class ConsistencyChecker:
                 name="get_config",
                 passed=False,
                 detail=f"Server rejected getConfig: {e}",
+            )
+
+    async def check_nearest_dc(self) -> CheckResult:
+        """Call ``help.getNearestDc`` — official clients do this after connect.
+
+        Returns the nearest DC and the country the server thinks we're in.
+        This is a critical post-login call that every official client makes.
+        """
+        from telethon import functions
+
+        try:
+            result = await self._client(functions.help.GetNearestDcRequest())
+            return CheckResult(
+                name="nearest_dc",
+                passed=True,
+                detail=(
+                    f"country='{result.country}', "
+                    f"this_dc={result.this_dc}, "
+                    f"nearest_dc={result.nearest_dc}"
+                ),
+                server_response=result,
+            )
+        except Exception as e:
+            return CheckResult(
+                name="nearest_dc",
+                passed=False,
+                detail=f"Error calling getNearestDc: {e}",
             )
 
     async def check_current_session(self) -> CheckResult:
@@ -190,6 +215,15 @@ class ConsistencyChecker:
         )
         return CheckResult(name="layer_match", passed=passed, detail=detail)
 
+    def _get_sender_lang_pack(self) -> str:
+        sender = getattr(self._client, "_sender", None)
+        if sender is None:
+            return ""
+        init_req = getattr(sender, "_init_request", None)
+        if init_req is None:
+            return ""
+        return getattr(init_req, "lang_pack", "")
+
     async def check_lang_pack(self) -> CheckResult:
         """Verify that the lang_pack used at initConnection is valid.
 
@@ -198,16 +232,7 @@ class ConsistencyChecker:
         """
         from telethon import functions
 
-        # Retrieve the lang_pack from the client's API settings
-        lang_pack = getattr(self._client, "_sender", None)
-        if lang_pack is not None:
-            lang_pack = getattr(lang_pack, "_init_request", None)
-            if lang_pack is not None:
-                lang_pack = getattr(lang_pack, "lang_pack", "")
-            else:
-                lang_pack = ""
-        else:
-            lang_pack = ""
+        lang_pack = self._get_sender_lang_pack()
 
         if not lang_pack:
             return CheckResult(

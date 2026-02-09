@@ -133,7 +133,6 @@ class API(BaseObject)
 | <a class="codehl codehl_obj" href="#api.API.TelegramAndroidX"><b>TelegramAndroidX</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official TelegramX for Android [View on GitHub](https://github.com/DrKLO/Telegram) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramIOS"><b>TelegramIOS</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram for iOS [View on GitHub](https://github.com/TelegramMessenger/Telegram-iOS) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramMacOS"><b>TelegramMacOS</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram-Swift For MacOS [View on GitHub](https://github.com/overtake/TelegramSwift) |
-| <a class="codehl codehl_obj" href="#api.API.TelegramWeb_Z"><b>TelegramWeb_Z</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Default Official Telegram Web Z For Browsers [View on GitHub](https://github.com/Ajaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/z/) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramWeb_A"><b>TelegramWeb_A</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram Web A For Browsers [View on GitHub](https://github.com/AJaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/a/) |
 | <a class="codehl codehl_obj" href="#api.API.TelegramWeb_K"><b>TelegramWeb_K</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Official Telegram Web K For Browsers [View on GitHub](https://github.com/morethanwords/tweb)| [Visit on Telegram](https://web.telegram.org/k/) |
 | <a class="codehl codehl_obj" href="#api.API.Webogram"><b>Webogram</b></a> | <a class="codehl codehl_obj" href="#api.API"><b>API</b></a> | Old Telegram For Browsers [View on GitHub](https://github.com/zhukov/webogram)| [Vist on Telegram](https://web.telegram.org/?legacy=1#/im) |
@@ -325,40 +324,6 @@ Official Telegram-Swift For MacOS
 | <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
 | <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">macos</span></span><span class="highlight"><span class="s2">"</span></span> |
 
-
-
-<a id="api.API.TelegramWeb_Z"></a>
-
-
----
-### <span class="highlight"><span class="k">class </span></span><span class="highlight"><span class="nc">TelegramWeb_Z</span></span><a class="source-link" href="https://github.com/DedInc/opentele2/blob/9e18947bea63265404745db4428d49bdf50649e3/src/api.py#L546" title="Source"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M3 3a2 2 0 0 1 2-2h9.982a2 2 0 0 1 1.414.586l4.018 4.018A2 2 0 0 1 21 7.018V21a2 2 0 0 1-2 2H4.75a.75.75 0 0 1 0-1.5H19a.5.5 0 0 0 .5-.5V8.5h-4a2 2 0 0 1-2-2v-4H5a.5.5 0 0 0-.5.5v6.25a.75.75 0 0 1-1.5 0V3zm12-.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 0-.146-.336l-4.018-4.018A.5.5 0 0 0 15 2.5z"></path><path d="M4.53 12.24a.75.75 0 0 1-.039 1.06l-2.639 2.45 2.64 2.45a.75.75 0 1 1-1.022 1.1l-3.23-3a.75.75 0 0 1 0-1.1l3.23-3a.75.75 0 0 1 1.06.04zm3.979 1.06a.75.75 0 1 1 1.02-1.1l3.231 3a.75.75 0 0 1 0 1.1l-3.23 3a.75.75 0 1 1-1.021-1.1l2.639-2.45-2.64-2.45z"></path></svg></span></a>
-
-```python
-class TelegramWeb_Z(APIData)
-```
-
-Default Official Telegram Web Z For Browsers<br>
-[View on GitHub](https://github.com/Ajaxy/telegram-tt)| [Visit on Telegram](https://web.telegram.org/z/)
-<h3>Attributes:</h3>
-
-| Name | Type | Description |
-| :--- | :--: | :---------- |
-| <span class="highlight"><span class="n">api_id</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">2496</span></span> |
-| <span class="highlight"><span class="n">api_hash</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">8da85b0d5bfe62527e5b244c209159c3</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">device_model</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">system_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">Windows</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">app_version</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">5.0.0 Z</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">system_lang_code</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">en-US</span></span><span class="highlight"><span class="s2">"</span></span> |
-| <span class="highlight"><span class="n">lang_pack</span></span> | <span class="highlight"><span class="bp">str</span></span> | <span class="highlight"><span class="s2">"</span></span><span class="highlight"><span class="s2">"</span></span> |
-
-<h3>Methods:</h3>
-
-- <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
-Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
-
-
-
 <a id="api.API.TelegramWeb_A"></a>
 
 
@@ -452,6 +417,3 @@ Old Telegram For Browsers<br>
 
 - <a class="codehl codehl_function" href="#api.APIData.Generate"><b>Generate</b></a><span class="highlight"><span class="o">(</span></span><span class="highlight"><span class="p">)</span></span> <span class="highlight"><span class="p">:</span></span> \
 Generate random browser User-Agent fingerprint. Requires <span class="highlight"><span class="n">browserforge</span></span>. See [Fingerprints](../fingerprints/).
-
-
-

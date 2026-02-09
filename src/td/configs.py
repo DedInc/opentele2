@@ -7,7 +7,6 @@ from typing import Union
 
 
 __all__ = [
-    # From configs.py itself
     "BareId",
     "ChatIdType",
     "UserId",

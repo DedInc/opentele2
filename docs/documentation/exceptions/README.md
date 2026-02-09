@@ -386,6 +386,3 @@ Expect a condition to be <span class="highlight"><span class="kc">True</span></s
 <h3>Raises:</h3>
 
 <a class="codehl codehl_obj" href="#exception.OpenTeleException"><b>OpenTeleException</b></a> : exception
-
-
-

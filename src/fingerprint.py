@@ -28,11 +28,8 @@ __all__ = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Current TL Layer — update this with each major Telegram release
-# ---------------------------------------------------------------------------
-# Official schema layer as of February 2026 (from core.telegram.org/schema)
-LAYER: int = 214
+LAYER: int = 216
+
 
 # Telethon may be slightly ahead or behind; we track both so the library
 # can warn when they diverge significantly.
@@ -71,43 +68,44 @@ def get_recommended_layer() -> int:
     return telethon_layer
 
 
-# ---------------------------------------------------------------------------
-# Per-platform version constants — updated February 2026
-# ---------------------------------------------------------------------------
-# These reflect the *latest stable* versions of official Telegram clients.
-# When a new release is pushed to Google Play / App Store / GitHub, update
-# the matching entry here.
-
-
-@dataclass(frozen=True)
+@dataclass
 class PlatformVersions:
-    """Tracks the latest known official client versions per platform."""
+    """Tracks the latest known official client versions per platform.
+
+    Default values serve as fallbacks when network fetching is unavailable.
+    On first import the module attempts to fetch the latest versions from
+    official sources (see :mod:`src.version_fetcher`) and patches this
+    singleton in-place.
+    """
 
     # Telegram for Android (Google Play / GitHub)
-    android_app_version: str = "12.3.0"
+    android_app_version: str = "12.4.1"
     android_app_version_code: int = 57428  # build code sent in some requests
-    android_sdk_range: Tuple[int, int] = (29, 35)  # API 29 (Android 10) – 35 (15)
+    android_sdk_range: Tuple[int, int] = (24, 35)  # API 24 (Android 7) – 35 (15)
     android_latest_sdk: int = 35
 
     # Telegram for iOS (App Store)
-    ios_app_version: str = "12.3"
-    ios_build_number: int = 35198
+    ios_app_version: str = "12.3.1"
+    ios_build_number: int = 32078
     ios_version_range: Tuple[str, str] = ("16.0", "26.2")
 
+    # iOS / macOS system versions (used in API class system_version fields)
+    ios_system_version: str = "26.2"
+    macos_system_version: str = "macOS 26.2"
+
     # Telegram Desktop (GitHub releases)
-    desktop_app_version: str = "5.12.3"
+    desktop_app_version: str = "6.5"
     desktop_app_version_suffix: str = "x64"  # or empty for 32-bit
 
     # Telegram macOS (Swift, App Store)
-    macos_app_version: str = "12.3"
-    macos_build_number: int = 256120
+    macos_app_version: str = "12.4.1"
+    macos_build_number: int = 277873
 
     # TelegramX for Android
-    android_x_app_version: str = "12.3.0"
+    android_x_app_version: str = "12.4.1"
 
     # Web clients
-    web_z_version: str = "5.0.0 Z"
-    web_a_version: str = "5.0.0 A"
+    web_a_version: str = "12.0.17 A"
     web_k_version: str = "1.4.2 K"
 
     # Chrome user-agent for web clients (keep updated)
@@ -119,27 +117,40 @@ class PlatformVersions:
     )
 
 
-# Singleton — import ``PLATFORM_VERSIONS`` for the latest known values.
 PLATFORM_VERSIONS = PlatformVersions()
+
+
+def _apply_fetched_versions() -> None:
+    """Fetch latest versions and patch the singleton in-place."""
+    try:
+        from .version_fetcher import fetch_all_versions
+
+        fetched = fetch_all_versions()
+        if not fetched:
+            return
+
+        pv = PLATFORM_VERSIONS
+        for key, val in fetched.items():
+            if hasattr(pv, key):
+                setattr(pv, key, val)
+
+        # Keep ios_version_range upper bound in sync
+        if "ios_system_version" in fetched:
+            pv.ios_version_range = (
+                pv.ios_version_range[0],
+                str(fetched["ios_system_version"]),
+            )
+    except Exception:
+        pass  # keep defaults on any failure
+
+
+_apply_fetched_versions()
 
 
 def get_platform_versions() -> PlatformVersions:
     """Return the current platform version constants."""
     return PLATFORM_VERSIONS
 
-
-# ---------------------------------------------------------------------------
-# initConnection field-order specification (per official client source)
-# ---------------------------------------------------------------------------
-# The TL constructor ``initConnection#c1cd5ea9`` has a strict binary field
-# order. Telethon handles this correctly, but we document it here for
-# auditing and strict-mode validation.
-#
-# Field order (flags-based):
-#   flags:#  api_id:int  device_model:string  system_version:string
-#   app_version:string  system_lang_code:string  lang_pack:string
-#   lang_code:string  proxy:flags.0?InputClientProxy
-#   params:flags.1?JSONValue  query:!X
 
 _INIT_CONNECTION_FIELD_ORDER = [
     "api_id",
@@ -247,12 +258,23 @@ def _check_version_consistency(
     """Deep consistency check for strict mode."""
     pv = PLATFORM_VERSIONS
 
-    if lang_pack == "android":
-        if not app_version.startswith(pv.android_app_version.split(".")[0]):
+    _PLATFORM_VERSION_MAP = {
+        "android": ("android_app_version", "Android"),
+        "ios": ("ios_app_version", "iOS"),
+        "tdesktop": ("desktop_app_version", "Desktop"),
+        "macos": ("macos_app_version", "macOS"),
+    }
+
+    if lang_pack in _PLATFORM_VERSION_MAP:
+        attr, label = _PLATFORM_VERSION_MAP[lang_pack]
+        known_version = getattr(pv, attr)
+        if not app_version.startswith(known_version.split(".")[0]):
             issues.append(
-                f"Android app_version '{app_version}' major does not match "
-                f"latest known '{pv.android_app_version}'"
+                f"{label} app_version '{app_version}' major does not match "
+                f"latest known '{known_version}'"
             )
+
+    if lang_pack == "android":
         if "SDK" in system_version:
             try:
                 sdk_num = int(system_version.replace("SDK ", ""))
@@ -264,32 +286,21 @@ def _check_version_consistency(
                     )
             except ValueError:
                 pass
+        else:
+            import re
 
-    elif lang_pack == "ios":
-        if not app_version.startswith(pv.ios_app_version.split(".")[0]):
-            issues.append(
-                f"iOS app_version '{app_version}' major does not match "
-                f"latest known '{pv.ios_app_version}'"
-            )
-
-    elif lang_pack == "tdesktop":
-        if not app_version.startswith(pv.desktop_app_version.split(".")[0]):
-            issues.append(
-                f"Desktop app_version '{app_version}' major does not match "
-                f"latest known '{pv.desktop_app_version}'"
-            )
-
-    elif lang_pack == "macos":
-        if not app_version.startswith(pv.macos_app_version.split(".")[0]):
-            issues.append(
-                f"macOS app_version '{app_version}' major does not match "
-                f"latest known '{pv.macos_app_version}'"
-            )
-
-
-# ---------------------------------------------------------------------------
-# Strict Mode
-# ---------------------------------------------------------------------------
+            m = re.match(r"^\d+(?:\.\d+)?\s*\((\d+)\)$", system_version)
+            if m:
+                try:
+                    sdk_num = int(m.group(1))
+                    lo, hi = pv.android_sdk_range
+                    if not (lo <= sdk_num <= hi):
+                        issues.append(
+                            f"Android SDK {sdk_num} is outside the expected "
+                            f"range [{lo}, {hi}]"
+                        )
+                except ValueError:
+                    pass
 
 
 class StrictMode(Enum):
@@ -306,7 +317,6 @@ class StrictMode(Enum):
     server-side."""
 
 
-# Global configuration
 @dataclass
 class FingerprintConfig:
     """Global fingerprint configuration for the opentele2 session.
@@ -376,13 +386,7 @@ class FingerprintConfig:
             warnings.warn(msg, stacklevel=3)
 
 
-# Module-level default config
 DEFAULT_CONFIG = FingerprintConfig()
-
-
-# ---------------------------------------------------------------------------
-# Transport Recommendations
-# ---------------------------------------------------------------------------
 
 
 class TransportRecommendation:
@@ -417,43 +421,21 @@ class TransportRecommendation:
     @staticmethod
     def get_available_transports() -> Dict[str, Any]:
         """List all available Telethon transport classes."""
+        _TRANSPORT_MODULES = {
+            "full": "telethon.network.connection.tcpfull.ConnectionTcpFull",
+            "abridged": "telethon.network.connection.tcpabridged.ConnectionTcpAbridged",
+            "intermediate": "telethon.network.connection.tcpintermediate.ConnectionTcpIntermediate",
+            "obfuscated": "telethon.network.connection.tcpobfuscated.ConnectionTcpObfuscated",
+        }
         transports = {}
-        try:
-            from telethon.network.connection.tcpfull import ConnectionTcpFull
-
-            transports["full"] = ConnectionTcpFull
-        except ImportError:
-            pass
-        try:
-            from telethon.network.connection.tcpabridged import (
-                ConnectionTcpAbridged,
-            )
-
-            transports["abridged"] = ConnectionTcpAbridged
-        except ImportError:
-            pass
-        try:
-            from telethon.network.connection.tcpintermediate import (
-                ConnectionTcpIntermediate,
-            )
-
-            transports["intermediate"] = ConnectionTcpIntermediate
-        except ImportError:
-            pass
-        try:
-            from telethon.network.connection.tcpobfuscated import (
-                ConnectionTcpObfuscated,
-            )
-
-            transports["obfuscated"] = ConnectionTcpObfuscated
-        except ImportError:
-            pass
+        for name, full_path in _TRANSPORT_MODULES.items():
+            try:
+                module_path, class_name = full_path.rsplit(".", 1)
+                module = __import__(module_path, fromlist=[class_name])
+                transports[name] = getattr(module, class_name)
+            except ImportError:
+                pass
         return transports
-
-
-# ---------------------------------------------------------------------------
-# msg_id helpers (for auditing, not direct patching of Telethon)
-# ---------------------------------------------------------------------------
 
 
 def generate_msg_id_offset() -> int:

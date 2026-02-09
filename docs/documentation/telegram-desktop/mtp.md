@@ -224,6 +224,3 @@ Configuration of MTProto<br>
 | Name | Type | Description |
 | :--- | :--: | :---------- |
 | <span class="highlight"><span class="n">kVersion</span></span> | <span class="highlight"><span class="bp">int</span></span> | <span class="highlight"><span class="mi">1</span></span> |
-
-
-

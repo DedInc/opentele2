@@ -359,7 +359,6 @@ class Storage(BaseObject):
 
         return result
 
-    # Mapping of legacy int32-read settings to their context attribute names
     _LEGACY_INT32_SETTINGS = {
         dbi.ChatSizeMaxOld: "fallbackConfigLegacyChatSizeMax",
         dbi.SavedGifsLimitOld: "fallbackConfigLegacySavedGifsLimit",

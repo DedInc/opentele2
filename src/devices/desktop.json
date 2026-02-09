@@ -1,180 +1,132 @@
 {
     "models": [
-        "Dell XPS 14 9440",
-        "Dell XPS 13 9340",
-        "Dell XPS 16 9640",
-        "Dell XPS 13 Plus 9320 (2025)",
-        "Dell Inspiron 14 Plus 7440",
-        "Dell Latitude 7450",
-        "Dell Alienware m16 R2",
-        "Dell Alienware m18 R2",
-        "Dell Alienware x16 R2",
-        "Lenovo ThinkPad X1 Carbon Gen 12",
-        "Lenovo ThinkPad X1 Carbon Gen 13",
-        "Lenovo ThinkPad T14 Gen 5",
-        "Lenovo ThinkPad T14s Gen 6",
-        "Lenovo Yoga 9i 14 Gen 9",
-        "Lenovo Yoga Pro 9i 16",
-        "Lenovo Legion Pro 7i Gen 9",
-        "Lenovo Legion 9i 16",
-        "Lenovo Legion 5i 16 Gen 9",
-        "ASUS ROG Zephyrus G14 (2024)",
-        "ASUS ROG Zephyrus G14 (2025)",
-        "ASUS ROG Zephyrus G16 (2025)",
-        "ASUS ROG Zephyrus M16 (2025)",
-        "ASUS ROG Strix G16 (2025)",
-        "ASUS ROG Strix Scar 18 (2025)",
-        "ASUS Zenbook 14 OLED UX3405",
-        "ASUS Zenbook Duo UX8406",
-        "ASUS Vivobook 16 X1605",
-        "MSI Katana 15 HX (2025)",
-        "MSI Stealth 16 AI Studio",
-        "MSI Raider GE78 HX",
-        "MSI Vector 17 HX",
-        "MSI Pulse 17 AI",
-        "MSI Prestige 16 AI Evo",
-        "Acer Predator Helios 18 (2025)",
-        "Acer Predator Helios Neo 16",
-        "Acer Nitro 17 AN17-72",
-        "Acer Swift Go 14 SFG14-73",
-        "Acer Swift X 14 SFX14-72G",
-        "HP OMEN 16 (2025)",
-        "HP OMEN Transcend 14",
-        "HP Spectre x360 14 (2025)",
-        "HP Victus 16 (2025)",
-        "HP EliteBook 1040 G11",
-        "Razer Blade 14 (2025)",
-        "Razer Blade 16 (2025)",
-        "Razer Blade 18 (2025)",
-        "Gigabyte AORUS 17X",
-        "Gigabyte AERO 16 OLED (2025)",
-        "Samsung Galaxy Book5 Pro 360",
-        "Samsung Galaxy Book6 Edge",
-        "LG Gram 17 (2025)",
-        "Microsoft Surface Laptop 7 15",
-        "Microsoft Surface Pro 11",
-        "ASUS ROG Maximus Z890 Hero",
-        "ASUS ROG Strix Z890-E Gaming WiFi",
-        "ASUS Prime Z890-P",
-        "MSI MPG Z890 Carbon WiFi",
-        "MSI MAG Z890 Tomahawk WiFi",
-        "MSI Pro B890-P WiFi",
-        "GIGABYTE Z890 AORUS Master",
-        "GIGABYTE Z890 AORUS Elite WiFi7",
-        "GIGABYTE B860 Gaming X WiFi",
-        "ASRock Z890 Taichi",
-        "ASRock B860 Pro RS",
-        "ASUS ROG Crosshair X870E Hero",
-        "ASUS ProArt X870E-Creator WiFi",
-        "MSI MPG X870E Carbon WiFi",
-        "MSI MAG X870 Tomahawk WiFi",
-        "GIGABYTE X870 AORUS Elite WiFi7",
-        "GIGABYTE B850 AORUS Pro",
-        "Standard PC (i440FX + PIIX, 1996)",
-        "OMEN by HP Laptop 16-b0xxx",
-        "OMEN by HP Laptop 17-ck0xxx",
-        "HP Spectre x360 Convertible 14-ea0xxx",
-        "HP ENVY Laptop 15-ep0xxx",
-        "HP Pavilion Gaming Laptop 15-dk2xxx",
-        "HP EliteBook 840 G8",
-        "HP EliteBook 850 G8",
-        "HP ProBook 450 G8",
-        "HP ProBook 450 G9",
-        "HP ZBook Firefly 15 G8",
-        "Lenovo Legion 5 15ACH6H",
-        "Lenovo Legion 5 Pro 16ACH6H",
-        "Lenovo Legion 7 16ACHg6",
-        "Lenovo ThinkPad X1 Carbon Gen 9",
-        "Lenovo ThinkPad X1 Carbon Gen 10",
-        "Lenovo ThinkPad X1 Yoga Gen 6",
-        "Lenovo ThinkPad T14 Gen 2",
-        "Lenovo ThinkPad T14s Gen 2",
-        "Lenovo ThinkPad E15 Gen 3",
-        "Lenovo ThinkPad L14 Gen 2",
-        "Lenovo Yoga 9 14IAP7",
-        "Lenovo Yoga Slim 7 Pro 14IHU5",
-        "IdeaPad 5 Pro 14ACN6",
-        "Dell XPS 13 9310",
-        "Dell XPS 13 9320",
-        "Dell XPS 15 9500",
-        "Dell XPS 15 9510",
-        "Dell XPS 15 9520",
-        "Dell XPS 17 9710",
-        "Dell G15 5511",
-        "Dell G15 5515",
-        "Dell Inspiron 15 5510",
-        "Dell Inspiron 16 7610",
-        "Dell Latitude 5420",
-        "Dell Latitude 7420",
-        "Dell Precision 5560",
-        "Alienware m15 R5",
-        "Alienware m15 R6",
-        "Alienware x17 R1",
-        "ASUS ROG Zephyrus G14 GA401",
-        "ASUS ROG Zephyrus G14 GA402",
-        "ASUS ROG Zephyrus G15 GA503",
-        "ASUS ROG Zephyrus M16 GU603",
-        "ASUS ROG Strix G15 G513",
-        "ASUS ROG Strix G17 G713",
-        "ASUS ROG Strix SCAR 15 G533",
-        "ASUS TUF Gaming A15 FA506",
-        "ASUS TUF Gaming F15 FX506",
-        "ASUS ZenBook 14 UX425",
-        "ASUS ZenBook Duo 14 UX482",
-        "ASUS VivoBook 15 K513",
-        "MSI GS66 Stealth 11UH",
-        "MSI GE76 Raider 11UH",
-        "MSI GP66 Leopard 11UG",
-        "MSI GF65 Thin 10UE",
-        "MSI Katana GF66 11UD",
-        "MSI Prestige 14 A11SC",
-        "MSI Creator Z16 A11UE",
-        "Acer Nitro 5 AN515-57",
-        "Acer Nitro 5 AN515-58",
-        "Acer Predator Helios 300 PH315-54",
-        "Acer Swift 3 SF314-511",
-        "Acer Swift X SFX14-41G",
-        "Acer Aspire 5 A515-56",
-        "Razer Blade 14 (2021)",
-        "Razer Blade 15 Advanced (2021)",
-        "Razer Blade 15 Base (2021)",
-        "Microsoft Surface Laptop 4",
-        "Microsoft Surface Pro 8",
-        "Microsoft Surface Book 3",
-        "Samsung Galaxy Book Pro",
-        "Samsung Galaxy Book Pro 360",
-        "LG Gram 16 (2021)",
-        "LG Gram 17 (2021)",
-        "Gigabyte AERO 15 OLED",
-        "Gigabyte AORUS 15P",
-        "Gigabyte G5 KC",
-        "ASUS ROG MAXIMUS Z690 HERO",
-        "ASUS ROG STRIX Z690-F GAMING WIFI",
-        "ASUS ROG STRIX B550-F GAMING",
-        "ASUS TUF GAMING X570-PLUS (WI-FI)",
-        "ASUS PRIME Z590-A",
-        "ASUS PRIME B560-PLUS",
-        "ASUS PRIME X570-PRO",
-        "MSI MPG Z690 FORCE WIFI",
-        "MSI MAG Z690 TOMAHAWK WIFI",
-        "MSI MAG B550 TOMAHAWK",
-        "MSI MPG B550 GAMING EDGE WIFI",
-        "MSI PRO Z690-A WIFI",
-        "MSI MEG Z590 ACE",
-        "GIGABYTE Z690 AORUS MASTER",
-        "GIGABYTE Z690 GAMING X",
-        "GIGABYTE B550 AORUS ELITE V2",
-        "GIGABYTE B550M AORUS PRO-P",
-        "GIGABYTE X570S AORUS MASTER",
-        "ASRock Z690 Taichi",
-        "ASRock Z690 Extreme",
-        "ASRock B550 Steel Legend",
-        "ASRock B550M Pro4"
+        {"model": "Desktop", "weight": 10},
+
+        {"model": "H410M H", "weight": 5},
+        {"model": "H410M H V3", "weight": 5},
+        {"model": "H410M S2H", "weight": 4},
+        {"model": "H510M S2H", "weight": 5},
+        {"model": "H510M H", "weight": 5},
+        {"model": "H610M S2H", "weight": 6},
+        {"model": "H610M H", "weight": 6},
+        {"model": "H610M H DDR4", "weight": 4},
+        {"model": "B450M DS3H", "weight": 4},
+        {"model": "B450M S2H", "weight": 3},
+        {"model": "B450 AORUS M", "weight": 2},
+        {"model": "B550M DS3H", "weight": 5},
+        {"model": "B550M DS3H AC", "weight": 3},
+        {"model": "B550 GAMING X", "weight": 2},
+        {"model": "B550 AORUS PRO", "weight": 2},
+        {"model": "A520M S2H", "weight": 3},
+        {"model": "A520M DS3H", "weight": 3},
+        {"model": "B560M DS3H", "weight": 4},
+        {"model": "B660M DS3H", "weight": 5},
+        {"model": "B660M GAMING X", "weight": 3},
+        {"model": "B760M DS3H", "weight": 5},
+        {"model": "B760M GAMING X", "weight": 3},
+        {"model": "B650M DS3H", "weight": 3},
+        {"model": "A620M S2H", "weight": 3},
+        {"model": "Z490M", "weight": 2},
+        {"model": "H470M DS3H", "weight": 3},
+
+        {"model": "PRIME B450M-A", "weight": 4},
+        {"model": "PRIME B550M-A", "weight": 5},
+        {"model": "PRIME B550-PLUS", "weight": 4},
+        {"model": "PRIME A520M-K", "weight": 3},
+        {"model": "PRIME H510M-A", "weight": 5},
+        {"model": "PRIME H610M-A", "weight": 5},
+        {"model": "PRIME H610M-E", "weight": 4},
+        {"model": "PRIME B660M-A", "weight": 4},
+        {"model": "PRIME B760M-A", "weight": 4},
+        {"model": "PRIME B650M-A", "weight": 3},
+        {"model": "PRIME H310M-R", "weight": 3},
+        {"model": "PRIME Z690-P", "weight": 2},
+        {"model": "PRO B660M-C", "weight": 3},
+        {"model": "EX-B660M-V5", "weight": 2},
+
+        {"model": "MS-7C02", "weight": 2},
+        {"model": "MS-7C56", "weight": 2},
+        {"model": "MS-7C95", "weight": 2},
+        {"model": "MS-7D25", "weight": 3},
+        {"model": "MS-7E06", "weight": 3},
+        {"model": "MS-7E07", "weight": 2},
+        {"model": "MS-7D42", "weight": 2},
+        {"model": "MS-7E26", "weight": 2},
+        {"model": "MS-7B86", "weight": 1},
+        {"model": "MS-7B89", "weight": 1},
+        {"model": "MS-7C91", "weight": 1},
+        {"model": "MS-7D75", "weight": 1},
+
+        {"model": "B550M-HDV", "weight": 3},
+        {"model": "B450M-HDV R4.0", "weight": 3},
+        {"model": "B660M-HDV", "weight": 3},
+        {"model": "B760M-HDV", "weight": 3},
+        {"model": "A520M-HVS", "weight": 2},
+        {"model": "H510M-HVS R2.0", "weight": 2},
+        {"model": "H310CM-HDV", "weight": 2},
+        {"model": "B450M Pro4", "weight": 2},
+        {"model": "B650M-HDV/M.2", "weight": 2},
+
+        {"model": "XPS 15 9530", "weight": 3},
+        {"model": "XPS 15 9520", "weight": 2},
+        {"model": "XPS 15 9570", "weight": 2},
+        {"model": "XPS 13 9310", "weight": 2},
+        {"model": "XPS 13 9340", "weight": 2},
+        {"model": "XPS 14 9440", "weight": 2},
+        {"model": "XPS 16 9640", "weight": 1},
+        {"model": "Latitude 5530", "weight": 3},
+        {"model": "Latitude 7440", "weight": 2},
+        {"model": "Vostro 3510", "weight": 3},
+        {"model": "Vostro 3520", "weight": 2},
+        {"model": "OptiPlex 3080", "weight": 3},
+        {"model": "OptiPlex 7090", "weight": 2},
+        {"model": "OptiPlex 5090", "weight": 2},
+
+        {"model": "Surface Pro 9", "weight": 2},
+        {"model": "Surface Pro 10", "weight": 2},
+        {"model": "Surface Pro 11", "weight": 1},
+
+        {"model": "Nitro AN515-55", "weight": 2},
+        {"model": "Nitro AN515-58", "weight": 2},
+        {"model": "Nitro AN517-55", "weight": 1},
+        {"model": "Aspire A515-57", "weight": 2},
+
+        {"model": "HP Laptop 15", "weight": 4},
+        {"model": "HP Laptop 14", "weight": 3},
+        {"model": "HP Pavilion 15", "weight": 4},
+        {"model": "HP Pavilion 14", "weight": 3},
+        {"model": "HP 250 G9", "weight": 3},
+        {"model": "HP 250 G10", "weight": 2},
+        {"model": "HP 255 G8", "weight": 2},
+        {"model": "HP 255 G9", "weight": 2},
+        {"model": "HP ProBook 450 G8", "weight": 3},
+        {"model": "HP ProBook 450 G10", "weight": 2},
+        {"model": "HP EliteBook 840 G9", "weight": 2},
+        {"model": "HP OMEN 16", "weight": 2},
+        {"model": "HP OMEN 17", "weight": 1},
+        {"model": "HP Victus 15", "weight": 2},
+        {"model": "HP ENVY x360 15", "weight": 2},
+        {"model": "HP Spectre x360 14", "weight": 1},
+
+        {"model": "82YN", "weight": 2},
+        {"model": "82RE", "weight": 1},
+        {"model": "82RA", "weight": 1},
+        {"model": "21HH", "weight": 1},
+        {"model": "21KC", "weight": 1},
+        {"model": "82K2", "weight": 2},
+        {"model": "82LN", "weight": 1},
+        {"model": "UX425EA", "weight": 1},
+        {"model": "UM425QA", "weight": 1},
+        {"model": "FX505DT", "weight": 1},
+        {"model": "G614JU", "weight": 1},
+        {"model": "07TYC2", "weight": 1},
+        {"model": "0X2MHF", "weight": 1},
+        {"model": "0YNVJG", "weight": 1}
     ],
     "versions": [
-        "Windows 11 25H2",
-        "Windows 11 24H2",
+        "Windows 11 x64",
         "Windows 11",
+        "Windows 10 x64",
         "Windows 10"
     ],
     "environments": [
@@ -193,88 +145,101 @@
         "XWayland",
         "X11"
     ],
-    "libcNames": [
-        "glibc"
-    ],
-    "libcVersions": [
-        "2.31",
-        "2.32",
-        "2.33",
-        "2.34",
-        "2.35",
-        "2.36",
-        "2.37",
-        "2.38",
-        "2.39",
-        "2.40",
-        "2.41",
-        "2.42",
-        "2.43"
-    ],
     "linuxDistros": {
-        "Ubuntu 25.04": {
-            "kernel": "6.12",
-            "glibc": "2.41"
-        },
-        "Ubuntu 24.10": {
-            "kernel": "6.11",
-            "glibc": "2.40"
-        },
-        "Ubuntu 24.04": {
+        "Ubuntu 24.04 LTS": {
             "kernel": "6.8",
-            "glibc": "2.39"
+            "glibc": "2.39",
+            "weight": 8
         },
-        "Debian 13": {
+        "Ubuntu 25.04": {
+            "kernel": "6.14",
+            "glibc": "2.41",
+            "weight": 3
+        },
+        "Ubuntu 22.04 LTS": {
+            "kernel": "6.8",
+            "glibc": "2.35",
+            "weight": 4
+        },
+        "Linux Mint 22.1": {
+            "kernel": "6.8",
+            "glibc": "2.39",
+            "weight": 5
+        },
+        "Linux Mint 22.3": {
+            "kernel": "6.14",
+            "glibc": "2.39",
+            "weight": 3
+        },
+        "Fedora Linux 42": {
+            "kernel": "6.14",
+            "glibc": "2.41",
+            "weight": 4
+        },
+        "Fedora Linux 41": {
+            "kernel": "6.11",
+            "glibc": "2.40",
+            "weight": 2
+        },
+        "Debian GNU/Linux 13": {
             "kernel": "6.12",
-            "glibc": "2.41"
+            "glibc": "2.41",
+            "weight": 4
         },
-        "Debian 12": {
+        "Debian GNU/Linux 12": {
             "kernel": "6.1",
-            "glibc": "2.36"
+            "glibc": "2.36",
+            "weight": 3
         },
-        "RHEL 10": {
+        "Arch Linux": {
             "kernel": "6.12",
-            "glibc": "2.39"
+            "glibc": "2.41",
+            "weight": 3
         },
-        "RHEL 9": {
-            "kernel": "5.14",
-            "glibc": "2.34"
+        "Manjaro Linux": {
+            "kernel": "6.12",
+            "glibc": "2.41",
+            "weight": 2
         },
-        "Fedora 42": {
-            "kernel": "6.13",
-            "glibc": "2.41"
+        "Pop!_OS 24.04 LTS": {
+            "kernel": "6.8",
+            "glibc": "2.39",
+            "weight": 2
         },
-        "CentOS 7": {
-            "kernel": "3.10",
-            "glibc": "2.17"
+        "openSUSE Tumbleweed": {
+            "kernel": "6.12",
+            "glibc": "2.41",
+            "weight": 2
         },
-        "Debian 9": {
-            "kernel": "4.9",
-            "glibc": "2.24"
+        "openSUSE Leap 15.6": {
+            "kernel": "6.4",
+            "glibc": "2.38",
+            "weight": 1
         },
-        "Debian 10": {
-            "kernel": "4.9",
-            "glibc": "2.28"
+        "Zorin OS 18": {
+            "kernel": "6.14",
+            "glibc": "2.39",
+            "weight": 2
         },
-        "Debian 11": {
-            "kernel": "5.10",
-            "glibc": "2.31"
+        "EndeavourOS": {
+            "kernel": "6.12",
+            "glibc": "2.41",
+            "weight": 1
         },
-        "RHEL 7": {
-            "kernel": "3.10",
-            "glibc": "2.17"
+        "elementary OS 8.1": {
+            "kernel": "6.14",
+            "glibc": "2.39",
+            "weight": 1
         },
-        "RHEL 8": {
-            "kernel": "4.18",
-            "glibc": "2.28"
+        "KDE neon": {
+            "kernel": "6.8",
+            "glibc": "2.39",
+            "weight": 1
         },
-        "Ubuntu 20.04": {
-            "kernel": "5.4",
-            "glibc": "2.31"
-        },
-        "Ubuntu 18.04": {
-            "kernel": "4.15",
-            "glibc": "2.27"
+        "NixOS 25.11": {
+            "kernel": "6.12",
+            "glibc": "2.41",
+            "weight": 1
         }
     }
 }

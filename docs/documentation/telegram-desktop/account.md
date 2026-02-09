@@ -220,5 +220,3 @@ td = TDesktop("new_tdata")
 account = Account.FromTelethon(telethonClient, owner=td) # add this account to td
 td.SaveTData()
 ```
-
-

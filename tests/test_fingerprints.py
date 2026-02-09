@@ -22,7 +22,9 @@ from src.fingerprint import (  # noqa: E402
     get_recommended_layer,
     get_platform_versions,
     LAYER,
+    PLATFORM_VERSIONS,
 )
+from src.version_fetcher import fetch_all_versions  # noqa: E402
 
 TESTS_DIR = pathlib.Path(__file__).parent
 SESSIONS_DIR = TESTS_DIR / "sessions"
@@ -145,6 +147,35 @@ class TestWebFingerprints:
             assert api.app_version == cls.app_version
             assert api.lang_code == cls.lang_code
             assert api.lang_pack == cls.lang_pack
+
+    def test_browser_stat_weights_applied(self):
+        """BROWSER_WEIGHTS should influence the distribution of generated UAs."""
+        WebBrowserDevice._generated = False
+        WebBrowserDevice.__gen__()
+        device_list = WebBrowserDevice.deviceList
+
+        chrome_entries = [
+            d for d in device_list if "Chrome" in d.model and "Edg" not in d.model
+        ]
+        edge_entries = [d for d in device_list if "Edg" in d.model]
+        firefox_entries = [d for d in device_list if "Firefox" in d.model]
+
+        # Chrome (weight=19) should have more entries than edge (weight=2)
+        if edge_entries:
+            assert len(chrome_entries) > len(edge_entries), (
+                f"Chrome ({len(chrome_entries)}) should outnumber Edge ({len(edge_entries)})"
+            )
+        # Chrome should have more entries than firefox (weight=1)
+        if firefox_entries:
+            assert len(chrome_entries) > len(firefox_entries), (
+                f"Chrome ({len(chrome_entries)}) should outnumber Firefox ({len(firefox_entries)})"
+            )
+
+    def test_k_device_list_also_weighted(self):
+        """The _k_deviceList should have the same weighting as deviceList."""
+        WebBrowserDevice._generated = False
+        WebBrowserDevice.__gen__()
+        assert len(WebBrowserDevice._k_deviceList) == len(WebBrowserDevice.deviceList)
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +304,7 @@ class TestFingerprintValidation:
     def test_valid_android_params(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy S24 Ultra",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -321,7 +352,7 @@ class TestFingerprintValidation:
     def test_invalid_lang_pack_flagged(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -333,7 +364,7 @@ class TestFingerprintValidation:
     def test_short_lang_code_flagged(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -345,7 +376,7 @@ class TestFingerprintValidation:
     def test_strict_mode_api_id_mismatch(self):
         issues = validate_init_connection_params(
             api_id=99999,
-            device_model="Samsung Galaxy",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -358,7 +389,7 @@ class TestFingerprintValidation:
     def test_strict_mode_passes_for_correct_pair(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -371,7 +402,7 @@ class TestFingerprintValidation:
     def test_android_missing_region_in_system_lang(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy S24",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en",
@@ -461,7 +492,6 @@ class TestPlatformVersions:
         assert pv.ios_app_version
         assert pv.desktop_app_version
         assert pv.macos_app_version
-        assert pv.web_z_version
         assert pv.web_a_version
         assert pv.web_k_version
         assert pv.chrome_version
@@ -562,7 +592,7 @@ class TestAPIDataJson:
         api = APIData(
             api_id=6,
             api_hash="eb06d4abfb49dc3eeb1aeb98ae0f581e",
-            device_model="Galaxy S24",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             lang_code="en",
@@ -572,7 +602,7 @@ class TestAPIDataJson:
         result = api.to_json()
         assert result["app_id"] == 6
         assert result["app_hash"] == "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-        assert result["device"] == "Galaxy S24"
+        assert result["device"] == "Samsung SM-S928B"
         assert result["sdk"] == "SDK 35"
         assert result["app_version"] == "12.3.0"
         assert result["system_lang_pack"] == "en-US"
@@ -897,3 +927,118 @@ class TestSessionJsonExport:
         assert row[0] > 0  # dc_id
         assert len(row[1]) == 256  # auth_key
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Version Fetcher Tests
+# ---------------------------------------------------------------------------
+
+
+class TestVersionFetcher:
+    """Tests for the automatic version fetching mechanism."""
+
+    def test_fetch_returns_dict(self):
+        result = fetch_all_versions()
+        assert isinstance(result, dict)
+
+    def test_fetched_desktop_version(self):
+        result = fetch_all_versions()
+        v = result.get("desktop_app_version", "")
+        assert v, "desktop_app_version should be fetched"
+        # Version should be in semver-like format (digits and dots)
+        assert all(c.isdigit() or c == "." for c in v), f"Bad format: {v}"
+
+    def test_fetched_android_version(self):
+        result = fetch_all_versions()
+        v = result.get("android_app_version", "")
+        assert v, "android_app_version should be fetched"
+        parts = v.split(".")
+        assert len(parts) >= 2
+
+    def test_fetched_telegram_x_version(self):
+        result = fetch_all_versions()
+        v = result.get("android_x_app_version", "")
+        assert v, "android_x_app_version should be fetched"
+
+    def test_fetched_ios_version(self):
+        result = fetch_all_versions()
+        v = result.get("ios_app_version", "")
+        assert v, "ios_app_version should be fetched"
+
+    def test_fetched_macos_version(self):
+        result = fetch_all_versions()
+        v = result.get("macos_app_version", "")
+        assert v, "macos_app_version should be fetched"
+
+    def test_fetched_web_k_version(self):
+        result = fetch_all_versions()
+        v = result.get("web_k_version", "")
+        assert v.endswith(" K"), f"web_k_version should end with ' K': {v}"
+
+    def test_fetched_web_a_version(self):
+        result = fetch_all_versions()
+        v = result.get("web_a_version", "")
+        assert v.endswith(" A"), f"web_a_version should end with ' A': {v}"
+
+    def test_platform_versions_updated(self):
+        """PlatformVersions singleton should reflect fetched values."""
+        result = fetch_all_versions()
+        if result.get("desktop_app_version"):
+            assert (
+                PLATFORM_VERSIONS.desktop_app_version == result["desktop_app_version"]
+            )
+        if result.get("android_app_version"):
+            assert (
+                PLATFORM_VERSIONS.android_app_version == result["android_app_version"]
+            )
+        if result.get("ios_app_version"):
+            assert PLATFORM_VERSIONS.ios_app_version == result["ios_app_version"]
+
+    def test_api_classes_synced(self):
+        """API class app_version attributes should match PlatformVersions."""
+        pv = PLATFORM_VERSIONS
+        assert API.TelegramAndroid.app_version == pv.android_app_version
+        assert (
+            API.TelegramIOS.app_version
+            == f"{pv.ios_app_version} ({pv.ios_build_number}) "
+        )
+        assert (
+            API.TelegramMacOS.app_version
+            == f"{pv.macos_app_version} ({pv.macos_build_number}) "
+        )
+        assert API.TelegramWeb_Z.app_version == pv.web_a_version
+        assert API.TelegramWeb_A.app_version == pv.web_a_version
+        assert API.TelegramWeb_K.app_version == pv.web_k_version
+
+    def test_api_desktop_version_has_suffix(self):
+        pv = PLATFORM_VERSIONS
+        expected = f"{pv.desktop_app_version} {pv.desktop_app_version_suffix}"
+        assert API.TelegramDesktop.app_version == expected
+
+    def test_api_ios_system_version_synced(self):
+        pv = PLATFORM_VERSIONS
+        assert API.TelegramIOS.system_version == pv.ios_system_version
+
+    def test_api_macos_system_version_synced(self):
+        pv = PLATFORM_VERSIONS
+        assert API.TelegramMacOS.system_version == pv.macos_system_version
+
+    def test_results_are_cached(self):
+        """Calling fetch_all_versions() twice should return the same object."""
+        a = fetch_all_versions()
+        b = fetch_all_versions()
+        assert a is b
+
+    def test_no_fetch_env_var(self):
+        """OPENTELE_NO_FETCH=1 should skip fetching and return empty dict."""
+        import src.version_fetcher as vf
+
+        old_cached = vf._CACHED
+        try:
+            vf._CACHED = None
+            os.environ["OPENTELE_NO_FETCH"] = "1"
+            result = vf.fetch_all_versions()
+            assert result == {}
+        finally:
+            os.environ.pop("OPENTELE_NO_FETCH", None)
+            vf._CACHED = old_cached

@@ -528,5 +528,3 @@ def mainAccount() -> Optional[td.Account]
 ```
 
 The main account of the client<br>
-
-

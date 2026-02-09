@@ -277,8 +277,11 @@ class TestAndroidDevice:
 
     def test_sdk_version_format(self):
         d = AndroidDevice.RandomDevice("check_format")
-        assert d.version.startswith("SDK ")
-        sdk_num = int(d.version.replace("SDK ", ""))
+        import re
+
+        m = re.match(r"^SDK\s+(\d+)$", d.version)
+        assert m, f"Version '{d.version}' doesn't match format 'SDK X'"
+        sdk_num = int(m.group(1))
         assert 21 <= sdk_num <= 40
 
 
@@ -359,6 +362,44 @@ class TestWebBrowserDevice:
         assert a.model == b.model
         assert a.version == b.version
 
+    def test_browser_weights_attr_exists(self):
+        assert hasattr(WebBrowserDevice, "BROWSER_WEIGHTS")
+        weights = WebBrowserDevice.BROWSER_WEIGHTS
+        assert "chrome" in weights
+        assert "edge" in weights
+        assert "firefox" in weights
+
+    def test_chrome_dominates_device_list(self):
+        """Chrome UAs should be the majority of the generated list (weighted)."""
+        WebBrowserDevice._generated = False
+        WebBrowserDevice.__gen__()
+        total = len(WebBrowserDevice.deviceList)
+        chrome_count = sum(
+            1
+            for d in WebBrowserDevice.deviceList
+            if "Chrome" in d.model and "Edg" not in d.model
+        )
+        # Chrome weight is 19 out of 23 total weight units;
+        # it should dominate the list (at least 50% of entries).
+        assert chrome_count / total > 0.5, (
+            f"Chrome should dominate: {chrome_count}/{total} = {chrome_count / total:.1%}"
+        )
+
+    def test_multiple_browsers_present(self):
+        """The device list should contain UAs from multiple browser families."""
+        WebBrowserDevice._generated = False
+        WebBrowserDevice.__gen__()
+        uas = {d.model for d in WebBrowserDevice.deviceList}
+        has_chrome = any("Chrome" in ua and "Edg" not in ua for ua in uas)
+        has_edge = any("Edg" in ua for ua in uas)
+        has_firefox = any("Firefox" in ua for ua in uas)
+        # At minimum Chrome + one other browser should be present
+        assert has_chrome, "Chrome UAs should be present"
+        browser_count = sum([has_chrome, has_edge, has_firefox])
+        assert browser_count >= 2, (
+            f"Expected at least 2 browser families, got {browser_count}"
+        )
+
 
 # ===================================================================
 # 3. FINGERPRINT MODULE TESTS
@@ -381,7 +422,7 @@ class TestFingerprintValidation:
     def test_valid_android_params(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy S24 Ultra",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en-US",
@@ -444,7 +485,7 @@ class TestFingerprintValidation:
             api_id=2040,
             device_model="Desktop",
             system_version="Windows 11",
-            app_version="5.12.3 x64",
+            app_version=f"{PLATFORM_VERSIONS.desktop_app_version} x64",
             system_lang_code="en-US",
             lang_pack="tdesktop",
             lang_code="en",
@@ -455,7 +496,7 @@ class TestFingerprintValidation:
     def test_mobile_system_lang_needs_region(self):
         issues = validate_init_connection_params(
             api_id=6,
-            device_model="Samsung Galaxy S24",
+            device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
             system_lang_code="en",  # missing region
@@ -684,6 +725,59 @@ class TestConsistencyDataclasses:
         assert r.all_passed  # no checks = all pass
 
 
+class TestConsistencyCheckerOffline:
+    """Verify ConsistencyChecker includes the new nearest_dc check."""
+
+    def test_checker_has_nearest_dc_method(self):
+        from src.consistency import ConsistencyChecker
+
+        assert hasattr(ConsistencyChecker, "check_nearest_dc")
+
+    def test_run_all_lists_nearest_dc(self):
+        """run_all must include check_nearest_dc in its check list."""
+        import inspect
+        from src.consistency import ConsistencyChecker
+
+        source = inspect.getsource(ConsistencyChecker.run_all)
+        assert "check_nearest_dc" in source
+
+
+class TestAutoPostLogin:
+    """Verify auto_post_login flag and _run_post_login_requests exist."""
+
+    def test_auto_post_login_defaults_true(self):
+        client = TelegramClient(api=API.TelegramDesktop)
+        assert client._auto_post_login is True
+
+    def test_auto_post_login_can_be_disabled(self):
+        client = TelegramClient(api=API.TelegramDesktop, auto_post_login=False)
+        assert client._auto_post_login is False
+
+    def test_post_login_done_starts_false(self):
+        client = TelegramClient(api=API.TelegramDesktop)
+        assert client._post_login_done is False
+
+    def test_has_run_post_login_method(self):
+        assert hasattr(TelegramClient, "_run_post_login_requests")
+
+    def test_has_connect_override(self):
+        import inspect
+
+        func = TelegramClient.connect
+        # Unwrap debug/descriptor wrappers to get the original function
+        while hasattr(func, "__fget__"):
+            func = func.__fget__
+        try:
+            source = inspect.getsource(func)
+        except OSError:
+            # Fall back to reading the source file directly
+            src_file = os.path.join(base_dir, "src", "tl", "telethon.py")
+            with open(src_file, "r", encoding="utf-8") as f:
+                source = f.read()
+        assert "_run_post_login_requests" in source
+        assert "_auto_post_login" in source
+
+
 # ===================================================================
 # 5. TDATA LOADING TESTS
 # ===================================================================
@@ -881,7 +975,7 @@ class TestJSONConsistency:
             21724: API.TelegramAndroidX,
             10840: API.TelegramIOS,
             2834: API.TelegramMacOS,
-            2496: API.TelegramWeb_Z,  # Web Z/A/K all share 2496
+            2496: API.TelegramWeb_Z,
         }
         app_id = json_data["app_id"]
         assert app_id in api_map

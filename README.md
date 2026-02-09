@@ -11,7 +11,6 @@
 <a href="https://codecov.io/gh/DedInc/opentele2">
 <img src="https://img.shields.io/codecov/c/github/DedInc/opentele2?color=%2331c754&label=codecov&logo=codecov&token=H2IWGEJ5LN"/>
 </a>
-<a href="https://github.com/DedInc/opentele2/actions/workflows/package.yml"><img alt="workflow tests" src="https://img.shields.io/github/workflow/status/DedInc/opentele2/package?logo=github&color=%2331c754"/></a>
 <a href="https://github.com/DedInc/opentele2/issues"><img alt="issues" src="https://img.shields.io/github/issues/DedInc/opentele2?color=%2331c754&logo=github"/></a>
 <a href="https://github.com/DedInc/opentele2/commits/main"><img alt="github last commit" src="https://img.shields.io/github/last-commit/DedInc/opentele2?color=%2331c754&logo=github"/></a>
 <a href="https://github.com/DedInc/opentele2/commits/main"><img alt="github commits" src="https://img.shields.io/github/commit-activity/m/DedInc/opentele2?logo=github"/></a>

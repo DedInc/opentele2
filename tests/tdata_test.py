@@ -230,11 +230,18 @@ async def check_telegramclient():
 
 
 @pytest.mark.asyncio
-async def test_entry_point(event_loop):
+async def test_entry_point():
+    import asyncio
+
+    profile = profile_path()
+    if not os.path.isdir(profile):
+        pytest.skip(f"Test profile directory not found: {profile}")
+
+    loop = asyncio.get_event_loop()
     ter = TerminalWriter(sys.stdout)
     ter.hasmarkup = True
-    event_loop._close = event_loop.close
-    event_loop.close = lambda: None
+    loop._close = loop.close
+    loop.close = lambda: None
 
     ter.write("\n\n")
     ter.sep("=", "Begin testing for Python {}".format(PythonVersion()), cyan=True)

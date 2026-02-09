@@ -24,7 +24,6 @@ __all__ = [
 
 _T = TypeVar("_T")
 _TCLS = TypeVar("_TCLS", bound=type)
-_RT = TypeVar("_RT")
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
@@ -70,7 +69,6 @@ class override(object):  # nocov
     """
 
     def __new__(cls, decorated_func: _F) -> _F:
-        # check if decorated_cls really is a function
         if not isinstance(decorated_func, FunctionType):
             raise BaseException(
                 "@override decorator is only for functions, not classes"
@@ -93,7 +91,6 @@ class extend_class(object):  # nocov
     """
 
     def __new__(cls, decorated_cls: _TCLS, isOverride: bool = False) -> _TCLS:
-        # check if decorated_cls really is a class (type)
         if not isinstance(cls, type):
             raise BaseException(
                 "@extend_class decorator is only for classes, not functions"
@@ -101,37 +98,31 @@ class extend_class(object):  # nocov
 
         newAttributes = dict(decorated_cls.__dict__)
         crossDelete = ["__abstractmethods__", "__module__", "_abc_impl", "__doc__"]
-        [
-            (newAttributes.pop(cross) if cross in newAttributes else None)
-            for cross in crossDelete
-        ]
+        for cross in crossDelete:
+            newAttributes.pop(cross, None)
 
         crossDelete = {}
 
         base = decorated_cls.__bases__[0]
 
         if not isOverride:
-            # loop through its parents and add attributes
-
             for attributeName, attributeValue in newAttributes.items():
-                # check if class base already has this attribute
                 result = extend_class.getattr(base, attributeName)
 
                 if result is not None:
                     if id(result["value"]) == id(attributeValue):
                         crossDelete[attributeName] = attributeValue
                     else:
-                        # if not override this attribute
                         if not override.isOverride(attributeValue):
                             print(
                                 f"[{attributeName}] {id(result['value'])} - {id(attributeValue)}"
                             )
                             raise BaseException("err")
 
-            [newAttributes.pop(cross) for cross in crossDelete]
+            for cross in crossDelete:
+                newAttributes.pop(cross, None)
 
         for attributeName, attributeValue in newAttributes.items():
-            # let's backup this attribute for future uses
             result = extend_class.getattr(base, attributeName)
 
             if result is not None:
@@ -225,36 +216,31 @@ def PrettyTable(table: List[Dict[str, Any]], addSplit: List[int] = []):
                 padding[label] = len(text)
 
     def addpadding(text: str, spaces: int):
-        if not isinstance(text, str):
-            text = text.__str__()
+        text = str(text)
         spaceLeft = spaces - len(text)
-        padLeft = spaceLeft / 2
-        padLeft = round(padLeft - (padLeft % 1))
+        padLeft = spaceLeft // 2
         padRight = spaceLeft - padLeft
-        return padLeft * " " + text + " " * padRight
+        return " " * padLeft + text + " " * padRight
 
     header = "|".join(
         addpadding(label, spaces + 2) for label, spaces in padding.items()
     )
     splitter = "+".join(("-" * (spaces + 2)) for label, spaces in padding.items())
-    rows = []
-    for row in table:
-        rows.append(
-            "|".join(
-                addpadding(row[label], spaces + 2) for label, spaces in padding.items()
-            )
+    rows = [
+        "|".join(
+            addpadding(row[label], spaces + 2) for label, spaces in padding.items()
         )
+        for row in table
+    ]
 
     result += f"|{splitter}|\n"
     result += f"|{header}|\n"
     result += f"|{splitter}|\n"
 
-    index = 0
-    for row in rows:
+    for index, row in enumerate(rows):
         if index in addSplit:
             result += f"|{splitter}|\n"
         result += f"|{row}|\n"
-        index += 1
 
     result += f"|{splitter}|"
 

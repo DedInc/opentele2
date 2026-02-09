@@ -79,8 +79,7 @@ class BaseAPIMetaClass(BaseMetaClass):
             if (
                 attr.startswith(f"_{cls.__base__.__name__}__")
                 or attr.startswith(f"_{cls.__name__}__")
-                or attr.startswith("__")
-                and attr.endswith("__")
+                or (attr.startswith("__") and attr.endswith("__"))
                 or type(val) is classmethod
                 or callable(val)
             ):
@@ -267,29 +266,23 @@ class APIData(object, metaclass=BaseAPIMetaClass):
         Raises:
             NotImplementedError: Not supported for web browser APIs.
         """
-        if cls == API.TelegramAndroid or cls == API.TelegramAndroidX:
-            deviceInfo = AndroidDevice.RandomDevice(unique_id)
+        _GENERATE_MAP = {
+            API.TelegramAndroid: (AndroidDevice, {}),
+            API.TelegramAndroidX: (AndroidDevice, {}),
+            API.TelegramIOS: (IOSDevice, {}),
+            API.TelegramMacOS: (macOSDevice, {}),
+            API.TelegramWeb_A: (WebBrowserDevice, {"variant": "z"}),
+            API.TelegramWeb_K: (WebBrowserDevice, {"variant": "k"}),
+            API.Webogram: (WebBrowserDevice, {"variant": "k"}),
+        }
 
-        elif cls == API.TelegramIOS:
-            deviceInfo = IOSDevice.RandomDevice(unique_id)
-
-        elif cls == API.TelegramMacOS:
-            deviceInfo = macOSDevice.RandomDevice(unique_id)
-
-        elif cls in (API.TelegramWeb_Z, API.TelegramWeb_A):
-            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="z")
-
-        elif cls == API.TelegramWeb_K:
-            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="k")
-
-        elif cls == API.Webogram:
-            deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant="k")
-
-        else:
+        if cls not in _GENERATE_MAP:
             raise NotImplementedError(
                 f"{cls.__name__} device not supported for randomize yet"
             )
 
+        device_cls, kwargs = _GENERATE_MAP[cls]
+        deviceInfo = device_cls.RandomDevice(unique_id, **kwargs)
         return cls(device_model=deviceInfo.model, system_version=deviceInfo.version)
 
     @classmethod
@@ -314,7 +307,7 @@ class API(BaseObject):
         api_hash = "b18441a1ff607e10a989891a5462e627"
         device_model = "Desktop"
         system_version = "Windows 11"
-        app_version = "5.12.3 x64"
+        app_version = "6.5 x64"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "tdesktop"
@@ -349,9 +342,9 @@ class API(BaseObject):
 
         api_id = 6
         api_hash = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-        device_model = "Samsung Galaxy S24 Ultra"
+        device_model = "Samsung SM-S928B"
         system_version = "SDK 35"
-        app_version = "12.3.0"
+        app_version = "12.4.1"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "android"
@@ -361,9 +354,9 @@ class API(BaseObject):
 
         api_id = 21724
         api_hash = "3e0cb5efcd52300aec5994fdfc5bdc16"
-        device_model = "Samsung Galaxy S24 Ultra"
+        device_model = "Samsung SM-S928B"
         system_version = "SDK 35"
-        app_version = "12.3.0"
+        app_version = "12.4.1"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "android"
@@ -373,9 +366,9 @@ class API(BaseObject):
 
         api_id = 10840
         api_hash = "33c45224029d59cb3ad0c16134215aeb"
-        device_model = "iPhone 16 Pro Max"
+        device_model = "iPhone"
         system_version = "26.2"
-        app_version = "12.3"
+        app_version = "12.3.1 (32078) "
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "ios"
@@ -387,29 +380,13 @@ class API(BaseObject):
         api_hash = "68875f756c9b437a8b916ca3de215815"
         device_model = "MacBook Pro"
         system_version = "macOS 26.2"
-        app_version = "12.3"
+        app_version = "12.4.1 (277873) "
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "macos"
 
-    class TelegramWeb_Z(APIData):
-        """Official Telegram WebZ for Browsers."""
-
-        api_id = 2496
-        api_hash = "8da85b0d5bfe62527e5b244c209159c3"
-        device_model = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
-        system_version = "Windows"
-        app_version = "5.0.0 Z"
-        lang_code = "en"
-        system_lang_code = "en-US"
-        lang_pack = ""
-
-        @classmethod
-        def Generate(cls: Type[_T], unique_id: str = None) -> _T:
-            return cls._web_generate(unique_id, variant="z")
-
     class TelegramWeb_A(APIData):
-        """Official Telegram WebA for Browsers."""
+        """Official Telegram Web A for Browsers."""
 
         api_id = 2496
         api_hash = "8da85b0d5bfe62527e5b244c209159c3"
@@ -423,6 +400,9 @@ class API(BaseObject):
         @classmethod
         def Generate(cls: Type[_T], unique_id: str = None) -> _T:
             return cls._web_generate(unique_id, variant="z")
+
+    # Web Z now redirects to Web A — they share the same codebase
+    TelegramWeb_Z = TelegramWeb_A
 
     class TelegramWeb_K(APIData):
         """Official Telegram WebK (legacy) for Browsers."""
@@ -473,3 +453,45 @@ class CreateNewSession(LoginFlag):
 
     Safe to use with any API, even different from the original session's API.
     """
+
+
+def _sync_api_versions() -> None:
+    """Patch API class-level ``app_version`` / ``system_version`` attributes
+    to match the latest values stored in ``PLATFORM_VERSIONS``.
+
+    Called once at module load time.  If the import or attribute access fails
+    for any reason the hardcoded class defaults remain untouched.
+    """
+    try:
+        from .fingerprint import PLATFORM_VERSIONS as pv
+
+        # Desktop
+        suffix = pv.desktop_app_version_suffix
+        API.TelegramDesktop.app_version = (
+            f"{pv.desktop_app_version} {suffix}" if suffix else pv.desktop_app_version
+        )
+
+        # Android
+        API.TelegramAndroid.app_version = pv.android_app_version
+
+        # TelegramX
+        API.TelegramAndroidX.app_version = pv.android_x_app_version
+
+        # iOS — format: "VERSION (BUILD) " (trailing space matches official client)
+        API.TelegramIOS.app_version = f"{pv.ios_app_version} ({pv.ios_build_number}) "
+        API.TelegramIOS.system_version = pv.ios_system_version
+
+        # macOS — format: "VERSION (BUILD) " (trailing space matches official client)
+        API.TelegramMacOS.app_version = (
+            f"{pv.macos_app_version} ({pv.macos_build_number}) "
+        )
+        API.TelegramMacOS.system_version = pv.macos_system_version
+
+        # Web clients
+        API.TelegramWeb_A.app_version = pv.web_a_version
+        API.TelegramWeb_K.app_version = pv.web_k_version
+    except Exception:
+        pass  # keep hardcoded defaults
+
+
+_sync_api_versions()
