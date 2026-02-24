@@ -50,7 +50,6 @@ def pre_build():
 
 def post_build():
     print("Running build.py post_build")
-    # we don't need to check for errors because if something's wrong, it's already raised in pre_build
     pymdownx_dir = os.path.join(getsitepackages(), "pymdownx")
     build_dir = os.path.join(os.path.abspath(os.path.curdir), "docs", "build")
 

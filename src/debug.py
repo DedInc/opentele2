@@ -4,10 +4,9 @@ import atexit
 import typing as t
 
 IS_DEBUG_MODE = False
-# IS_DEBUG_MODE = True
 
 if IS_DEBUG_MODE:
-    from rich import print  # pragma: no cover
+    from rich import print
 
     _F = t.TypeVar("_F")
     _T = t.TypeVar("_T")
@@ -15,7 +14,7 @@ if IS_DEBUG_MODE:
 
     class DebugInfo(object):
         def __init__(self) -> None:
-            self.list: t.List[t.List[str, int, int, int]] = []
+            self.list: t.List[t.Any] = []
 
         def add(self, name, total_called, total_time) -> None:
             self.list.append(
@@ -43,32 +42,19 @@ if IS_DEBUG_MODE:
     dbgInfo = DebugInfo()
     atexit.register(dbgInfo.on_exit)
 
-    class DebugMethod(type):  # pragma: no cover
+    class DebugMethod(type):
         def __get__(self, obj, cls):
             self.__owner__ = obj if obj else cls
             return self
 
         def __call2__(self, *args, **kwargs):
             begin = time.perf_counter()
-            result = self.__fget__(*args, **kwargs)  # type: ignore
+            result = self.__fget__(*args, **kwargs)
             diff = time.perf_counter() - begin
 
             return result, diff
 
         def __call__(self, *args, **kwargs) -> t.Any:
-            # stack = inspect.stack()[1]
-
-            # location = f"{os.path.basename(stack.filename)[:-3]}"
-            # lineno = f"{stack.lineno}."
-
-            # if len(location) >= 15:
-            #     location = ".." + location[-15:]
-
-            # location = location.ljust(15) + "| " + lineno.ljust(6)
-
-            # context = stack.code_context[0][:-1].strip()  # type: ignore
-            # print(location + context, f"took {diff}ms")
-
             if hasattr(self, "__owner__"):
                 result, diff = DebugMethod.__call2__(
                     self, self.__owner__, *args, **kwargs
@@ -123,7 +109,7 @@ if IS_DEBUG_MODE:
             atexit.register(result.on_exit, result)
             return result
 
-    def parse_arg(value) -> str:  # pragma: no cover
+    def parse_arg(value) -> str:
         if isinstance(value, type):
             return value.__name__
         elif isinstance(value, str):
@@ -134,14 +120,14 @@ if IS_DEBUG_MODE:
             return value.__class__.__name__ + "(...)"
         return value
 
-    class runtime(type):  # pragma: no cover
+    class runtime(type):
         def __get__(self, obj, cls):
             self.__owner__ = obj if obj else cls
             return self
 
         def __call__(self, *args, **kwargs) -> t.Any:
             begin = time.perf_counter()
-            result = self.__fget__(self.__owner__, *args, **kwargs)  # type: ignore
+            result = self.__fget__(self.__owner__, *args, **kwargs)
             diff = round((time.perf_counter() - begin) * 1000, 2)
             print(f"{self.__fname__} took {diff}ms")
             return result
@@ -163,5 +149,5 @@ if IS_DEBUG_MODE:
                 decorated_func.__class__.__bases__,
                 firstdct,
             )
-            result.__fget__ = decorated_func  # type: ignore
+            result.__fget__ = decorated_func
             return result

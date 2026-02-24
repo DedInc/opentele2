@@ -1,6 +1,4 @@
-"""Comprehensive tests for web fingerprints, session JSON consistency,
-fingerprint validation, tdata loading, and session JSON import/export."""
-
+# ruff: noqa: E402
 import json
 import os
 import pathlib
@@ -10,12 +8,12 @@ import sys
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
 
-import pytest  # noqa: E402
+import pytest
 
-from src.api import API, APIData  # noqa: E402
-from src.devices import WebBrowserDevice, DeviceInfo  # noqa: E402
-from src.exception import SessionFileNotFound  # noqa: E402
-from src.fingerprint import (  # noqa: E402
+from src.api import API, APIData
+from src.devices import WebBrowserDevice, DeviceInfo
+from src.exception import SessionFileNotFound
+from src.fingerprint import (
     validate_init_connection_params,
     FingerprintConfig,
     StrictMode,
@@ -24,16 +22,11 @@ from src.fingerprint import (  # noqa: E402
     LAYER,
     PLATFORM_VERSIONS,
 )
-from src.version_fetcher import fetch_all_versions  # noqa: E402
+from src.version_fetcher import fetch_all_versions
 
 TESTS_DIR = pathlib.Path(__file__).parent
 SESSIONS_DIR = TESTS_DIR / "sessions"
 TDATAS_DIR = TESTS_DIR / "tdatas"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def load_session_json(session_id: str) -> dict:
@@ -61,14 +54,7 @@ SESSION_IDS = list_session_ids()
 TDATA_IDS = list_tdata_ids()
 
 
-# ---------------------------------------------------------------------------
-# Web Fingerprints Tests
-# ---------------------------------------------------------------------------
-
-
 class TestWebFingerprints:
-    """Tests for web browser fingerprint generation."""
-
     def test_web_z_generate_returns_valid_api(self):
         api = API.TelegramWeb_Z.Generate()
         assert isinstance(api, APIData)
@@ -100,22 +86,16 @@ class TestWebFingerprints:
     def test_different_unique_ids_differ(self):
         a = API.TelegramWeb_Z.Generate("seed_a")
         b = API.TelegramWeb_Z.Generate("seed_b")
-        # Different seeds should (almost certainly) produce different results
-        # but there's a small chance they're the same, so we just check they run
         assert isinstance(a, APIData) and isinstance(b, APIData)
 
     def test_no_unique_id_randomizes(self):
         a = API.TelegramWeb_Z.Generate()
         b = API.TelegramWeb_Z.Generate()
-        # Both should be valid
         assert a.device_model and b.device_model
 
     def test_web_z_and_web_k_system_version_differ(self):
-        """Web Z uses OS name (Windows), Web K uses navigator.platform (Win32)."""
         z = API.TelegramWeb_Z.Generate("same_seed")
         k = API.TelegramWeb_K.Generate("same_seed")
-        # They use different variant mappings so system_version should differ
-        # unless both happen to map identically (unlikely)
         assert z.system_version is not None
         assert k.system_version is not None
 
@@ -126,8 +106,8 @@ class TestWebFingerprints:
         assert len(WebBrowserDevice._k_deviceList) > 0
         device = WebBrowserDevice.RandomDevice("test", variant="z")
         assert isinstance(device, DeviceInfo)
-        assert device.model  # UA string
-        assert device.version  # OS name
+        assert device.model
+        assert device.version
 
     def test_generated_ua_contains_browser_info(self):
         api = API.TelegramWeb_Z.Generate()
@@ -149,7 +129,6 @@ class TestWebFingerprints:
             assert api.lang_pack == cls.lang_pack
 
     def test_browser_stat_weights_applied(self):
-        """BROWSER_WEIGHTS should influence the distribution of generated UAs."""
         WebBrowserDevice._generated = False
         WebBrowserDevice.__gen__()
         device_list = WebBrowserDevice.deviceList
@@ -160,32 +139,22 @@ class TestWebFingerprints:
         edge_entries = [d for d in device_list if "Edg" in d.model]
         firefox_entries = [d for d in device_list if "Firefox" in d.model]
 
-        # Chrome (weight=19) should have more entries than edge (weight=2)
         if edge_entries:
             assert len(chrome_entries) > len(edge_entries), (
                 f"Chrome ({len(chrome_entries)}) should outnumber Edge ({len(edge_entries)})"
             )
-        # Chrome should have more entries than firefox (weight=1)
         if firefox_entries:
             assert len(chrome_entries) > len(firefox_entries), (
                 f"Chrome ({len(chrome_entries)}) should outnumber Firefox ({len(firefox_entries)})"
             )
 
     def test_k_device_list_also_weighted(self):
-        """The _k_deviceList should have the same weighting as deviceList."""
         WebBrowserDevice._generated = False
         WebBrowserDevice.__gen__()
         assert len(WebBrowserDevice._k_deviceList) == len(WebBrowserDevice.deviceList)
 
 
-# ---------------------------------------------------------------------------
-# Session JSON Consistency Tests (reading existing test data)
-# ---------------------------------------------------------------------------
-
-
 class TestSessionJsonConsistency:
-    """Tests that session JSON files have valid, consistent data."""
-
     @pytest.fixture(params=SESSION_IDS)
     def session_id(self, request):
         return request.param
@@ -247,14 +216,7 @@ class TestSessionJsonConsistency:
         assert isinstance(slc, str) and len(slc) >= 2
 
 
-# ---------------------------------------------------------------------------
-# TData Loading Tests
-# ---------------------------------------------------------------------------
-
-
 class TestTDataLoading:
-    """Tests for loading tdata directories and cross-checking with session JSON."""
-
     @pytest.fixture(params=TDATA_IDS)
     def tdata_id(self, request):
         return request.param
@@ -266,14 +228,12 @@ class TestTDataLoading:
         assert key_data.exists(), f"key_datas not found in {tdata_path}"
 
     def test_tdata_has_matching_session(self, tdata_id):
-        """Each tdata should have a corresponding .session and .json."""
         session_path = SESSIONS_DIR / f"{tdata_id}.session"
         json_path = SESSIONS_DIR / f"{tdata_id}.json"
         assert session_path.exists(), f"No session file for tdata {tdata_id}"
         assert json_path.exists(), f"No JSON file for tdata {tdata_id}"
 
     def test_tdata_loads_with_tdesktop(self, tdata_id):
-        """TDesktop should load tdata without errors."""
         from src.td import TDesktop
 
         tdata_path = str(TDATAS_DIR / tdata_id / "tdata")
@@ -281,26 +241,17 @@ class TestTDataLoading:
         assert tdesk.isLoaded(), f"Failed to load tdata: {tdata_id}"
 
     def test_tdata_json_consistency(self, tdata_id):
-        """The tdata and its JSON metadata should be consistent."""
         from src.td import TDesktop
 
-        load_session_json(tdata_id)  # ensure JSON exists and is valid
+        load_session_json(tdata_id)
         tdata_path = str(TDATAS_DIR / tdata_id / "tdata")
         tdesk = TDesktop(tdata_path)
         assert tdesk.isLoaded()
 
-        # Verify account count
         assert len(tdesk.accounts) > 0, f"No accounts in tdata {tdata_id}"
 
 
-# ---------------------------------------------------------------------------
-# Fingerprint Validation Tests
-# ---------------------------------------------------------------------------
-
-
 class TestFingerprintValidation:
-    """Tests for validate_init_connection_params and FingerprintConfig."""
-
     def test_valid_android_params(self):
         issues = validate_init_connection_params(
             api_id=6,
@@ -412,12 +363,9 @@ class TestFingerprintValidation:
         assert any("region" in i for i in issues)
 
     def test_session_json_passes_validation(self):
-        """All session JSONs should pass basic validation."""
         for sid in list_session_ids():
             data = load_session_json(sid)
             lp = data.get("lang_pack", "")
-            # "weba" is used in real sessions but not in our _VALID_LANG_PACKS
-            # skip strict validation for unknown lang_packs
             if lp not in ("android", "ios", "tdesktop", "macos", ""):
                 continue
             issues = validate_init_connection_params(
@@ -432,14 +380,7 @@ class TestFingerprintValidation:
             assert issues == [], f"Session {sid} validation failed: {issues}"
 
 
-# ---------------------------------------------------------------------------
-# FingerprintConfig Tests
-# ---------------------------------------------------------------------------
-
-
 class TestFingerprintConfig:
-    """Tests for FingerprintConfig class."""
-
     def test_default_config(self):
         config = FingerprintConfig()
         assert config.strict_mode == StrictMode.WARN
@@ -460,7 +401,6 @@ class TestFingerprintConfig:
 
     def test_off_mode_skips(self):
         config = FingerprintConfig(strict_mode=StrictMode.OFF, auto_validate=False)
-        # Should not raise
         config.validate_params(
             api_id=6,
             device_model="",
@@ -478,14 +418,7 @@ class TestFingerprintConfig:
         assert layer > 100
 
 
-# ---------------------------------------------------------------------------
-# Platform Versions Tests
-# ---------------------------------------------------------------------------
-
-
 class TestPlatformVersions:
-    """Tests for platform version constants."""
-
     def test_versions_not_empty(self):
         pv = get_platform_versions()
         assert pv.android_app_version
@@ -502,14 +435,7 @@ class TestPlatformVersions:
         assert layer > 0
 
 
-# ---------------------------------------------------------------------------
-# All Generate() APIs Smoke Test
-# ---------------------------------------------------------------------------
-
-
 class TestAllGenerateAPIs:
-    """Smoke test: every API class's Generate() should produce valid output."""
-
     @pytest.mark.parametrize(
         "api_cls",
         [
@@ -558,14 +484,7 @@ class TestAllGenerateAPIs:
         assert a.system_version == b.system_version
 
 
-# ---------------------------------------------------------------------------
-# APIData JSON Helpers Tests
-# ---------------------------------------------------------------------------
-
-
 class TestAPIDataJson:
-    """Tests for APIData.from_json() and APIData.to_json()."""
-
     def test_from_json_basic(self):
         data = {
             "app_id": 2040,
@@ -609,7 +528,6 @@ class TestAPIDataJson:
         assert result["system_lang_code"] == "en-US"
         assert result["lang_pack"] == "android"
         assert result["lang_code"] == "en"
-        # Extra fields should have defaults
         assert "session_file" in result
         assert "twoFA" in result
 
@@ -636,7 +554,6 @@ class TestAPIDataJson:
         assert reimported.lang_code == api.lang_code
 
     def test_from_json_system_lang_pack_fallback(self):
-        """system_lang_pack should be used when system_lang_code is absent."""
         data = {
             "app_id": 2040,
             "app_hash": "b18441a1ff607e10a989891a5462e627",
@@ -668,7 +585,6 @@ class TestAPIDataJson:
         assert result["session_file"] == "myfile"
 
     def test_from_json_real_sessions(self):
-        """All real test session JSONs should parse correctly."""
         for sid in list_session_ids():
             data = load_session_json(sid)
             api = APIData.from_json(data)
@@ -679,14 +595,7 @@ class TestAPIDataJson:
             assert api.app_version == data["app_version"]
 
 
-# ---------------------------------------------------------------------------
-# Session JSON Import Tests
-# ---------------------------------------------------------------------------
-
-
 class TestSessionJsonImport:
-    """Tests for TelegramClient.FromSessionJson() import."""
-
     @pytest.fixture(params=SESSION_IDS)
     def session_id(self, request):
         return request.param
@@ -705,7 +614,6 @@ class TestSessionJsonImport:
     async def test_from_session_json_preserves_auth_key(self, session_id):
         from src.tl import TelegramClient
 
-        # Read raw auth key from SQLite
         session_file = str(SESSIONS_DIR / f"{session_id}.session")
         conn = sqlite3.connect(session_file)
         cursor = conn.cursor()
@@ -713,7 +621,6 @@ class TestSessionJsonImport:
         raw_key = cursor.fetchone()[0]
         conn.close()
 
-        # Import and compare
         session_path = str(SESSIONS_DIR / session_id)
         client = await TelegramClient.FromSessionJson(session_path)
         assert client.session.auth_key.key == raw_key
@@ -737,7 +644,6 @@ class TestSessionJsonImport:
     async def test_from_session_json_dc_id(self, session_id):
         from src.tl import TelegramClient
 
-        # Read dc_id from SQLite
         session_file = str(SESSIONS_DIR / f"{session_id}.session")
         conn = sqlite3.connect(session_file)
         cursor = conn.cursor()
@@ -769,7 +675,6 @@ class TestSessionJsonImport:
 
     @pytest.mark.asyncio
     async def test_from_session_json_with_extension(self, session_id):
-        """Should work with or without .session extension."""
         from src.tl import TelegramClient
 
         session_path = str(SESSIONS_DIR / f"{session_id}.session")
@@ -777,14 +682,7 @@ class TestSessionJsonImport:
         assert client.session.auth_key is not None
 
 
-# ---------------------------------------------------------------------------
-# Session JSON Export Tests
-# ---------------------------------------------------------------------------
-
-
 class TestSessionJsonExport:
-    """Tests for TelegramClient.SaveSessionJson() export."""
-
     @pytest.fixture(params=SESSION_IDS)
     def session_id(self, request):
         return request.param
@@ -808,16 +706,13 @@ class TestSessionJsonExport:
     async def test_roundtrip_auth_key(self, session_id, tmp_path):
         from src.tl import TelegramClient
 
-        # Import
         session_path = str(SESSIONS_DIR / session_id)
         client1 = await TelegramClient.FromSessionJson(session_path)
         orig_key = client1.session.auth_key.key
 
-        # Export
         out_base = str(tmp_path / session_id)
         await client1.SaveSessionJson(out_base)
 
-        # Re-import
         client2 = await TelegramClient.FromSessionJson(out_base)
         assert client2.session.auth_key.key == orig_key
 
@@ -848,7 +743,6 @@ class TestSessionJsonExport:
         with open(j_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        # Core API fields
         for field in [
             "app_id",
             "app_hash",
@@ -862,7 +756,6 @@ class TestSessionJsonExport:
         ]:
             assert field in data, f"Missing {field} in exported JSON"
 
-        # Extra fields
         for field in ["session_file", "twoFA", "is_premium"]:
             assert field in data, f"Missing extra field {field}"
 
@@ -912,7 +805,6 @@ class TestSessionJsonExport:
         out_base = str(tmp_path / "sqlite_test")
         s_path, _ = await client.SaveSessionJson(out_base)
 
-        # Verify SQLite structure
         conn = sqlite3.connect(s_path)
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -924,19 +816,12 @@ class TestSessionJsonExport:
         cursor.execute("SELECT dc_id, auth_key FROM sessions")
         row = cursor.fetchone()
         assert row is not None
-        assert row[0] > 0  # dc_id
-        assert len(row[1]) == 256  # auth_key
+        assert row[0] > 0
+        assert len(row[1]) == 256
         conn.close()
 
 
-# ---------------------------------------------------------------------------
-# Version Fetcher Tests
-# ---------------------------------------------------------------------------
-
-
 class TestVersionFetcher:
-    """Tests for the automatic version fetching mechanism."""
-
     def test_fetch_returns_dict(self):
         result = fetch_all_versions()
         assert isinstance(result, dict)
@@ -945,7 +830,6 @@ class TestVersionFetcher:
         result = fetch_all_versions()
         v = result.get("desktop_app_version", "")
         assert v, "desktop_app_version should be fetched"
-        # Version should be in semver-like format (digits and dots)
         assert all(c.isdigit() or c == "." for c in v), f"Bad format: {v}"
 
     def test_fetched_android_version(self):
@@ -981,7 +865,6 @@ class TestVersionFetcher:
         assert v.endswith(" A"), f"web_a_version should end with ' A': {v}"
 
     def test_platform_versions_updated(self):
-        """PlatformVersions singleton should reflect fetched values."""
         result = fetch_all_versions()
         if result.get("desktop_app_version"):
             assert (
@@ -995,7 +878,6 @@ class TestVersionFetcher:
             assert PLATFORM_VERSIONS.ios_app_version == result["ios_app_version"]
 
     def test_api_classes_synced(self):
-        """API class app_version attributes should match PlatformVersions."""
         pv = PLATFORM_VERSIONS
         assert API.TelegramAndroid.app_version == pv.android_app_version
         assert (
@@ -1024,13 +906,11 @@ class TestVersionFetcher:
         assert API.TelegramMacOS.system_version == pv.macos_system_version
 
     def test_results_are_cached(self):
-        """Calling fetch_all_versions() twice should return the same object."""
         a = fetch_all_versions()
         b = fetch_all_versions()
         assert a is b
 
     def test_no_fetch_env_var(self):
-        """OPENTELE_NO_FETCH=1 should skip fetching and return empty dict."""
         import src.version_fetcher as vf
 
         old_cached = vf._CACHED

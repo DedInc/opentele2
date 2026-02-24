@@ -1,16 +1,10 @@
-"""Session file I/O utilities for opentele2.
-
-Handles reading and writing .session (SQLite) + .json metadata files.
-These are standalone functions that the TelegramClient delegates to.
-"""
-
 from __future__ import annotations
 
 import json
 import os
 import sqlite3
 import typing
-from typing import TYPE_CHECKING, Type, Union
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
 from ..exception import (
@@ -42,18 +36,6 @@ def write_session_file(
     port: int,
     auth_key_bytes: bytes,
 ) -> str:
-    """Write a standalone .session SQLite file.
-
-    Args:
-        path: File path without .session extension.
-        dc_id: Data center ID.
-        server_address: DC IP address.
-        port: DC port.
-        auth_key_bytes: 256-byte auth key.
-
-    Returns:
-        Full path to the created .session file.
-    """
     full_path = path if path.endswith(".session") else path + ".session"
     conn = sqlite3.connect(full_path)
     c = conn.cursor()
@@ -93,28 +75,11 @@ def write_session_file(
 
 async def from_session_json(
     session_path: str,
-    json_path: str = None,
+    json_path: Optional[str] = None,
     flag: Type[LoginFlag] = UseCurrentSession,
-    password: str = None,
+    password: Optional[str] = None,
     **kwargs,
 ) -> TelegramClient:
-    """Create a TelegramClient from .session + .json files.
-
-    Args:
-        session_path: Path to the .session file (with or without extension).
-        json_path: Path to the .json metadata file. If None, derived from
-                   session_path by replacing .session with .json.
-        flag: UseCurrentSession (default) or CreateNewSession.
-        password: 2FA password if CreateNewSession is used.
-        **kwargs: Additional arguments passed to the TelegramClient constructor.
-
-    Returns:
-        A TelegramClient with the session loaded and API configured.
-
-    Raises:
-        SessionFileNotFound: If .session or .json file doesn't exist.
-        SessionFileInvalid: If the JSON is malformed or missing required fields.
-    """
     from .telethon import TelegramClient
 
     Expects(
@@ -165,25 +130,9 @@ async def from_session_json(
 async def save_session_json(
     client: TelegramClient,
     session_path: str,
-    api: Union[Type[APIData], APIData] = None,
+    api: Optional[Union[Type[APIData], APIData]] = None,
     fetch_user_info: bool = False,
 ) -> typing.Tuple[str, str]:
-    """Save a client's session to .session + .json files.
-
-    Args:
-        client: The TelegramClient whose session to save.
-        session_path: Output path (with or without .session extension).
-        api: APIData to write to JSON. If None, uses the API from
-             when the client was created.
-        fetch_user_info: If True and client is connected, fetch user info
-                        (phone, username, is_premium, etc.) from the server.
-
-    Returns:
-        Tuple of (session_file_path, json_file_path).
-
-    Raises:
-        SessionFileInvalid: If the session has no auth_key.
-    """
     base = _normalize_base_path(session_path)
     session_file = base + ".session"
     json_file = base + ".json"
@@ -198,7 +147,7 @@ async def save_session_json(
 
     write_session_file(base, ss.dc_id, ss.server_address, ss.port, ss.auth_key.key)
 
-    extra = {}
+    extra: dict[str, typing.Any] = {}
     extra["session_file"] = os.path.basename(base)
 
     if fetch_user_info and client.is_connected():

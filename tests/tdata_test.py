@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import os
 import sys
 import pathlib
@@ -31,14 +32,14 @@ def on_init():
 on_init()
 
 
-from src.td import TDesktop  # noqa: E402
-from src.td.account import Account  # noqa: E402
-from src.tl.telethon import TelegramClient  # noqa: E402
-from src.api import API, APIData, UseCurrentSession  # noqa: E402
+from src.td import TDesktop
+from src.td.account import Account
+from src.tl.telethon import TelegramClient
+from src.api import API, APIData, UseCurrentSession
 
-import pytest  # noqa: E402
-import typing as t  # noqa: E402
-from _pytest._io import TerminalWriter  # noqa: E402
+import pytest
+import typing as t
+from _pytest._io import TerminalWriter
 
 X1 = "!DedInc#opentele"
 X2 = "opentele#DedInc!"
@@ -129,11 +130,6 @@ async def tdata_to_telethon():
     assert await newClient.is_user_authorized()
     await newClient.PrintSessions()
 
-    # try:
-    #     await oldClient.TerminateAllSessions()
-    # except FreshResetAuthorisationForbiddenError as e:
-    #     pass
-
     tdesk = await oldClient.ToTDesktop(UseCurrentSession, api=api_ios)
     oldClient = await tdesk.ToTelethon(flag=UseCurrentSession, api=api_ios)
 
@@ -167,11 +163,6 @@ async def telethon_from_tdata():
     await newClient.connect()
     assert await newClient.is_user_authorized()
     await newClient.PrintSessions()
-
-    # try:
-    #     await oldClient.TerminateAllSessions()
-    # except FreshResetAuthorisationForbiddenError as e:
-    #     pass
 
     tdesk = await TDesktop.FromTelethon(oldClient, UseCurrentSession, api=api_ios)
     oldClient = await TelegramClient.FromTDesktop(

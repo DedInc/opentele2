@@ -1,19 +1,3 @@
-"""Post-login consistency checks for opentele2.
-
-After connecting and authenticating, official Telegram clients typically
-call a series of ``help.*`` methods that the server expects.  Skipping
-them can look suspicious.  This module provides helpers that mimic the
-official post-login behaviour.
-
-Usage::
-
-    from opentele2.consistency import ConsistencyChecker
-
-    checker = ConsistencyChecker(client)
-    report = await checker.run_all()
-    # report is a ConsistencyReport with per-check results
-"""
-
 from __future__ import annotations
 
 import warnings
@@ -29,8 +13,6 @@ __all__ = [
 
 @dataclass
 class CheckResult:
-    """Result of a single consistency check."""
-
     name: str
     passed: bool
     detail: str = ""
@@ -39,8 +21,6 @@ class CheckResult:
 
 @dataclass
 class ConsistencyReport:
-    """Aggregated results from all consistency checks."""
-
     checks: List[CheckResult] = field(default_factory=list)
 
     @property
@@ -62,22 +42,11 @@ class ConsistencyReport:
 
 
 class ConsistencyChecker:
-    """Runs post-login checks that mimic official client behaviour.
-
-    All methods are safe to call — they are read-only requests that
-    official clients routinely make.
-
-    Args:
-        client: A connected and authorized ``TelegramClient`` instance.
-        auto_warn: If True (default), emit warnings for failed checks.
-    """
-
     def __init__(self, client, *, auto_warn: bool = True):
         self._client = client
         self._auto_warn = auto_warn
 
     async def run_all(self) -> ConsistencyReport:
-        """Run all consistency checks and return a report."""
         report = ConsistencyReport()
 
         checks = [
@@ -112,11 +81,6 @@ class ConsistencyChecker:
         return report
 
     async def check_get_config(self) -> CheckResult:
-        """Call ``help.getConfig`` — every official client does this on connect.
-
-        Verifies the server returns a valid config without errors.
-        This is the single most important post-connection call.
-        """
         from telethon import functions
 
         try:
@@ -136,11 +100,6 @@ class ConsistencyChecker:
             )
 
     async def check_nearest_dc(self) -> CheckResult:
-        """Call ``help.getNearestDc`` — official clients do this after connect.
-
-        Returns the nearest DC and the country the server thinks we're in.
-        This is a critical post-login call that every official client makes.
-        """
         from telethon import functions
 
         try:
@@ -163,10 +122,6 @@ class ConsistencyChecker:
             )
 
     async def check_current_session(self) -> CheckResult:
-        """Verify the current session via ``account.getAuthorizations``.
-
-        Checks that the session is seen as an official app.
-        """
         try:
             auth = await self._client.GetCurrentSession()
             if auth is None:
@@ -196,12 +151,6 @@ class ConsistencyChecker:
             )
 
     async def check_layer_match(self) -> CheckResult:
-        """Check if our layer matches what the server expects.
-
-        We cannot directly query the server's expected layer, but we can
-        check that ``help.getConfig`` did not return an error and that
-        the session's app matches.
-        """
         from .fingerprint import LAYER, _detect_telethon_layer
 
         telethon_layer = _detect_telethon_layer()
@@ -216,6 +165,11 @@ class ConsistencyChecker:
         return CheckResult(name="layer_match", passed=passed, detail=detail)
 
     def _get_sender_lang_pack(self) -> str:
+        init_req = getattr(self._client, "_init_request", None)
+        if init_req is not None:
+            lp = getattr(init_req, "lang_pack", "")
+            if lp:
+                return lp
         sender = getattr(self._client, "_sender", None)
         if sender is None:
             return ""
@@ -225,11 +179,6 @@ class ConsistencyChecker:
         return getattr(init_req, "lang_pack", "")
 
     async def check_lang_pack(self) -> CheckResult:
-        """Verify that the lang_pack used at initConnection is valid.
-
-        Calls ``langpack.getLanguages`` which only succeeds for valid
-        lang_pack values.
-        """
         from telethon import functions
 
         lang_pack = self._get_sender_lang_pack()
@@ -259,15 +208,9 @@ class ConsistencyChecker:
             )
 
     async def check_app_update(self) -> CheckResult:
-        """Call ``help.getAppUpdate`` — official clients do this periodically.
-
-        A successful call (or ``noAppUpdate``) means our app_version is
-        accepted by the server.
-        """
         from telethon import functions, types
 
         try:
-            # help.getAppUpdate requires a source parameter
             result = await self._client(functions.help.GetAppUpdateRequest(source=""))
             if isinstance(result, types.help.NoAppUpdate):
                 return CheckResult(
@@ -292,10 +235,6 @@ class ConsistencyChecker:
             )
 
     async def check_terms_of_service(self) -> CheckResult:
-        """Call ``help.getTermsOfServiceUpdate`` — official clients check this.
-
-        Verifies the server doesn't flag us.
-        """
         from telethon import functions
 
         try:

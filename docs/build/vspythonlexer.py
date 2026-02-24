@@ -32,36 +32,21 @@ line_re = re.compile(".*?\n")
 
 
 class VSPythonLexer(RegexLexer):
-    """
-    For `Python <http://www.python.org>`_ source code (version 3.x).
-
-    .. versionadded:: 0.10
-
-    .. versionchanged:: 2.5
-       This is now the default ``PythonLexer``.  It is still available as the
-       alias ``Python3Lexer``.
-    """
-
     name = "Python"
     aliases = ["python", "py", "sage", "python3", "py3"]
     filenames = [
         "*.py",
         "*.pyw",
-        # Jython
         "*.jy",
-        # Sage
         "*.sage",
-        # SCons
         "*.sc",
         "SConstruct",
         "SConscript",
-        # Skylark/Starlark (used by Bazel, Buck, and Pants)
         "*.bzl",
         "BUCK",
         "BUILD",
         "BUILD.bazel",
         "WORKSPACE",
-        # Twisted Application infrastructure
         "*.tac",
     ]
     mimetypes = [
@@ -77,41 +62,30 @@ class VSPythonLexer(RegexLexer):
 
     def innerstring_rules(ttype):
         return [
-            # the old style '%s' % (...) string formatting (still valid in Py3)
             (
                 r"%(\(\w+\))?[-#0 +]*([0-9]+|[*])?(\.([0-9]+|[*]))?"
                 "[hlL]?[E-GXc-giorsaux%]",
                 String.Interpol,
             ),
-            # the new style '{}'.format(...) string formatting
             (
                 r"\{"
-                r"((\w+)((\.\w+)|(\[[^\]]+\]))*)?"  # field name
-                r"(\![sra])?"  # conversion
+                r"((\w+)((\.\w+)|(\[[^\]]+\]))*)?"
+                r"(\![sra])?"
                 r"(\:(.?[<>=\^])?[-+ ]?#?0?(\d+)?,?(\.\d+)?[E-GXb-gnosx%]?)?"
                 r"\}",
                 String.Interpol,
             ),
-            # backslashes, quotes and formatting signs must be parsed one at a time
             (r'[^\\\'"%{\n]+', ttype),
             (r'[\'"\\]', ttype),
-            # unhandled string formatting sign
             (r"%|(\{{1,2})", ttype),
-            # newlines are an error (use "nl" state)
         ]
 
     def fstring_rules(ttype):
         return [
-            # Assuming that a '}' is the closing brace after format specifier.
-            # Sadly, this means that we won't detect syntax error. But it's
-            # more important to parse correct syntax correctly, than to
-            # highlight invalid syntax.
             (r"\}", String.Interpol),
             (r"\{", String.Interpol, "expr-inside-fstring"),
-            # backslashes, quotes and formatting signs must be parsed one at a time
             (r'[^\\\'"{}\n]+', ttype),
             (r'[\'"\\]', ttype),
-            # newlines are an error (use "nl" state)
         ]
 
     tokens = {
@@ -138,7 +112,6 @@ class VSPythonLexer(RegexLexer):
             include("expr"),
         ],
         "expr": [
-            # raw f-strings
             (
                 '(?i)(rf|fr)(""")',
                 bygroups(String.Affix, String.Double),
@@ -159,7 +132,6 @@ class VSPythonLexer(RegexLexer):
                 bygroups(String.Affix, String.Single),
                 combined("rfstringescape", "sqf"),
             ),
-            # non-raw f-strings
             (
                 '([fF])(""")',
                 bygroups(String.Affix, String.Double),
@@ -180,12 +152,10 @@ class VSPythonLexer(RegexLexer):
                 bygroups(String.Affix, String.Single),
                 combined("fstringescape", "sqf"),
             ),
-            # raw strings
             ('(?i)(rb|br|r)(""")', bygroups(String.Affix, String.Double), "tdqs"),
             ("(?i)(rb|br|r)(''')", bygroups(String.Affix, String.Single), "tsqs"),
             ('(?i)(rb|br|r)(")', bygroups(String.Affix, String.Double), "dqs"),
             ("(?i)(rb|br|r)(')", bygroups(String.Affix, String.Single), "sqs"),
-            # non-raw strings
             (
                 '([uUbB]?)(""")',
                 bygroups(String.Affix, String.Double),
@@ -219,34 +189,30 @@ class VSPythonLexer(RegexLexer):
         ],
         "expr-inside-fstring": [
             (r"[{([]", Punctuation, "expr-inside-fstring-inner"),
-            # without format specifier
             (
-                r"(=\s*)?"  # debug (https://bugs.python.org/issue36817)
-                r"(\![sraf])?"  # conversion
+                r"(=\s*)?"
+                r"(\![sraf])?"
                 r"\}",
                 String.Interpol,
                 "#pop",
             ),
-            # with format specifier
-            # we'll catch the remaining '}' in the outer scope
             (
-                r"(=\s*)?"  # debug (https://bugs.python.org/issue36817)
-                r"(\![sraf])?"  # conversion
+                r"(=\s*)?"
+                r"(\![sraf])?"
                 r":",
                 String.Interpol,
                 "#pop",
             ),
-            (r"\s+", Text),  # allow new lines
+            (r"\s+", Text),
             include("expr"),
         ],
         "expr-inside-fstring-inner": [
             (r"[{([]", Punctuation, "expr-inside-fstring-inner"),
             (r"[])}]", Punctuation, "#pop"),
-            (r"\s+", Text),  # allow new lines
+            (r"\s+", Text),
             include("expr"),
         ],
         "expr-keywords": [
-            # Based on https://docs.python.org/3/reference/expressions.html
             (
                 words(
                     ("async for", "await", "else", "for", "if", "yield", "yield from"),
@@ -296,38 +262,20 @@ class VSPythonLexer(RegexLexer):
             ),
         ],
         "soft-keywords": [
-            # `match`, `case` and `_` soft keywords
             (
-                r"(^[ \t]*)"  # at beginning of line + possible indentation
-                r"(match|case)\b"  # a possible keyword
-                r"(?![ \t]*(?:"  # not followed by...
-                r"[:,;=^&|@~)\]}]|(?:"
-                + r"|".join(  # characters and keywords that mean this isn't
-                    keyword.kwlist
-                )
-                + r")\b))",  # pattern matching
+                r"(^[ \t]*)"
+                r"(match|case)\b"
+                r"(?![ \t]*(?:"
+                r"[:,;=^&|@~)\]}]|(?:" + r"|".join(keyword.kwlist) + r")\b))",
                 bygroups(Text, Keyword),
                 "soft-keywords-inner",
             ),
         ],
         "soft-keywords-inner": [
-            # optional `_` keyword
             (r"(\s+)([^\n_]*)(_\b)", bygroups(Text, using(this), Keyword)),
             default("#pop"),
         ],
         "builtins": [
-            # (words((
-            #     '__import__', 'abs', 'all', 'any', 'bin', 'bool', 'bytearray',
-            #     'breakpoint', 'bytes', 'chr', 'classmethod', 'compile', 'complex',
-            #     'delattr', 'dict', 'dir', 'divmod', 'enumerate', 'eval', 'filter',
-            #     'float', 'format', 'frozenset', 'getattr', 'globals', 'hasattr',
-            #     'hash', 'hex', 'id', 'input', 'int', 'isinstance', 'issubclass',
-            #     'iter', 'len', 'list', 'locals', 'map', 'max', 'memoryview',
-            #     'min', 'next', 'object', 'oct', 'open', 'ord', 'pow', 'print',
-            #     'property', 'range', 'repr', 'reversed', 'round', 'set', 'setattr',
-            #     'slice', 'sorted', 'staticmethod', 'str', 'sum', 'super', 'tuple',
-            #     'type', 'vars', 'zip'), prefix=r'(?<!\.)', suffix=r'\b'),
-            #  Name.Builtin),
             (
                 words(
                     (
@@ -472,7 +420,6 @@ class VSPythonLexer(RegexLexer):
                         "Warning",
                         "WindowsError",
                         "ZeroDivisionError",
-                        # new builtin exceptions from PEP 3151
                         "BlockingIOError",
                         "ChildProcessError",
                         "ConnectionError",
@@ -488,7 +435,6 @@ class VSPythonLexer(RegexLexer):
                         "PermissionError",
                         "ProcessLookupError",
                         "TimeoutError",
-                        # others new in Python 3
                         "StopAsyncIteration",
                         "ModuleNotFoundError",
                         "RecursionError",
@@ -652,7 +598,7 @@ class VSPythonLexer(RegexLexer):
             ),
             (r"(@)(" + uni_name + r")", bygroups(Name.Function, Name.Decorator)),
             (r"(" + uni_name + r")(\()", bygroups(Name.Function, Operator)),
-            (r"@", Operator),  # new matrix multiplication operator
+            (r"@", Operator),
             (uni_name, Name),
         ],
         "funcname": [
@@ -668,13 +614,11 @@ class VSPythonLexer(RegexLexer):
             (r"\.", Name.Namespace),
             (uni_name, Name.Namespace),
             (r"(\s*)(,)(\s*)", bygroups(Text, Operator, Text)),
-            default("#pop"),  # all else: go back
+            default("#pop"),
         ],
         "fromimport": [
             (r"(\s+)(import)\b", bygroups(Text, Keyword.Namespace), "#pop"),
             (r"\.", Name.Namespace),
-            # if None occurs here, it's "raise x from None", since None can
-            # never be a module name
             (r"None\b", Name.Builtin.Pseudo, "#pop"),
             (uni_name, Name.Namespace),
             default("#pop"),
@@ -700,22 +644,22 @@ class VSPythonLexer(RegexLexer):
         "strings-double": innerstring_rules(String.Double),
         "dqf": [
             (r'"', String.Double, "#pop"),
-            (r'\\\\|\\"|\\\n', String.Escape),  # included here for raw strings
+            (r'\\\\|\\"|\\\n', String.Escape),
             include("fstrings-double"),
         ],
         "sqf": [
             (r"'", String.Single, "#pop"),
-            (r"\\\\|\\'|\\\n", String.Escape),  # included here for raw strings
+            (r"\\\\|\\'|\\\n", String.Escape),
             include("fstrings-single"),
         ],
         "dqs": [
             (r'"', String.Double, "#pop"),
-            (r'\\\\|\\"|\\\n', String.Escape),  # included here for raw strings
+            (r'\\\\|\\"|\\\n', String.Escape),
             include("strings-double"),
         ],
         "sqs": [
             (r"'", String.Single, "#pop"),
-            (r"\\\\|\\'|\\\n", String.Escape),  # included here for raw strings
+            (r"\\\\|\\'|\\\n", String.Escape),
             include("strings-single"),
         ],
         "tdqf": [

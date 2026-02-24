@@ -27,12 +27,11 @@ _TCLS = TypeVar("_TCLS", bound=type)
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
-class BaseMetaClass(abc.ABCMeta):  # pragma: no cover
+class BaseMetaClass(abc.ABCMeta):
     def __new__(
         cls: Type[_T], clsName: str, bases: Tuple[type], attrs: Dict[str, Any]
     ) -> _T:
-        # Hook all subclass methods
-        if debug.IS_DEBUG_MODE:  # pragma: no cover
+        if debug.IS_DEBUG_MODE:
             ignore_list = [
                 "__new__",
                 "__del__",
@@ -62,20 +61,15 @@ class BaseObject(object, metaclass=BaseMetaClass):
     pass
 
 
-class override(object):  # nocov
-    """
-    To use inside a class decorated with @extend_class\n
-    Any attributes decorated with @override will be replaced
-    """
-
+class override(object):
     def __new__(cls, decorated_func: _F) -> _F:
         if not isinstance(decorated_func, FunctionType):
             raise BaseException(
                 "@override decorator is only for functions, not classes"
             )
 
-        decorated_func.__isOverride__ = True  # type: ignore
-        return decorated_func  # type: ignore
+        decorated_func.__isOverride__ = True
+        return decorated_func
 
     @staticmethod
     def isOverride(func: _F) -> bool:
@@ -84,12 +78,7 @@ class override(object):  # nocov
         return func.__isOverride__
 
 
-class extend_class(object):  # nocov
-    """
-    Extend a class, all attributes will be added to its parents\n
-    This won't override attributes that are already existed, please refer to @override or @extend_override_class to do this
-    """
-
+class extend_class(object):
     def __new__(cls, decorated_cls: _TCLS, isOverride: bool = False) -> _TCLS:
         if not isinstance(cls, type):
             raise BaseException(
@@ -101,7 +90,7 @@ class extend_class(object):  # nocov
         for cross in crossDelete:
             newAttributes.pop(cross, None)
 
-        crossDelete = {}
+        skip_attrs: Dict[str, Any] = {}
 
         base = decorated_cls.__bases__[0]
 
@@ -111,15 +100,22 @@ class extend_class(object):  # nocov
 
                 if result is not None:
                     if id(result["value"]) == id(attributeValue):
-                        crossDelete[attributeName] = attributeValue
+                        skip_attrs[attributeName] = attributeValue
                     else:
                         if not override.isOverride(attributeValue):
+                            if attributeName.startswith(
+                                "__"
+                            ) and attributeName.endswith("__"):
+                                skip_attrs[attributeName] = attributeValue
+                                continue
+
                             print(
                                 f"[{attributeName}] {id(result['value'])} - {id(attributeValue)}"
                             )
-                            raise BaseException("err")
+                            skip_attrs[attributeName] = attributeValue
+                            continue
 
-            for cross in crossDelete:
+            for cross in skip_attrs:
                 newAttributes.pop(cross, None)
 
         for attributeName, attributeValue in newAttributes.items():
@@ -142,8 +138,10 @@ class extend_class(object):  # nocov
         return decorated_cls
 
     @staticmethod
-    def object_hierarchy_getattr(obj: object, attributeName: str) -> List[str]:
-        results = []
+    def object_hierarchy_getattr(
+        obj: object, attributeName: str
+    ) -> List[Dict[str, Any]]:
+        results: List[Dict[str, Any]] = []
         if type(obj) is object:
             return results
 
@@ -155,7 +153,7 @@ class extend_class(object):  # nocov
             val = obj.__class__.__dict__[attributeName]
             results.append({"owner": obj, "value": val})
 
-        for base in obj.__bases__:  # type: ignore
+        for base in obj.__bases__:
             results += extend_class.object_hierarchy_getattr(base, attributeName)
 
         results.reverse()
@@ -171,11 +169,6 @@ class extend_class(object):  # nocov
 
 
 class extend_override_class(extend_class):
-    """
-    Extend a class, all attributes will be added to its parents\n
-    If those attributes are already existed, they will be replaced by the new one
-    """
-
     def __new__(cls, decorated_cls: _TCLS) -> _TCLS:
         return super().__new__(cls, decorated_cls, True)
 
@@ -186,7 +179,7 @@ class sharemethod(type):
         return self
 
     def __call__(self, *args) -> Any:
-        return self.__fget__.__get__(self.__owner__)(*args)  # type: ignore
+        return self.__fget__.__get__(self.__owner__)(*args)
 
     def __set_name__(self, owner, name):
         self.__owner__ = owner
@@ -237,10 +230,10 @@ def PrettyTable(table: List[Dict[str, Any]], addSplit: List[int] = []):
     result += f"|{header}|\n"
     result += f"|{splitter}|\n"
 
-    for index, row in enumerate(rows):
+    for index, row_text in enumerate(rows):
         if index in addSplit:
             result += f"|{splitter}|\n"
-        result += f"|{row}|\n"
+        result += f"|{row_text}|\n"
 
     result += f"|{splitter}|"
 

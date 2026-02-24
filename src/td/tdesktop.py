@@ -83,10 +83,10 @@ class TDesktop(BaseObject):
 
     def __init__(
         self,
-        basePath: str = None,
+        basePath: Optional[str] = None,
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
-        passcode: str = None,
-        keyFile: str = None,
+        passcode: Optional[str] = None,
+        keyFile: Optional[str] = None,
     ) -> None:
         self.__accounts: typing.List[td.Account] = []
         self.__basePath = basePath
@@ -95,9 +95,9 @@ class TDesktop(BaseObject):
         self.__passcodeBytes = self.__passcode.encode("ascii")
         self.__mainAccount: Optional[td.Account] = None
         self.__active_index = -1
-        self.__passcodeKey = None
-        self.__localKey = None
-        self.__AppVersion = None
+        self.__passcodeKey: Optional[td.AuthKey] = None
+        self.__localKey: Optional[td.AuthKey] = None
+        self.__AppVersion: Optional[int] = None
         self.__isLoaded = False
         self.__api = api.copy()
 
@@ -110,7 +110,10 @@ class TDesktop(BaseObject):
         return self.__isLoaded
 
     def LoadTData(
-        self, basePath: str = None, passcode: str = None, keyFile: str = None
+        self,
+        basePath: Optional[str] = None,
+        passcode: Optional[str] = None,
+        keyFile: Optional[str] = None,
     ):
         """Load accounts from a tdata folder.
 
@@ -121,6 +124,7 @@ class TDesktop(BaseObject):
         if basePath is None:
             basePath = self.basePath
 
+        assert basePath is not None
         _ensure_base_path(basePath)
 
         if keyFile is not None and self.__keyFile != keyFile:
@@ -149,7 +153,10 @@ class TDesktop(BaseObject):
         Expects(self.isLoaded(), "Failed to load? Something went seriously wrong")
 
     def SaveTData(
-        self, basePath: str = None, passcode: str = None, keyFile: str = None
+        self,
+        basePath: Optional[str] = None,
+        passcode: Optional[str] = None,
+        keyFile: Optional[str] = None,
     ) -> bool:
         """Save the client session to a tdata folder."""
         if basePath is None:
@@ -161,6 +168,7 @@ class TDesktop(BaseObject):
             else self.keyFile
         )
 
+        assert basePath is not None
         _ensure_base_path(basePath)
 
         if passcode is not None and self.__passcode != passcode:
@@ -183,7 +191,7 @@ class TDesktop(BaseObject):
         except OpenTeleException as e:
             raise TDataSaveFailed("Could not save tdata, something went wrong") from e
 
-    def __writeAccounts(self, basePath: str, keyFile: str = None) -> None:
+    def __writeAccounts(self, basePath: str, keyFile: Optional[str] = None) -> None:
         Expects(len(self.accounts) > 0)
         _ensure_base_path(basePath)
 
@@ -226,6 +234,8 @@ class TDesktop(BaseObject):
             )
 
             passKeyData = td.Storage.EncryptedDescriptor(td.AuthKey.kSize)
+            assert self.__localKey is not None
+            assert self.__passcodeKey is not None
             self.__localKey.write(passKeyData.stream)
 
             self.__passcodeKeyEncrypted = td.Storage.PrepareEncrypted(
@@ -251,6 +261,7 @@ class TDesktop(BaseObject):
             self.__mainAccount = self.__accounts[0]
 
     def __loadFromTData(self) -> None:
+        assert self.basePath is not None
         _ensure_base_path(self.basePath)
 
         self.accounts.clear()
@@ -282,13 +293,14 @@ class TDesktop(BaseObject):
 
         Expects(count > 0, "accountsCount is zero, the data might has been corrupted")
 
+        assert self.__localKey is not None
         for i in range(count):
             index = info.stream.readInt32()
             if (index >= 0) and (index < TDesktop.kMaxAccounts):
                 try:
                     account = td.Account(
                         self,
-                        basePath=self.basePath,
+                        basePath=self.basePath,  # type: ignore[arg-type]
                         api=self.api,
                         keyFile=self.keyFile,
                         index=index,
@@ -317,18 +329,18 @@ class TDesktop(BaseObject):
 
         self.__isLoaded = True
 
-    @typing.overload
+    @typing.overload  # type: ignore[misc]
     async def ToTelethon(
         self,
         session: Union[str, Session] = None,
         flag: Type[LoginFlag] = CreateNewSession,
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
-        password: str = None,
+        password: Optional[str] = None,
         *,
         connection: typing.Type[Connection] = ConnectionTcpFull,
         use_ipv6: bool = False,
-        proxy: Union[tuple, dict] = None,
-        local_addr: Union[str, tuple] = None,
+        proxy: Optional[Union[tuple, dict]] = None,
+        local_addr: Optional[Union[str, tuple]] = None,
         timeout: int = 10,
         request_retries: int = 5,
         connection_retries: int = 5,
@@ -337,8 +349,8 @@ class TDesktop(BaseObject):
         sequential_updates: bool = False,
         flood_sleep_threshold: int = 60,
         raise_last_call_error: bool = False,
-        loop: asyncio.AbstractEventLoop = None,
-        base_logger: Union[str, logging.Logger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+        base_logger: Optional[Union[str, logging.Logger]] = None,
         receive_updates: bool = True,
     ) -> tl.TelegramClient: ...
 
@@ -347,7 +359,7 @@ class TDesktop(BaseObject):
         session: Union[str, Session] = None,
         flag: Type[LoginFlag] = CreateNewSession,
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
-        password: str = None,
+        password: Optional[str] = None,
         **kwargs,
     ) -> tl.TelegramClient:
         """Convert this TDesktop to a TelegramClient."""
@@ -366,7 +378,7 @@ class TDesktop(BaseObject):
             session=session,
             flag=flag,
             api=api,
-            password=password,
+            password=password,  # type: ignore[arg-type]
             **kwargs,
         )
 
@@ -375,7 +387,7 @@ class TDesktop(BaseObject):
         telethonClient: tl.TelegramClient,
         flag: Type[LoginFlag] = CreateNewSession,
         api: Union[Type[APIData], APIData] = API.TelegramDesktop,
-        password: str = None,
+        password: Optional[str] = None,
     ) -> TDesktop:
         """Create a TDesktop instance from a TelegramClient."""
         Expects(
@@ -395,10 +407,10 @@ class TDesktop(BaseObject):
     @staticmethod
     async def FromSessionJson(
         session_path: str,
-        json_path: str = None,
+        json_path: Optional[str] = None,
         flag: Type[LoginFlag] = UseCurrentSession,
-        api: Union[Type[APIData], APIData] = None,
-        password: str = None,
+        api: Optional[Union[Type[APIData], APIData]] = None,
+        password: Optional[str] = None,
     ) -> TDesktop:
         """Create a TDesktop instance from .session + .json files.
 
@@ -415,7 +427,10 @@ class TDesktop(BaseObject):
             A loaded TDesktop instance.
         """
         client = await tl.TelegramClient.FromSessionJson(
-            session_path, json_path, flag=UseCurrentSession, password=password
+            session_path,
+            json_path,
+            flag=UseCurrentSession,
+            password=password,  # type: ignore[arg-type]
         )
         use_api = api if api is not None else (client._api_data or API.TelegramDesktop)
         return await TDesktop.FromTelethon(
@@ -425,7 +440,7 @@ class TDesktop(BaseObject):
     async def SaveSessionJson(
         self,
         session_path: str,
-        api: Union[Type[APIData], APIData] = None,
+        api: Optional[Union[Type[APIData], APIData]] = None,
         fetch_user_info: bool = False,
     ) -> typing.Tuple[str, str]:
         """Save this TDesktop's session to .session + .json files.

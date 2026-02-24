@@ -1,12 +1,3 @@
-"""Fingerprint configuration and consistency module for opentele2.
-
-Centralizes TL layer tracking, per-platform app versioning, strict mode,
-initConnection parameter validation, and transport recommendations.
-
-The constants here should be updated whenever Telegram releases major
-client updates (typically every 1-3 months).
-"""
-
 from __future__ import annotations
 
 import random
@@ -31,13 +22,10 @@ __all__ = [
 LAYER: int = 216
 
 
-# Telethon may be slightly ahead or behind; we track both so the library
-# can warn when they diverge significantly.
 _TELETHON_LAYER: Optional[int] = None
 
 
 def _detect_telethon_layer() -> int:
-    """Detect the TL layer used by the installed Telethon version."""
     global _TELETHON_LAYER
     if _TELETHON_LAYER is None:
         try:
@@ -50,11 +38,6 @@ def _detect_telethon_layer() -> int:
 
 
 def get_recommended_layer() -> int:
-    """Return the layer that should be used in ``invokeWithLayer``.
-
-    Prefers the Telethon built-in layer (since it must match the generated
-    TL objects) but warns if it is too far from the official schema.
-    """
     telethon_layer = _detect_telethon_layer()
     diff = abs(telethon_layer - LAYER)
     if diff > 15:
@@ -70,45 +53,29 @@ def get_recommended_layer() -> int:
 
 @dataclass
 class PlatformVersions:
-    """Tracks the latest known official client versions per platform.
-
-    Default values serve as fallbacks when network fetching is unavailable.
-    On first import the module attempts to fetch the latest versions from
-    official sources (see :mod:`src.version_fetcher`) and patches this
-    singleton in-place.
-    """
-
-    # Telegram for Android (Google Play / GitHub)
     android_app_version: str = "12.4.1"
-    android_app_version_code: int = 57428  # build code sent in some requests
-    android_sdk_range: Tuple[int, int] = (24, 35)  # API 24 (Android 7) – 35 (15)
+    android_app_version_code: int = 57428
+    android_sdk_range: Tuple[int, int] = (24, 35)
     android_latest_sdk: int = 35
 
-    # Telegram for iOS (App Store)
     ios_app_version: str = "12.3.1"
     ios_build_number: int = 32078
     ios_version_range: Tuple[str, str] = ("16.0", "26.2")
 
-    # iOS / macOS system versions (used in API class system_version fields)
     ios_system_version: str = "26.2"
     macos_system_version: str = "macOS 26.2"
 
-    # Telegram Desktop (GitHub releases)
     desktop_app_version: str = "6.5"
-    desktop_app_version_suffix: str = "x64"  # or empty for 32-bit
+    desktop_app_version_suffix: str = "x64"
 
-    # Telegram macOS (Swift, App Store)
     macos_app_version: str = "12.4.1"
     macos_build_number: int = 277873
 
-    # TelegramX for Android
     android_x_app_version: str = "12.4.1"
 
-    # Web clients
     web_a_version: str = "12.0.17 A"
     web_k_version: str = "1.4.2 K"
 
-    # Chrome user-agent for web clients (keep updated)
     chrome_version: str = "144.0.0.0"
     user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -121,7 +88,6 @@ PLATFORM_VERSIONS = PlatformVersions()
 
 
 def _apply_fetched_versions() -> None:
-    """Fetch latest versions and patch the singleton in-place."""
     try:
         from .version_fetcher import fetch_all_versions
 
@@ -134,21 +100,19 @@ def _apply_fetched_versions() -> None:
             if hasattr(pv, key):
                 setattr(pv, key, val)
 
-        # Keep ios_version_range upper bound in sync
         if "ios_system_version" in fetched:
             pv.ios_version_range = (
                 pv.ios_version_range[0],
                 str(fetched["ios_system_version"]),
             )
     except Exception:
-        pass  # keep defaults on any failure
+        pass
 
 
 _apply_fetched_versions()
 
 
 def get_platform_versions() -> PlatformVersions:
-    """Return the current platform version constants."""
     return PLATFORM_VERSIONS
 
 
@@ -165,18 +129,16 @@ _INIT_CONNECTION_FIELD_ORDER = [
     "query",
 ]
 
-# Valid lang_pack values for official clients
 _VALID_LANG_PACKS = frozenset(
     {
         "android",
         "ios",
         "tdesktop",
         "macos",
-        "",  # Web clients use empty string
+        "",
     }
 )
 
-# Map: lang_pack -> expected api_id
 _LANG_PACK_API_ID_MAP: Dict[str, int] = {
     "tdesktop": 2040,
     "android": 6,
@@ -196,33 +158,23 @@ def validate_init_connection_params(
     *,
     strict: bool = False,
 ) -> List[str]:
-    """Validate initConnection parameters for consistency.
-
-    Returns a list of warning strings. Empty list means all checks pass.
-    If *strict* is True, checks are more aggressive (e.g. lang_pack must
-    match api_id).
-    """
     issues: List[str] = []
 
-    # 1. lang_pack must be a known value
     if lang_pack not in _VALID_LANG_PACKS:
         issues.append(
             f"lang_pack '{lang_pack}' is not a known official value. "
             f"Expected one of: {sorted(_VALID_LANG_PACKS)}"
         )
 
-    # 2. lang_code should be a valid IETF language tag (basic check)
     if not lang_code or len(lang_code) < 2:
         issues.append(f"lang_code '{lang_code}' looks invalid (too short)")
 
-    # 3. system_lang_code should include region for mobile clients
     if lang_pack in ("android", "ios") and "-" not in system_lang_code:
         issues.append(
             f"system_lang_code '{system_lang_code}' should include a region "
             f"code (e.g. 'en-US') for {lang_pack} clients"
         )
 
-    # 4. Empty strings are suspicious
     if not device_model:
         issues.append("device_model is empty")
     if not system_version:
@@ -230,7 +182,6 @@ def validate_init_connection_params(
     if not app_version:
         issues.append("app_version is empty")
 
-    # 5. Strict: lang_pack <-> api_id consistency
     if strict and lang_pack in _LANG_PACK_API_ID_MAP:
         expected_api_id = _LANG_PACK_API_ID_MAP[lang_pack]
         if api_id != expected_api_id:
@@ -239,7 +190,6 @@ def validate_init_connection_params(
                 f"(expected {expected_api_id})"
             )
 
-    # 6. Strict: app_version should match known current versions
     if strict:
         _check_version_consistency(
             lang_pack, app_version, system_version, device_model, issues
@@ -255,7 +205,6 @@ def _check_version_consistency(
     device_model: str,
     issues: List[str],
 ) -> None:
-    """Deep consistency check for strict mode."""
     pv = PLATFORM_VERSIONS
 
     _PLATFORM_VERSION_MAP = {
@@ -304,8 +253,6 @@ def _check_version_consistency(
 
 
 class StrictMode(Enum):
-    """Controls how aggressively opentele2 enforces fingerprint consistency."""
-
     OFF = "off"
     """No extra checks — Telethon defaults."""
 
@@ -319,12 +266,6 @@ class StrictMode(Enum):
 
 @dataclass
 class FingerprintConfig:
-    """Global fingerprint configuration for the opentele2 session.
-
-    Instantiate once and pass it to ``TelegramClient`` or use the module-level
-    default ``DEFAULT_CONFIG``.
-    """
-
     strict_mode: StrictMode = StrictMode.WARN
     """How to handle consistency issues."""
 
@@ -353,18 +294,11 @@ class FingerprintConfig:
     _msg_id_offset: int = field(default_factory=lambda: random.randint(0, 0xFFFF))
 
     def get_effective_layer(self) -> int:
-        """Return the layer to use, respecting overrides."""
         if self.layer_override is not None:
             return self.layer_override
         return get_recommended_layer()
 
     def validate_params(self, **kwargs) -> None:
-        """Validate initConnection parameters based on strict_mode.
-
-        Keyword args should match ``initConnection`` fields:
-        api_id, device_model, system_version, app_version,
-        system_lang_code, lang_pack, lang_code.
-        """
         if not self.auto_validate:
             return
 
@@ -390,23 +324,8 @@ DEFAULT_CONFIG = FingerprintConfig()
 
 
 class TransportRecommendation:
-    """Provides transport/connection type recommendations for 2025-2026.
-
-    Official mobile clients (Android, iOS) use **obfuscated intermediate**
-    transport.  Desktop uses **obfuscated abridged** or **obfuscated
-    intermediate** depending on version.
-
-    Using plain ``ConnectionTcpFull`` or ``ConnectionTcpAbridged`` without
-    obfuscation is increasingly risky for mass operations.
-    """
-
     @staticmethod
     def get_connection_class(lang_pack: str = "tdesktop"):
-        """Return the recommended Telethon Connection class for a platform.
-
-        Falls back to ``ConnectionTcpObfuscated`` for all platforms as it
-        provides obfuscation which is what official clients use.
-        """
         try:
             from telethon.network.connection.tcpobfuscated import (
                 ConnectionTcpObfuscated,
@@ -420,7 +339,6 @@ class TransportRecommendation:
 
     @staticmethod
     def get_available_transports() -> Dict[str, Any]:
-        """List all available Telethon transport classes."""
         _TRANSPORT_MODULES = {
             "full": "telethon.network.connection.tcpfull.ConnectionTcpFull",
             "abridged": "telethon.network.connection.tcpabridged.ConnectionTcpAbridged",
@@ -439,30 +357,16 @@ class TransportRecommendation:
 
 
 def generate_msg_id_offset() -> int:
-    """Generate a random offset to add to msg_id base time.
-
-    Official clients use ``time * 2^32`` plus a small counter.
-    Adding a random offset within the valid range avoids trivially
-    predictable msg_ids.
-    """
     return random.randint(0, 0xFFFF)
 
 
 def is_valid_msg_id(msg_id: int, *, from_client: bool = True) -> bool:
-    """Check if a msg_id follows the official rules.
-
-    Client msg_ids must be odd (``msg_id % 2 == 1``).
-    Server msg_ids must be even (``msg_id % 2 == 0``).
-    msg_id must be > 0 and roughly correspond to current unix time * 2^32.
-    """
     if msg_id <= 0:
         return False
     parity_ok = (msg_id % 2 == 1) if from_client else (msg_id % 2 == 0)
     if not parity_ok:
         return False
 
-    # Rough time check — msg_id encodes unix time in the upper 32 bits
     encoded_time = msg_id >> 32
     now = int(time.time())
-    # Allow ±5 minutes drift
     return abs(encoded_time - now) < 300

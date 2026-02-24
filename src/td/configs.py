@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..utils import BaseObject
 from ..exception import Expects
 
-from typing import Union
+from typing import ClassVar, List, Union
 
 
 __all__ = [
@@ -24,11 +24,11 @@ __all__ = [
 ]
 
 
-class BareId(int):  # nocov
+class BareId(int):
     pass
 
 
-class ChatIdType(BaseObject):  # nocov
+class ChatIdType(BaseObject):
     bare = BareId(0)
     kShift = BareId(0)
     kReservedBit = BareId(0x80)
@@ -37,23 +37,23 @@ class ChatIdType(BaseObject):  # nocov
         self.bare = value
 
 
-class UserId(ChatIdType):  # nocov
+class UserId(ChatIdType):
     kShift = BareId(0)
 
 
-class ChatId(ChatIdType):  # nocov
+class ChatId(ChatIdType):
     kShift = BareId(1)
 
 
-class ChannelId(ChatIdType):  # nocov
+class ChannelId(ChatIdType):
     kShift = BareId(2)
 
 
-class FakeChatId(ChatIdType):  # nocov
+class FakeChatId(ChatIdType):
     kShift = BareId(0x7F)
 
 
-class PeerId(int):  # nocov
+class PeerId(int):
     kChatTypeMask = BareId(0xFFFFFFFFFFFF)
     _RESERVED_BIT_SHIFT = 48
     _LEGACY_PEER_ID_MASK = 0xFFFFFFFF
@@ -99,39 +99,44 @@ class PeerId(int):  # nocov
         return PeerId(0)
 
 
-class FileKey(int):  # nocov
+class FileKey(int):
     pass
 
 
-class DcId(int):  # nocov
-    kDcShift: DcId = 10000  # type: ignore
-    Invalid: DcId = 0  # type: ignore
-    _0: DcId = 0  # type: ignore
-    _1: DcId = 1  # type: ignore
-    _2: DcId = 2  # type: ignore
-    _3: DcId = 3  # type: ignore
-    _4: DcId = 4  # type: ignore
-    _5: DcId = 5  # type: ignore
+class DcId(int):
+    kDcShift: DcId = 10000
+    Invalid: DcId = 0
+    _0: DcId = 0
+    _1: DcId = 1
+    _2: DcId = 2
+    _3: DcId = 3
+    _4: DcId = 4
+    _5: DcId = 5
 
     @staticmethod
     def BareDcId(shiftedDcId: Union[ShiftedDcId, DcId]) -> DcId:
         return DcId(shiftedDcId % DcId.kDcShift)
 
 
-class ShiftedDcId(DcId):  # nocov
+class ShiftedDcId(DcId):
     @staticmethod
     def ShiftDcId(dcId: DcId, value: int) -> ShiftedDcId:
         return ShiftedDcId(dcId + DcId.kDcShift * value)
 
 
-class BuiltInDc(BaseObject):  # type: ignore # nocov
+class BuiltInDc(BaseObject):
+    kBuiltInDcs: ClassVar[List[BuiltInDc]]
+    kBuiltInDcsIPv6: ClassVar[List[BuiltInDc]]
+    kBuiltInDcsTest: ClassVar[List[BuiltInDc]]
+    kBuiltInDcsIPv6Test: ClassVar[List[BuiltInDc]]
+
     def __init__(self, id: DcId, ip: str, port: int):
         self.id = id
         self.ip = ip
         self.port = port
 
 
-BuiltInDc.kBuiltInDcs = [  # nocov
+BuiltInDc.kBuiltInDcs = [
     BuiltInDc(DcId._1, "149.154.175.50", 443),
     BuiltInDc(DcId._2, "149.154.167.51", 443),
     BuiltInDc(DcId._2, "95.161.76.100", 443),
@@ -140,7 +145,7 @@ BuiltInDc.kBuiltInDcs = [  # nocov
     BuiltInDc(DcId._5, "149.154.171.5", 443),
 ]
 
-BuiltInDc.kBuiltInDcsIPv6 = [  # nocov
+BuiltInDc.kBuiltInDcsIPv6 = [
     BuiltInDc(DcId._1, "2001:0b28:f23d:f001:0000:0000:0000:000a", 443),
     BuiltInDc(DcId._2, "2001:067c:04e8:f002:0000:0000:0000:000a", 443),
     BuiltInDc(DcId._3, "2001:0b28:f23d:f003:0000:0000:0000:000a", 443),
@@ -148,20 +153,20 @@ BuiltInDc.kBuiltInDcsIPv6 = [  # nocov
     BuiltInDc(DcId._5, "2001:0b28:f23f:f005:0000:0000:0000:000a", 443),
 ]
 
-BuiltInDc.kBuiltInDcsTest = [  # nocov
+BuiltInDc.kBuiltInDcsTest = [
     BuiltInDc(DcId._1, "149.154.175.10", 443),
     BuiltInDc(DcId._2, "149.154.167.40", 443),
     BuiltInDc(DcId._3, "149.154.175.117", 443),
 ]
 
-BuiltInDc.kBuiltInDcsIPv6Test = [  # nocov
+BuiltInDc.kBuiltInDcsIPv6Test = [
     BuiltInDc(DcId._1, "2001:0b28:f23d:f001:0000:0000:0000:000e", 443),
     BuiltInDc(DcId._2, "2001:067c:04e8:f002:0000:0000:0000:000e", 443),
     BuiltInDc(DcId._3, "2001:0b28:f23d:f003:0000:0000:0000:000e", 443),
 ]
 
 
-class dbi(int):  # nocov
+class dbi(int):
     Key = 0x00
     User = 0x01
     DcOptionOldOld = 0x02
@@ -178,7 +183,6 @@ class dbi(int):  # nocov
     LastUpdateCheck = 0x0D
     WindowPositionOld = 0x0E
     ConnectionTypeOldOld = 0x0F
-    # 0x10 reserved
     DefaultAttach = 0x11
     CatsAndDogsOld = 0x12
     ReplaceEmojiOld = 0x13
@@ -189,7 +193,6 @@ class dbi(int):  # nocov
     RecentEmojiOldOldOld = 0x18
     LoggedPhoneNumberOld = 0x19
     MutedPeersOld = 0x1A
-    # 0x1b reserved
     NotifyViewOld = 0x1C
     SendToMenu = 0x1D
     CompressPastedImageOld = 0x1E
@@ -257,14 +260,14 @@ class dbi(int):  # nocov
     Version = 666
 
 
-class lskType(int):  # nocov
+class lskType(int):
     lskUserMap = 0x00
-    lskDraft = 0x01  # data: PeerId peer
-    lskDraftPosition = 0x02  # data: PeerId peer
-    lskLegacyImages = 0x03  # legacy
+    lskDraft = 0x01
+    lskDraftPosition = 0x02
+    lskLegacyImages = 0x03
     lskLocations = 0x04
-    lskLegacyStickerImages = 0x05  # legacy
-    lskLegacyAudios = 0x06  # legacy
+    lskLegacyStickerImages = 0x05
+    lskLegacyAudios = 0x06
     lskRecentStickersOld = 0x07
     lskBackgroundOldOld = 0x08
     lskUserSettings = 0x09
@@ -279,13 +282,13 @@ class lskType(int):  # nocov
     lskFavedStickers = 0x12
     lskExportSettings = 0x13
     lskBackgroundOld = 0x14
-    lskSelfSerialized = 0x15  # serialized self
+    lskSelfSerialized = 0x15
     lskMasksKeys = 0x16
     lskCustomEmojiKeys = 0x17
     lskSearchSuggestions = 0x18
-    lskWebviewTokens = 0x19  # data: QByteArray bots, QByteArray other
+    lskWebviewTokens = 0x19
 
 
-class BotTrustFlag(int):  # nocov
+class BotTrustFlag(int):
     NoOpenGame = 1 << 0
     Payment = 1 << 1

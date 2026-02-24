@@ -1,9 +1,3 @@
-"""
-Pure Python replacements for PyQt5.QtCore classes used for binary serialization.
-
-Replaces: QByteArray, QDataStream, QBuffer, QIODevice, QFile, QDir, QSysInfo
-"""
-
 from __future__ import annotations
 
 import builtins
@@ -25,12 +19,6 @@ class QIODevice:
 
 
 class QByteArray:
-    """Pure Python replacement for Qt's QByteArray.
-
-    Wraps a bytearray internally with a _null flag to distinguish
-    QByteArray() (null) from QByteArray(b"") (empty but non-null).
-    """
-
     __slots__ = ("_data", "_null")
 
     def __init__(self, data=None):
@@ -74,7 +62,7 @@ class QByteArray:
         self._null = False
 
     def reserve(self, size: int) -> None:
-        pass  # no-op in pure Python
+        pass
 
     def clear(self) -> None:
         self._data.clear()
@@ -133,7 +121,6 @@ class QByteArray:
     def __repr__(self) -> str:
         return f"QByteArray({bytes(self._data)!r})"
 
-    # Python 3.12+ buffer protocol support
     if sys.version_info >= (3, 12):
 
         def __buffer__(self, flags):
@@ -141,13 +128,7 @@ class QByteArray:
 
 
 class QBuffer:
-    """Pure Python replacement for Qt's QBuffer.
-
-    In-memory seekable I/O device operating directly on a QByteArray's
-    internal bytearray.
-    """
-
-    def __init__(self):
+    def __init__(self) -> None:
         self._buffer: typing.Optional[QByteArray] = None
         self._pos: int = 0
         self._open: bool = False
@@ -205,7 +186,6 @@ class QBuffer:
         else:
             raw = bytes(data)
         end = self._pos + len(raw)
-        # Extend buffer if writing past end
         if end > len(self._buffer._data):
             self._buffer._data.extend(b"\x00" * (end - len(self._buffer._data)))
         self._buffer._data[self._pos : self._pos + len(raw)] = raw
@@ -215,12 +195,6 @@ class QBuffer:
 
 
 class QDataStream:
-    """Pure Python replacement for Qt's QDataStream.
-
-    Binary serialization stream using big-endian byte order (matching Qt's default).
-    Reads/writes through a QBuffer device or directly from/to a QByteArray.
-    """
-
     class FloatingPointPrecision:
         SinglePrecision = 0
         DoublePrecision = 1
@@ -238,7 +212,7 @@ class QDataStream:
     class Version:
         Qt_5_1 = 16
 
-    def __init__(self, data=None, mode=None):
+    def __init__(self, data: typing.Any = None, mode: typing.Any = None) -> None:
         self._device: typing.Optional[QBuffer] = None
         self._status: int = QDataStream.Status.Ok
         self._version: int = 0
@@ -299,8 +273,6 @@ class QDataStream:
             self._status = QDataStream.Status.WriteFailed
         return result
 
-    # --- Numeric helpers ---
-
     def _read_numeric(self, size: int, fmt: str, default=0):
         data = self._read(size)
         if len(data) < size:
@@ -309,8 +281,6 @@ class QDataStream:
 
     def _write_numeric(self, fmt: str, value) -> None:
         self._write(struct.pack(fmt, value))
-
-    # --- Integer read/write ---
 
     def readInt8(self) -> int:
         return self._read_numeric(1, ">b")
@@ -366,8 +336,6 @@ class QDataStream:
     def writeInt(self, i: int) -> None:
         self.writeInt32(i)
 
-    # --- Float read/write ---
-
     def readFloat(self) -> float:
         return self._read_numeric(4, ">f", 0.0)
 
@@ -389,8 +357,6 @@ class QDataStream:
     def writeBool(self, b: bool) -> None:
         self._write(b"\x01" if b else b"\x00")
 
-    # --- Raw data ---
-
     def readRawData(self, length: int) -> bytes:
         return self._read(length)
 
@@ -402,8 +368,6 @@ class QDataStream:
         else:
             raw = bytes(data)
         return self._write(raw)
-
-    # --- QString ---
 
     def readQString(self) -> str:
         length_data = self._read(4)
@@ -423,10 +387,7 @@ class QDataStream:
         self._write(struct.pack(">I", len(encoded)))
         self._write(encoded)
 
-    # --- QByteArray serialization via << and >> operators ---
-
     def __lshift__(self, other: QByteArray) -> QDataStream:
-        """Write QByteArray to stream: stream << qba"""
         if not isinstance(other, QByteArray):
             return NotImplemented
         if other.isNull():
@@ -438,7 +399,6 @@ class QDataStream:
         return self
 
     def __rshift__(self, other: QByteArray) -> QDataStream:
-        """Read QByteArray from stream: stream >> qba (modifies qba in-place)"""
         if not isinstance(other, QByteArray):
             return NotImplemented
         length_data = self._read(4)
@@ -454,22 +414,15 @@ class QDataStream:
             other._null = False
         return self
 
-    # --- Skip ---
-
     def skipRawData(self, length: int) -> int:
         data = self._read(length)
         return len(data)
 
 
 class QFile:
-    """Pure Python replacement for Qt's QFile.
-
-    Thin wrapper around Python's built-in file I/O.
-    """
-
     def __init__(self, path: str):
         self._path = path
-        self._file = None
+        self._file: typing.Optional[typing.IO[bytes]] = None
 
     def open(self, mode) -> bool:
         try:
@@ -518,8 +471,6 @@ class QFile:
 
 
 class QDir:
-    """Pure Python replacement for Qt's QDir."""
-
     def __init__(self, path: str):
         self._path = path
 
@@ -532,8 +483,6 @@ class QDir:
 
 
 class QSysInfo:
-    """Pure Python replacement for Qt's QSysInfo."""
-
     class Endian:
         BigEndian = "big"
         LittleEndian = "little"

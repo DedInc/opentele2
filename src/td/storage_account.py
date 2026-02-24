@@ -30,7 +30,7 @@ class StorageAccount(BaseObject):  # nocov
         self.__basePath = td.Storage.PathJoin(
             self.__baseGlobalPath, td.Storage.ToFilePart(self.__dataNameKey)
         )
-        self.__localKey = None
+        self.__localKey: Optional[td.AuthKey] = None
         self.__mapData = MapData(self.basePath)
         self.__config = td.MTP.Config(td.MTP.Environment.Production)
 
@@ -172,7 +172,7 @@ class StorageAccount(BaseObject):  # nocov
         mtp.writeEncrypted(data, self.localKey)  # type: ignore
         mtp.finish()
 
-    def _writeData(self, baseGlobalPath: str, keyFile: str = None) -> None:
+    def _writeData(self, baseGlobalPath: str, keyFile: Optional[str] = None) -> None:
         Expects(
             baseGlobalPath is not None and baseGlobalPath != "",
             "baseGlobalPath can't be empty",

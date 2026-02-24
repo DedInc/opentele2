@@ -52,7 +52,7 @@ class Serialize(BaseObject):
 
 
 class Storage(BaseObject):
-    class ReadSettingsContext(BaseObject):  # pragma: no cover
+    class ReadSettingsContext(BaseObject):
         def __init__(self) -> None:
             self.fallbackConfigLegacyDcOptions = td.MTP.DcOptions(
                 td.MTP.Environment.Production
@@ -123,7 +123,7 @@ class Storage(BaseObject):
             return self.__stream
 
     class EncryptedDescriptor(BaseObject):
-        def __init__(self, size: int = None) -> None:
+        def __init__(self, size: typing.Optional[int] = None) -> None:
             self.__data = QByteArray()
             self.__buffer = QBuffer()
             self.__stream = QDataStream()
@@ -140,10 +140,10 @@ class Storage(BaseObject):
 
         def finish(self) -> None:
             if self.__stream.device():
-                self.__stream.setDevice(None)  # type: ignore
+                self.__stream.setDevice(None)
             if self.__buffer.isOpen():
                 self.__buffer.close()
-            self.__buffer.setBuffer(None)  # type: ignore
+            self.__buffer.setBuffer(None)
 
         @property
         def data(self) -> QByteArray:
@@ -207,7 +207,7 @@ class Storage(BaseObject):
         def finish(self):
             if not self.stream.device():
                 return
-            self.stream.setDevice(None)  # type: ignore
+            self.stream.setDevice(None)
 
             self.md5 += self.fullSize.to_bytes(4, "little")
             self.md5 += APP_VERSION.to_bytes(4, "little")
@@ -267,7 +267,7 @@ class Storage(BaseObject):
 
     @staticmethod
     def ReadFile(fileName: str, basePath: str) -> FileReadDescriptor:
-        tries_exception = None
+        tries_exception: typing.Optional[OpenTeleException] = None
         for suffix in _TDF_FILE_SUFFIXES:
             try:
                 file = QFile(Storage.PathJoin(basePath, fileName + suffix))
@@ -278,7 +278,7 @@ class Storage(BaseObject):
                 magic = file.read(4)
                 if magic != TDF_MAGIC:
                     tries_exception = TDataInvalidMagic(
-                        f"Invalid magic {magic} in file {fileName}"
+                        f"Invalid magic {magic!r} in file {fileName}"
                     )
                     file.close()
                     continue
@@ -287,17 +287,17 @@ class Storage(BaseObject):
                 bytesdata = QByteArray(file.read(file.size()))
                 dataSize = bytesdata.size() - 16
 
-                check_md5 = bytesdata.data()[:dataSize]
-                check_md5 += int(dataSize).to_bytes(4, "little")
-                check_md5 += int(version).to_bytes(4, "little")
-                check_md5 += magic
-                check_md5 = hashlib.md5(check_md5)
+                check_md5_data = bytesdata.data()[:dataSize]
+                check_md5_data += int(dataSize).to_bytes(4, "little")
+                check_md5_data += int(version).to_bytes(4, "little")
+                check_md5_data += magic
+                check_md5_hash = hashlib.md5(check_md5_data)
 
                 md5 = bytesdata.data()[dataSize:]
 
-                if check_md5.hexdigest() != md5.hex():
+                if check_md5_hash.hexdigest() != md5.hex():
                     tries_exception = TDataInvalidCheckSum(
-                        f"Invalid checksum {check_md5.hexdigest()} in file {fileName}"
+                        f"Invalid checksum {check_md5_hash.hexdigest()} in file {fileName}"
                     )
                     file.close()
                     continue
@@ -326,11 +326,10 @@ class Storage(BaseObject):
 
     @staticmethod
     def _resetDescriptor(result: FileReadDescriptor) -> None:
-        """Reset a FileReadDescriptor's stream/buffer state."""
-        result.stream.setDevice(None)  # type: ignore
+        result.stream.setDevice(None)
         if result.buffer.isOpen():
             result.buffer.close()
-        result.buffer.setBuffer(None)  # type: ignore
+        result.buffer.setBuffer(None)
 
     @staticmethod
     def ReadEncryptedFile(
@@ -370,10 +369,10 @@ class Storage(BaseObject):
     @staticmethod
     def ReadSetting(
         blockId: int, stream: QDataStream, version: int, context: ReadSettingsContext
-    ) -> bool:  # pragma: no cover
+    ) -> bool:
         if blockId == dbi.DcOptionOldOld:
             dcId = DcId(stream.readUInt32())
-            stream.readQString()  # host (unused)
+            stream.readQString()
             ip = stream.readQString()
             port = stream.readUInt32()
             ExpectStreamStatus(stream)
@@ -417,7 +416,7 @@ class Storage(BaseObject):
 
         elif blockId == dbi.User:
             userId = stream.readInt32()
-            dcId = stream.readUInt32()
+            dcId = DcId(stream.readUInt32())
             ExpectStreamStatus(stream)
 
             context.mtpLegacyMainDcId = dcId
@@ -553,7 +552,7 @@ class Storage(BaseObject):
         return QByteArray(os.urandom(size))
 
     @staticmethod
-    def GetAbsolutePath(path: str = None) -> str:
+    def GetAbsolutePath(path: typing.Optional[str] = None) -> str:
         if path is None or path == "":
             path = os.getcwd()
         return os.path.abspath(path)

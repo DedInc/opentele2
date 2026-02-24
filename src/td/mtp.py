@@ -73,7 +73,9 @@ class MTP(BaseObject):  # nocov
             addToData(dcs, MTP.DcOptions.Flag.f_static)  # type: ignore
             addToData(
                 dcs_ipv6,
-                MTP.DcOptions.Flag.f_static | MTP.DcOptions.Flag.f_ipv6,
+                MTP.DcOptions.Flag(
+                    MTP.DcOptions.Flag.f_static | MTP.DcOptions.Flag.f_ipv6
+                ),
             )  # type: ignore
 
         def constructFromSerialized(self, serialized: QByteArray):
@@ -261,7 +263,7 @@ class MTP(BaseObject):  # nocov
             Flag = MTP.DcOptions.Flag
             Endpoint = MTP.DcOptions.Endpoint
 
-            results: Dict[Address, Dict[Protocol, List[Endpoint]]] = {}
+            results: Dict[Address, Dict[Protocol, List[Endpoint]]] = {}  # type: ignore[valid-type]
             results[Address.IPv4] = {Protocol.Tcp: [], Protocol.Http: []}  # type: ignore
             results[Address.IPv6] = {Protocol.Tcp: [], Protocol.Http: []}  # type: ignore
 

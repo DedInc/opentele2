@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, List, Dict, TypeVar, Type
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 try:
     from .utils import BaseObject
@@ -68,7 +68,9 @@ class SystemInfo(BaseObject):
     system_versions: Any = []
 
     @classmethod
-    def RandomDevice(cls: Type[SystemInfo], unique_id: str = None) -> DeviceInfo:
+    def RandomDevice(
+        cls: Type[SystemInfo], unique_id: Optional[str] = None
+    ) -> DeviceInfo:
         hash_id = cls._strtohashid(unique_id)
         return cls._RandomDevice(hash_id)
 
@@ -84,7 +86,7 @@ class SystemInfo(BaseObject):
         )
 
     @classmethod
-    def _strtohashid(cls, unique_id: str = None):
+    def _strtohashid(cls, unique_id: Optional[str] = None):
         if unique_id is not None and not isinstance(unique_id, str):
             unique_id = str(unique_id)
         byteid = os.urandom(32) if unique_id is None else unique_id.encode("utf-8")
@@ -228,7 +230,6 @@ class macOSDevice(GeneralDesktopDevice):
 
 _android_data = _load_device_data("android.json")
 
-# SDK level to Android version string
 _SDK_TO_ANDROID = {
     24: "7",
     25: "7.1",
@@ -293,7 +294,6 @@ class IOSDevice(SystemInfo):
     }
 
     system_versions: Dict[int, Dict[int, List[int]]] = {
-        # iOS 12
         12: {
             5: [5, 4, 3, 2, 1],
             4: [9, 8, 7, 6, 5, 4, 3, 2, 1],
@@ -302,7 +302,6 @@ class IOSDevice(SystemInfo):
             1: [4, 3, 2, 1],
             0: [1],
         },
-        # iOS 13
         13: {
             7: [],
             6: [1],
@@ -313,7 +312,6 @@ class IOSDevice(SystemInfo):
             1: [3, 2, 1],
             0: [],
         },
-        # iOS 14
         14: {
             8: [1],
             7: [1],
@@ -325,7 +323,6 @@ class IOSDevice(SystemInfo):
             1: [],
             0: [1],
         },
-        # iOS 15
         15: {
             8: [1],
             7: [8, 7, 6, 5, 4, 3, 2, 1],
@@ -354,8 +351,6 @@ class IOSDevice(SystemInfo):
         17: [26],
     }
 
-    # Weight multipliers for iOS major versions based on market share (Jan 2026).
-    # iOS 26.x ~67%, iOS 18.x ~28%, iOS 17.x ~3%, iOS 16.x ~2%, older <1%.
     _MAJOR_VERSION_WEIGHTS: Dict[int, int] = {
         26: 10,
         25: 1,
@@ -425,9 +420,6 @@ class IOSDevice(SystemInfo):
         results: List[DeviceInfo] = []
         seen_versions: set = set()
 
-        # Real iOS client sends just "iPhone" as device_model
-        # (UIDevice.current.localizedModel), so we only need unique iOS versions.
-        # Weight each version by its major version's market share.
         for major in sorted(cls.system_versions.keys()):
             weight = cls._MAJOR_VERSION_WEIGHTS.get(major, 1)
             for minor, patches in cls.system_versions[major].items():
@@ -445,11 +437,6 @@ iOSDevice = IOSDevice
 
 
 def _get_firefox_latest_version():
-    """Fetch latest Firefox major version from Mozilla product-details.
-
-    Returns (max_version, min_version) tuple where min = max - 3.
-    Falls back to (None, None) on failure.
-    """
     import urllib.request
     from urllib.error import HTTPError
 
@@ -493,7 +480,6 @@ def _get_chrome_last_good_versions():
 
 
 def _parse_os_from_ua(user_agent: str) -> str:
-    """Extract OS name from User-Agent for Web Z / Web A style system_version."""
     ua_lower = user_agent.lower()
     if "windows" in ua_lower:
         return "Windows"
@@ -507,7 +493,6 @@ def _parse_os_from_ua(user_agent: str) -> str:
 
 
 def _parse_platform_from_ua(user_agent: str) -> str:
-    """Extract navigator.platform value from User-Agent for Web K style system_version."""
     ua_lower = user_agent.lower()
     if "win64" in ua_lower or "windows" in ua_lower:
         return "Win32"
@@ -523,17 +508,6 @@ def _parse_platform_from_ua(user_agent: str) -> str:
 
 
 class WebBrowserDevice(SystemInfo):
-    """Generates realistic browser fingerprints using browserforge.
-
-    Produces DeviceInfo where:
-    - model = full User-Agent string
-    - version = OS name (for Web Z/A) or navigator.platform (for Web K)
-
-    Browser selection is weighted by global desktop market share
-    (Statcounter, January 2026).
-    """
-
-    # Chrome ~76%, Edge ~9%, Firefox ~4%
     BROWSER_WEIGHTS: Dict[str, int] = {
         "chrome": 19,
         "edge": 2,
@@ -584,9 +558,6 @@ class WebBrowserDevice(SystemInfo):
         ff_max = cls._firefox_max
         ff_min = cls._firefox_min
 
-        # Per-browser generation configs.
-        # Each browser gets its own HeaderGenerator so we control the
-        # exact proportion of UAs via BROWSER_WEIGHTS.
         browser_configs = [
             {
                 "name": "chrome",
@@ -619,7 +590,7 @@ class WebBrowserDevice(SystemInfo):
         seen_uas: set = set()
 
         for cfg in browser_configs:
-            weight = cls.BROWSER_WEIGHTS.get(cfg["name"], 1)
+            weight = cls.BROWSER_WEIGHTS.get(str(cfg["name"]), 1)
             try:
                 gen = HeaderGenerator(
                     browser=[cfg["browser"]],
@@ -629,7 +600,7 @@ class WebBrowserDevice(SystemInfo):
             except Exception:
                 continue
 
-            for _ in range(cfg["count"]):
+            for _ in range(int(cfg["count"])):
                 try:
                     headers = gen.generate()
                 except Exception:
@@ -663,13 +634,9 @@ class WebBrowserDevice(SystemInfo):
         cls._generated = True
 
     @classmethod
-    def RandomDevice(cls, unique_id: str = None, variant: str = "z") -> DeviceInfo:
-        """Generate a random web browser device fingerprint.
-
-        Args:
-            unique_id: Deterministic seed string. Random if None.
-            variant: "z" or "a" for Web Z/A style, "k" for Web K style.
-        """
+    def RandomDevice(
+        cls, unique_id: Optional[str] = None, variant: str = "z"
+    ) -> DeviceInfo:
         hash_id = cls._strtohashid(unique_id)
         cls.__gen__()
         if variant == "k":

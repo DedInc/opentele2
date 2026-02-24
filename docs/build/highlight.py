@@ -1,27 +1,3 @@
-"""
-Highlight.
-
-A library for managing code highlighting.
-
-All Changes Copyright 2014-2017 Isaac Muse.
-
----
-
-CodeHilite Extension for Python-Markdown
-========================================
-
-Adds code/syntax highlighting to standard Python-Markdown code blocks.
-
-See <https://pythonhosted.org/Markdown/extensions/code_hilite.html>
-for documentation.
-
-Original code Copyright 2006-2008 [Waylan Limberg](http://achinghead.com/).
-
-All changes Copyright 2008-2014 The Python Markdown Project
-
-License: [BSD](http://www.opensource.org/licenses/bsd-license.php)
-"""
-
 import re
 import typing
 from markdown import Extension
@@ -65,7 +41,7 @@ try:
     p_ver = tuple([int(n) for n in pygments_ver.split(".")[:2]])
     HtmlFormatter = find_formatter_class("html")
     pygments = True
-except ImportError:  # pragma: no cover
+except ImportError:
     pygments = False
     p_ver = (0, 0)
 
@@ -143,50 +119,31 @@ DEFAULT_CONFIG = {
 if pygments:
 
     class InlineHtmlFormatter(HtmlFormatter):
-        """Format the code blocks."""
-
         def wrap(self, source, outfile):
-            """Overload wrap."""
-
             return self._wrap_code(source)
 
         def _wrap_code(self, source):
-            """Return source, but do not wrap in inline <code> block."""
-
             yield 0, ""
             for i, t in source:
                 yield i, t.strip()
             yield 0, ""
 
     class BlockHtmlFormatter(HtmlFormatter):
-        """Adds ability to output line numbers in a new way."""
-
-        # Capture `<span class="lineno">   1 </span>`
         RE_SPAN_NUMS = re.compile(
             r'(<span[^>]*?)(class="[^"]*\blinenos?\b[^"]*)"([^>]*)>([^<]+)(</span>)'
         )
-        # Capture `<pre>` that is not followed by `<span></span>`
         RE_TABLE_NUMS = re.compile(r"(<pre[^>]*>)(?!<span></span>)")
 
         def __init__(self, **options):
-            """Initialize."""
-
             self.pymdownx_inline = options.get("linenos", False) == "pymdownx-inline"
             if self.pymdownx_inline:
                 options["linenos"] = "inline"
             HtmlFormatter.__init__(self, **options)
 
         def _format_custom_line(self, m):
-            """Format the custom line number."""
-
-            # We've broken up the match in such a way that we not only
-            # move the line number value to `data-linenos`, but we could
-            # wrap the gutter number in the future with a highlight class.
-            # The decision to do this has still not be made.
-
             if p_ver >= (2, 7):
                 lnum = m.group(4) if not m.group(4).rstrip() else m.group(4)
-            else:  # pragma: no cover
+            else:
                 lnum = m.group(4)
 
             return (
@@ -201,43 +158,22 @@ if pygments:
             )
 
         def _wrap_customlinenums(self, inner):
-            """
-            Wrapper to handle block inline line numbers.
-
-            For our special inline version, don't display line numbers via `<span>  1</span>`,
-            but include as `<span data-linenos="  1"></span>` and use CSS to display them:
-            `[data-linenos]:before {content: attr(data-linenos);}`.  This allows us to use
-            inline and copy and paste without issue.
-            """
-
             for t, line in inner:
                 if t:
                     line = self.RE_SPAN_NUMS.sub(self._format_custom_line, line)
                 yield t, line
 
         def wrap(self, source, outfile):
-            """Wrap the source code."""
-
             if self.linenos == 2 and self.pymdownx_inline:
                 source = self._wrap_customlinenums(source)
             return HtmlFormatter.wrap(self, source, outfile)
 
         def _wrap_tablelinenos(self, inner):
-            """
-            Wrapper to handle line numbers better in table.
-
-            Pygments currently has a bug with line step where leading blank lines collapse.
-            Use the same fix Pygments uses for code content for code line numbers.
-            This fix should be pull requested on the Pygments repository.
-            """
-
             for t, line in HtmlFormatter._wrap_tablelinenos(self, inner):
                 yield t, self.RE_TABLE_NUMS.sub(r"\1<span></span>", line)
 
 
 class Highlight(object):
-    """Highlight class."""
-
     def __init__(
         self,
         guess_lang=False,
@@ -257,8 +193,6 @@ class Highlight(object):
         anchor_linenums=False,
         line_anchors="",
     ):
-        """Initialize."""
-
         self.guess_lang = guess_lang
         self.pygments_style = pygments_style
         self.use_pygments = use_pygments
@@ -281,7 +215,7 @@ class Highlight(object):
             auto_title_map = {}
         self.auto_title_map = auto_title_map
 
-        if extend_pygments_lang is None:  # pragma: no cover
+        if extend_pygments_lang is None:
             extend_pygments_lang = []
         self.extend_pygments_lang = {}
         for language in extend_pygments_lang:
@@ -294,19 +228,14 @@ class Highlight(object):
                     ]
 
     def get_extended_language(self, language):
-        """Get extended language."""
-
         return self.extend_pygments_lang.get(language, (language, {}))
 
     def get_lexer(self, src, language):
-        """Get the Pygments lexer."""
-
         if language:
             language, lexer_options = self.get_extended_language(language)
         else:
             lexer_options = {}
 
-        # Try and get lexer by the name given.
         try:
             lexer = get_lexer_by_name(language, **lexer_options)
         except Exception:
@@ -316,7 +245,7 @@ class Highlight(object):
             if self.guess_lang:
                 try:
                     lexer = guess_lexer(src)
-                except Exception:  # pragma: no cover
+                except Exception:
                     pass
 
         if isinstance(lexer, PythonLexer):
@@ -326,8 +255,6 @@ class Highlight(object):
         return lexer
 
     def escape(self, txt):
-        """Basic HTML escaping."""
-
         txt = txt.replace("&", "&amp;")
         txt = txt.replace("<", "&lt;")
         txt = txt.replace(">", "&gt;")
@@ -349,8 +276,6 @@ class Highlight(object):
         title=None,
         code_block_count=0,
     ):
-        """Highlight code."""
-
         if attrs is None:
             attrs = {}
         class_names = classes[:] if classes else []
@@ -359,9 +284,7 @@ class Highlight(object):
             or (self.linenums is not False and linestart > 0)
         ) and not inline > 0
 
-        # Convert with Pygments.
         if pygments and self.use_pygments:
-            # Setup language lexer.
             lexer = self.get_lexer(src, language)
             linenums = self.linenums_style if linenums_enabled else False
 
@@ -384,7 +307,6 @@ class Highlight(object):
                         temp.append('{k}="{v}"'.format(k=k, v=v))
                 attr_str = " " + " ".join(temp) if temp else ""
 
-            # Setup line specific settings.
             if not linenums or linestep < 1:
                 linestep = 1
             if not linenums or linestart < 1:
@@ -404,7 +326,6 @@ class Highlight(object):
             if title:
                 title = title.strip()
 
-            # Setup formatter
             html_formatter = InlineHtmlFormatter if inline else BlockHtmlFormatter
             formatter = html_formatter(
                 cssclass=css_class,
@@ -428,22 +349,13 @@ class Highlight(object):
                 anchorlinenos=self.anchor_linenums if not inline else False,
             )
 
-            # if type(lexer) == PythonLexer: lexer = Python3()
-
-            # print(lexer, type(lexer) == PythonLexer, type(lexer))
-            # Convert
-            # code = highlight(src, lexer, formatter)
-            # print(code, "\n\n\n\n\n")
-
             if isinstance(lexer, VSPythonLexer):
                 tokens: typing.List[typing.Tuple[_TokenType, str]] = []
                 tokens_lex: typing.List[typing.Tuple[_TokenType, str]] = list(
                     lex(src, lexer)
                 )
-                # result = ""
 
                 nested_parent = []
-                # print(lexer)
                 for token in tokens_lex:
                     tokenType = token[0]
                     var = token[1]
@@ -500,7 +412,6 @@ class Highlight(object):
                     )
 
         elif inline:
-            # Format inline code for a JavaScript Syntax Highlighter by specifying language.
             code = self.escape(src)
             if css_class:
                 class_names.insert(0, css_class)
@@ -509,7 +420,6 @@ class Highlight(object):
             class_str = " ".join(class_names) if class_names else ""
             id_str = id_value
         else:
-            # Format block code for a JavaScript Syntax Highlighter by specifying language.
             if self.code_attr_on_pre and css_class:
                 class_names.insert(0, css_class)
             if language:
@@ -537,13 +447,9 @@ class Highlight(object):
             if class_str:
                 attributes["class"] = class_str
 
-            # This code exists for consistency, but we currently don't
-            # ever feed extra ids or attributes for inline code.
-            # We let `attr_list` handle this directly, but if we did
-            # need this, we would then want to exercise this logic.
-            if id_str:  # pragma: no cover
+            if id_str:
                 attributes["id"] = id_str
-            for k, v in attrs:  # pragma: no cover
+            for k, v in attrs:
                 attributes[k] = v
 
             el = etree.Element("code", attributes)
@@ -554,24 +460,17 @@ class Highlight(object):
 
 
 class HighlightTreeprocessor(Treeprocessor):
-    """Highlight source code in code blocks."""
-
     def __init__(self, md, ext):
-        """Initialize."""
-
         self.ext = ext
         super(HighlightTreeprocessor, self).__init__(md)
 
     def code_unescape(self, text):
-        """Unescape code."""
         text = text.replace("&lt;", "<")
         text = text.replace("&gt;", ">")
         text = text.replace("&amp;", "&")
         return text
 
     def run(self, root):
-        """Find code blocks and store in `htmlStash`."""
-
         blocks = root.iter("pre")
         for block in blocks:
             if len(block) == 1 and block[0].tag == "code":
@@ -600,26 +499,17 @@ class HighlightTreeprocessor(Treeprocessor):
                     )
                 )
 
-                # Clear code block in `etree` instance
                 block.clear()
-                # Change to `p` element which will later
-                # be removed when inserting raw HTML
                 block.tag = "p"
                 block.text = placeholder
 
 
 class HighlightExtension(Extension):
-    """Configure highlight settings globally."""
-
     def __init__(self, *args, **kwargs):
-        """Initialize."""
-
         self.config = copy.deepcopy(DEFAULT_CONFIG)
         super(HighlightExtension, self).__init__(*args, **kwargs)
 
     def get_pymdownx_highlight_settings(self):
-        """Get the specified extension."""
-
         target = None
 
         if self.enabled:
@@ -634,13 +524,9 @@ class HighlightExtension(Extension):
         return target
 
     def get_pymdownx_highlighter(self):
-        """Get the highlighter."""
-
         return Highlight
 
     def extendMarkdown(self, md):
-        """Add support for code highlighting."""
-
         config = self.getConfigs()
         self.pygments_code_block = -1
         self.md = md
@@ -669,11 +555,8 @@ class HighlightExtension(Extension):
                 self.md.registeredExtensions[index] = self
 
     def reset(self):
-        """Reset."""
-
         self.pygments_code_block = -1
 
 
 def makeExtension(*args, **kwargs):
-    """Return extension."""
     return HighlightExtension(*args, **kwargs)

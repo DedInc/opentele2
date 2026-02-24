@@ -10,23 +10,6 @@ import typing
 
 
 class AuthKeyType(IntEnum):
-    """
-    Type of `AuthKey`
-
-    ### Attributes:
-        Generated (`IntEnum`):
-            Generated key
-
-        Temporary (`IntEnum`):
-            Temporary key
-
-        ReadFromFile (`IntEnum`):
-            Key red from file
-
-        Local (`IntEnum`):
-            Local key
-    """
-
     Generated = 0
     Temporary = 1
     ReadFromFile = 2
@@ -34,22 +17,6 @@ class AuthKeyType(IntEnum):
 
 
 class AuthKey(BaseObject):
-    """
-    Authorization key used for [MTProto](https://core.telegram.org/mtproto)
-    It's also used to encrypt and decrypt local tdata
-
-    ### Attributes:
-        DcId (DcId):
-            Data Center ID (from 1 to 5).
-
-        type (AuthKeyType):
-            Type of the key.
-
-        key (bytes):
-            The actual key, 256 `bytes` in length.
-
-    """
-
     kSize = 256
 
     def __init__(
@@ -57,12 +24,10 @@ class AuthKey(BaseObject):
         key: bytes = bytes(),
         type: AuthKeyType = AuthKeyType.Generated,
         dcId: DcId = DcId.Invalid,
-    ) -> None:  # type: ignore
+    ) -> None:
         self.__type = type
         self.__dcId = dcId
         self.__key = key
-        # if (type == self.Type.Generated) or (type == self.Type.Temporary):
-        # self.__creationtime = ...
         self.__countKeyId()
 
     @property

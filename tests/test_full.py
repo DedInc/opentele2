@@ -1,31 +1,20 @@
-"""Comprehensive offline test suite for opentele2.
-
-Tests all functionality: API, devices, fingerprint, consistency,
-tdata loading, session files, JSON consistency, and conversion.
-"""
-
+# ruff: noqa: E402
 import os
 import sys
 import json
 import sqlite3
 import pathlib
 
-# ---------------------------------------------------------------------------
-# Setup: path
-# ---------------------------------------------------------------------------
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
 
-# ---------------------------------------------------------------------------
-# Imports (after path setup)
-# ---------------------------------------------------------------------------
-import pytest  # noqa: E402
+import pytest
 
-from src.td import TDesktop  # noqa: E402
-from src.td.account import Account  # noqa: E402
-from src.tl.telethon import TelegramClient  # noqa: E402
-from src.api import API, APIData, UseCurrentSession, CreateNewSession, LoginFlag  # noqa: E402
-from src.devices import (  # noqa: E402
+from src.td import TDesktop
+from src.td.account import Account
+from src.tl.telethon import TelegramClient
+from src.api import API, APIData, UseCurrentSession, CreateNewSession, LoginFlag
+from src.devices import (
     AndroidDevice,
     IOSDevice,
     macOSDevice,
@@ -34,7 +23,7 @@ from src.devices import (  # noqa: E402
     WebBrowserDevice,
     DeviceInfo,
 )
-from src.fingerprint import (  # noqa: E402
+from src.fingerprint import (
     LAYER,
     PLATFORM_VERSIONS,
     StrictMode,
@@ -47,14 +36,11 @@ from src.fingerprint import (  # noqa: E402
     generate_msg_id_offset,
     is_valid_msg_id,
 )
-from src.consistency import (  # noqa: E402
+from src.consistency import (
     CheckResult,
     ConsistencyReport,
 )
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
 TESTS_DIR = pathlib.Path(__file__).parent
 TDATAS_DIR = TESTS_DIR / "tdatas"
 SESSIONS_DIR = TESTS_DIR / "sessions"
@@ -69,7 +55,6 @@ def _load_json(account_id: str) -> dict:
 
 
 def _read_session_db(account_id: str) -> dict:
-    """Read dc_id and auth_key from a Telethon .session SQLite file."""
     path = SESSIONS_DIR / f"{account_id}.session"
     conn = sqlite3.connect(str(path))
     try:
@@ -88,14 +73,7 @@ def _read_session_db(account_id: str) -> dict:
         conn.close()
 
 
-# ===================================================================
-# 1. API MODULE TESTS
-# ===================================================================
-
-
 class TestAPIClasses:
-    """Tests for the API class hierarchy."""
-
     def test_all_api_classes_exist(self):
         apis = [
             API.TelegramDesktop,
@@ -112,7 +90,6 @@ class TestAPIClasses:
             assert issubclass(api, APIData), f"{api.__name__} must extend APIData"
 
     def test_api_ids_are_official(self):
-        """Each API class should use a known official api_id."""
         official_ids = {2040, 6, 21724, 10840, 2834, 2496}
         apis = [
             API.TelegramDesktop,
@@ -175,14 +152,12 @@ class TestAPIClasses:
         assert "Chrome" in w.device_model
 
     def test_api_instantiation(self):
-        """Instantiating an API class should copy the class defaults."""
         inst = API.TelegramDesktop()
         assert inst.api_id == API.TelegramDesktop.api_id
         assert inst.api_hash == API.TelegramDesktop.api_hash
         assert inst.lang_pack == API.TelegramDesktop.lang_pack
 
     def test_api_copy(self):
-        """copy() should produce an equivalent but distinct instance."""
         original = API.TelegramAndroid()
         copied = original.copy()
         assert copied.api_id == original.api_id
@@ -201,8 +176,6 @@ class TestAPIClasses:
 
 
 class TestAPIGenerate:
-    """Tests for API.Generate() methods."""
-
     def test_desktop_generate_deterministic(self):
         a = API.TelegramDesktop.Generate("windows", "seed123")
         b = API.TelegramDesktop.Generate("windows", "seed123")
@@ -215,7 +188,6 @@ class TestAPIGenerate:
         assert win.system_version != linux.system_version
 
     def test_desktop_generate_random_varies(self):
-        """Without unique_id, successive calls should produce different results."""
         seen = set()
         for _ in range(10):
             g = API.TelegramDesktop.Generate()
@@ -248,11 +220,6 @@ class TestLoginFlag:
 
     def test_create_new_session(self):
         assert issubclass(CreateNewSession, LoginFlag)
-
-
-# ===================================================================
-# 2. DEVICE GENERATION TESTS
-# ===================================================================
 
 
 class TestAndroidDevice:
@@ -350,11 +317,9 @@ class TestWebBrowserDevice:
         assert isinstance(d, DeviceInfo)
 
     def test_z_vs_k_system_version_differs(self):
-        """Z variant returns OS name, K variant returns navigator.platform."""
         dz = WebBrowserDevice.RandomDevice("same_seed", variant="z")
         dk = WebBrowserDevice.RandomDevice("same_seed", variant="k")
-        assert dz.model == dk.model  # same UA
-        # system_version may differ (e.g., "Windows" vs "Win32")
+        assert dz.model == dk.model
 
     def test_deterministic(self):
         a = WebBrowserDevice.RandomDevice("seed", variant="z")
@@ -370,7 +335,6 @@ class TestWebBrowserDevice:
         assert "firefox" in weights
 
     def test_chrome_dominates_device_list(self):
-        """Chrome UAs should be the majority of the generated list (weighted)."""
         WebBrowserDevice._generated = False
         WebBrowserDevice.__gen__()
         total = len(WebBrowserDevice.deviceList)
@@ -379,31 +343,22 @@ class TestWebBrowserDevice:
             for d in WebBrowserDevice.deviceList
             if "Chrome" in d.model and "Edg" not in d.model
         )
-        # Chrome weight is 19 out of 23 total weight units;
-        # it should dominate the list (at least 50% of entries).
         assert chrome_count / total > 0.5, (
             f"Chrome should dominate: {chrome_count}/{total} = {chrome_count / total:.1%}"
         )
 
     def test_multiple_browsers_present(self):
-        """The device list should contain UAs from multiple browser families."""
         WebBrowserDevice._generated = False
         WebBrowserDevice.__gen__()
         uas = {d.model for d in WebBrowserDevice.deviceList}
         has_chrome = any("Chrome" in ua and "Edg" not in ua for ua in uas)
         has_edge = any("Edg" in ua for ua in uas)
         has_firefox = any("Firefox" in ua for ua in uas)
-        # At minimum Chrome + one other browser should be present
         assert has_chrome, "Chrome UAs should be present"
         browser_count = sum([has_chrome, has_edge, has_firefox])
         assert browser_count >= 2, (
             f"Expected at least 2 browser families, got {browser_count}"
         )
-
-
-# ===================================================================
-# 3. FINGERPRINT MODULE TESTS
-# ===================================================================
 
 
 class TestFingerprintValidation:
@@ -499,7 +454,7 @@ class TestFingerprintValidation:
             device_model="Samsung SM-S928B",
             system_version="SDK 35",
             app_version="12.3.0",
-            system_lang_code="en",  # missing region
+            system_lang_code="en",
             lang_pack="android",
             lang_code="en",
         )
@@ -560,7 +515,6 @@ class TestFingerprintConfig:
         assert StrictMode.STRICT.value == "strict"
 
     def test_config_validate_params_warn(self):
-        """Config in WARN mode should not raise, just warn."""
         config = FingerprintConfig(strict_mode=StrictMode.WARN)
         import warnings as w
 
@@ -592,7 +546,6 @@ class TestFingerprintConfig:
 
     def test_config_validate_off_does_nothing(self):
         config = FingerprintConfig(strict_mode=StrictMode.OFF, auto_validate=False)
-        # Should not raise or warn
         config.validate_params(
             api_id=0,
             device_model="",
@@ -623,7 +576,7 @@ class TestMsgIdHelpers:
         import time
 
         now = int(time.time())
-        msg_id = (now << 32) | 1  # odd = client
+        msg_id = (now << 32) | 1
         assert is_valid_msg_id(msg_id, from_client=True)
 
     def test_invalid_zero_msg_id(self):
@@ -634,7 +587,7 @@ class TestMsgIdHelpers:
 
         now = int(time.time())
         even_id = (now << 32) | 2
-        assert not is_valid_msg_id(even_id, from_client=True)  # client must be odd
+        assert not is_valid_msg_id(even_id, from_client=True)
 
     def test_server_msg_id(self):
         import time
@@ -668,11 +621,6 @@ class TestLayer:
         layer = get_recommended_layer()
         assert isinstance(layer, int)
         assert layer > 100
-
-
-# ===================================================================
-# 4. CONSISTENCY MODULE TESTS
-# ===================================================================
 
 
 class TestConsistencyDataclasses:
@@ -722,19 +670,16 @@ class TestConsistencyDataclasses:
 
     def test_empty_report_passes(self):
         r = ConsistencyReport()
-        assert r.all_passed  # no checks = all pass
+        assert r.all_passed
 
 
 class TestConsistencyCheckerOffline:
-    """Verify ConsistencyChecker includes the new nearest_dc check."""
-
     def test_checker_has_nearest_dc_method(self):
         from src.consistency import ConsistencyChecker
 
         assert hasattr(ConsistencyChecker, "check_nearest_dc")
 
     def test_run_all_lists_nearest_dc(self):
-        """run_all must include check_nearest_dc in its check list."""
         import inspect
         from src.consistency import ConsistencyChecker
 
@@ -743,8 +688,6 @@ class TestConsistencyCheckerOffline:
 
 
 class TestAutoPostLogin:
-    """Verify auto_post_login flag and _run_post_login_requests exist."""
-
     def test_auto_post_login_defaults_true(self):
         client = TelegramClient(api=API.TelegramDesktop)
         assert client._auto_post_login is True
@@ -764,13 +707,11 @@ class TestAutoPostLogin:
         import inspect
 
         func = TelegramClient.connect
-        # Unwrap debug/descriptor wrappers to get the original function
         while hasattr(func, "__fget__"):
             func = func.__fget__
         try:
             source = inspect.getsource(func)
         except OSError:
-            # Fall back to reading the source file directly
             src_file = os.path.join(base_dir, "src", "tl", "telethon.py")
             with open(src_file, "r", encoding="utf-8") as f:
                 source = f.read()
@@ -778,14 +719,7 @@ class TestAutoPostLogin:
         assert "_auto_post_login" in source
 
 
-# ===================================================================
-# 5. TDATA LOADING TESTS
-# ===================================================================
-
-
 class TestTDataLoading:
-    """Test loading TDesktop tdata folders for all 5 test accounts."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
@@ -831,7 +765,6 @@ class TestTDataLoading:
         assert 1 <= acct.MainDcId <= 5
 
     def test_tdata_user_id_matches_json(self, tdata_path, account_id):
-        """The user ID from tdata should be a valid positive integer."""
         tdesk = TDesktop(tdata_path)
         acct = tdesk.mainAccount
         assert acct.UserId > 0, f"Invalid UserId for account {account_id}"
@@ -841,13 +774,11 @@ class TestTDataLoading:
         assert tdesk.keyFile == "data"
 
     def test_tdata_serialization_roundtrip(self, tdata_path):
-        """Serialize and deserialize MTP authorization should preserve data."""
         tdesk = TDesktop(tdata_path)
         acct = tdesk.mainAccount
         serialized = acct.serializeMtpAuthorization()
         assert len(serialized) > 0
 
-        # The serialized data should start with the wide IDs tag
         from src.qt_compat import QDataStream
 
         stream = QDataStream(serialized)
@@ -856,14 +787,7 @@ class TestTDataLoading:
         assert tag == Account.kWideIdsTag
 
 
-# ===================================================================
-# 6. SESSION FILE TESTS
-# ===================================================================
-
-
 class TestSessionFiles:
-    """Test that .session SQLite files are valid and readable."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
@@ -894,14 +818,7 @@ class TestSessionFiles:
         assert data["port"] == 443
 
 
-# ===================================================================
-# 7. JSON CONSISTENCY TESTS
-# ===================================================================
-
-
 class TestJSONConsistency:
-    """Cross-reference JSON metadata with session/tdata data."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
@@ -944,7 +861,6 @@ class TestJSONConsistency:
         assert json_data["sdk"]
 
     def test_tdata_session_authkey_match(self, account_id):
-        """Auth key from tdata must match auth key from .session file."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
         tdata_key = tdesk.mainAccount.authKey.key
@@ -955,7 +871,6 @@ class TestJSONConsistency:
         assert tdata_key == session_key, f"Auth key mismatch for account {account_id}"
 
     def test_tdata_session_dc_id_match(self, account_id):
-        """DC ID from tdata must match DC ID from .session file."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
         tdata_dc = int(tdesk.mainAccount.MainDcId)
@@ -968,7 +883,6 @@ class TestJSONConsistency:
         )
 
     def test_json_api_matches_known_api_class(self, json_data):
-        """The app_id and app_hash in JSON should match a known API class."""
         api_map = {
             2040: API.TelegramDesktop,
             6: API.TelegramAndroid,
@@ -983,7 +897,6 @@ class TestJSONConsistency:
         assert json_data["app_hash"] == api_cls.api_hash
 
     def test_json_fingerprint_validates(self, json_data):
-        """The JSON metadata should pass basic fingerprint validation."""
         issues = validate_init_connection_params(
             api_id=json_data["app_id"],
             device_model=json_data["device"],
@@ -993,26 +906,17 @@ class TestJSONConsistency:
             lang_pack=json_data.get("lang_pack", ""),
             lang_code=json_data["lang_code"],
         )
-        # Only check for critical issues (empty fields)
         critical = [i for i in issues if "empty" in i.lower()]
         assert len(critical) == 0, f"Critical fingerprint issues: {critical}"
 
 
-# ===================================================================
-# 8. CONVERSION TESTS (offline, no network)
-# ===================================================================
-
-
 class TestConversion:
-    """Test TDesktop -> TelegramClient conversion (UseCurrentSession, offline)."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
 
     @pytest.mark.asyncio
     async def test_tdata_to_telethon_creates_client(self, account_id, tmp_path):
-        """Convert tdata to TelegramClient using UseCurrentSession."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
         assert tdesk.isLoaded()
@@ -1030,7 +934,6 @@ class TestConversion:
 
     @pytest.mark.asyncio
     async def test_conversion_preserves_auth_key(self, account_id, tmp_path):
-        """Auth key should be preserved through TDesktop -> TelegramClient."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
@@ -1047,7 +950,6 @@ class TestConversion:
 
     @pytest.mark.asyncio
     async def test_conversion_preserves_dc_id(self, account_id, tmp_path):
-        """DC ID should be preserved through TDesktop -> TelegramClient."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
@@ -1064,7 +966,6 @@ class TestConversion:
 
     @pytest.mark.asyncio
     async def test_roundtrip_tdesk_telethon_tdesk(self, account_id, tmp_path):
-        """TDesktop -> TelegramClient -> TDesktop should preserve auth key."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
@@ -1093,7 +994,6 @@ class TestConversion:
 
     @pytest.mark.asyncio
     async def test_conversion_with_json_api(self, account_id, tmp_path):
-        """Convert using the API params from the JSON file."""
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         jdata = _load_json(account_id)
 
@@ -1118,11 +1018,6 @@ class TestConversion:
         assert client.session.auth_key is not None
 
 
-# ===================================================================
-# 9. TELEGRAM CLIENT CONSTRUCTOR TESTS
-# ===================================================================
-
-
 class TestTelegramClientConstructor:
     def test_default_api(self):
         client = TelegramClient()
@@ -1143,17 +1038,9 @@ class TestTelegramClientConstructor:
         assert client.api_id == API.TelegramIOS.api_id
 
 
-# ===================================================================
-# 10. TDATA SAVE/LOAD ROUNDTRIP
-# ===================================================================
-
-
 class TestTDataSaveLoad:
-    """Test saving tdata and reloading it."""
-
     @pytest.mark.asyncio
     async def test_save_and_reload(self, tmp_path):
-        """Load tdata, convert, save, and reload."""
         account_id = ACCOUNT_IDS[0]
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
@@ -1161,7 +1048,6 @@ class TestTDataSaveLoad:
         original_key = tdesk.mainAccount.authKey.key
         original_uid = tdesk.mainAccount.UserId
 
-        # Convert to TelegramClient and back
         session_path = str(tmp_path / "save_test")
         client = await tdesk.ToTelethon(
             session=session_path,
@@ -1173,21 +1059,14 @@ class TestTDataSaveLoad:
             client, flag=UseCurrentSession, api=API.TelegramDesktop
         )
 
-        # Save to new tdata path
         save_path = str(tmp_path / "saved_tdata")
         os.makedirs(save_path, exist_ok=True)
         tdesk2.SaveTData(save_path)
 
-        # Reload
         tdesk3 = TDesktop(save_path)
         assert tdesk3.isLoaded()
         assert tdesk3.mainAccount.authKey.key == original_key
         assert tdesk3.mainAccount.UserId == original_uid
-
-
-# ===================================================================
-# 11. EDGE CASES AND ERROR HANDLING
-# ===================================================================
 
 
 class TestEdgeCases:
@@ -1202,7 +1081,7 @@ class TestEdgeCases:
 
     def test_api_data_requires_id_and_hash(self):
         with pytest.raises(BaseException):
-            APIData()  # no api_id or api_hash
+            APIData()
 
     def test_login_flag_hierarchy(self):
         assert issubclass(UseCurrentSession, LoginFlag)
@@ -1214,16 +1093,6 @@ class TestEdgeCases:
         assert str(d) == "Model X v1.0"
 
 
-# ===================================================================
-# 12. LIVE ACCOUNT TESTS (network required)
-# ===================================================================
-
-# Mark all live tests so they can be run selectively:
-#   pytest -m live
-# or skipped:
-#   pytest -m "not live"
-
-
 def _session_path(account_id: str) -> str:
     return str(SESSIONS_DIR / account_id)
 
@@ -1233,7 +1102,6 @@ def _tdata_path(account_id: str) -> str:
 
 
 def _safe_print(text: str) -> None:
-    """Print text safely on consoles that don't support full Unicode (e.g. cp1251)."""
     try:
         print(text)
     except UnicodeEncodeError:
@@ -1241,8 +1109,6 @@ def _safe_print(text: str) -> None:
 
 
 class TestLiveSessionAccounts:
-    """Connect using .session files, verify authorization, print account info."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
@@ -1250,7 +1116,6 @@ class TestLiveSessionAccounts:
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_session_connect_and_get_me(self, account_id):
-        """Load session, connect, call get_me, print account info."""
         from telethon.errors import UserDeactivatedBanError
 
         client = await TelegramClient.FromSessionJson(_session_path(account_id))
@@ -1286,7 +1151,6 @@ class TestLiveSessionAccounts:
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_session_get_sessions(self, account_id):
-        """Load session, connect, get all active sessions and print them."""
         from telethon.errors import UserDeactivatedBanError
 
         client = await TelegramClient.FromSessionJson(_session_path(account_id))
@@ -1320,8 +1184,6 @@ class TestLiveSessionAccounts:
 
 
 class TestLiveTDataAccounts:
-    """Connect using tdata folders, verify authorization, print account info."""
-
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request):
         return request.param
@@ -1329,7 +1191,6 @@ class TestLiveTDataAccounts:
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_tdata_connect_and_get_me(self, account_id, tmp_path):
-        """Load tdata, convert to TelegramClient, connect, print account info."""
         from telethon.errors import UserDeactivatedBanError
 
         tdesk = TDesktop(_tdata_path(account_id))
@@ -1373,7 +1234,6 @@ class TestLiveTDataAccounts:
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_tdata_get_sessions(self, account_id, tmp_path):
-        """Load tdata, convert, connect, get all active sessions."""
         from telethon.errors import UserDeactivatedBanError
 
         tdesk = TDesktop(_tdata_path(account_id))
@@ -1415,19 +1275,15 @@ class TestLiveTDataAccounts:
 
 
 class TestLiveCreateNewSession:
-    """Try creating a new session from an existing authorized session."""
-
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_create_new_session_from_tdata(self, tmp_path):
-        """Load first tdata account, try CreateNewSession (QR login)."""
         from telethon.errors import UserDeactivatedBanError
 
         account_id = ACCOUNT_IDS[0]
         tdesk = TDesktop(_tdata_path(account_id))
         assert tdesk.isLoaded()
 
-        # First get a working client with UseCurrentSession
         session_path = str(tmp_path / f"source_{account_id}")
         source_client = await tdesk.ToTelethon(
             session=session_path,
@@ -1453,7 +1309,6 @@ class TestLiveCreateNewSession:
             _safe_print("\n--- CreateNewSession test ---")
             _safe_print(f"  Source account: {me.id} (+{me.phone})")
 
-            # Attempt QR login to create a new session
             new_session_path = str(tmp_path / f"new_{account_id}")
             try:
                 new_client = await source_client.QRLoginToNewClient(
@@ -1470,15 +1325,12 @@ class TestLiveCreateNewSession:
                 _safe_print(
                     f"  CreateNewSession failed (expected in CI): {type(e).__name__}: {e}"
                 )
-                # QR login requires interactive approval, so failure is expected
-                # in automated tests - we just verify the attempt was made
         finally:
             await source_client.disconnect()
 
     @pytest.mark.live
     @pytest.mark.asyncio
     async def test_save_session_json_with_live_info(self, tmp_path):
-        """Load session, connect, save with fetch_user_info=True, verify JSON."""
         from telethon.errors import UserDeactivatedBanError
 
         account_id = ACCOUNT_IDS[0]
@@ -1516,7 +1368,6 @@ class TestLiveCreateNewSession:
             _safe_print(f"  app_id       : {data.get('app_id')}")
             _safe_print(f"  device       : {data.get('device')}")
 
-            # The fetched info should be populated
             assert data.get("id") is not None, "id should be set with fetch_user_info"
             assert data.get("phone") is not None, (
                 "phone should be set with fetch_user_info"

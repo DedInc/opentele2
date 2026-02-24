@@ -37,18 +37,20 @@ __all__ = [
 ]
 
 
-class OpenTeleException(BaseException):  # nocov
-    """Base exception of the library."""
-
-    def __init__(self, message: str = None, stack_index: int = 1) -> None:
+class OpenTeleException(BaseException):
+    def __init__(
+        self, message: typing.Optional[str] = None, stack_index: int = 1
+    ) -> None:
         super().__init__(message if (message is not None) else "")
 
         self.message = message
         self.desc = self.__class__.__name__
 
         self.frame = inspect.currentframe()
+        assert self.frame is not None
         for i in range(stack_index):
             self.frame = self.frame.f_back
+        assert self.frame is not None
 
         self._caller_class = (
             self.frame.f_locals["self"].__class__
@@ -199,33 +201,33 @@ class SessionFileInvalid(OpenTeleException):
 @typing.overload
 def Expects(
     condition: bool,
-    message: str = None,
-    done: typing.Callable[[], None] = None,
-    fail: typing.Callable[[OpenTeleException], None] = None,
+    message: typing.Optional[str] = None,
+    done: typing.Optional[typing.Callable[[], None]] = None,
+    fail: typing.Optional[typing.Callable[[OpenTeleException], None]] = None,
     silent: bool = False,
     stack_index: int = 1,
 ) -> bool: ...
 
 
 @typing.overload
-def Expects(  # noqa: F811
+def Expects(
     condition: bool,
-    exception: OpenTeleException = None,
-    done: typing.Callable[[], None] = None,
-    fail: typing.Callable[[OpenTeleException], None] = None,
+    exception: typing.Optional[OpenTeleException] = None,
+    done: typing.Optional[typing.Callable[[], None]] = None,
+    fail: typing.Optional[typing.Callable[[OpenTeleException], None]] = None,
     silent: bool = False,
     stack_index: int = 1,
 ) -> bool: ...
 
 
-def Expects(  # noqa: F811
+def Expects(
     condition: bool,
-    exception: typing.Union[OpenTeleException, str] = None,
-    done: typing.Callable[[], None] = None,
-    fail: typing.Callable[[OpenTeleException], None] = None,
+    exception: typing.Optional[typing.Union[OpenTeleException, str]] = None,
+    done: typing.Optional[typing.Callable[[], None]] = None,
+    fail: typing.Optional[typing.Callable[[OpenTeleException], None]] = None,
     silent: bool = False,
     stack_index: int = 1,
-) -> bool:  # nocov
+) -> bool:
     if condition:
         if done is not None:
             done()
@@ -246,7 +248,7 @@ def Expects(  # noqa: F811
 
     stack = inspect.stack()
     frame = stack[stack_index].frame
-    tb = types.TracebackType(None, frame, frame.f_lasti, frame.f_lineno)  # type: ignore
+    tb = types.TracebackType(None, frame, frame.f_lasti, frame.f_lineno)
     exception = exception.with_traceback(tb)
 
     if fail is not None:
