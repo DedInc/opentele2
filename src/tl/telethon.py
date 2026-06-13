@@ -43,6 +43,7 @@ from ..fingerprint import (
     TransportRecommendation,
 )
 from ..utils import PrettyTable
+from ..pg.pyrogram_io import from_pyrogram_session, save_pyrogram_session
 from .session_io import (
     from_session_json,
     save_session_json,
@@ -708,3 +709,69 @@ class TelegramClient(telethon.TelegramClient):
         fetch_user_info: bool = False,
     ) -> tuple[str, str]:
         return await save_session_json(self, session_path, api, fetch_user_info)
+        
+    async def ToPyrogram(
+        self,
+        session_path: str,
+        api: type[APIData] | APIData | None = None,
+        fetch_user_info: bool = False,
+    ) -> str:
+        """
+        Export this Telethon session as a Pyrogram-compatible .session file.
+
+        Parameters
+        ----------
+        session_path:
+            Destination path (with or without the ``.session`` extension).
+        api:
+            API preset / instance whose ``api_id`` is stored in the Pyrogram
+            session.  Defaults to the client's own API data.
+        fetch_user_info:
+            If *True* and the client is connected, call ``get_me()`` to
+            populate ``user_id`` in the output file.
+
+        Returns
+        -------
+        str
+            Absolute path of the written ``.session`` file.
+        """
+        return await save_pyrogram_session(
+            self, session_path, api=api, fetch_user_info=fetch_user_info
+        )
+
+    @staticmethod
+    async def FromPyrogram(
+        session_path: str,
+        api: type[APIData] | APIData | None = None,
+        output_session: str | None = None,
+        **kwargs: object,
+    ) -> TelegramClient:
+        """
+        Load a Pyrogram .session file and return an authenticated
+        ``TelegramClient`` (Telethon).
+
+        Parameters
+        ----------
+        session_path:
+            Path to the Pyrogram .session file.
+        api:
+            API preset to use.  When *None*, the preset is inferred from
+            the ``api_id`` stored in the Pyrogram session (works for
+            official Telegram clients: Android, iOS, Desktop …).
+            For custom ``api_id``/``api_hash`` you **must** pass an explicit
+            ``APIData(api_id, api_hash)`` instance.
+        output_session:
+            Path for the resulting Telethon .session file.  When *None* an
+            in-memory session is used (not persisted to disk).
+        **kwargs:
+            Forwarded to ``TelegramClient.__init__``.
+
+        Returns
+        -------
+        TelegramClient
+            Ready-to-use client.  Call ``await client.connect()`` and then
+            ``await client.is_user_authorized()`` to verify.
+        """
+        return await from_pyrogram_session(
+            session_path, api=api, output_session=output_session, **kwargs
+        )
