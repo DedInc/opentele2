@@ -469,9 +469,77 @@ class TDesktop(BaseObject):
 
         use_api = api if api is not None else self.api
         client = await self.ToTelethon(flag=UseCurrentSession, api=use_api)
-        return await client.SaveSessionJson(
-            session_path, api=use_api, fetch_user_info=fetch_user_info
+        try:
+            return await client.SaveSessionJson(
+                session_path, api=use_api, fetch_user_info=fetch_user_info
+            )
+        finally:
+            await tl.TelegramClient._disconnect_client(client, close_session=True)
+
+    @staticmethod
+    async def FromPyrogram(
+        session_path: str,
+        flag: type[LoginFlag] = UseCurrentSession,
+        api: type[APIData] | APIData | None = None,
+        password: str | None = None,
+    ) -> TDesktop:
+        """Create a TDesktop instance from a Pyrogram .session file.
+
+        Args:
+            session_path: Path to the Pyrogram .session file.
+            flag: UseCurrentSession or CreateNewSession.
+            api: API to use for the TDesktop. If None, inferred from session.
+            password: 2FA password for CreateNewSession.
+
+        Returns:
+            A loaded TDesktop instance.
+        """
+        client = await tl.TelegramClient.FromPyrogram(
+            session_path,
+            api=api,
+            output_session=None,
         )
+        use_api = api if api is not None else (client._api_data or API.TelegramDesktop)
+        try:
+            return await TDesktop.FromTelethon(
+                client, flag=flag, api=use_api, password=password
+            )
+        finally:
+            await tl.TelegramClient._disconnect_client(client, close_session=True)
+
+    async def SavePyrogram(
+        self,
+        session_path: str,
+        api: type[APIData] | APIData | None = None,
+        fetch_user_info: bool = False,
+    ) -> str:
+        """Save this TDesktop's session to a Pyrogram .session file.
+
+        Args:
+            session_path: Output path for the Pyrogram .session file.
+            api: APIData for the session metadata. Defaults to self.api.
+            fetch_user_info: If True and connected, fetch user info.
+
+        Returns:
+            str: Path to the written Pyrogram .session file.
+        """
+        Expects(
+            self.isLoaded(),
+            TDesktopNotLoaded("You need to load accounts from a tdata folder first"),
+        )
+        Expects(
+            self.accountsCount > 0,
+            TDesktopHasNoAccount("There is no account in this instance of TDesktop"),
+        )
+
+        use_api = api if api is not None else self.api
+        client = await self.ToTelethon(flag=UseCurrentSession, api=use_api)
+        try:
+            return await client.ToPyrogram(
+                session_path, api=use_api, fetch_user_info=fetch_user_info
+            )
+        finally:
+            await tl.TelegramClient._disconnect_client(client, close_session=True)
 
     @classmethod
     def PerformanceMode(cls, enabled: bool = True) -> None:
