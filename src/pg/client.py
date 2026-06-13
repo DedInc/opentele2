@@ -32,7 +32,6 @@ def _resolve_api_from_id(
             return api
         if isinstance(api, type) and issubclass(api, APIData):
             return api()
-        return api  # type: ignore[return-value]
 
     if pyro_api_id and pyro_api_id in _PRESET_MAP:
         return _PRESET_MAP[pyro_api_id]()
