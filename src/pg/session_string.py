@@ -27,10 +27,11 @@ def encode_session_string(
     str
         URL-safe base64 string (no ``=`` padding).
     """
+    _auth_key_len = len(auth_key) if isinstance(auth_key, (bytes, bytearray)) else 0
     Expects(
         isinstance(auth_key, (bytes, bytearray)) and len(auth_key) == 256,
         exception=SessionFileInvalid(
-            f"auth_key must be exactly 256 bytes, got {len(auth_key) if auth_key else 0}"
+            f"auth_key must be exactly 256 bytes, got {_auth_key_len}"
         ),
     )
 

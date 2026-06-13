@@ -124,10 +124,11 @@ def read_pyrogram_session(path: str) -> dict:
 
         dc_id, api_id, test_mode, auth_key, user_id, is_bot = row
 
+        _auth_key_len = len(auth_key) if isinstance(auth_key, (bytes, bytearray)) else 0
         Expects(
             isinstance(auth_key, (bytes, bytearray)) and len(auth_key) == 256,
             exception=SessionFileInvalid(
-                f"auth_key has unexpected length {len(auth_key) if auth_key else 0}, "
+                f"auth_key has unexpected length {_auth_key_len}, "
                 "expected 256 bytes"
             ),
         )
@@ -165,11 +166,13 @@ async def save_pyrogram_session(
     api_data = _resolve_api_data(api, client)
 
     user_id: int | None = None
+    is_bot: bool = False
     if fetch_user_info and client.is_connected():
         try:
             me = await client.get_me()
             if me:
                 user_id = me.id
+                is_bot = bool(getattr(me, "is_bot", False))
         except Exception:
             pass
 
@@ -182,6 +185,7 @@ async def save_pyrogram_session(
         auth_key=ss.auth_key.key,
         api_id=api_data.api_id,
         user_id=user_id,
+        is_bot=is_bot,
     )
 
 async def from_pyrogram_session(

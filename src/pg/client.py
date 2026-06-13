@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from ..api import API, APIData
@@ -11,6 +12,8 @@ from .session_string import decode_session_string, encode_session_string
 if TYPE_CHECKING:
     from ..td.tdesktop import TDesktop
     from ..tl.telethon import TelegramClient
+
+logger = logging.getLogger(__name__)
 
 _PRESET_MAP: dict[int, type[APIData]] = {
     6: API.TelegramAndroid,
@@ -32,6 +35,10 @@ def _resolve_api_from_id(
             return api
         if isinstance(api, type) and issubclass(api, APIData):
             return api()
+        raise TypeError(
+            f"Invalid `api` argument: expected an APIData instance or subclass, "
+            f"got {type(api)!r}"
+        )
 
     if pyro_api_id and pyro_api_id in _PRESET_MAP:
         return _PRESET_MAP[pyro_api_id]()
@@ -70,7 +77,12 @@ def _build_telethon_session(
     else:
         tl_session = MemorySession()
 
-    server_address, port = DC_ADDRESSES.get(dc_id, ("149.154.167.51", 443))
+    if dc_id not in DC_ADDRESSES:
+        raise ValueError(
+            f"Unknown dc_id {dc_id!r}: expected one of {sorted(DC_ADDRESSES)}. "
+            "Check the session file for corruption."
+        )
+    server_address, port = DC_ADDRESSES[dc_id]
     tl_session.set_dc(dc_id, server_address, port)
     tl_session.auth_key = AuthKey(auth_key_bytes)
     if hasattr(tl_session, "save"):
@@ -112,20 +124,20 @@ class PyrogramSession:
         is_bot: bool = False,
         test_mode: bool = False,
     ) -> None:
-        self.dc_id = dc_id
-        self.api_id = api_id
-        self.auth_key = bytes(auth_key) if auth_key else b""
-        self.user_id = user_id
-        self.is_bot = is_bot
-        self.test_mode = test_mode
-
+        _auth_key_len = len(auth_key) if isinstance(auth_key, (bytes, bytearray)) else 0
         Expects(
             isinstance(auth_key, (bytes, bytearray)) and len(auth_key) == 256,
             exception=SessionFileInvalid(
-                f"auth_key must be exactly 256 bytes, "
-                f"got {len(auth_key) if auth_key else 0}"
+                f"auth_key must be exactly 256 bytes, got {_auth_key_len}"
             ),
         )
+
+        self.auth_key = bytes(auth_key)
+        self.dc_id = dc_id
+        self.api_id = api_id
+        self.user_id = user_id
+        self.is_bot = is_bot
+        self.test_mode = test_mode
 
     def __repr__(self) -> str:
         uid = self.user_id or "?"
@@ -181,8 +193,11 @@ class PyrogramSession:
                 me = await client.get_me()
                 if me:
                     user_id = me.id
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "FromTelethon: failed to fetch user info via get_me()",
+                    exc_info=e,
+                )
 
         if user_id is None and client.UserId:
             user_id = client.UserId
@@ -290,7 +305,7 @@ class PyrogramSession:
         from ..td.tdesktop import TDesktop
         from ..tl.telethon import TelegramClient
 
-        use_api = api or API.TelegramDesktop
+        use_api = api if api is not None else API.TelegramDesktop
         client = await self.ToTelethon(api=use_api)
         try:
             return await TDesktop.FromTelethon(
