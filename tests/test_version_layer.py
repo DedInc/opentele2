@@ -15,11 +15,17 @@ from src.utils import APP_VERSION, TDF_MAGIC
 
 _VERSION_H = (
     Path(__file__).resolve().parents[1]
-    / "tdesktop-7.0.9-full"
+    / "refs"
+    / "tdesktop-dev"
     / "Telegram"
     / "SourceFiles"
     / "core"
     / "version.h"
+)
+
+requires_tdesktop_ref = pytest.mark.skipif(
+    not _VERSION_H.is_file(),
+    reason=f"missing tdesktop reference checkout: {_VERSION_H}",
 )
 
 
@@ -31,6 +37,7 @@ def _app_version_from_header() -> int:
 
 
 class TestAppVersion:
+    @requires_tdesktop_ref
     def test_app_version_matches_tdesktop_header(self) -> None:
         assert APP_VERSION == _app_version_from_header()
 

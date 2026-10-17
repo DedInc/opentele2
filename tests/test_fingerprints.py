@@ -871,6 +871,7 @@ class TestSessionJsonExport:
         conn.close()
 
 
+@pytest.mark.live
 class TestVersionFetcher:
     def test_fetch_returns_dict(self) -> None:
         result = fetch_all_versions()
