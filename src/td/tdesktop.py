@@ -16,15 +16,25 @@ from ..exception import (
     Expects,
     LoginFlagInvalid,
     OpenTeleException,
-    QDataStreamFailed,
     TDataBadDecryptKey,
     TDataSaveFailed,
     TDesktopHasNoAccount,
     TDesktopNotLoaded,
 )
-from ..qt_compat import QByteArray, QDataStream
+from ..qt_compat import QByteArray
 from ..utils import BaseObject
 from . import shared as td
+from .key_data import (
+    LOCAL_ENCRYPT_SALT_SIZE,
+    KeyData,
+    PasscodeWrap,
+    create_passcode_key,
+    default_passcode_kdf,
+    key_data_trailer,
+    open_local_key,
+    read_key_data,
+    wrap_local_key,
+)
 
 _PERF_LOCAL_KEY = bytes.fromhex(
     "d8745944519e0d2d71309d6c8d272dc64948f5e3eba7685324d5c691ad810c20"
@@ -98,6 +108,7 @@ class TDesktop(BaseObject):
         self.__active_index = -1
         self.__passcodeKey: td.AuthKey | None = None
         self.__localKey: td.AuthKey | None = None
+        self.__keyData = KeyData()
         self.__AppVersion: int | None = None
         self.__isLoaded = False
         self.__api = api.copy()
@@ -201,8 +212,8 @@ class TDesktop(BaseObject):
             account._writeData(basePath, keyFile)
 
         key = td.Storage.FileWriteDescriptor("key_" + self.keyFile, basePath)
-        key.writeData(self.__passcodeKeySalt)
-        key.writeData(self.__passcodeKeyEncrypted)
+        key.writeData(self.__keyData.openSalt)
+        key.writeData(self.__keyData.openKeyEncrypted)
 
         keySize = sizeof(int32) + sizeof(int32) * len(self.accounts)
         keyData = td.Storage.EncryptedDescriptor(keySize)
@@ -213,36 +224,47 @@ class TDesktop(BaseObject):
 
         keyData.stream.writeInt32(self.__active_index)
         key.writeEncrypted(keyData, self.__localKey)  # type: ignore
+        if not self.__keyData.legacy:
+            key.writeData(key_data_trailer(self.__keyData))
         key.finish()
 
     def __generateLocalKey(self) -> None:
         Expects(not self.isLoaded())
 
+        # Same shape Domain::generateLocalKey / migrateFromLegacy produce in
+        # 7.3: an open wrap without a passcode, otherwise only a passcode wrap
+        # and an empty open wrap beside a real random salt.
+        keyData = KeyData(legacy=False)
         if self.kPerformanceMode and not self.__passcodeBytes:
             self.__localKey = td.AuthKey(_PERF_LOCAL_KEY)
-            self.__passcodeKeySalt = QByteArray(_PERF_PASSCODE_KEY_SALT)
             self.__passcodeKey = td.AuthKey(_PERF_PASSCODE_KEY)
-            self.__passcodeKeyEncrypted = QByteArray(_PERF_PASSCODE_KEY_ENCRYPTED)
+            keyData.openSalt = QByteArray(_PERF_PASSCODE_KEY_SALT)
+            keyData.openKeyEncrypted = QByteArray(_PERF_PASSCODE_KEY_ENCRYPTED)
         else:
-            LocalEncryptSaltSize = 32
-
             _pass = td.Storage.RandomGenerate(td.AuthKey.kSize)
-            _salt = td.Storage.RandomGenerate(LocalEncryptSaltSize)
+            _salt = td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE)
             self.__localKey = td.Storage.CreateLocalKey(_salt, _pass)
+            keyData.openSalt = td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE)
 
-            self.__passcodeKeySalt = td.Storage.RandomGenerate(LocalEncryptSaltSize)
-            self.__passcodeKey = td.Storage.CreateLocalKey(
-                self.__passcodeKeySalt, QByteArray(self.__passcodeBytes)
-            )
+            if not self.__passcodeBytes:
+                self.__passcodeKey = td.Storage.CreateLocalKey(keyData.openSalt)
+                keyData.openKeyEncrypted = wrap_local_key(
+                    self.__localKey, self.__passcodeKey
+                )
+            else:
+                wrap = PasscodeWrap(
+                    kdf=default_passcode_kdf(),
+                    generation=1,
+                    salt=td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE),
+                )
+                self.__passcodeKey = create_passcode_key(
+                    self.__passcodeBytes, wrap.salt, wrap.kdf
+                )
+                wrap.keyEncrypted = wrap_local_key(self.__localKey, self.__passcodeKey)
+                keyData.passcodeWraps.append(wrap)
+                keyData.committed = 1
 
-            passKeyData = td.Storage.EncryptedDescriptor(td.AuthKey.kSize)
-            assert self.__localKey is not None
-            assert self.__passcodeKey is not None
-            self.__localKey.write(passKeyData.stream)
-
-            self.__passcodeKeyEncrypted = td.Storage.PrepareEncrypted(
-                passKeyData, self.__passcodeKey
-            )
+        self.__keyData = keyData
 
         for account in self.accounts:
             account.localKey = self.localKey
@@ -270,34 +292,30 @@ class TDesktop(BaseObject):
 
         keyData = td.Storage.ReadFile("key_" + self.keyFile, self.basePath)  # type: ignore
 
-        salt, keyEncrypted, infoEncrypted = QByteArray(), QByteArray(), QByteArray()
-
-        keyData.stream >> salt >> keyEncrypted >> infoEncrypted
-
-        Expects(
-            keyData.stream.status() == QDataStream.Status.Ok,
-            QDataStreamFailed("Failed to stream keyData"),
-        )
+        parsed, infoEncrypted = read_key_data(keyData.stream)
 
         self.__AppVersion = keyData.version
-        self.__passcodeKey = td.Storage.CreateLocalKey(
-            salt, QByteArray(self.__passcodeBytes)
+        self.__localKey, self.__passcodeKey = open_local_key(
+            parsed, self.__passcodeBytes
         )
-
-        keyInnerData = td.Storage.DecryptLocal(keyEncrypted, self.passcodeKey)  # type: ignore
-
-        self.__localKey = td.AuthKey(keyInnerData.stream.readRawData(256))
-        self.__passcodeKeyEncrypted = keyEncrypted
-        self.__passcodeKeySalt = salt
+        self.__keyData = parsed
 
         info = td.Storage.DecryptLocal(infoEncrypted, self.localKey)  # type: ignore
         count = info.stream.readInt32()
 
-        Expects(count > 0, "accountsCount is zero, the data might has been corrupted")
+        Expects(
+            0 < count <= TDesktop.kMaxAccounts,
+            f"Bad accounts count {count}, the data might have been corrupted",
+        )
 
         assert self.__localKey is not None
+        seenIndexes: set[int] = set()
         for i in range(count):
             index = info.stream.readInt32()
+            # tdesktop loads each index once (storage_domain.cpp startModern).
+            if index in seenIndexes:
+                continue
+            seenIndexes.add(index)
             if (index >= 0) and (index < TDesktop.kMaxAccounts):
                 try:
                     account = td.Account(
