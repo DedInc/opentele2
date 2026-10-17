@@ -291,6 +291,12 @@ class lskType(int):
     lskMediaLastPlaybackPositions = 0x1C
     lskBotStorages = 0x1D
     lskPrefs = 0x1E
+    lskWalletKey = 0x1F
+    lskWalletEngineKey = 0x20
+    lskWalletEngineStorages = 0x21
+
+    # tdesktop's name for 0x11.
+    lskTrustedPeers = lskTrustedBots
 
 
 class BotTrustFlag(int):

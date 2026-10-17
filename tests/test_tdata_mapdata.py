@@ -4,7 +4,7 @@ import pytest
 
 from src.qt_compat import QByteArray, QDataStream, QIODevice
 from src.td import shared as td
-from src.td.configs import FileKey
+from src.td.configs import FileKey, lskType
 from src.td.map_data import MapData
 
 
@@ -76,3 +76,86 @@ def test_a_second_round_trip_is_byte_identical() -> None:
     assert bytes(second._webviewStorageTokenBots) == b"bots"
     assert bytes(second._webviewStorageTokenOther) == b"other"
     assert second._calculateMapSize() == source._calculateMapSize()
+
+
+def _descriptorFrom(raw: bytes) -> td.Storage.EncryptedDescriptor:
+    reader = td.Storage.EncryptedDescriptor()
+    reader.data = QByteArray(raw)
+    reader.buffer.setBuffer(reader.data)
+    reader.buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+    reader.stream.setDevice(reader.buffer)
+    reader.stream.setVersion(QDataStream.Version.Qt_5_1)
+    return reader
+
+
+def _rawMap(*entries: tuple[int, bytes]) -> bytes:
+    return b"".join(keyType.to_bytes(4, "big") + body for keyType, body in entries)
+
+
+def _u64(value: int) -> bytes:
+    return value.to_bytes(8, "big")
+
+
+def _qstring(value: str) -> bytes:
+    encoded = value.encode("utf-16-be")
+    return len(encoded).to_bytes(4, "big") + encoded
+
+
+def test_wallet_engine_storages_round_trip() -> None:
+    source = MapData("in-memory-base")
+    source._walletEngineStoragesMap = {
+        "ton-main": FileKey(0x1111),
+        "кошелёк": FileKey(0x2222),
+    }
+    source._prefsKey = FileKey(3)
+
+    target = _roundTrip(source)
+
+    assert target._walletEngineStoragesMap == {
+        "ton-main": 0x1111,
+        "кошелёк": 0x2222,
+    }
+    assert int(target._prefsKey) == 3
+
+
+def test_keys_after_a_tdesktop_7_3_wallet_entry_are_still_read() -> None:
+    raw = _rawMap(
+        (lskType.lskWalletKey, _u64(0xAA)),
+        (lskType.lskWalletEngineKey, _u64(0xBB)),
+        (
+            lskType.lskWalletEngineStorages,
+            (1).to_bytes(4, "big") + _u64(0xCC) + _qstring("engine"),
+        ),
+        (lskType.lskPrefs, _u64(0xDD)),
+    )
+    target = MapData("in-memory-base")
+    target._parseMapStream(_descriptorFrom(raw), None, 7003001)
+
+    assert int(target._walletLegacyKey) == 0xAA
+    assert int(target._walletEngineLegacyKey) == 0xBB
+    assert target._walletEngineStoragesMap == {"engine": 0xCC}
+    assert int(target._prefsKey) == 0xDD
+
+
+def test_legacy_wallet_keys_are_not_written_back() -> None:
+    source = MapData("in-memory-base")
+    source._walletLegacyKey = FileKey(0xAA)
+    source._walletEngineLegacyKey = FileKey(0xBB)
+
+    target = _roundTrip(source)
+
+    assert int(target._walletLegacyKey) == 0
+    assert int(target._walletEngineLegacyKey) == 0
+
+
+def test_an_unknown_key_stops_parsing_without_misreading() -> None:
+    raw = _rawMap(
+        (lskType.lskPrefs, _u64(0x10)),
+        (0x7F, _u64(0xFFFFFFFFFFFFFFFF)),
+        (lskType.lskLocations, _u64(0x20)),
+    )
+    target = MapData("in-memory-base")
+    target._parseMapStream(_descriptorFrom(raw), None, 7003001)
+
+    assert int(target._prefsKey) == 0x10
+    assert int(target._locationsKey) == 0

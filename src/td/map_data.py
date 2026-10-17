@@ -107,6 +107,11 @@ class MapData(BaseObject):  # nocov
         self._draftCursorsMap: dict[PeerId, FileKey] = {}
         self._draftsNotReadMap: dict[PeerId, bool] = {}
         self._botStoragesMap: dict[PeerId, FileKey] = {}
+        self._walletEngineStoragesMap: dict[str, FileKey] = {}
+        # Read so the stream stays aligned; tdesktop deletes these files and
+        # never writes the keys again, so neither do we.
+        self._walletLegacyKey = FileKey(0)
+        self._walletEngineLegacyKey = FileKey(0)
 
         self._prefsKey = FileKey(0)
         self._locationsKey = FileKey(0)
@@ -288,8 +293,30 @@ class MapData(BaseObject):  # nocov
                 peerId = PeerId.FromSerialized(peerIdSerialized)
                 botStoragesMap[peerId] = key
 
+        elif keyType == lskType.lskWalletKey:
+            self._walletLegacyKey = FileKey(map.stream.readUInt64())
+
+        elif keyType == lskType.lskWalletEngineKey:
+            self._walletEngineLegacyKey = FileKey(map.stream.readUInt64())
+
+        elif keyType == lskType.lskWalletEngineStorages:
+            walletEngineStoragesMap: dict[str, FileKey] = {}
+            count = map.stream.readUInt32()
+            for i in range(count):
+                key = FileKey(map.stream.readUInt64())
+                entryKey = map.stream.readQString()
+                ExpectStreamStatus(map.stream, "Could not stream wallet storages")
+                walletEngineStoragesMap[entryKey] = key
+            self._walletEngineStoragesMap = walletEngineStoragesMap
+
         else:
-            logging.warning(f"Unknown key type in encrypted map: {keyType}")
+            # The payload size of an unknown key is unknowable, so reading on
+            # would misparse everything after it. Keep what was read so far.
+            logging.warning(
+                f"Unknown key type in encrypted map: {keyType}, "
+                "ignoring the rest of the map"
+            )
+            return False
 
         return True
 
@@ -381,6 +408,11 @@ class MapData(BaseObject):  # nocov
             2, self._legacyBackgroundKeyDay, self._legacyBackgroundKeyNight
         )
 
+        if self._walletEngineStoragesMap:
+            mapSize += sizeof(uint32) * 2
+            for entryKey in self._walletEngineStoragesMap:
+                mapSize += sizeof(uint64) + td.Serialize.stringSize(entryKey)
+
         return mapSize
 
     def _writeMapEntries(self, stream: QDataStream) -> None:
@@ -468,6 +500,14 @@ class MapData(BaseObject):  # nocov
             lskType.lskMediaLastPlaybackPositions,
             self._mediaLastPlaybackPositionsKey,
         )
+
+        if self._walletEngineStoragesMap:
+            stream.writeUInt32(lskType.lskWalletEngineStorages)
+            stream.writeUInt32(len(self._walletEngineStoragesMap))
+            # tdesktop keeps these in a flat_map, so they are written key-sorted.
+            for entryKey in sorted(self._walletEngineStoragesMap):
+                stream.writeUInt64(self._walletEngineStoragesMap[entryKey])
+                stream.writeQString(entryKey)
 
         self._writeKeyGroupIfAnySet(
             stream,

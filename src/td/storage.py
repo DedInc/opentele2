@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import os
 from ctypes import c_uint32 as uint32
-from ctypes import c_ushort as ushort
 from ctypes import sizeof
 
 import tgcrypto
@@ -52,7 +51,8 @@ class Serialize(BaseObject):
 
     @staticmethod
     def stringSize(arr: str) -> int:
-        return sizeof(uint32) + len(arr) + sizeof(ushort)
+        # QDataStream writes a QString as a byte length plus UTF-16 code units.
+        return sizeof(uint32) + len(arr.encode("utf-16-be"))
 
 
 class Storage(BaseObject):
