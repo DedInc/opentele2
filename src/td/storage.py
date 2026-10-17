@@ -278,7 +278,10 @@ class Storage(BaseObject):
             try:
                 file = QFile(Storage.PathJoin(basePath, fileName + suffix))
                 if not file.open(QIODevice.OpenModeFlag.ReadOnly):
-                    tries_exception = TFileNotFound(f"Could not open {fileName}")
+                    # An absent sibling suffix must not mask an integrity
+                    # failure already seen on a file that does exist.
+                    if tries_exception is None:
+                        tries_exception = TFileNotFound(f"Could not open {fileName}")
                     continue
 
                 magic = file.read(4)
