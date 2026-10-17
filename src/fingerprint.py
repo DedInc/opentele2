@@ -11,15 +11,15 @@ from .utils import APP_VERSION_STR
 
 __all__ = [
     "LAYER",
+    "FingerprintConfig",
     "PlatformVersions",
     "StrictMode",
-    "FingerprintConfig",
     "TransportRecommendation",
-    "validate_init_connection_params",
-    "get_recommended_layer",
     "get_advertised_layer",
     "get_platform_versions",
+    "get_recommended_layer",
     "tdesktop_tz_offset",
+    "validate_init_connection_params",
 ]
 
 

@@ -407,7 +407,7 @@ class TDesktop(BaseObject):
         receive_updates: bool = True,
     ) -> tl.TelegramClient: ...
 
-    async def ToTelethon(  # noqa: F811
+    async def ToTelethon(
         self,
         session: str | Session = None,
         flag: type[LoginFlag] = CreateNewSession,

@@ -1,4 +1,3 @@
-# ruff: noqa: E402
 """Offline contract tests for the Telethon 1.44.0 session file writer."""
 
 import pathlib
@@ -9,7 +8,6 @@ base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
 
 import pytest
-
 from telethon.sessions.sqlite import CURRENT_VERSION, SQLiteSession
 
 from src import td

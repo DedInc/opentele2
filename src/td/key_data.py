@@ -28,22 +28,22 @@ from ..qt_compat import QBuffer, QByteArray, QDataStream, QIODevice
 from . import shared as td
 
 __all__ = [
-    "KEY_DATA_MAGIC",
-    "KEY_DATA_FORMAT_VERSION",
-    "KDF_PBKDF2",
     "KDF_ARGON2ID",
+    "KDF_PBKDF2",
     "KDF_SCRYPT",
+    "KEY_DATA_FORMAT_VERSION",
+    "KEY_DATA_MAGIC",
+    "KeyData",
     "PasscodeKdf",
     "PasscodeWrap",
-    "KeyData",
     "TDataKeyDataInvalid",
-    "read_key_data",
-    "key_data_trailer",
     "create_passcode_key",
     "default_passcode_kdf",
-    "wrap_local_key",
-    "unwrap_local_key",
+    "key_data_trailer",
     "open_local_key",
+    "read_key_data",
+    "unwrap_local_key",
+    "wrap_local_key",
 ]
 
 KEY_DATA_MAGIC = 0x4B443200

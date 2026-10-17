@@ -7,19 +7,19 @@ from ..utils import BaseObject
 
 __all__ = [
     "BareId",
-    "ChatIdType",
-    "UserId",
-    "ChatId",
-    "ChannelId",
-    "FakeChatId",
-    "PeerId",
-    "FileKey",
-    "DcId",
-    "ShiftedDcId",
+    "BotTrustFlag",
     "BuiltInDc",
+    "ChannelId",
+    "ChatId",
+    "ChatIdType",
+    "DcId",
+    "FakeChatId",
+    "FileKey",
+    "PeerId",
+    "ShiftedDcId",
+    "UserId",
     "dbi",
     "lskType",
-    "BotTrustFlag",
 ]
 
 

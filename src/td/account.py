@@ -28,7 +28,7 @@ from .storage_account import StorageAccount
 
 
 class Account(BaseObject):
-    kWideIdsTag: int = int(~0)
+    kWideIdsTag: int = ~0
 
     def __init__(
         self,

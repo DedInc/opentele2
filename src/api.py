@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import platform
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 from .devices import (
     AndroidDevice,
@@ -16,11 +19,11 @@ from .exception import Expects, NoInstanceMatched
 from .utils import BaseMetaClass, BaseObject, sharemethod
 
 __all__ = [
-    "APIData",
     "API",
+    "APIData",
+    "CreateNewSession",
     "LoginFlag",
     "UseCurrentSession",
-    "CreateNewSession",
 ]
 
 _T = TypeVar("_T")
@@ -62,9 +65,7 @@ def _coalesce(val: _T | None, default: _T) -> _T:
 
 
 class BaseAPIMetaClass(BaseMetaClass):
-    def __new__(
-        cls: type[_T], clsName: str, bases: tuple[type], attrs: dict[str, Any]
-    ) -> _T:
+    def __new__(cls, clsName: str, bases: tuple[type], attrs: dict[str, Any]) -> Self:
         result = super().__new__(cls, clsName, bases, attrs)
         result.__str__ = BaseAPIMetaClass.__str__
 
@@ -166,9 +167,7 @@ class APIData(metaclass=BaseAPIMetaClass):
             return
 
     @classmethod
-    def _web_generate(
-        cls: type[_T], unique_id: str | None = None, variant: str = "z"
-    ) -> _T:
+    def _web_generate(cls, unique_id: str | None = None, variant: str = "z") -> Self:
         deviceInfo = WebBrowserDevice.RandomDevice(unique_id, variant=variant)
         return cls(device_model=deviceInfo.model, system_version=deviceInfo.version)
 
@@ -235,7 +234,7 @@ class APIData(metaclass=BaseAPIMetaClass):
         pass
 
     @classmethod
-    def Generate(cls: type[_T], unique_id: str | None = None) -> _T:
+    def Generate(cls, unique_id: str | None = None) -> Self:
         _GENERATE_MAP = {
             API.TelegramAndroid: (AndroidDevice, {}),
             API.TelegramAndroidX: (AndroidDevice, {}),
@@ -287,8 +286,8 @@ class API(BaseObject):
 
         @classmethod
         def Generate(
-            cls: type[_T], system: str | None = None, unique_id: str | None = None
-        ) -> _T:
+            cls, system: str | None = None, unique_id: str | None = None
+        ) -> Self:
             validList = ["windows", "macos", "linux"]
             if system is None or system not in validList:
                 system = SystemInfo._hashtovalue(
@@ -361,7 +360,7 @@ class API(BaseObject):
         lang_pack = ""
 
         @classmethod
-        def Generate(cls: type[_T], unique_id: str | None = None) -> _T:
+        def Generate(cls, unique_id: str | None = None) -> Self:
             return cls._web_generate(unique_id, variant="z")
 
     TelegramWeb_Z = TelegramWeb_A
@@ -377,7 +376,7 @@ class API(BaseObject):
         lang_pack = "macos"
 
         @classmethod
-        def Generate(cls: type[_T], unique_id: str | None = None) -> _T:
+        def Generate(cls, unique_id: str | None = None) -> Self:
             return cls._web_generate(unique_id, variant="k")
 
     class Webogram(APIData):
@@ -391,7 +390,7 @@ class API(BaseObject):
         lang_pack = ""
 
         @classmethod
-        def Generate(cls: type[_T], unique_id: str | None = None) -> _T:
+        def Generate(cls, unique_id: str | None = None) -> Self:
             return cls._web_generate(unique_id, variant="k")
 
 

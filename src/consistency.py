@@ -8,9 +8,9 @@ if TYPE_CHECKING:
     from .tl.telethon import TelegramClient
 
 __all__ = [
+    "CheckResult",
     "ConsistencyChecker",
     "ConsistencyReport",
-    "CheckResult",
 ]
 
 

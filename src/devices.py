@@ -13,15 +13,15 @@ import os
 import re
 
 __all__ = [
-    "DeviceInfo",
-    "SystemInfo",
-    "WindowsDevice",
-    "LinuxDevice",
-    "macOSDevice",
     "AndroidDevice",
+    "DeviceInfo",
     "IOSDevice",
-    "iOSDevice",
+    "LinuxDevice",
+    "SystemInfo",
     "WebBrowserDevice",
+    "WindowsDevice",
+    "iOSDevice",
+    "macOSDevice",
 ]
 
 _T = TypeVar("_T")

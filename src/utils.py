@@ -26,12 +26,12 @@ APP_VERSION_STR = format_app_version(APP_VERSION)
 __all__ = [
     "APP_VERSION",
     "APP_VERSION_STR",
-    "format_app_version",
     "TDF_MAGIC",
     "BaseMetaClass",
     "BaseObject",
-    "sharemethod",
     "PrettyTable",
+    "format_app_version",
+    "sharemethod",
 ]
 
 _T = TypeVar("_T")
@@ -104,8 +104,7 @@ def PrettyTable(table: list[dict[str, object]], addSplit: list[int] = []) -> str
     for row in table:
         for label, value in row.items():
             text = str(value)
-            if padding[label] < len(text):
-                padding[label] = len(text)
+            padding[label] = max(padding[label], len(text))
 
     def addpadding(text: object, spaces: int) -> str:
         text = str(text)

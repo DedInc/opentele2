@@ -30,10 +30,7 @@ class QByteArray:
         elif isinstance(data, QByteArray):
             self._data = bytearray(data._data)
             self._null = data._null
-        elif isinstance(data, (bytes, bytearray, memoryview)):
-            self._data = bytearray(data)
-            self._null = False
-        elif isinstance(data, int):
+        elif isinstance(data, (bytes, bytearray, memoryview)) or isinstance(data, int):
             self._data = bytearray(data)
             self._null = False
         else:
@@ -277,15 +274,13 @@ class QDataStream:
             self._status = QDataStream.Status.WriteFailed
         return result
 
-    def _read_numeric(
-        self, size: int, fmt: str, default: int | float = 0
-    ) -> int | float:
+    def _read_numeric(self, size: int, fmt: str, default: float = 0) -> int | float:
         data = self._read(size)
         if len(data) < size:
             return default
         return struct.unpack(fmt, data)[0]
 
-    def _write_numeric(self, fmt: str, value: int | float) -> None:
+    def _write_numeric(self, fmt: str, value: float) -> None:
         self._write(struct.pack(fmt, value))
 
     def readInt8(self) -> int:

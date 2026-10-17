@@ -107,7 +107,7 @@ class MTP(BaseObject):  # nocov
             self._data.clear()
             self._cdnPublicKeys.clear()
 
-            for i in range(0, count):
+            for i in range(count):
                 dcId = DcId(stream.readInt32())
                 flags = MTP.DcOptions.Flag(stream.readInt32())
                 port = stream.readInt32()
@@ -139,7 +139,7 @@ class MTP(BaseObject):  # nocov
                 keysCount = stream.readInt32()
                 ExpectStreamStatus(stream, "Could not stream CDN config data")
 
-                for i in range(0, keysCount):
+                for i in range(keysCount):
                     keyDcId = stream.readInt32()
                     n, e = QByteArray(), QByteArray()
                     stream >> n >> e
@@ -343,7 +343,7 @@ class MTP(BaseObject):  # nocov
         @staticmethod
         def _read_field(
             stream: QDataStream,
-            field_type: type[bool] | type[int] | type[str],
+            field_type: type[bool | int | str],
         ) -> bool | int | str:
             if field_type is bool:
                 return stream.readInt32() == 1
