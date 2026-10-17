@@ -28,6 +28,14 @@ A **Python Telegram API Library** for converting between **tdata** and **teletho
 pip install --upgrade opentele2
 ```
 
+Targets **Telegram Desktop 7.3.1** tdata and **Telethon 1.45** (schema layer 230).
+Telegram Desktop 7.3 protects passcode-locked tdata with Argon2id or scrypt; to
+open or write Argon2id-locked tdata, install the extra:
+
+```bash
+pip install --upgrade "opentele2[argon2]"
+```
+
 ## Documentation
 
 For full documentation, guides, API reference, and examples, please visit the official documentation website:
