@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from enum import IntEnum
 
-from ..exception import Expects, ExpectStreamStatus, TDataBadConfigData
+from ..exception import (
+    Expects,
+    ExpectStreamStatus,
+    OpenTeleException,
+    TDataBadConfigData,
+)
 from ..qt_compat import QByteArray, QDataStream, QIODevice
 from ..utils import BaseObject
 from .configs import BuiltInDc, DcId
@@ -10,6 +15,12 @@ from .configs import BuiltInDc, DcId
 _MAX_IP_SIZE = 45
 _MAX_SECRET_SIZE = 32
 _MAX_SERIALIZED_DC_ID = 1000
+
+
+class TDataDcIdNotFound(OpenTeleException):
+    def __init__(self, dcId: int, stack_index: int = 2) -> None:
+        super().__init__(f"No endpoints for dc id {int(dcId)}", stack_index)
+        self.dcId = dcId
 
 
 def _qt_stream(data: QByteArray, write: bool = False) -> QDataStream:
@@ -27,7 +38,10 @@ class MTP(BaseObject):  # nocov
         Test = 1
 
     class RSAPublicKey(BaseObject):
-        pass
+        def __init__(self, dcId: int = 0, n: bytes = b"", e: bytes = b"") -> None:
+            self.dcId = dcId
+            self.n = n
+            self.e = e
 
     class DcOptions(BaseObject):
         kVersion = 2
@@ -35,6 +49,7 @@ class MTP(BaseObject):  # nocov
         def __init__(self, enviroment: MTP.Environment) -> None:
             self._enviroment = enviroment
             self._data: dict[DcId, list[MTP.DcOptions.Endpoint]] = {}
+            self._cdnPublicKeys: list[MTP.RSAPublicKey] = []
 
             self.constructFromBuiltIn()
 
@@ -52,16 +67,16 @@ class MTP(BaseObject):  # nocov
             flags: MTP.DcOptions.Flag,
             ip: str,
             port: int,
-            _secret: bytes,
+            secret: bytes,
         ) -> None:
             if id not in self._data:
                 self._data[id] = []
             else:
                 for endpoint in self._data[id]:
                     if (endpoint.ip == ip) and (endpoint.port == port):
-                        continue
+                        return
 
-            endpoint = MTP.DcOptions.Endpoint(id, flags, ip, port, b"")
+            endpoint = MTP.DcOptions.Endpoint(id, flags, ip, port, secret)
             self._data[id].append(endpoint)
 
         def constructFromBuiltIn(self) -> None:
@@ -90,6 +105,7 @@ class MTP(BaseObject):  # nocov
             count = stream.readInt32() if version > 0 else minusVersion
 
             self._data.clear()
+            self._cdnPublicKeys.clear()
 
             for i in range(0, count):
                 dcId = DcId(stream.readInt32())
@@ -119,6 +135,20 @@ class MTP(BaseObject):  # nocov
                 ExpectStreamStatus(stream, "Could not stream config data")
                 self.applyOneGuarded(dcId, flags, ip, port, secret)
 
+            if (not stream.atEnd()) and (version > 1):
+                keysCount = stream.readInt32()
+                ExpectStreamStatus(stream, "Could not stream CDN config data")
+
+                for i in range(0, keysCount):
+                    keyDcId = stream.readInt32()
+                    n, e = QByteArray(), QByteArray()
+                    stream >> n >> e
+                    ExpectStreamStatus(stream, "Could not stream CDN public key")
+
+                    self._cdnPublicKeys.append(
+                        MTP.RSAPublicKey(keyDcId, bytes(n), bytes(e))
+                    )
+
         def Serialize(self) -> QByteArray:
             filtered = [
                 endpoint
@@ -136,12 +166,16 @@ class MTP(BaseObject):  # nocov
             for endpoint in filtered:
                 stream.writeInt32(endpoint.id)
                 stream.writeInt32(endpoint.flags)
+                stream.writeInt32(endpoint.port)
                 stream.writeInt32(len(endpoint.ip))
                 stream.writeRawData(endpoint.ip.encode("ascii"))
                 stream.writeInt32(len(endpoint.secret))
                 stream.writeRawData(endpoint.secret)
 
-            stream.writeInt32(0)
+            stream.writeInt32(len(self._cdnPublicKeys))
+            for key in self._cdnPublicKeys:
+                stream.writeInt32(key.dcId)
+                stream << QByteArray(key.n) << QByteArray(key.e)
 
             return result
 
@@ -159,8 +193,8 @@ class MTP(BaseObject):  # nocov
             f_tcpo_only = 1 << 2
             f_cdn = 1 << 3
             f_static = 1 << 4
+            ThisPortOnly = 1 << 5
             f_secret = 1 << 10
-            MAX_FIELD = 1 << 10
 
         class Endpoint(BaseObject):
             def __init__(
@@ -260,6 +294,11 @@ class MTP(BaseObject):  # nocov
             MTP.DcOptions.Address,
             dict[MTP.DcOptions.Protocol, list[MTP.DcOptions.Endpoint]],
         ]:
+            Expects(
+                condition=(dcId in self._dcOptions._data),
+                exception=TDataDcIdNotFound(dcId),
+            )
+
             endpoints = self._dcOptions._data[dcId]
 
             Address = MTP.DcOptions.Address
