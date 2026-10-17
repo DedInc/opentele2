@@ -6,7 +6,7 @@ from typing import TypeVar
 
 from . import debug
 
-APP_VERSION = 7000009
+APP_VERSION = 7003001
 TDF_MAGIC = b"TDF$"
 
 

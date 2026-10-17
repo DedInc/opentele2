@@ -41,8 +41,8 @@ class TestAppVersion:
     def test_app_version_matches_tdesktop_header(self) -> None:
         assert APP_VERSION == _app_version_from_header()
 
-    def test_app_version_is_7_0_9(self) -> None:
-        assert APP_VERSION == 7000009
+    def test_app_version_is_7_3_1(self) -> None:
+        assert APP_VERSION == 7003001
 
     def test_written_tdf_header_carries_app_version(self, tmp_path: Path) -> None:
         basePath = str(tmp_path)

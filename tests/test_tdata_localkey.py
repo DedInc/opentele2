@@ -7,12 +7,12 @@ from src.td.auth import AuthKey
 from src.td.storage import Storage
 from src.td.tdesktop import TDesktop
 
-# tdesktop-7.0.9-full/Telegram/SourceFiles/config.h:15-17
+# refs/tdesktop-dev/Telegram/SourceFiles/config.h:15-17
 LOCAL_ENCRYPT_ITER_COUNT = 4000
 LOCAL_ENCRYPT_NO_PWD_ITER_COUNT = 4
 LOCAL_ENCRYPT_SALT_SIZE = 32
 
-# tdesktop-7.0.9-full/Telegram/SourceFiles/main/main_domain.h:35
+# refs/tdesktop-dev/Telegram/SourceFiles/main/main_domain.h:39-40
 K_PREMIUM_MAX_ACCOUNTS = 6
 
 
