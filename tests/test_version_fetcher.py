@@ -7,21 +7,28 @@ from src import version_fetcher
 
 def _post(text: str) -> str:
     return (
-        '<div class="tgme_widget_message_text js-message_text" dir="auto">'
-        f"{text}</div>"
+        f'<div class="tgme_widget_message_text js-message_text" dir="auto">{text}</div>'
     )
 
 
 _TGSTABLE_PAGE = "".join(
     [
-        _post("Telegram for <b>Android</b> has been updated New <b>version</b>:"
-              "<code>12.10.6 (7112)</code> Released"),
-        _post("Telegram for <b>iOS</b> has been updated New <b>version</b>:"
-              "<code>13.0 (35303)</code> Released"),
-        _post("Telegram native client for macOS has been updated New version:"
-              "12.8 (build 282010)"),
-        _post("Telegram for <b>Android</b> has been updated New <b>version</b>:"
-              "<code>13.0.3 (7183)</code> Released"),
+        _post(
+            "Telegram for <b>Android</b> has been updated New <b>version</b>:"
+            "<code>12.10.6 (7112)</code> Released"
+        ),
+        _post(
+            "Telegram for <b>iOS</b> has been updated New <b>version</b>:"
+            "<code>13.0 (35303)</code> Released"
+        ),
+        _post(
+            "Telegram native client for macOS has been updated New version:"
+            "12.8 (build 282010)"
+        ),
+        _post(
+            "Telegram for <b>Android</b> has been updated New <b>version</b>:"
+            "<code>13.0.3 (7183)</code> Released"
+        ),
     ]
 )
 
