@@ -243,6 +243,12 @@ class MTP(BaseObject):  # nocov
             self.phoneCallsEnabled = True
             self.blockedMode = False
             self.captionLengthMax = 1024
+            # Optional tail, appended by newer tdesktop and read only if present.
+            self.reactionDefaultEmoji = "\N{THUMBS UP SIGN}"
+            self.reactionDefaultCustom = 0
+            self.ratingDecay = 2419200
+            self.gifSearchUsername = "gif"
+            self.venueSearchUsername = "foursquare"
 
     class Config(BaseObject):
         kVersion = 1
@@ -287,6 +293,9 @@ class MTP(BaseObject):  # nocov
             self._fields.txtDomainString = (
                 "tapv3.stel.com" if self._dcOptions.isTestMode() else "apv3.stel.com"
             )
+            if self._dcOptions.isTestMode():
+                self._fields.gifSearchUsername = "izgifbot"
+                self._fields.venueSearchUsername = "foursquarebot"
 
         def endpoints(
             self, dcId: DcId = DcId._0
@@ -361,6 +370,13 @@ class MTP(BaseObject):  # nocov
             for name in self._SERIALIZED_FIELDS:
                 self._write_field(stream, getattr(self._fields, name))
 
+            fields = self._fields
+            stream.writeQString(fields.reactionDefaultEmoji)
+            stream.writeUInt64(fields.reactionDefaultCustom)
+            stream.writeInt32(fields.ratingDecay)
+            stream.writeQString(fields.gifSearchUsername)
+            stream.writeQString(fields.venueSearchUsername)
+
             return result
 
         @staticmethod
@@ -383,6 +399,16 @@ class MTP(BaseObject):  # nocov
             for name in MTP.Config._SERIALIZED_FIELDS:
                 field_type = type(getattr(fields, name))
                 setattr(fields, name, MTP.Config._read_field(stream, field_type))
+
+            # Each group was appended by a later tdesktop (mtproto_config.cpp).
+            if not stream.atEnd():
+                fields.reactionDefaultEmoji = stream.readQString()
+                fields.reactionDefaultCustom = stream.readUInt64()
+            if not stream.atEnd():
+                fields.ratingDecay = stream.readInt32()
+            if not stream.atEnd():
+                fields.gifSearchUsername = stream.readQString()
+                fields.venueSearchUsername = stream.readQString()
 
             ExpectStreamStatus(stream, "Could not stream MtpData serialized")
             result._dcOptions.constructFromSerialized(dcOptionsSerialized)

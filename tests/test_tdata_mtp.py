@@ -162,3 +162,55 @@ def test_config_round_trip_keeps_dc_options() -> None:
 def test_flag_has_this_port_only_bit() -> None:
     assert Flag.ThisPortOnly == 1 << 5
     assert not hasattr(Flag, "MAX_FIELD")
+
+
+def _tailSize(fields: MTP.ConfigFields) -> int:
+    def qstring(value: str) -> int:
+        return 4 + len(value.encode("utf-16-be"))
+
+    return (
+        qstring(fields.reactionDefaultEmoji)
+        + 8
+        + 4
+        + qstring(fields.gifSearchUsername)
+        + qstring(fields.venueSearchUsername)
+    )
+
+
+def test_config_round_trips_the_tdesktop_7_3_tail() -> None:
+    config = MTP.Config(MTP.Environment.Production)
+    fields = config._fields
+    fields.reactionDefaultEmoji = "\N{FIRE}"
+    fields.reactionDefaultCustom = 0xFEDCBA9876543210
+    fields.ratingDecay = 86400
+    fields.gifSearchUsername = "gifbot"
+    fields.venueSearchUsername = "venuebot"
+
+    restored = MTP.Config.FromSerialized(config.Serialize())._fields
+
+    assert restored.reactionDefaultEmoji == "\N{FIRE}"
+    assert restored.reactionDefaultCustom == 0xFEDCBA9876543210
+    assert restored.ratingDecay == 86400
+    assert restored.gifSearchUsername == "gifbot"
+    assert restored.venueSearchUsername == "venuebot"
+
+
+def test_a_config_written_without_the_tail_keeps_defaults() -> None:
+    config = MTP.Config(MTP.Environment.Production)
+    config._fields.captionLengthMax = 4096
+    full = bytes(config.Serialize())
+    legacy = QByteArray(full[: len(full) - _tailSize(config._fields)])
+
+    restored = MTP.Config.FromSerialized(legacy)._fields
+
+    assert restored.captionLengthMax == 4096
+    assert restored.reactionDefaultEmoji == "\N{THUMBS UP SIGN}"
+    assert restored.ratingDecay == 2419200
+    assert restored.gifSearchUsername == "gif"
+
+
+def test_test_environment_defaults_match_tdesktop() -> None:
+    fields = MTP.Config(MTP.Environment.Test)._fields
+
+    assert fields.gifSearchUsername == "izgifbot"
+    assert fields.venueSearchUsername == "foursquarebot"
