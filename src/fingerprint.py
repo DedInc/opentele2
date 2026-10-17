@@ -14,6 +14,7 @@ __all__ = [
     "TransportRecommendation",
     "validate_init_connection_params",
     "get_recommended_layer",
+    "get_advertised_layer",
     "get_platform_versions",
 ]
 
@@ -34,21 +35,29 @@ def _detect_telethon_layer() -> int:
     return _TELETHON_LAYER
 
 
-def _resolve_layer() -> int:
-    tl = _detect_telethon_layer()
-    return tl if tl > _BASE_LAYER else _BASE_LAYER
+_ADVERTISED_LAYER: int = 227
 
 
-LAYER: int = _resolve_layer()
+def get_advertised_layer() -> int:
+    """The TL schema layer opentele2 advertises to Telegram.
+
+    This is a fixed property of the schema this library targets; it is
+    deliberately independent of whatever layer the installed Telethon
+    exposes, so the two can be compared and a real mismatch detected.
+    """
+    return _ADVERTISED_LAYER
+
+
+LAYER: int = _ADVERTISED_LAYER
 
 
 def get_recommended_layer() -> int:
     telethon_layer = _detect_telethon_layer()
-    diff = abs(telethon_layer - LAYER)
+    diff = abs(telethon_layer - get_advertised_layer())
     if diff > 15:
         warnings.warn(
             f"Telethon TL layer ({telethon_layer}) differs from "
-            f"effective layer ({LAYER}, base={_BASE_LAYER}) "
+            f"advertised layer ({get_advertised_layer()}, base={_BASE_LAYER}) "
             f"by {diff} layers. "
             f"This may cause initConnection fingerprint inconsistencies. "
             f"Consider updating Telethon or opentele2.",

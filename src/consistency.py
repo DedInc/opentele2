@@ -154,15 +154,16 @@ class ConsistencyChecker:
             )
 
     async def check_layer_match(self) -> CheckResult:
-        from .fingerprint import LAYER, _detect_telethon_layer
+        from . import fingerprint
 
-        telethon_layer = _detect_telethon_layer()
-        diff = abs(telethon_layer - LAYER)
+        telethon_layer = fingerprint._detect_telethon_layer()
+        advertised_layer = fingerprint.get_advertised_layer()
+        diff = abs(telethon_layer - advertised_layer)
 
         passed = diff <= 15
         detail = (
             f"Telethon layer={telethon_layer}, "
-            f"official schema layer={LAYER}, "
+            f"advertised schema layer={advertised_layer}, "
             f"diff={diff}"
         )
         return CheckResult(name="layer_match", passed=passed, detail=detail)
