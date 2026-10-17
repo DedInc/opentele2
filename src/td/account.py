@@ -319,7 +319,7 @@ class Account(BaseObject):
                 Expects(
                     owner.accountsCount < td.TDesktop.kMaxAccounts,
                     exception=MaxAccountLimit(
-                        "You can't have more than 3 accounts in one TDesktop client"
+                        "You can't have more than 6 accounts in one TDesktop client"
                     ),
                 )
 

@@ -36,6 +36,8 @@ _AES_BLOCK_SIZE = 0x10
 _AES_BLOCK_MASK = 0x0F
 _PBKDF2_ITERATIONS = 100000
 _PBKDF2_ITERATIONS_EMPTY = 1
+_LEGACY_PBKDF2_ITERATIONS = 4000
+_LEGACY_PBKDF2_ITERATIONS_EMPTY = 4
 _TDF_FILE_SUFFIXES = ("s", "1", "0")
 
 
@@ -467,11 +469,13 @@ class Storage(BaseObject):
         salt: QByteArray, passcode: QByteArray = QByteArray()
     ) -> td.AuthKey:
         iterationsCount = (
-            _PBKDF2_ITERATIONS_EMPTY if passcode.isEmpty() else _PBKDF2_ITERATIONS
+            _LEGACY_PBKDF2_ITERATIONS_EMPTY
+            if passcode.isEmpty()
+            else _LEGACY_PBKDF2_ITERATIONS
         )
         return td.AuthKey(
             hashlib.pbkdf2_hmac(
-                "sha512", passcode.data(), salt.data(), iterationsCount, 256
+                "sha1", passcode.data(), salt.data(), iterationsCount, 256
             )
         )
 

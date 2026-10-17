@@ -74,11 +74,11 @@ def _ensure_base_path(basePath: str) -> None:
 class TDesktop(BaseObject):
     """Telegram Desktop client.
 
-    Supports up to 3 accounts. Handles loading/saving tdata folders
+    Supports up to 6 accounts. Handles loading/saving tdata folders
     and converting between TelegramClient sessions.
     """
 
-    kMaxAccounts: int = 3
+    kMaxAccounts: int = 6
     kDefaultKeyFile: str = "data"
     kPerformanceMode: bool = True
 
@@ -93,7 +93,7 @@ class TDesktop(BaseObject):
         self.__basePath = basePath
         self.__keyFile = keyFile if (keyFile is not None) else TDesktop.kDefaultKeyFile
         self.__passcode = passcode if (passcode is not None) else ""
-        self.__passcodeBytes = self.__passcode.encode("ascii")
+        self.__passcodeBytes = self.__passcode.encode("utf-8")
         self.__mainAccount: td.Account | None = None
         self.__active_index = -1
         self.__passcodeKey: td.AuthKey | None = None
@@ -133,7 +133,7 @@ class TDesktop(BaseObject):
 
         if passcode is not None and self.__passcode != passcode:
             self.__passcode = passcode
-            self.__passcodeBytes = passcode.encode("ascii")
+            self.__passcodeBytes = passcode.encode("utf-8")
 
         try:
             self.__loadFromTData()
@@ -175,7 +175,7 @@ class TDesktop(BaseObject):
 
         if passcode is not None and self.__passcode != passcode:
             self.__passcode = passcode
-            self.__passcodeBytes = passcode.encode("ascii")
+            self.__passcodeBytes = passcode.encode("utf-8")
             self.__isLoaded = False
 
         if not self.isLoaded():
@@ -244,8 +244,8 @@ class TDesktop(BaseObject):
                 passKeyData, self.__passcodeKey
             )
 
-            for account in self.accounts:
-                account.localKey = self.localKey
+        for account in self.accounts:
+            account.localKey = self.localKey
 
         self.__isLoaded = True
 
