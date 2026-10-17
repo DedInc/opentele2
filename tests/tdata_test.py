@@ -1,35 +1,25 @@
 # ruff: noqa: E402
-import atexit
+import importlib
 import os
 import pathlib
-import re
 import sys
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
 
-debug_py = os.path.join(base_dir, "src", "debug.py")
-debug_bk_py = os.path.join(base_dir, "src", "debug_bk.py")
+DEBUG_BK_PY = os.path.join(base_dir, "src", "debug_bk.py")
 
+# Enable the library debug instrumentation for this test module *before* any
+# src.* module is imported: src.utils wraps methods at class-creation time based
+# on debug.IS_DEBUG_MODE. This must never rewrite the shipped source on disk.
+os.environ["OPENTELE_DEBUG"] = "1"
 
-def on_exit() -> None:
-    os.remove(debug_py)
-    os.rename(debug_bk_py, debug_py)
+from src import debug
 
-
-def on_init() -> None:
-    os.rename(debug_py, debug_bk_py)
-    src = open(debug_bk_py)
-    dst = open(debug_py, "w")
-    content = src.read()
-    content = re.sub(r"IS_DEBUG_MODE =(.*)", "IS_DEBUG_MODE = True", content)
-    dst.write(content)
-    src.close()
-    dst.close()
-    atexit.register(on_exit)
-
-
-on_init()
+if not debug.IS_DEBUG_MODE:
+    # src.debug was already imported by another test module before the env var
+    # was set; re-import it so the flag and its instrumentation classes exist.
+    debug = importlib.reload(debug)
 
 
 import pytest
@@ -50,6 +40,34 @@ def PythonVersion() -> str:
 
 def profile_path() -> str:
     return f"tests/test_profile{PythonVersion()}"
+
+
+def test_debug_mode_does_not_mutate_shipped_source() -> None:
+    assert debug.IS_DEBUG_MODE, "this module must exercise debug mode"
+
+    assert not os.path.exists(DEBUG_BK_PY), (
+        "importing the test module must not create src/debug_bk.py"
+    )
+
+    source = pathlib.Path(base_dir, "src", "debug.py").read_text(encoding="utf-8")
+    assert "IS_DEBUG_MODE = False" in source, (
+        "the shipped default must stay off; the test run must not rewrite it"
+    )
+    assert "is_debug_mode_enabled()" in source
+
+
+def test_debug_mode_defaults_off_without_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENTELE_DEBUG", raising=False)
+    assert debug.is_debug_mode_enabled() is False
+
+    for value in ("1", "true", "YES", " on "):
+        monkeypatch.setenv("OPENTELE_DEBUG", value)
+        assert debug.is_debug_mode_enabled() is True
+
+    monkeypatch.setenv("OPENTELE_DEBUG", "0")
+    assert debug.is_debug_mode_enabled() is False
 
 
 def test_random_api() -> None:

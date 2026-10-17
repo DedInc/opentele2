@@ -1,10 +1,27 @@
 from __future__ import annotations
 
 import atexit
+import os
 import time
 import typing as t
 
+_DEBUG_ENV_VAR = "OPENTELE_DEBUG"
+_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def is_debug_mode_enabled() -> bool:
+    """Return True when debug instrumentation is requested via the environment.
+
+    Defaults to False so the shipped library stays instrumentation-free when no
+    environment variable is set.
+    """
+    return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() in _TRUTHY
+
+
 IS_DEBUG_MODE = False
+
+if is_debug_mode_enabled():
+    IS_DEBUG_MODE = True
 
 if IS_DEBUG_MODE:
     from rich import print
