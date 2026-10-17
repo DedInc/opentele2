@@ -234,3 +234,18 @@ def test_saving_a_loaded_legacy_key_file_migrates_it_to_7_3(
     assert not data.legacy
     assert client.localKey is localKey
     assert kd.open_local_key(data, b"")[0].key == localKey.key
+
+
+def test_a_scrypt_wrap_over_the_memory_cap_is_a_wrong_passcode() -> None:
+    # 128 * r * N = 256 MiB, above tdesktop's 192 MiB scrypt ceiling.
+    greedy = kd.PasscodeKdf(kd.KDF_SCRYPT, memory=1 << 18, time=8, parallel=1)
+
+    with pytest.raises(TDataBadDecryptKey):
+        kd.create_passcode_key(_PASSCODE, _salt(8), greedy)
+
+
+def test_an_argon2_wrap_over_the_cost_ceiling_is_rejected_before_deriving() -> None:
+    greedy = kd.PasscodeKdf(kd.KDF_ARGON2ID, memory=1 << 20, time=1, parallel=1)
+
+    with pytest.raises(kd.TDataKeyDataInvalid):
+        kd.create_passcode_key(_PASSCODE, _salt(8), greedy)

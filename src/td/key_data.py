@@ -152,35 +152,50 @@ def create_passcode_key(
         TDataKeyDataInvalid(f"Unusable passcode wrap parameters: {kdf}"),
     )
 
+    kdfErrors: tuple[type[BaseException], ...] = (
+        ValueError,
+        MemoryError,
+        OverflowError,
+    )
     if kdf.kind == KDF_ARGON2ID:
         try:
+            from argon2.exceptions import Argon2Error
             from argon2.low_level import Type, hash_secret_raw
+
+            kdfErrors += (Argon2Error,)
         except ImportError as e:
             raise TDataPasscodeKdfUnavailable(
                 "This tdata passcode is protected with Argon2id; "
                 "install it with: pip install opentele2[argon2]"
             ) from e
-        # OpenSSL's ARGON2ID is version 0x13 with one thread.
-        raw = hash_secret_raw(
-            secret=passcode,
-            salt=bytes(salt),
-            time_cost=kdf.time,
-            memory_cost=kdf.memory,
-            parallelism=kdf.parallel,
-            hash_len=td.AuthKey.kSize,
-            type=Type.ID,
-            version=0x13,
-        )
-    else:
-        raw = hashlib.scrypt(
-            passcode,
-            salt=bytes(salt),
-            n=kdf.memory,
-            r=kdf.time,
-            p=kdf.parallel,
-            maxmem=_SCRYPT_MAX_MEM,
-            dklen=td.AuthKey.kSize,
-        )
+    # A failed derivation is a wrong passcode to tdesktop: CreatePasscodeKey
+    # returns null and startModern reports IncorrectPasscode.
+    try:
+        if kdf.kind == KDF_ARGON2ID:
+            # OpenSSL's ARGON2ID is version 0x13; lanes, not threads, shape
+            # the output, so argon2-cffi's threading does not change it.
+            raw = hash_secret_raw(
+                secret=passcode,
+                salt=bytes(salt),
+                time_cost=kdf.time,
+                memory_cost=kdf.memory,
+                parallelism=kdf.parallel,
+                hash_len=td.AuthKey.kSize,
+                type=Type.ID,
+                version=0x13,
+            )
+        else:
+            raw = hashlib.scrypt(
+                passcode,
+                salt=bytes(salt),
+                n=kdf.memory,
+                r=kdf.time,
+                p=kdf.parallel,
+                maxmem=_SCRYPT_MAX_MEM,
+                dklen=td.AuthKey.kSize,
+            )
+    except kdfErrors as e:
+        raise TDataBadDecryptKey(f"Could not derive the passcode key: {e}") from e
     return td.AuthKey(raw)
 
 
