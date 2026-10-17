@@ -47,18 +47,31 @@ def _fetch_tg_page(query: str) -> str:
     )
 
 
-def _parse_tg_messages(html_text: str) -> list[dict]:
+def _parse_tg_messages(html_text: str, platform: str | None = None) -> list[dict]:
+    """Version posts from a t.me/s page, oldest first as the page lists them.
+
+    A search for one platform also returns posts for the others, so
+    ``platform`` keeps only posts announcing "Telegram for <platform>".
+    """
     results: list[dict] = []
     version_pattern = re.compile(
         r"New\s+version\s*:\s*([^\s\(\)]+)(?:\s*\((\d+)\))?",
         re.IGNORECASE,
     )
+    platform_pattern = (
+        re.compile(rf"Telegram\s+for\s+{re.escape(platform)}\b", re.IGNORECASE)
+        if platform
+        else None
+    )
+    # The div carries more than one class ("tgme_widget_message_text js-...").
     for m in re.finditer(
-        r'<div[^>]*class="tgme_widget_message_text"[^>]*>(.*?)</div>',
+        r'<div[^>]*class="tgme_widget_message_text(?:\s[^"]*)?"[^>]*>(.*?)</div>',
         html_text,
         re.DOTALL,
     ):
         text = html.unescape(re.sub(r"<[^>]+>", "", m.group(1)).strip())
+        if platform_pattern and not platform_pattern.search(text):
+            continue
         vm = version_pattern.search(text)
         if vm:
             results.append(
@@ -83,9 +96,9 @@ def _fetch_tdesktop() -> dict:
 def _fetch_android() -> dict:
     try:
         html_text = _fetch_tg_page("android versions:")
-        posts = _parse_tg_messages(html_text)
+        posts = _parse_tg_messages(html_text, "Android")
         if posts:
-            latest = posts[0]
+            latest = posts[-1]
             result: dict = {"android_app_version": latest["version"]}
             if latest["build_code"] is not None:
                 result["android_app_version_code"] = latest["build_code"]
@@ -112,9 +125,9 @@ def _fetch_telegram_x() -> dict:
 def _fetch_ios() -> dict:
     try:
         html_text = _fetch_tg_page("ios versions:")
-        posts = _parse_tg_messages(html_text)
+        posts = _parse_tg_messages(html_text, "iOS")
         if posts:
-            latest = posts[0]
+            latest = posts[-1]
             result: dict = {"ios_app_version": latest["version"]}
             if latest["build_code"] is not None:
                 result["ios_build_number"] = latest["build_code"]
@@ -205,7 +218,10 @@ def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, object]:
                 name = futures[future]
                 try:
                     data = future.result(timeout=2)
-                    result.update(data)
+                    # An empty answer must not overwrite a working default.
+                    result.update(
+                        {k: v for k, v in data.items() if v not in ("", None)}
+                    )
                 except Exception as exc:
                     logger.debug("Version fetch %s failed: %s", name, exc)
     except Exception as exc:
