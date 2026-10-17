@@ -61,28 +61,32 @@ def test_other_clients_keep_telethon_params(api: type) -> None:
 
 
 @pytest.mark.parametrize(
-    ("system", "model", "suffix"),
-    [
-        ("windows", "B550M DS3H AC", " x64"),
-        ("linux", "HP Laptop 15", ""),
-        ("macos", "Mac16,1", " arm64"),
-        ("macos", "MacBookPro16,1", ""),
-    ],
+    ("system", "suffix"),
+    [("windows", " x64"), ("macos", " arm64"), ("linux", "")],
 )
-def test_desktop_app_version_suffix_follows_compute_app_version(
-    system: str, model: str, suffix: str
+def test_generated_desktop_apis_follow_compute_app_version(
+    system: str, suffix: str
 ) -> None:
-    from src.api import _desktop_app_version
+    expected = PLATFORM_VERSIONS.desktop_app_version + suffix
 
-    assert _desktop_app_version(system, model) == (
-        PLATFORM_VERSIONS.desktop_app_version + suffix
+    for unique_id in (f"device-{i}" for i in range(50)):
+        api = API.TelegramDesktop.Generate(system, unique_id)
+        assert api.app_version == expected, api.device_model
+
+
+def test_the_mac_device_database_is_apple_silicon_only() -> None:
+    # The " arm64" suffix relies on this; an Intel Mac sends no suffix.
+    import json
+    import pathlib
+    import re
+
+    import src
+
+    models = json.loads(
+        (pathlib.Path(src.__file__).parent / "devices" / "mac.json").read_text()
+    )["models"]
+    intel = re.compile(
+        r"^(MacBookPro([1-9]|1[0-6])|MacBookAir[1-9]|MacBook\d|Macmini[1-8]"
+        r"|iMac([1-9]|1\d|20)|iMacPro\d|MacPro[1-7]),"
     )
-
-
-@pytest.mark.parametrize("system", ["windows", "macos", "linux"])
-def test_generated_desktop_apis_carry_a_platform_app_version(system: str) -> None:
-    api = API.TelegramDesktop.Generate(system, "opentele")
-
-    assert api.app_version.startswith(PLATFORM_VERSIONS.desktop_app_version)
-    if system != "windows":
-        assert not api.app_version.endswith(" x64")
+    assert not [m["model"] for m in models if intel.match(m["model"])]
