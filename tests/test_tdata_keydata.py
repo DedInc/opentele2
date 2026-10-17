@@ -4,7 +4,7 @@ import pathlib
 
 import pytest
 
-from src.exception import TDataBadDecryptKey
+from src.exception import OpenTeleException, TDataBadDecryptKey
 from src.qt_compat import QByteArray
 from src.td import key_data as kd
 from src.td import shared as td
@@ -300,3 +300,31 @@ def test_an_unreadable_accounts_info_is_not_reported_as_a_passcode(
 
     with pytest.raises(kd.TDataKeyDataInvalid, match="accounts info"):
         TDesktop(str(tmp_path))
+
+
+def test_loading_drops_wraps_of_other_generations(tmp_path: pathlib.Path) -> None:
+    localKey = _localKey()
+    data = kd.KeyData(openSalt=_salt(12), legacy=False, committed=1)
+    data.openKeyEncrypted = _openWrap(localKey, data.openSalt)
+    data.passcodeWraps = [
+        _passcodeWrap(localKey, _FAST_SCRYPT, generation=1),
+        _passcodeWrap(localKey, _FAST_SCRYPT, generation=2),
+    ]
+    writer = td.Storage.FileWriteDescriptor("key_data", str(tmp_path))
+    for blob in (
+        data.openSalt,
+        data.openKeyEncrypted,
+        _info(localKey),
+        kd.key_data_trailer(data),
+    ):
+        writer.writeData(blob)
+    writer.finish()
+
+    client = TDesktop()
+    client._TDesktop__basePath = str(tmp_path)  # type: ignore[attr-defined]
+    with pytest.raises(OpenTeleException, match="No account has been loaded"):
+        # No account files exist; the key file itself must still parse.
+        client._TDesktop__loadFromTData()  # type: ignore[attr-defined]
+
+    kept = client._TDesktop__keyData.passcodeWraps  # type: ignore[attr-defined]
+    assert [w.generation for w in kept] == [1]

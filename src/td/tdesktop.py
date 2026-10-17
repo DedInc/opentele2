@@ -312,6 +312,9 @@ class TDesktop(BaseObject):
         self.__localKey, self.__passcodeKey = open_local_key(
             parsed, self.__passcodeBytes
         )
+        # startModern keeps only the committed generation; staged or stale
+        # wraps from an interrupted passcode change are not written back.
+        parsed.passcodeWraps = parsed.liveWraps()
         self.__keyData = parsed
 
         try:
