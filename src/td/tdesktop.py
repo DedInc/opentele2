@@ -191,6 +191,10 @@ class TDesktop(BaseObject):
 
         if not self.isLoaded():
             self.__generateLocalKey()
+        elif self.__keyData.legacy:
+            # tdesktop 7.3 migrates a pre-7.3 key file on start; write the
+            # migrated shape directly, keeping the local key the accounts use.
+            self.__installKeyData()
         Expects(self.isLoaded(), "Failed to load? Something went seriously wrong")
 
         try:
@@ -231,45 +235,54 @@ class TDesktop(BaseObject):
     def __generateLocalKey(self) -> None:
         Expects(not self.isLoaded())
 
-        # Same shape Domain::generateLocalKey / migrateFromLegacy produce in
-        # 7.3: an open wrap without a passcode, otherwise only a passcode wrap
-        # and an empty open wrap beside a real random salt.
-        keyData = KeyData(legacy=False)
         if self.kPerformanceMode and not self.__passcodeBytes:
             self.__localKey = td.AuthKey(_PERF_LOCAL_KEY)
             self.__passcodeKey = td.AuthKey(_PERF_PASSCODE_KEY)
-            keyData.openSalt = QByteArray(_PERF_PASSCODE_KEY_SALT)
-            keyData.openKeyEncrypted = QByteArray(_PERF_PASSCODE_KEY_ENCRYPTED)
+            self.__keyData = KeyData(
+                openSalt=QByteArray(_PERF_PASSCODE_KEY_SALT),
+                openKeyEncrypted=QByteArray(_PERF_PASSCODE_KEY_ENCRYPTED),
+                legacy=False,
+            )
         else:
             _pass = td.Storage.RandomGenerate(td.AuthKey.kSize)
             _salt = td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE)
             self.__localKey = td.Storage.CreateLocalKey(_salt, _pass)
-            keyData.openSalt = td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE)
-
-            if not self.__passcodeBytes:
-                self.__passcodeKey = td.Storage.CreateLocalKey(keyData.openSalt)
-                keyData.openKeyEncrypted = wrap_local_key(
-                    self.__localKey, self.__passcodeKey
-                )
-            else:
-                wrap = PasscodeWrap(
-                    kdf=default_passcode_kdf(),
-                    generation=1,
-                    salt=td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE),
-                )
-                self.__passcodeKey = create_passcode_key(
-                    self.__passcodeBytes, wrap.salt, wrap.kdf
-                )
-                wrap.keyEncrypted = wrap_local_key(self.__localKey, self.__passcodeKey)
-                keyData.passcodeWraps.append(wrap)
-                keyData.committed = 1
-
-        self.__keyData = keyData
+            self.__installKeyData()
 
         for account in self.accounts:
             account.localKey = self.localKey
 
         self.__isLoaded = True
+
+    def __installKeyData(self) -> None:
+        """Wrap the current local key in the 7.3 key_data shape.
+
+        Same shape Domain::generateLocalKey / migrateFromLegacy produce: an
+        open wrap without a passcode, otherwise only a passcode wrap and an
+        empty open wrap beside a real random salt.
+        """
+        assert self.__localKey is not None
+        keyData = KeyData(
+            openSalt=td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE), legacy=False
+        )
+        if not self.__passcodeBytes:
+            self.__passcodeKey = td.Storage.CreateLocalKey(keyData.openSalt)
+            keyData.openKeyEncrypted = wrap_local_key(
+                self.__localKey, self.__passcodeKey
+            )
+        else:
+            wrap = PasscodeWrap(
+                kdf=default_passcode_kdf(),
+                generation=1,
+                salt=td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE),
+            )
+            self.__passcodeKey = create_passcode_key(
+                self.__passcodeBytes, wrap.salt, wrap.kdf
+            )
+            wrap.keyEncrypted = wrap_local_key(self.__localKey, self.__passcodeKey)
+            keyData.passcodeWraps.append(wrap)
+            keyData.committed = 1
+        self.__keyData = keyData
 
     def _addSingleAccount(self, account: td.Account) -> None:
         Expects(

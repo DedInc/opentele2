@@ -216,3 +216,21 @@ def test_saved_tdata_with_passcode_locks_the_open_wrap(
     assert kd.open_local_key(data, _PASSCODE)[0].key == client.localKey.key
     with pytest.raises(TDataBadDecryptKey):
         kd.open_local_key(data, b"")
+
+
+def test_saving_a_loaded_legacy_key_file_migrates_it_to_7_3(
+    tmp_path: pathlib.Path,
+) -> None:
+    client = TDesktop()
+    client.accounts.append(_FakeAccount(0))  # type: ignore[arg-type]
+    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
+    localKey = client.localKey
+    client._TDesktop__keyData.legacy = True  # type: ignore[attr-defined]
+
+    client.SaveTData(str(tmp_path))
+
+    file = td.Storage.ReadFile("key_data", str(tmp_path))
+    data, _ = kd.read_key_data(file.stream)
+    assert not data.legacy
+    assert client.localKey is localKey
+    assert kd.open_local_key(data, b"")[0].key == localKey.key
