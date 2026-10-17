@@ -330,9 +330,16 @@ class TDesktop(BaseObject):
         count = info.stream.readInt32()
 
         Expects(
-            0 < count <= TDesktop.kMaxAccounts,
+            count > 0,
             f"Bad accounts count {count}, the data might have been corrupted",
         )
+        if count > TDesktop.kMaxAccounts:
+            # tdesktop 7.3.1 caps this at 6, but a later build may raise the
+            # cap without changing the format, so read what is there.
+            logging.warning(
+                f"tdata lists {count} accounts, above the {TDesktop.kMaxAccounts} "
+                "known to Telegram Desktop 7.3.1; loading them anyway"
+            )
 
         assert self.__localKey is not None
         seenIndexes: set[int] = set()
@@ -342,7 +349,7 @@ class TDesktop(BaseObject):
             if index in seenIndexes:
                 continue
             seenIndexes.add(index)
-            if (index >= 0) and (index < TDesktop.kMaxAccounts):
+            if index >= 0:
                 try:
                     account = td.Account(
                         self,

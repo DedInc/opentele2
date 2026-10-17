@@ -12,6 +12,7 @@ Mirrors ``Storage::Domain`` in tdesktop ``storage/storage_domain.cpp``.
 from __future__ import annotations
 
 import hashlib
+import logging
 from dataclasses import dataclass, field
 
 from argon2.exceptions import Argon2Error
@@ -48,6 +49,8 @@ __all__ = [
 KEY_DATA_MAGIC = 0x4B443200
 KEY_DATA_FORMAT_VERSION = 2
 MAX_WRAP_COUNT = 2
+# Sanity bound only, for formats newer than the one tdesktop 7.3.1 writes.
+MAX_NEWER_FORMAT_WRAP_COUNT = 16
 LOCAL_ENCRYPT_SALT_SIZE = 32
 PASSCODE_SALT_MIN_SIZE = 8
 
@@ -237,12 +240,16 @@ def read_key_data(stream: QDataStream) -> tuple[KeyData, QByteArray]:
     wrapCount = inner.readUInt32()
     ExpectStreamStatus(inner, "Could not stream the key data trailer header")
     Expects(magic == KEY_DATA_MAGIC, TDataKeyDataInvalid("Bad key data trailer magic"))
+    newerFormat = formatVersion > KEY_DATA_FORMAT_VERSION
+    if newerFormat:
+        # tdesktop refuses these, but a later build may only append fields
+        # after the wraps; read the known prefix instead of giving up.
+        logging.warning(
+            f"key data format {formatVersion} is newer than "
+            f"{KEY_DATA_FORMAT_VERSION}; reading the known layout"
+        )
     Expects(
-        formatVersion <= KEY_DATA_FORMAT_VERSION,
-        TDataKeyDataInvalid(f"Too new key data format: {formatVersion}"),
-    )
-    Expects(
-        wrapCount <= MAX_WRAP_COUNT,
+        wrapCount <= (MAX_NEWER_FORMAT_WRAP_COUNT if newerFormat else MAX_WRAP_COUNT),
         TDataKeyDataInvalid(f"Bad key data wrap count: {wrapCount}"),
     )
 

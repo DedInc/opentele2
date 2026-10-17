@@ -154,7 +154,6 @@ def test_argon2id_matches_openssl() -> None:
     ("header", "message"),
     [
         ((0x12345678, 2, 0, 0), "magic"),
-        ((kd.KEY_DATA_MAGIC, 3, 0, 0), "format"),
         ((kd.KEY_DATA_MAGIC, 2, 0, 3), "wrap count"),
     ],
 )
@@ -328,3 +327,60 @@ def test_loading_drops_wraps_of_other_generations(tmp_path: pathlib.Path) -> Non
 
     kept = client._TDesktop__keyData.passcodeWraps  # type: ignore[attr-defined]
     assert [w.generation for w in kept] == [1]
+
+
+def test_a_newer_key_data_format_is_read_by_its_known_prefix(
+    tmp_path: pathlib.Path,
+) -> None:
+    localKey = _localKey()
+    wrap = _passcodeWrap(localKey, _FAST_SCRYPT, generation=1)
+    known = bytes(_trailerWith(wrap))
+    # Format 3 with a field appended after the wraps.
+    newer = known[:4] + (3).to_bytes(4, "big") + known[8:] + b"\x00\x00\x00\x2a"
+    file = _keyFile(
+        tmp_path, _salt(13), QByteArray(), _info(localKey), QByteArray(newer)
+    )
+
+    parsed, _ = kd.read_key_data(file.stream)
+
+    assert [w.generation for w in parsed.passcodeWraps] == [1]
+    assert kd.open_local_key(parsed, _PASSCODE)[0].key == localKey.key
+
+
+def test_a_file_stamped_by_a_newer_tdesktop_still_reads(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("src.td.storage.APP_VERSION", 8001002)
+    writer = td.Storage.FileWriteDescriptor("future", str(tmp_path))
+    writer.writeData(QByteArray(b"payload"))
+    writer.finish()
+
+    result = td.Storage.ReadFile("future", str(tmp_path))
+
+    assert result.version == 8001002
+
+
+def test_more_accounts_than_7_3_1_allows_are_not_rejected(
+    tmp_path: pathlib.Path,
+) -> None:
+    localKey = _localKey()
+    data = kd.KeyData(openSalt=_salt(14), legacy=False)
+    data.openKeyEncrypted = _openWrap(localKey, data.openSalt)
+    info = td.Storage.EncryptedDescriptor(4 * 9)
+    info.stream.writeInt32(7)
+    for index in range(7):
+        info.stream.writeInt32(index)
+    info.stream.writeInt32(0)
+    writer = td.Storage.FileWriteDescriptor("key_data", str(tmp_path))
+    for blob in (
+        data.openSalt,
+        data.openKeyEncrypted,
+        td.Storage.PrepareEncrypted(info, localKey),
+        kd.key_data_trailer(data),
+    ):
+        writer.writeData(blob)
+    writer.finish()
+
+    # Gets past the count check; only the absent account files stop it.
+    with pytest.raises(OpenTeleException, match="No account has been loaded"):
+        TDesktop(str(tmp_path))
