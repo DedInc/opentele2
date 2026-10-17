@@ -66,6 +66,9 @@ _SCRYPT_N = 131072
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SCRYPT_MAX_MEM = 192 * 1024 * 1024
+_SCRYPT_MAX_N = 1 << 20
+_SCRYPT_MAX_R = 32
+_SCRYPT_MAX_P = 16
 
 
 class TDataKeyDataInvalid(OpenTeleException):
@@ -89,11 +92,22 @@ class PasscodeKdf:
         return False
 
     def costWithinLimits(self) -> bool:
-        return self.kind != KDF_ARGON2ID or (
-            self.memory <= _ARGON2_MAX_MEMORY_KIB
-            and self.time <= _ARGON2_MAX_TIME
-            and self.parallel <= _ARGON2_MAX_LANES
-        )
+        if self.kind == KDF_ARGON2ID:
+            return (
+                self.memory <= _ARGON2_MAX_MEMORY_KIB
+                and self.time <= _ARGON2_MAX_TIME
+                and self.parallel <= _ARGON2_MAX_LANES
+            )
+        if self.kind == KDF_SCRYPT:
+            # Stricter than tdesktop, which bounds scrypt only by memory: a
+            # crafted p (or r) keeps memory under the cap but costs hours of
+            # CPU. tdesktop writes r=8, p=1.
+            return (
+                self.time <= _SCRYPT_MAX_R
+                and self.parallel <= _SCRYPT_MAX_P
+                and self.memory <= _SCRYPT_MAX_N
+            )
+        return True
 
 
 @dataclass
@@ -112,6 +126,8 @@ class KeyData:
     legacy: bool = True
     committed: int = 0
     passcodeWraps: list[PasscodeWrap] = field(default_factory=list)
+    # ReadKeyDataResult::UnsupportedKdf: some wrap is above the read ceiling.
+    unsupportedCost: bool = False
 
     def liveWraps(self) -> list[PasscodeWrap]:
         """Wraps of the committed generation; others are crash leftovers."""
@@ -130,10 +146,7 @@ def default_passcode_kdf() -> PasscodeKdf:
 def create_passcode_key(
     passcode: bytes, salt: QByteArray, kdf: PasscodeKdf
 ) -> td.AuthKey:
-    """The wrap key for one passcode wrap (``CreatePasscodeKey`` plus kind 0)."""
-    if kdf.kind == KDF_PBKDF2:
-        return td.Storage.CreateLocalKey(salt, QByteArray(passcode))
-
+    """The wrap key for one passcode wrap (``CreatePasscodeKey``)."""
     Expects(
         bool(passcode)
         and salt.size() >= PASSCODE_SALT_MIN_SIZE
@@ -242,6 +255,15 @@ def read_key_data(stream: QDataStream) -> tuple[KeyData, QByteArray]:
         wrap.kdf.parallel = inner.readUInt32()
         inner >> wrap.salt >> wrap.keyEncrypted
         ExpectStreamStatus(inner, "Could not stream a key data wrap")
+        # ReadKeyData order: an over-cost wrap only makes the passcode
+        # unusable, a malformed one (kind 0 included) fails the whole file.
+        if not wrap.kdf.costWithinLimits():
+            data.unsupportedCost = True
+        else:
+            Expects(
+                wrap.kdf.valid(),
+                TDataKeyDataInvalid(f"Bad key data KDF family: {wrap.kdf.kind}"),
+            )
         Expects(
             wrap.salt.size() >= PASSCODE_SALT_MIN_SIZE,
             TDataKeyDataInvalid(f"Bad key data wrap salt size: {wrap.salt.size()}"),
@@ -288,21 +310,27 @@ def open_local_key(data: KeyData, passcode: bytes) -> tuple[td.AuthKey, td.AuthK
         wrapKey = td.Storage.CreateLocalKey(data.openSalt, QByteArray(passcode))
         return unwrap_local_key(data.openKeyEncrypted, wrapKey), wrapKey
 
+    Expects(
+        not data.unsupportedCost,
+        TDataBadDecryptKey("A passcode wrap is above the supported KDF cost"),
+    )
     live = data.liveWraps()
-    hasOpenWrap = not data.openKeyEncrypted.isEmpty()
 
-    if passcode and len(live) == 1:
-        wrap = live[0]
-        wrapKey = create_passcode_key(passcode, wrap.salt, wrap.kdf)
-        return unwrap_local_key(wrap.keyEncrypted, wrapKey), wrapKey
-
-    if not hasOpenWrap:
-        raise TDataBadDecryptKey(
-            "The app lock is on, a passcode is needed"
-            if not passcode
-            else "No passcode wrap to open the local key with"
+    if not passcode:
+        Expects(
+            not data.openKeyEncrypted.isEmpty(),
+            TDataBadDecryptKey("The app lock is on, a passcode is needed"),
         )
+        wrapKey = td.Storage.CreateLocalKey(data.openSalt, QByteArray())
+        return unwrap_local_key(data.openKeyEncrypted, wrapKey), wrapKey
 
-    # A passcode typed for a tdata whose app lock is off still opens it.
-    wrapKey = td.Storage.CreateLocalKey(data.openSalt, QByteArray())
-    return unwrap_local_key(data.openKeyEncrypted, wrapKey), wrapKey
+    # A typed passcode must open the one live passcode wrap. Accepting it
+    # against the open wrap would let a later save "keep" a passcode the file
+    # never had.
+    Expects(
+        len(live) == 1,
+        TDataBadDecryptKey("No passcode wrap to open the local key with"),
+    )
+    wrap = live[0]
+    wrapKey = create_passcode_key(passcode, wrap.salt, wrap.kdf)
+    return unwrap_local_key(wrap.keyEncrypted, wrapKey), wrapKey

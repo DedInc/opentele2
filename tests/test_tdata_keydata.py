@@ -91,7 +91,9 @@ def test_an_open_7_3_file_opens_without_a_passcode(tmp_path: pathlib.Path) -> No
     assert not parsed.legacy
     assert parsed.committed == 0 and parsed.passcodeWraps == []
     assert kd.open_local_key(parsed, b"")[0].key == localKey.key
-    assert kd.open_local_key(parsed, _PASSCODE)[0].key == localKey.key
+    # startModern: a typed passcode needs exactly one live passcode wrap.
+    with pytest.raises(TDataBadDecryptKey):
+        kd.open_local_key(parsed, _PASSCODE)
 
 
 @pytest.mark.parametrize(
@@ -133,7 +135,7 @@ def test_a_wrap_of_another_generation_is_not_live() -> None:
 
 
 def test_argon2id_matches_openssl() -> None:
-    argon2 =pytest.importorskip("cryptography.hazmat.primitives.kdf.argon2")
+    argon2 = pytest.importorskip("cryptography.hazmat.primitives.kdf.argon2")
     salt = _salt(5)
 
     ours = kd.create_passcode_key(_PASSCODE, salt, _FAST_ARGON2)
@@ -246,3 +248,55 @@ def test_an_argon2_wrap_over_the_cost_ceiling_is_rejected_before_deriving() -> N
 
     with pytest.raises(kd.TDataKeyDataInvalid):
         kd.create_passcode_key(_PASSCODE, _salt(8), greedy)
+
+
+def _trailerWith(*wraps: kd.PasscodeWrap, committed: int = 1) -> QByteArray:
+    return kd.key_data_trailer(
+        kd.KeyData(legacy=False, committed=committed, passcodeWraps=list(wraps))
+    )
+
+
+def test_a_pbkdf2_kind_passcode_wrap_fails_the_file(tmp_path: pathlib.Path) -> None:
+    wrap = kd.PasscodeWrap(
+        kdf=kd.PasscodeKdf(kd.KDF_PBKDF2, 0, 1, 1), generation=1, salt=_salt(9)
+    )
+    file = _keyFile(tmp_path, _salt(9), QByteArray(), QByteArray(), _trailerWith(wrap))
+
+    with pytest.raises(kd.TDataKeyDataInvalid, match="KDF family"):
+        kd.read_key_data(file.stream)
+
+
+def test_a_crafted_scrypt_cost_never_runs(tmp_path: pathlib.Path) -> None:
+    # Under the memory cap, but about a day of CPU for p=520000.
+    crafted = kd.PasscodeKdf(kd.KDF_SCRYPT, memory=1 << 18, time=2, parallel=520000)
+    wrap = kd.PasscodeWrap(kdf=crafted, generation=1, salt=_salt(10))
+    file = _keyFile(tmp_path, _salt(10), QByteArray(), QByteArray(), _trailerWith(wrap))
+
+    parsed, _ = kd.read_key_data(file.stream)
+
+    assert parsed.unsupportedCost
+    for passcode in (b"", _PASSCODE):
+        with pytest.raises(TDataBadDecryptKey):
+            kd.open_local_key(parsed, passcode)
+    with pytest.raises(kd.TDataKeyDataInvalid):
+        kd.create_passcode_key(_PASSCODE, _salt(10), crafted)
+
+
+def test_an_unreadable_accounts_info_is_not_reported_as_a_passcode(
+    tmp_path: pathlib.Path,
+) -> None:
+    localKey = _localKey()
+    data = kd.KeyData(openSalt=_salt(11), legacy=False)
+    data.openKeyEncrypted = _openWrap(localKey, data.openSalt)
+    writer = td.Storage.FileWriteDescriptor("key_data", str(tmp_path))
+    for blob in (
+        data.openSalt,
+        data.openKeyEncrypted,
+        _info(td.AuthKey(bytes(256))),
+        kd.key_data_trailer(data),
+    ):
+        writer.writeData(blob)
+    writer.finish()
+
+    with pytest.raises(kd.TDataKeyDataInvalid, match="accounts info"):
+        TDesktop(str(tmp_path))

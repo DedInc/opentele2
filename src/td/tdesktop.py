@@ -28,6 +28,7 @@ from .key_data import (
     LOCAL_ENCRYPT_SALT_SIZE,
     KeyData,
     PasscodeWrap,
+    TDataKeyDataInvalid,
     create_passcode_key,
     default_passcode_kdf,
     key_data_trailer,
@@ -313,7 +314,16 @@ class TDesktop(BaseObject):
         )
         self.__keyData = parsed
 
-        info = td.Storage.DecryptLocal(infoEncrypted, self.localKey)  # type: ignore
+        try:
+            info = td.Storage.DecryptLocal(infoEncrypted, self.localKey)  # type: ignore
+        except OpenTeleException as e:
+            # startModern: only a surviving passcode wrap makes this a
+            # passcode problem; otherwise the accounts info itself is broken.
+            if not self.__passcodeBytes and len(parsed.liveWraps()) == 1:
+                raise TDataBadDecryptKey(
+                    "The open wrap does not open the accounts info"
+                ) from e
+            raise TDataKeyDataInvalid("Could not decrypt the accounts info") from e
         count = info.stream.readInt32()
 
         Expects(
