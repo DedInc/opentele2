@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import platform
+import re
 from typing import Any, TypeVar
 
 from .devices import (
@@ -256,6 +257,26 @@ class APIData(metaclass=BaseAPIMetaClass):
         return cls(device_model=deviceInfo.model, system_version=deviceInfo.version)
 
 
+_APPLE_SILICON_MODEL = re.compile(r"^Mac\d+,\d+$")
+
+
+def _desktop_app_version(system: str, device_model: str) -> str:
+    """The app version tdesktop's ``ComputeAppVersion`` sends for a platform.
+
+    Only Windows x64 builds append " x64"; x86_64 Linux and Intel macOS builds
+    send the bare version, and other CPUs append their architecture, which for
+    Apple Silicon Macs (``MacNN,M`` model identifiers) is " arm64".
+    """
+    from .fingerprint import PLATFORM_VERSIONS
+
+    version = PLATFORM_VERSIONS.desktop_app_version
+    if system == "windows":
+        return f"{version} x64"
+    if system == "macos" and _APPLE_SILICON_MODEL.match(device_model):
+        return f"{version} arm64"
+    return version
+
+
 class API(BaseObject):
     class TelegramDesktop(APIData):
         api_id = 2040
@@ -286,7 +307,11 @@ class API(BaseObject):
             else:
                 deviceInfo = LinuxDevice.RandomDevice(unique_id)
 
-            return cls(device_model=deviceInfo.model, system_version=deviceInfo.version)
+            return cls(
+                device_model=deviceInfo.model,
+                system_version=deviceInfo.version,
+                app_version=_desktop_app_version(system, deviceInfo.model),
+            )
 
     class TelegramAndroid(APIData):
         api_id = 6
