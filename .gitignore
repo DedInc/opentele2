@@ -13,3 +13,7 @@ dist/*
 
 tests/sessions/
 tests/tdatas/
+refs/
+docs/
+.coverage
+tests/data/
