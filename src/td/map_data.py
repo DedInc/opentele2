@@ -44,8 +44,6 @@ class MapData(BaseObject):  # nocov
         "featuredCustomEmojiKey": "_featuredCustomEmojiKey",
         "archivedCustomEmojiKey": "_archivedCustomEmojiKey",
         "searchSuggestionsKey": "_searchSuggestionsKey",
-        "webviewStorageTokenBots": "_webviewStorageTokenBots",
-        "webviewStorageTokenOther": "_webviewStorageTokenOther",
         "legacyBackgroundKeyDay": "_legacyBackgroundKeyDay",
         "legacyBackgroundKeyNight": "_legacyBackgroundKeyNight",
         "userSettingsKey": "_settingsKey",
