@@ -6,6 +6,7 @@ import pathlib
 import pytest
 
 from src.exception import TDataInvalidCheckSum, TDataInvalidMagic, TFileNotFound
+from src.qt_compat import QByteArray
 from src.td import shared as td
 from src.utils import TDF_MAGIC
 
@@ -63,3 +64,19 @@ def test_a_valid_fallback_suffix_wins_over_a_corrupted_one(
     result = td.Storage.ReadFile("probe", str(tmp_path))
 
     assert bytes(result.data) == b"fallback"
+
+
+def test_encrypted_padding_is_random_and_still_decrypts() -> None:
+    key = td.AuthKey(bytes(range(256)))
+
+    def encrypt() -> bytes:
+        data = td.Storage.EncryptedDescriptor(5)
+        data.stream.writeRawData(b"hello")
+        return bytes(td.Storage.PrepareEncrypted(data, key))
+
+    first, second = encrypt(), encrypt()
+
+    assert first != second
+    for blob in (first, second):
+        decrypted = td.Storage.DecryptLocal(QByteArray(blob), key)
+        assert decrypted.stream.readRawData(5) == b"hello"

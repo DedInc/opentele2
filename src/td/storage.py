@@ -240,7 +240,8 @@ class Storage(BaseObject):
         size = toEncrypt.size()
         fullSize = Storage._pad_to_block(size)
         if fullSize != size:
-            toEncrypt.resize(fullSize)
+            # tdesktop fills the padding with random bytes, not zeros.
+            toEncrypt += os.urandom(fullSize - size)
 
         toEncrypt = QByteArray(size.to_bytes(4, "little")) + toEncrypt[4:]
 
