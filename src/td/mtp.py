@@ -153,7 +153,8 @@ class MTP(BaseObject):  # nocov
             filtered = [
                 endpoint
                 for dcId, endpoints in self._data.items()
-                if DcId.BareDcId(dcId) <= _MAX_SERIALIZED_DC_ID
+                # kTemporaryMainDc (1000) and above are never persisted.
+                if DcId.BareDcId(dcId) < _MAX_SERIALIZED_DC_ID
                 for endpoint in endpoints
             ]
 

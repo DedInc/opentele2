@@ -214,3 +214,16 @@ def test_test_environment_defaults_match_tdesktop() -> None:
 
     assert fields.gifSearchUsername == "izgifbot"
     assert fields.venueSearchUsername == "foursquarebot"
+
+
+def test_temporary_dc_ids_are_not_serialized() -> None:
+    options = MTP.DcOptions(MTP.Environment.Production)
+    options.constructAddOne(DcId(999), Flag.f_static, "10.9.9.9", 443, b"")
+    options.constructAddOne(DcId(1000), Flag.f_static, "10.0.0.1", 443, b"")
+
+    restored = MTP.DcOptions(MTP.Environment.Production)
+    restored.constructFromSerialized(options.Serialize())
+
+    ids = {dcId for dcId, *_ in _flatten(restored)}
+    assert 999 in ids
+    assert 1000 not in ids
