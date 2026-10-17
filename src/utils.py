@@ -9,8 +9,24 @@ from . import debug
 APP_VERSION = 7000009
 TDF_MAGIC = b"TDF$"
 
+
+def format_app_version(version: int) -> str:
+    """Render a packed tdesktop version the way ``AppVersionStr`` spells it.
+
+    Mirrors tdesktop's ``FormatVersionDisplay``: a zero patch is omitted, so
+    7003000 is ``"7.3"`` and 7003001 is ``"7.3.1"``.
+    """
+    major, rest = divmod(version, 1000000)
+    minor, patch = divmod(rest, 1000)
+    return f"{major}.{minor}.{patch}" if patch else f"{major}.{minor}"
+
+
+APP_VERSION_STR = format_app_version(APP_VERSION)
+
 __all__ = [
     "APP_VERSION",
+    "APP_VERSION_STR",
+    "format_app_version",
     "TDF_MAGIC",
     "BaseMetaClass",
     "BaseObject",

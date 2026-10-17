@@ -6,6 +6,8 @@ import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 
+from .utils import APP_VERSION_STR
+
 __all__ = [
     "LAYER",
     "PlatformVersions",
@@ -80,7 +82,8 @@ class PlatformVersions:
     ios_system_version: str = "26.2"
     macos_system_version: str = "macOS 26.2"
 
-    desktop_app_version: str = "6.8.2"
+    # Bound to the version stamped into written tdata; never fetched.
+    desktop_app_version: str = APP_VERSION_STR
     desktop_app_version_suffix: str = "x64"
 
     macos_app_version: str = "12.7"
@@ -101,6 +104,10 @@ class PlatformVersions:
 
 PLATFORM_VERSIONS = PlatformVersions()
 
+# A fetched "latest release" must not move these away from APP_VERSION, or the
+# advertised client would disagree with the tdata it writes.
+_TDATA_BOUND_FIELDS = frozenset({"desktop_app_version"})
+
 
 def _apply_fetched_versions() -> None:
     try:
@@ -112,6 +119,8 @@ def _apply_fetched_versions() -> None:
 
         pv = PLATFORM_VERSIONS
         for key, val in fetched.items():
+            if key in _TDATA_BOUND_FIELDS:
+                continue
             if hasattr(pv, key):
                 setattr(pv, key, val)
 
