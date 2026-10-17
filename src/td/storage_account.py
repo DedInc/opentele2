@@ -14,11 +14,15 @@ from ..exception import (
 from ..qt_compat import QByteArray
 from ..utils import BaseObject
 from . import shared as td
-from .configs import dbi
+from .configs import DcId, dbi
 from .map_data import MapData
 
 if TYPE_CHECKING:
     from .account import Account
+
+
+class TDataAccountMapReadFailed(OpenTeleException):
+    """The map file of a single account could not be read."""
 
 
 class StorageAccount(BaseObject):  # nocov
@@ -81,7 +85,11 @@ class StorageAccount(BaseObject):  # nocov
 
     def start(self, localKey: td.AuthKey) -> td.MTP.Config:
         self.__localKey = localKey
-        self._readMapWith(localKey)
+        if self._readMapWith(localKey) is False:
+            raise TDataAccountMapReadFailed(
+                "Could not read the map of account "
+                f"{self.__keyFile!r} at {self.basePath!r}"
+            )
         return (
             self.__config
             if self.owner.owner.kPerformanceMode
@@ -95,12 +103,28 @@ class StorageAccount(BaseObject):  # nocov
             self.localKey,
         )  # type: ignore
 
-        blockId = mtp.stream.readInt32()
-        Expects(blockId == 75, TDataInvalidMagic("Not supported file version"))
+        context = td.Storage.ReadSettingsContext()
 
-        serialized = QByteArray()
-        mtp.stream >> serialized
-        self.owner._setMtpAuthorization(serialized)
+        while not mtp.stream.atEnd():
+            blockId = mtp.stream.readUInt32()
+            ExpectStreamStatus(mtp.stream, "Could not read a block id from MtpData")
+            Expects(
+                td.Storage.ReadSetting(blockId, mtp.stream, mtp.version, context),
+                TDataInvalidMagic(f"Unsupported block id in MtpData: {blockId}"),
+            )
+
+        ExpectStreamStatus(mtp.stream, "Could not stream data from MtpData")
+        self._applyReadContext(context)
+
+    def _applyReadContext(self, context: td.Storage.ReadSettingsContext) -> None:
+        if not context.mtpAuthorization.isEmpty():
+            self.owner._setMtpAuthorization(context.mtpAuthorization)
+        elif context.mtpLegacyKeys or context.mtpLegacyMainDcId:
+            self.owner._setMtpAuthorizationCustom(
+                DcId(context.mtpLegacyMainDcId),
+                context.mtpLegacyUserId,
+                list(context.mtpLegacyKeys),
+            )
 
     def _readMtpConfig(self) -> td.MTP.Config:
         Expects(

@@ -125,6 +125,7 @@ class MapData(BaseObject):  # nocov
         self._searchSuggestionsKey = FileKey(0)
         self._webviewStorageTokenBots = QByteArray()
         self._webviewStorageTokenOther = QByteArray()
+        self._selfSerialized = QByteArray()
         self._savedGifsKey = FileKey(0)
         self._recentStickersKeyOld = FileKey(0)
         self._legacyBackgroundKeyDay = FileKey(0)
@@ -245,6 +246,7 @@ class MapData(BaseObject):  # nocov
         elif keyType == lskType.lskSelfSerialized:
             selfSerialized = QByteArray()
             map.stream >> selfSerialized
+            self._selfSerialized = selfSerialized
 
         elif keyType == lskType.lskDraftPosition:
             count = map.stream.readUInt32()
@@ -374,9 +376,20 @@ class MapData(BaseObject):  # nocov
                 + td.Serialize.bytearraySize(self._webviewStorageTokenOther)
             )
 
+        if not self._selfSerialized.isEmpty():
+            mapSize += sizeof(uint32) + td.Serialize.bytearraySize(self._selfSerialized)
+
+        mapSize += self._groupKeySize(
+            2, self._legacyBackgroundKeyDay, self._legacyBackgroundKeyNight
+        )
+
         return mapSize
 
     def _writeMapEntries(self, stream: QDataStream) -> None:
+        if not self._selfSerialized.isEmpty():
+            stream.writeUInt32(lskType.lskSelfSerialized)
+            stream << self._selfSerialized
+
         self._writeKeyIfSet(stream, lskType.lskPrefs, self._prefsKey)
 
         if len(self._draftsMap) > 0:
@@ -456,6 +469,13 @@ class MapData(BaseObject):  # nocov
             stream,
             lskType.lskMediaLastPlaybackPositions,
             self._mediaLastPlaybackPositionsKey,
+        )
+
+        self._writeKeyGroupIfAnySet(
+            stream,
+            lskType.lskBackgroundOld,
+            self._legacyBackgroundKeyDay,
+            self._legacyBackgroundKeyNight,
         )
 
     @staticmethod
