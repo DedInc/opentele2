@@ -41,6 +41,8 @@ def load_session_json(session_id: SessionId) -> JsonDict:
 
 
 def list_session_ids() -> list[SessionId]:
+    if not SESSIONS_DIR.is_dir():
+        return []
     ids = []
     for f in SESSIONS_DIR.glob("*.json"):
         ids.append(f.stem)
@@ -48,6 +50,8 @@ def list_session_ids() -> list[SessionId]:
 
 
 def list_tdata_ids() -> list[TDataId]:
+    if not TDATAS_DIR.is_dir():
+        return []
     ids = []
     for d in TDATAS_DIR.iterdir():
         if d.is_dir():
@@ -57,6 +61,20 @@ def list_tdata_ids() -> list[TDataId]:
 
 SESSION_IDS: list[SessionId] = list_session_ids()
 TDATA_IDS: list[TDataId] = list_tdata_ids()
+
+_MISSING_FIXTURE = "__missing_fixture__"
+
+requires_sessions_dir = pytest.mark.skipif(
+    not SESSIONS_DIR.is_dir(),
+    reason=f"missing fixture directory: {SESSIONS_DIR}",
+)
+requires_tdatas_dir = pytest.mark.skipif(
+    not TDATAS_DIR.is_dir(),
+    reason=f"missing fixture directory: {TDATAS_DIR}",
+)
+
+SESSION_PARAMS: list[SessionId] = SESSION_IDS or [_MISSING_FIXTURE]
+TDATA_PARAMS: list[TDataId] = TDATA_IDS or [_MISSING_FIXTURE]
 
 
 class TestWebFingerprints:
@@ -163,8 +181,9 @@ class TestWebFingerprints:
         assert len(WebBrowserDevice._k_deviceList) == len(WebBrowserDevice.deviceList)
 
 
+@requires_sessions_dir
 class TestSessionJsonConsistency:
-    @pytest.fixture(params=SESSION_IDS)
+    @pytest.fixture(params=SESSION_PARAMS)
     def session_id(self, request: pytest.FixtureRequest) -> SessionId:
         return str(request.param)
 
@@ -225,8 +244,10 @@ class TestSessionJsonConsistency:
         assert isinstance(slc, str) and len(slc) >= 2
 
 
+@requires_tdatas_dir
+@requires_sessions_dir
 class TestTDataLoading:
-    @pytest.fixture(params=TDATA_IDS)
+    @pytest.fixture(params=TDATA_PARAMS)
     def tdata_id(self, request: pytest.FixtureRequest) -> TDataId:
         return str(request.param)
 
@@ -604,8 +625,9 @@ class TestAPIDataJson:
             assert api.app_version == data["app_version"]
 
 
+@requires_sessions_dir
 class TestSessionJsonImport:
-    @pytest.fixture(params=SESSION_IDS)
+    @pytest.fixture(params=SESSION_PARAMS)
     def session_id(self, request: pytest.FixtureRequest) -> SessionId:
         return str(request.param)
 
@@ -697,8 +719,9 @@ class TestSessionJsonImport:
         assert client.session.auth_key is not None
 
 
+@requires_sessions_dir
 class TestSessionJsonExport:
-    @pytest.fixture(params=SESSION_IDS)
+    @pytest.fixture(params=SESSION_PARAMS)
     def session_id(self, request: pytest.FixtureRequest) -> SessionId:
         return str(request.param)
 

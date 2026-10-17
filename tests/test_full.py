@@ -45,6 +45,15 @@ TESTS_DIR = pathlib.Path(__file__).parent
 TDATAS_DIR = TESTS_DIR / "tdatas"
 SESSIONS_DIR = TESTS_DIR / "sessions"
 
+requires_tdatas_dir = pytest.mark.skipif(
+    not TDATAS_DIR.is_dir(),
+    reason=f"missing fixture directory: {TDATAS_DIR}",
+)
+requires_sessions_dir = pytest.mark.skipif(
+    not SESSIONS_DIR.is_dir(),
+    reason=f"missing fixture directory: {SESSIONS_DIR}",
+)
+
 ACCOUNT_IDS: list[str] = [
     "215340804",
     "215342020",
@@ -731,6 +740,8 @@ class TestAutoPostLogin:
         assert "_auto_post_login" in source
 
 
+@requires_tdatas_dir
+@requires_sessions_dir
 class TestTDataLoading:
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request: pytest.FixtureRequest) -> AccountId:
@@ -803,6 +814,7 @@ class TestTDataLoading:
         assert tag == Account.kWideIdsTag
 
 
+@requires_sessions_dir
 class TestSessionFiles:
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request: pytest.FixtureRequest) -> AccountId:
@@ -834,6 +846,8 @@ class TestSessionFiles:
         assert data["port"] == 443
 
 
+@requires_tdatas_dir
+@requires_sessions_dir
 class TestJSONConsistency:
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request: pytest.FixtureRequest) -> AccountId:
@@ -928,6 +942,7 @@ class TestJSONConsistency:
         assert len(critical) == 0, f"Critical fingerprint issues: {critical}"
 
 
+@requires_tdatas_dir
 class TestConversion:
     @pytest.fixture(params=ACCOUNT_IDS)
     def account_id(self, request: pytest.FixtureRequest) -> AccountId:
@@ -1066,6 +1081,7 @@ class TestTelegramClientConstructor:
         assert client.api_id == API.TelegramIOS.api_id
 
 
+@requires_tdatas_dir
 class TestTDataSaveLoad:
     @pytest.mark.asyncio
     async def test_save_and_reload(self, tmp_path: pathlib.Path) -> None:
