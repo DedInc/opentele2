@@ -10,6 +10,7 @@ except ImportError:
 import hashlib
 import json
 import os
+import re
 
 __all__ = [
     "DeviceInfo",
@@ -580,6 +581,53 @@ class WebBrowserDevice(SystemInfo):
     _max_chromium = 145
     _firefox_max = 147
     _firefox_min = 144
+    # How many major versions the browserforge dataset may trail the live one.
+    _max_dataset_lag = 24
+    _UA_MAJOR_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+        "chrome": (re.compile(r"(Chrome/)(\d+)"),),
+        "edge": (re.compile(r"(Chrome/)(\d+)"), re.compile(r"(Edg/)(\d+)")),
+        "firefox": (re.compile(r"(rv:)(\d+)"), re.compile(r"(Firefox/)(\d+)")),
+    }
+
+    @classmethod
+    def _header_generator(
+        cls, name: str, os_names: tuple[str, ...], min_v: int, max_v: int
+    ) -> tuple[Any, int]:
+        """A generator for the requested window, and the version offset applied.
+
+        browserforge only produces versions present in its bundled dataset. When
+        the live release is newer, the window slides down to the newest one the
+        dataset covers and the caller shifts generated majors back up by the
+        returned offset, so the spread is kept instead of collapsing to one UA.
+        """
+        from browserforge.headers import Browser, HeaderGenerator
+
+        for offset in range(cls._max_dataset_lag + 1):
+            gen = HeaderGenerator(
+                browser=[
+                    Browser(
+                        name=name,
+                        min_version=min_v - offset,
+                        max_version=max_v - offset,
+                    )
+                ],
+                os=os_names,
+                device="desktop",
+            )
+            try:
+                gen.generate()
+            except ValueError:
+                continue
+            return gen, offset
+        return None, 0
+
+    @classmethod
+    def _shift_ua_major(cls, name: str, ua: str, offset: int) -> str:
+        if not offset:
+            return ua
+        for pattern in cls._UA_MAJOR_PATTERNS.get(name, ()):
+            ua = pattern.sub(lambda m: f"{m.group(1)}{int(m.group(2)) + offset}", ua)
+        return ua
 
     @classmethod
     def _fetch_max_chromium(cls) -> int:
@@ -597,7 +645,7 @@ class WebBrowserDevice(SystemInfo):
             return
 
         try:
-            from browserforge.headers import Browser, HeaderGenerator
+            import browserforge.headers  # noqa: F401
         except ImportError:
             raise ImportError(
                 "browserforge is required for web browser fingerprint generation. "
@@ -621,25 +669,19 @@ class WebBrowserDevice(SystemInfo):
         browser_configs = [
             {
                 "name": "chrome",
-                "browser": Browser(
-                    name="chrome", min_version=chrome_min, max_version=max_v
-                ),
+                "window": (chrome_min, max_v),
                 "os": ("windows", "macos", "linux"),
                 "count": 60,
             },
             {
                 "name": "edge",
-                "browser": Browser(
-                    name="edge", min_version=chrome_min - 2, max_version=max_v
-                ),
+                "window": (chrome_min - 2, max_v),
                 "os": ("windows", "macos"),
                 "count": 30,
             },
             {
                 "name": "firefox",
-                "browser": Browser(
-                    name="firefox", min_version=ff_min, max_version=ff_max
-                ),
+                "window": (ff_min, ff_max),
                 "os": ("windows", "macos", "linux"),
                 "count": 20,
             },
@@ -650,14 +692,16 @@ class WebBrowserDevice(SystemInfo):
         seen_uas: set = set()
 
         for cfg in browser_configs:
-            weight = cls.BROWSER_WEIGHTS.get(str(cfg["name"]), 1)
+            name = str(cfg["name"])
+            weight = cls.BROWSER_WEIGHTS.get(name, 1)
+            min_v, window_max = cfg["window"]
             try:
-                gen = HeaderGenerator(
-                    browser=[cfg["browser"]],
-                    os=cfg["os"],
-                    device="desktop",
+                gen, offset = cls._header_generator(
+                    name, cfg["os"], min_v, window_max
                 )
             except Exception:
+                continue
+            if gen is None:
                 continue
 
             for _ in range(int(cfg["count"])):
@@ -665,7 +709,7 @@ class WebBrowserDevice(SystemInfo):
                     headers = gen.generate()
                 except Exception:
                     continue
-                ua = headers.get("User-Agent", "")
+                ua = cls._shift_ua_major(name, headers.get("User-Agent", ""), offset)
                 if not ua or ua in seen_uas:
                     continue
                 seen_uas.add(ua)
