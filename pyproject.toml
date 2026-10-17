@@ -26,18 +26,14 @@ dependencies = [
     "telethon>=1.45.0",
     "TgCrypto-pyrofork>=1.2.6",
 	"selectolax>=0.4.10",
+    # Telegram Desktop 7.3 passcode wraps use Argon2id.
+    "argon2-cffi>=21.2",
 ]
 
 [project.optional-dependencies]
 web = [
     "browserforge",
 ]
-# Opens and writes Telegram Desktop 7.3 passcode wraps that use Argon2id;
-# scrypt wraps work without it.
-argon2 = [
-    "argon2-cffi>=21.2",
-]
-
 [project.urls]
 Homepage = "https://github.com/DedInc/opentele2"
 "Bug Tracker" = "https://github.com/DedInc/opentele2/issues"

@@ -14,6 +14,9 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 
+from argon2.exceptions import Argon2Error
+from argon2.low_level import Type, hash_secret_raw
+
 from ..exception import (
     Expects,
     ExpectStreamStatus,
@@ -33,7 +36,6 @@ __all__ = [
     "PasscodeWrap",
     "KeyData",
     "TDataKeyDataInvalid",
-    "TDataPasscodeKdfUnavailable",
     "read_key_data",
     "key_data_trailer",
     "create_passcode_key",
@@ -68,10 +70,6 @@ _SCRYPT_MAX_MEM = 192 * 1024 * 1024
 
 class TDataKeyDataInvalid(OpenTeleException):
     """The key file is malformed or uses a newer format than supported."""
-
-
-class TDataPasscodeKdfUnavailable(OpenTeleException):
-    """The passcode wrap needs a key derivation that is not installed."""
 
 
 @dataclass
@@ -120,21 +118,13 @@ class KeyData:
         return [w for w in self.passcodeWraps if w.generation == self.committed]
 
 
-def _argon2_available() -> bool:
-    try:
-        import argon2.low_level  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
 def default_passcode_kdf() -> PasscodeKdf:
-    """Argon2id when available, else scrypt, like ``DefaultPasscodeKdf``."""
-    if _argon2_available():
-        return PasscodeKdf(
-            KDF_ARGON2ID, _ARGON2_MEMORY_KIB, _ARGON2_TIME, _ARGON2_LANES
-        )
-    return PasscodeKdf(KDF_SCRYPT, _SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+    """Argon2id, as ``DefaultPasscodeKdf`` picks wherever OpenSSL has it.
+
+    tdesktop falls back to scrypt only on OpenSSL builds without Argon2id;
+    argon2-cffi is a hard dependency here, so that case never applies.
+    """
+    return PasscodeKdf(KDF_ARGON2ID, _ARGON2_MEMORY_KIB, _ARGON2_TIME, _ARGON2_LANES)
 
 
 def create_passcode_key(
@@ -152,22 +142,6 @@ def create_passcode_key(
         TDataKeyDataInvalid(f"Unusable passcode wrap parameters: {kdf}"),
     )
 
-    kdfErrors: tuple[type[BaseException], ...] = (
-        ValueError,
-        MemoryError,
-        OverflowError,
-    )
-    if kdf.kind == KDF_ARGON2ID:
-        try:
-            from argon2.exceptions import Argon2Error
-            from argon2.low_level import Type, hash_secret_raw
-
-            kdfErrors += (Argon2Error,)
-        except ImportError as e:
-            raise TDataPasscodeKdfUnavailable(
-                "This tdata passcode is protected with Argon2id; "
-                "install it with: pip install opentele2[argon2]"
-            ) from e
     # A failed derivation is a wrong passcode to tdesktop: CreatePasscodeKey
     # returns null and startModern reports IncorrectPasscode.
     try:
@@ -194,7 +168,7 @@ def create_passcode_key(
                 maxmem=_SCRYPT_MAX_MEM,
                 dklen=td.AuthKey.kSize,
             )
-    except kdfErrors as e:
+    except (ValueError, MemoryError, OverflowError, Argon2Error) as e:
         raise TDataBadDecryptKey(f"Could not derive the passcode key: {e}") from e
     return td.AuthKey(raw)
 

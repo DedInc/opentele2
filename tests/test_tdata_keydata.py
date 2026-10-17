@@ -100,8 +100,6 @@ def test_an_open_7_3_file_opens_without_a_passcode(tmp_path: pathlib.Path) -> No
 def test_an_app_locked_7_3_file_needs_its_passcode(
     tmp_path: pathlib.Path, kdf: kd.PasscodeKdf
 ) -> None:
-    if kdf.kind == kd.KDF_ARGON2ID:
-        pytest.importorskip("argon2")
     localKey = _localKey()
     data = kd.KeyData(openSalt=_salt(3), legacy=False, committed=1)
     data.passcodeWraps.append(_passcodeWrap(localKey, kdf, generation=1))
@@ -135,8 +133,7 @@ def test_a_wrap_of_another_generation_is_not_live() -> None:
 
 
 def test_argon2id_matches_openssl() -> None:
-    pytest.importorskip("argon2")
-    argon2 = pytest.importorskip("cryptography.hazmat.primitives.kdf.argon2")
+    argon2 =pytest.importorskip("cryptography.hazmat.primitives.kdf.argon2")
     salt = _salt(5)
 
     ours = kd.create_passcode_key(_PASSCODE, salt, _FAST_ARGON2)
