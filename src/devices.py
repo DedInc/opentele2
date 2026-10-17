@@ -696,9 +696,7 @@ class WebBrowserDevice(SystemInfo):
             weight = cls.BROWSER_WEIGHTS.get(name, 1)
             min_v, window_max = cfg["window"]
             try:
-                gen, offset = cls._header_generator(
-                    name, cfg["os"], min_v, window_max
-                )
+                gen, offset = cls._header_generator(name, cfg["os"], min_v, window_max)
             except Exception:
                 continue
             if gen is None:
