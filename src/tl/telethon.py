@@ -103,6 +103,18 @@ def _resolve_api(
     return None
 
 
+def _select_endpoint_address(
+    endpoints: dict,
+    use_ipv6: bool,
+) -> td.MTP.DcOptions.Address:
+    """Pick the IPv6 endpoint family when asked for and available, else IPv4."""
+    Address = td.MTP.DcOptions.Address
+    Protocol = td.MTP.DcOptions.Protocol
+    if use_ipv6 and endpoints.get(Address.IPv6, {}).get(Protocol.Tcp):
+        return Address.IPv6
+    return Address.IPv4
+
+
 class TelegramClient(telethon.TelegramClient):
     """Subclass of ``telethon.TelegramClient`` with opentele2 extensions.
 
@@ -600,7 +612,9 @@ class TelegramClient(telethon.TelegramClient):
         auth_session = TelegramClient._createAuthSession(session, flag)
 
         endpoints = account._local.config.endpoints(account.MainDcId)
-        address = td.MTP.DcOptions.Address.IPv4
+        address = _select_endpoint_address(
+            endpoints, bool(kwargs.get("use_ipv6", False))
+        )
         protocol = td.MTP.DcOptions.Protocol.Tcp
 
         Expects(

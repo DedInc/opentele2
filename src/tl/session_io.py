@@ -29,6 +29,54 @@ def _normalize_base_path(path: str) -> str:
     return base
 
 
+SESSION_VERSION = 8
+
+_V8_SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
+    "version": (
+        "version (version integer primary key)",
+        ("version",),
+    ),
+    "sessions": (
+        "sessions (dc_id integer primary key, server_address text, "
+        "port integer, auth_key blob, takeout_id integer, tmp_auth_key blob)",
+        ("dc_id", "server_address", "port", "auth_key", "takeout_id", "tmp_auth_key"),
+    ),
+    "entities": (
+        "entities (id integer primary key, hash integer not null, "
+        "username text, phone integer, name text, date integer)",
+        ("id", "hash", "username", "phone", "name", "date"),
+    ),
+    "sent_files": (
+        "sent_files (md5_digest blob, file_size integer, type integer, "
+        "id integer, hash integer, primary key(md5_digest, file_size, type))",
+        ("md5_digest", "file_size", "type", "id", "hash"),
+    ),
+    "update_state": (
+        "update_state (id integer primary key, pts integer, qts integer, "
+        "date integer, seq integer)",
+        ("id", "pts", "qts", "date", "seq"),
+    ),
+}
+
+
+def _schema_is_current(c: sqlite3.Cursor) -> bool:
+    """True only when every table owned here already has the version 8 layout.
+
+    A pre-v8 file keeps a narrower ``sessions`` table. Stamping version 8 over
+    it makes Telethon skip ``_upgrade_database``, after which the six-value
+    INSERT fails or the ``select *`` unpack raises ``ValueError``.
+    """
+    c.execute("select name from sqlite_master where type='table'")
+    present = {row[0] for row in c.fetchall()}
+    if not set(_V8_SCHEMA) <= present:
+        return False
+    for table, (_ddl, columns) in _V8_SCHEMA.items():
+        c.execute(f"pragma table_info({table})")
+        if tuple(row[1] for row in c.fetchall()) != columns:
+            return False
+    return True
+
+
 def write_session_file(
     path: str,
     dc_id: int,
@@ -36,41 +84,33 @@ def write_session_file(
     port: int,
     auth_key_bytes: bytes,
 ) -> str:
+    """Write a Telethon 1.44.0 ``CURRENT_VERSION = 8`` session file.
+
+    Any schema that is not already the version 8 layout is dropped and rebuilt,
+    so version 8 is never stamped onto an older table set. ``takeout_id`` and
+    ``tmp_auth_key`` are both written as NULL because Telethon 1.44.0 unpacks
+    ``select *`` in the opposite order to its own DDL; NULL keeps that
+    upstream ambiguity harmless.
+    """
     full_path = path if path.endswith(".session") else path + ".session"
     conn = sqlite3.connect(full_path)
-    c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS version (version integer primary key)")
-    c.execute("DELETE FROM version")
-    c.execute("INSERT INTO version VALUES (8)")
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS sessions ("
-        "dc_id integer primary key, server_address text, "
-        "port integer, auth_key blob, takeout_id integer, "
-        "tmp_auth_key blob)"
-    )
-    c.execute("DELETE FROM sessions")
-    c.execute(
-        "INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?)",
-        (dc_id, server_address, port, auth_key_bytes, None, None),
-    )
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS entities ("
-        "id integer primary key, hash integer not null, "
-        "username text, phone integer, name text, date integer)"
-    )
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS sent_files ("
-        "md5_digest blob, file_size integer, type integer, "
-        "id integer, hash integer, "
-        "primary key(md5_digest, file_size, type))"
-    )
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS update_state ("
-        "id integer primary key, pts integer, qts integer, "
-        "date integer, seq integer)"
-    )
-    conn.commit()
-    conn.close()
+    try:
+        c = conn.cursor()
+        if not _schema_is_current(c):
+            for table in _V8_SCHEMA:
+                c.execute(f"drop table if exists {table}")
+            for ddl, _columns in _V8_SCHEMA.values():
+                c.execute("create table " + ddl)
+        c.execute("delete from version")
+        c.execute("insert into version values (?)", (SESSION_VERSION,))
+        c.execute("delete from sessions")
+        c.execute(
+            "insert into sessions values (?, ?, ?, ?, ?, ?)",
+            (dc_id, server_address, port, auth_key_bytes, None, None),
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return full_path
 
 
