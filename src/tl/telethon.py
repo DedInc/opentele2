@@ -41,6 +41,7 @@ from ..fingerprint import (
     DEFAULT_CONFIG,
     FingerprintConfig,
     TransportRecommendation,
+    tdesktop_tz_offset,
 )
 from ..utils import PrettyTable
 from .session_io import (
@@ -208,6 +209,7 @@ class TelegramClient(telethon.TelegramClient):
         # Telethon hardcodes lang_pack to '' — override it for official client mimicry
         if api_data is not None and api_data.lang_pack:
             self._init_request.lang_pack = api_data.lang_pack
+        self._refresh_init_params()
 
         # Validate fingerprint params
         try:
@@ -231,7 +233,22 @@ class TelegramClient(telethon.TelegramClient):
     def UserId(self, id: int | None) -> None:
         self._user_id = id
 
+    def _refresh_init_params(self) -> None:
+        """Send ``params`` the way the impersonated client does.
+
+        Telegram Desktop always sets ``params`` to ``{"tz_offset": <seconds>}``
+        (mtproto/session_private.cpp prepareInitParams); Telethon sends none.
+        """
+        if self._init_request.lang_pack != "tdesktop":
+            return
+        self._init_request.params = types.JsonObject(
+            [types.JsonObjectValue("tz_offset", types.JsonNumber(tdesktop_tz_offset()))]
+        )
+
     async def connect(self) -> None:
+        # The offset is computed per connection in tdesktop, so DST shifts
+        # between connects are reflected too.
+        self._refresh_init_params()
         await super().connect()
 
         if self._auto_post_login and not self._post_login_done:

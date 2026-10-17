@@ -4,6 +4,7 @@ import random
 import time
 import warnings
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 
 from .utils import APP_VERSION_STR
@@ -18,6 +19,7 @@ __all__ = [
     "get_recommended_layer",
     "get_advertised_layer",
     "get_platform_versions",
+    "tdesktop_tz_offset",
 ]
 
 
@@ -139,6 +141,28 @@ _apply_fetched_versions()
 
 def get_platform_versions() -> PlatformVersions:
     return PLATFORM_VERSIONS
+
+
+def tdesktop_tz_offset(now: datetime | None = None) -> float:
+    """The ``tz_offset`` tdesktop puts into initConnection ``params``.
+
+    Mirrors ``SessionPrivate::prepareInitParams``: the local UTC offset in
+    seconds, wrapped into -12h..+14h and rounded to a multiple of 900.
+    """
+    local = (
+        now
+        if now is not None and now.tzinfo is not None
+        else ((now or datetime.now()).astimezone())
+    )
+    offset = local.utcoffset()
+    sliced = int(offset.total_seconds()) if offset is not None else 0
+    while sliced < -12 * 3600:
+        sliced += 24 * 3600
+    while sliced > 14 * 3600:
+        sliced -= 24 * 3600
+    sign = -1 if sliced < 0 else 1
+    # base::SafeRound is std::round: halves go away from zero.
+    return float(int(abs(sliced) / 900 + 0.5) * 900 * sign)
 
 
 _INIT_CONNECTION_FIELD_ORDER = [
