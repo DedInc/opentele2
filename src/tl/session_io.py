@@ -84,13 +84,13 @@ def write_session_file(
     port: int,
     auth_key_bytes: bytes,
 ) -> str:
-    """Write a Telethon 1.44.0 ``CURRENT_VERSION = 8`` session file.
+    """Write a Telethon ``CURRENT_VERSION = 8`` session file.
 
     Any schema that is not already the version 8 layout is dropped and rebuilt,
     so version 8 is never stamped onto an older table set. ``takeout_id`` and
-    ``tmp_auth_key`` are both written as NULL because Telethon 1.44.0 unpacks
-    ``select *`` in the opposite order to its own DDL; NULL keeps that
-    upstream ambiguity harmless.
+    ``tmp_auth_key`` are both written as NULL: Telethon 1.44.0 unpacks
+    ``select *`` in the opposite order to its own DDL while 1.45.0 follows the
+    DDL, and NULL in both columns reads back the same under either order.
     """
     full_path = path if path.endswith(".session") else path + ".session"
     conn = sqlite3.connect(full_path)

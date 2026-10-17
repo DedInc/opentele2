@@ -82,6 +82,29 @@ class TestAppVersion:
             td.Storage.ReadFile("corrupt", basePath)
 
 
+_REFS = Path(__file__).resolve().parents[1] / "refs"
+_SCHEMAS = {
+    "tdesktop": _REFS / "tdesktop-dev/Telegram/SourceFiles/mtproto/scheme/api.tl",
+    "telethon": _REFS / "telethon/telethon_generator/data/api.tl",
+}
+
+
+class TestAdvertisedLayer:
+    @pytest.mark.parametrize("ref", sorted(_SCHEMAS))
+    def test_advertised_layer_matches_reference_schema(self, ref: str) -> None:
+        api_tl = _SCHEMAS[ref]
+        if not api_tl.is_file():
+            pytest.skip(f"missing {ref} reference checkout: {api_tl}")
+        source = api_tl.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r"^// LAYER (\d+)", source, re.MULTILINE)
+        assert match is not None, "LAYER marker not found in api.tl"
+        assert fingerprint.get_advertised_layer() == int(match.group(1))
+
+    def test_installed_telethon_passes_the_layer_check(self) -> None:
+        result = _run_layer_check()
+        assert result.passed, result.detail
+
+
 class _ClientStub:
     pass
 
@@ -95,7 +118,12 @@ class TestLayerCheck:
     def test_advertised_layer_is_a_standalone_constant(self) -> None:
         assert fingerprint.get_advertised_layer() == fingerprint.LAYER
 
-    def test_layer_check_passes_when_layers_agree(self) -> None:
+    def test_layer_check_passes_when_layers_agree(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        advertised = fingerprint.get_advertised_layer()
+        monkeypatch.setattr(fingerprint, "_detect_telethon_layer", lambda: advertised)
+
         result = _run_layer_check()
         assert result.passed
         assert "diff=0" in result.detail

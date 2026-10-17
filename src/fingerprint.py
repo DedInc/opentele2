@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 
-_BASE_LAYER: int = 225
+_BASE_LAYER: int = 230
 _TELETHON_LAYER: int | None = None
 
 
@@ -37,7 +37,8 @@ def _detect_telethon_layer() -> int:
     return _TELETHON_LAYER
 
 
-_ADVERTISED_LAYER: int = 227
+# Matches api.tl "// LAYER 230" shipped by Telegram Desktop 7.3.1 and Telethon 1.45.0.
+_ADVERTISED_LAYER: int = 230
 
 
 def get_advertised_layer() -> int:

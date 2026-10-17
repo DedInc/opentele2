@@ -23,7 +23,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
 ]
 dependencies = [
-    "telethon>=1.43.2",
+    "telethon>=1.45.0",
     "TgCrypto-pyrofork>=1.2.6",
 	"selectolax>=0.4.10",
 ]
