@@ -392,20 +392,6 @@
     },
     {
       "manufacturer": "HONOR",
-      "model": "AGM3-AL09HN",
-      "min_sdk": 29,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
-      "model": "AGM3-W09HN",
-      "min_sdk": 29,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
       "model": "ALI-NX1",
       "min_sdk": 33,
       "max_sdk": 35,
@@ -479,13 +465,6 @@
       "model": "ANY-LX3",
       "min_sdk": 30,
       "max_sdk": 33,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
-      "model": "ANY-NX1",
-      "min_sdk": 30,
-      "max_sdk": 31,
       "weight": 4
     },
     {
@@ -623,13 +602,6 @@
     },
     {
       "manufacturer": "HONOR",
-      "model": "CLK-NX2",
-      "min_sdk": 33,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
       "model": "CLK-NX3",
       "min_sdk": 33,
       "max_sdk": 35,
@@ -746,27 +718,6 @@
       "min_sdk": 34,
       "max_sdk": 36,
       "weight": 5
-    },
-    {
-      "manufacturer": "HONOR",
-      "model": "ELN-L03",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
-      "model": "ELN-L09",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
-      "model": "ELN-W09",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
     },
     {
       "manufacturer": "HONOR",
@@ -926,7 +877,7 @@
       "manufacturer": "HONOR",
       "model": "LDY-AN00",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -1428,13 +1379,6 @@
     },
     {
       "manufacturer": "HONOR",
-      "model": "VNE-N41",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "HONOR",
       "model": "WDY-LX1",
       "min_sdk": 33,
       "max_sdk": 34,
@@ -1479,7 +1423,7 @@
       "manufacturer": "HONOR",
       "model": "YLP-W00",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -1519,72 +1463,9 @@
     },
     {
       "manufacturer": "motorola",
-      "model": "XT2137-2",
-      "min_sdk": 30,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2143-1",
-      "min_sdk": 30,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2153-1",
-      "min_sdk": 30,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2169-2",
-      "min_sdk": 30,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2171-3",
-      "min_sdk": 30,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
       "model": "XT2175-2",
       "min_sdk": 30,
       "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2201-2",
-      "min_sdk": 31,
-      "max_sdk": 33,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2201-6",
-      "min_sdk": 31,
-      "max_sdk": 33,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2225-2",
-      "min_sdk": 31,
-      "max_sdk": 33,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2243-2",
-      "min_sdk": 31,
-      "max_sdk": 33,
       "weight": 4
     },
     {
@@ -1596,106 +1477,8 @@
     },
     {
       "manufacturer": "motorola",
-      "model": "XT2301-5",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2321-2",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2323-3",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2335-3",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2343-3",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2363-4",
-      "min_sdk": 33,
-      "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2427-4",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2451-4",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2453-2",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
       "model": "XT2533-4",
       "min_sdk": 35,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2551-3",
-      "min_sdk": 35,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2575-1",
-      "min_sdk": 35,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2575-3",
-      "min_sdk": 35,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2601-1",
-      "min_sdk": 36,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "motorola",
-      "model": "XT2603-1",
-      "min_sdk": 36,
       "max_sdk": 36,
       "weight": 4
     },
@@ -2690,7 +2473,7 @@
       "manufacturer": "Nothing",
       "model": "A024",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 3
     },
     {
@@ -3230,13 +3013,6 @@
       "model": "HD1905",
       "min_sdk": 29,
       "max_sdk": 31,
-      "weight": 5
-    },
-    {
-      "manufacturer": "OnePlus",
-      "model": "HD1907",
-      "min_sdk": 29,
-      "max_sdk": 30,
       "weight": 5
     },
     {
@@ -4451,13 +4227,6 @@
       "weight": 4
     },
     {
-      "manufacturer": "OPPO",
-      "model": "CPH3669",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
       "manufacturer": "realme",
       "model": "RMX2001",
       "min_sdk": 29,
@@ -4558,13 +4327,6 @@
     {
       "manufacturer": "realme",
       "model": "RMX2050",
-      "min_sdk": 29,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX2052",
       "min_sdk": 29,
       "max_sdk": 30,
       "weight": 3
@@ -4774,28 +4536,7 @@
     },
     {
       "manufacturer": "realme",
-      "model": "RMX2185",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX2186",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "realme",
       "model": "RMX2189",
-      "min_sdk": 29,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX2190",
       "min_sdk": 29,
       "max_sdk": 30,
       "weight": 3
@@ -4868,20 +4609,6 @@
       "model": "RMX3043",
       "min_sdk": 30,
       "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3061",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3063",
-      "min_sdk": 29,
-      "max_sdk": 29,
       "weight": 4
     },
     {
@@ -4966,13 +4693,6 @@
       "model": "RMX3161",
       "min_sdk": 30,
       "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3171",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 4
     },
     {
@@ -5285,20 +5005,6 @@
     },
     {
       "manufacturer": "realme",
-      "model": "RMX3475",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3478",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
       "model": "RMX3491",
       "min_sdk": 30,
       "max_sdk": 33,
@@ -5337,13 +5043,6 @@
       "model": "RMX3503",
       "min_sdk": 30,
       "max_sdk": 33,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3506",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 4
     },
     {
@@ -5439,79 +5138,9 @@
     },
     {
       "manufacturer": "realme",
-      "model": "RMX3574",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3576",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3581",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3610",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3611",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
       "model": "RMX3612",
       "min_sdk": 31,
       "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3615",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3617",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3618",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3619",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3623",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 4
     },
     {
@@ -5575,13 +5204,6 @@
       "model": "RMX3687",
       "min_sdk": 33,
       "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3690",
-      "min_sdk": 31,
-      "max_sdk": 31,
       "weight": 4
     },
     {
@@ -5670,13 +5292,6 @@
     },
     {
       "manufacturer": "realme",
-      "model": "RMX3765",
-      "min_sdk": 33,
-      "max_sdk": 33,
-      "weight": 5
-    },
-    {
-      "manufacturer": "realme",
       "model": "RMX3770",
       "min_sdk": 33,
       "max_sdk": 35,
@@ -5750,13 +5365,6 @@
       "model": "RMX3830",
       "min_sdk": 33,
       "max_sdk": 35,
-      "weight": 5
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3834",
-      "min_sdk": 33,
-      "max_sdk": 33,
       "weight": 5
     },
     {
@@ -5904,13 +5512,6 @@
       "model": "RMX3933",
       "min_sdk": 34,
       "max_sdk": 35,
-      "weight": 5
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX3938",
-      "min_sdk": 34,
-      "max_sdk": 34,
       "weight": 5
     },
     {
@@ -6113,7 +5714,7 @@
       "manufacturer": "realme",
       "model": "RMX5010",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -6121,13 +5722,6 @@
       "model": "RMX5011",
       "min_sdk": 35,
       "max_sdk": 36,
-      "weight": 5
-    },
-    {
-      "manufacturer": "realme",
-      "model": "RMX5020",
-      "min_sdk": 35,
-      "max_sdk": 35,
       "weight": 5
     },
     {
@@ -6281,7 +5875,7 @@
       "manufacturer": "realme",
       "model": "RMX5090",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -6379,7 +5973,7 @@
       "manufacturer": "realme",
       "model": "RMX5200",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -6440,13 +6034,6 @@
     },
     {
       "manufacturer": "realme",
-      "model": "RMX5566",
-      "min_sdk": 35,
-      "max_sdk": 35,
-      "weight": 5
-    },
-    {
-      "manufacturer": "realme",
       "model": "RMX6688",
       "min_sdk": 35,
       "max_sdk": 36,
@@ -6456,14 +6043,14 @@
       "manufacturer": "realme",
       "model": "RMX6699",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
       "manufacturer": "realme",
       "model": "RMX8899",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -7399,13 +6986,6 @@
     },
     {
       "manufacturer": "samsung",
-      "model": "SM-A233C",
-      "min_sdk": 31,
-      "max_sdk": 34,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
       "model": "SM-A235F",
       "min_sdk": 31,
       "max_sdk": 34,
@@ -7442,20 +7022,6 @@
     {
       "manufacturer": "samsung",
       "model": "SM-A236M",
-      "min_sdk": 31,
-      "max_sdk": 34,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-A236U",
-      "min_sdk": 31,
-      "max_sdk": 34,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-A236U1",
       "min_sdk": 31,
       "max_sdk": 34,
       "weight": 7
@@ -7765,7 +7331,7 @@
       "manufacturer": "samsung",
       "model": "SM-A366N",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 8
     },
     {
@@ -7855,13 +7421,6 @@
     {
       "manufacturer": "samsung",
       "model": "SM-A515W",
-      "min_sdk": 29,
-      "max_sdk": 33,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-A515X",
       "min_sdk": 29,
       "max_sdk": 33,
       "weight": 7
@@ -8101,7 +7660,7 @@
       "manufacturer": "samsung",
       "model": "SM-A566S",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 9
     },
     {
@@ -8128,13 +7687,6 @@
     {
       "manufacturer": "samsung",
       "model": "SM-A715W",
-      "min_sdk": 29,
-      "max_sdk": 33,
-      "weight": 8
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-A715X",
       "min_sdk": 29,
       "max_sdk": 33,
       "weight": 8
@@ -8626,7 +8178,7 @@
       "manufacturer": "samsung",
       "model": "SM-F731N",
       "min_sdk": 33,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 6
     },
     {
@@ -8668,14 +8220,14 @@
       "manufacturer": "samsung",
       "model": "SM-F741B",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F741N",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
@@ -8689,19 +8241,12 @@
       "manufacturer": "samsung",
       "model": "SM-F741U",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F741U1",
-      "min_sdk": 34,
-      "max_sdk": 37,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-F741W",
       "min_sdk": 34,
       "max_sdk": 36,
       "weight": 7
@@ -8724,7 +8269,7 @@
       "manufacturer": "samsung",
       "model": "SM-F761N",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -8752,14 +8297,14 @@
       "manufacturer": "samsung",
       "model": "SM-F766B",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F766N",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -8773,21 +8318,21 @@
       "manufacturer": "samsung",
       "model": "SM-F766U",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F766U1",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F766W",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -8960,7 +8505,7 @@
       "manufacturer": "samsung",
       "model": "SM-F946N",
       "min_sdk": 33,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 6
     },
     {
@@ -9002,14 +8547,14 @@
       "manufacturer": "samsung",
       "model": "SM-F956B",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F956N",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
@@ -9023,19 +8568,12 @@
       "manufacturer": "samsung",
       "model": "SM-F956U",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F956U1",
-      "min_sdk": 34,
-      "max_sdk": 37,
-      "weight": 7
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-F956W",
       "min_sdk": 34,
       "max_sdk": 36,
       "weight": 7
@@ -9044,7 +8582,7 @@
       "manufacturer": "samsung",
       "model": "SM-F958N",
       "min_sdk": 34,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 7
     },
     {
@@ -9058,14 +8596,14 @@
       "manufacturer": "samsung",
       "model": "SM-F966B",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F966N",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -9079,21 +8617,21 @@
       "manufacturer": "samsung",
       "model": "SM-F966U",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F966U1",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
       "manufacturer": "samsung",
       "model": "SM-F966W",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 4
     },
     {
@@ -9105,28 +8643,7 @@
     },
     {
       "manufacturer": "samsung",
-      "model": "SM-F9680",
-      "min_sdk": 36,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-F968B",
-      "min_sdk": 36,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "samsung",
       "model": "SM-F968N",
-      "min_sdk": 36,
-      "max_sdk": 37,
-      "weight": 4
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-F968U1",
       "min_sdk": 36,
       "max_sdk": 36,
       "weight": 4
@@ -9374,13 +8891,6 @@
       "model": "SM-G991N",
       "min_sdk": 30,
       "max_sdk": 35,
-      "weight": 6
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-G991Q",
-      "min_sdk": 30,
-      "max_sdk": 34,
       "weight": 6
     },
     {
@@ -9780,13 +9290,6 @@
       "model": "SM-M236L",
       "min_sdk": 31,
       "max_sdk": 34,
-      "weight": 4
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-M236Q",
-      "min_sdk": 31,
-      "max_sdk": 33,
       "weight": 4
     },
     {
@@ -10332,7 +9835,7 @@
       "manufacturer": "samsung",
       "model": "SM-S911N",
       "min_sdk": 33,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 8
     },
     {
@@ -10374,7 +9877,7 @@
       "manufacturer": "samsung",
       "model": "SM-S916N",
       "min_sdk": 33,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 8
     },
     {
@@ -10416,7 +9919,7 @@
       "manufacturer": "samsung",
       "model": "SM-S918N",
       "min_sdk": 33,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 8
     },
     {
@@ -10459,13 +9962,6 @@
       "model": "SM-S921B",
       "min_sdk": 34,
       "max_sdk": 37,
-      "weight": 10
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-S921E",
-      "min_sdk": 34,
-      "max_sdk": 36,
       "weight": 10
     },
     {
@@ -11107,13 +10603,6 @@
     },
     {
       "manufacturer": "samsung",
-      "model": "SM-X130",
-      "min_sdk": 35,
-      "max_sdk": 36,
-      "weight": 2
-    },
-    {
-      "manufacturer": "samsung",
       "model": "SM-X133",
       "min_sdk": 35,
       "max_sdk": 36,
@@ -11261,13 +10750,6 @@
     },
     {
       "manufacturer": "samsung",
-      "model": "SM-X238Q",
-      "min_sdk": 36,
-      "max_sdk": 36,
-      "weight": 2
-    },
-    {
-      "manufacturer": "samsung",
       "model": "SM-X238U",
       "min_sdk": 36,
       "max_sdk": 36,
@@ -11312,13 +10794,6 @@
       "manufacturer": "samsung",
       "model": "SM-X308U",
       "min_sdk": 34,
-      "max_sdk": 36,
-      "weight": 2
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-X350",
-      "min_sdk": 35,
       "max_sdk": 36,
       "weight": 2
     },
@@ -11416,13 +10891,6 @@
     {
       "manufacturer": "samsung",
       "model": "SM-X526C",
-      "min_sdk": 35,
-      "max_sdk": 36,
-      "weight": 2
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-X526E",
       "min_sdk": 35,
       "max_sdk": 36,
       "weight": 2
@@ -11597,14 +11065,6 @@
     {
       "manufacturer": "samsung",
       "model": "SM-X806C",
-      "min_sdk": 31,
-      "max_sdk": 36,
-      "weight": 4,
-      "sdk_32": true
-    },
-    {
-      "manufacturer": "samsung",
-      "model": "SM-X806E",
       "min_sdk": 31,
       "max_sdk": 36,
       "weight": 4,
@@ -12269,13 +11729,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2019A",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2020A",
       "min_sdk": 29,
       "max_sdk": 31,
@@ -12293,27 +11746,6 @@
       "model": "V2023",
       "min_sdk": 29,
       "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2023A",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2023EA",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2024",
-      "min_sdk": 29,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -12437,13 +11869,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2034A",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2035",
       "min_sdk": 30,
       "max_sdk": 33,
@@ -12542,13 +11967,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2045A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2046",
       "min_sdk": 30,
       "max_sdk": 34,
@@ -12573,13 +11991,6 @@
       "model": "V2047A",
       "min_sdk": 30,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2048",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -12626,13 +12037,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2054A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2055",
       "min_sdk": 30,
       "max_sdk": 33,
@@ -12650,13 +12054,6 @@
       "model": "V2056A",
       "min_sdk": 30,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2057",
-      "min_sdk": 30,
-      "max_sdk": 33,
       "weight": 3
     },
     {
@@ -12703,13 +12100,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2061A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2065",
       "min_sdk": 29,
       "max_sdk": 31,
@@ -12727,20 +12117,6 @@
       "model": "V2066",
       "min_sdk": 30,
       "max_sdk": 33,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2066A",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2066BA",
-      "min_sdk": 29,
-      "max_sdk": 29,
       "weight": 3
     },
     {
@@ -12769,13 +12145,6 @@
       "model": "V2069A",
       "min_sdk": 30,
       "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2069BA",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -12815,13 +12184,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2099A",
-      "min_sdk": 29,
-      "max_sdk": 29,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2101",
       "min_sdk": 29,
       "max_sdk": 30,
@@ -12853,13 +12215,6 @@
       "model": "V2105",
       "min_sdk": 30,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2106A",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -13130,13 +12485,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2140A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2141",
       "min_sdk": 30,
       "max_sdk": 34,
@@ -13161,13 +12509,6 @@
       "model": "V2143",
       "min_sdk": 31,
       "max_sdk": 33,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2143A",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -13200,13 +12541,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2147",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2148A",
       "min_sdk": 30,
       "max_sdk": 33,
@@ -13231,13 +12565,6 @@
       "model": "V2151",
       "min_sdk": 31,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2152",
-      "min_sdk": 30,
-      "max_sdk": 31,
       "weight": 3
     },
     {
@@ -13291,21 +12618,7 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2158A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2160",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2162",
       "min_sdk": 31,
       "max_sdk": 31,
       "weight": 3
@@ -13322,41 +12635,6 @@
       "model": "V2163A",
       "min_sdk": 30,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2164A",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2164KA",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2164PA",
-      "min_sdk": 30,
-      "max_sdk": 30,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2165A",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2166",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -13378,13 +12656,6 @@
       "model": "V2168",
       "min_sdk": 31,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2168A",
-      "min_sdk": 30,
-      "max_sdk": 30,
       "weight": 3
     },
     {
@@ -13413,20 +12684,6 @@
       "model": "V2178A",
       "min_sdk": 31,
       "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2180A",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2180GA",
-      "min_sdk": 31,
-      "max_sdk": 31,
       "weight": 3
     },
     {
@@ -13473,23 +12730,9 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2197A",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2199A",
       "min_sdk": 31,
       "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2199GA",
-      "min_sdk": 31,
-      "max_sdk": 31,
       "weight": 3
     },
     {
@@ -13504,13 +12747,6 @@
       "model": "V2202",
       "min_sdk": 31,
       "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2202A",
-      "min_sdk": 31,
-      "max_sdk": 31,
       "weight": 3
     },
     {
@@ -13574,13 +12810,6 @@
       "model": "V2209",
       "min_sdk": 31,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2212",
-      "min_sdk": 31,
-      "max_sdk": 31,
       "weight": 3
     },
     {
@@ -13749,13 +12978,6 @@
       "model": "V2236",
       "min_sdk": 31,
       "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2236A",
-      "min_sdk": 33,
-      "max_sdk": 33,
       "weight": 3
     },
     {
@@ -14040,13 +13262,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2305",
-      "min_sdk": 31,
-      "max_sdk": 31,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2307",
       "min_sdk": 33,
       "max_sdk": 35,
@@ -14120,13 +13335,6 @@
       "model": "V2313A",
       "min_sdk": 33,
       "max_sdk": 34,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2314",
-      "min_sdk": 33,
-      "max_sdk": 33,
       "weight": 3
     },
     {
@@ -14649,23 +13857,9 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2410",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2410A",
       "min_sdk": 34,
       "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2412",
-      "min_sdk": 34,
-      "max_sdk": 34,
       "weight": 3
     },
     {
@@ -14852,13 +14046,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2433",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2434",
       "min_sdk": 35,
       "max_sdk": 36,
@@ -14939,13 +14126,6 @@
       "model": "V2443",
       "min_sdk": 35,
       "max_sdk": 36,
-      "weight": 3
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2443A",
-      "min_sdk": 34,
-      "max_sdk": 35,
       "weight": 3
     },
     {
@@ -15307,27 +14487,6 @@
     },
     {
       "manufacturer": "vivo",
-      "model": "V2531",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2531A",
-      "min_sdk": 36,
-      "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2532",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "vivo",
       "model": "V2533",
       "min_sdk": 35,
       "max_sdk": 36,
@@ -15366,13 +14525,6 @@
       "model": "V2546",
       "min_sdk": 36,
       "max_sdk": 36,
-      "weight": 4
-    },
-    {
-      "manufacturer": "vivo",
-      "model": "V2547",
-      "min_sdk": 34,
-      "max_sdk": 35,
       "weight": 4
     },
     {
@@ -16784,13 +15936,6 @@
     },
     {
       "manufacturer": "Xiaomi",
-      "model": "24040RA98R",
-      "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 5
-    },
-    {
-      "manufacturer": "Xiaomi",
       "model": "24040RN64Y",
       "min_sdk": 34,
       "max_sdk": 36,
@@ -17409,7 +16554,7 @@
       "manufacturer": "Xiaomi",
       "model": "2506BPN68G",
       "min_sdk": 35,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -17647,7 +16792,7 @@
       "manufacturer": "Xiaomi",
       "model": "2510DRK44C",
       "min_sdk": 36,
-      "max_sdk": 37,
+      "max_sdk": 36,
       "weight": 5
     },
     {
@@ -17696,13 +16841,6 @@
       "manufacturer": "Xiaomi",
       "model": "A401XM",
       "min_sdk": 34,
-      "max_sdk": 35,
-      "weight": 4
-    },
-    {
-      "manufacturer": "Xiaomi",
-      "model": "A501XM",
-      "min_sdk": 35,
       "max_sdk": 35,
       "weight": 4
     },

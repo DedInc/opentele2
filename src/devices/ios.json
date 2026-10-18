@@ -197,12 +197,6 @@
       "min_ios": "26.0",
       "max_major": 27,
       "weight": 5
-    },
-    {
-      "model": "Unknown iPhone",
-      "min_ios": "26.3",
-      "max_major": 27,
-      "weight": 3
     }
   ],
   "versions": [
@@ -389,181 +383,9 @@
     {
       "version": "18.0",
       "weight": 1
-    },
-    {
-      "version": "17.7.2",
-      "weight": 3
-    },
-    {
-      "version": "17.7.1",
-      "weight": 1
-    },
-    {
-      "version": "17.7",
-      "weight": 1
-    },
-    {
-      "version": "17.6.1",
-      "weight": 1
-    },
-    {
-      "version": "17.6",
-      "weight": 1
-    },
-    {
-      "version": "17.5.1",
-      "weight": 1
-    },
-    {
-      "version": "17.5",
-      "weight": 1
-    },
-    {
-      "version": "17.4.1",
-      "weight": 1
-    },
-    {
-      "version": "17.4",
-      "weight": 1
-    },
-    {
-      "version": "17.3.1",
-      "weight": 1
-    },
-    {
-      "version": "17.3",
-      "weight": 1
-    },
-    {
-      "version": "17.2.1",
-      "weight": 1
-    },
-    {
-      "version": "17.2",
-      "weight": 1
-    },
-    {
-      "version": "17.1.2",
-      "weight": 1
-    },
-    {
-      "version": "17.1.1",
-      "weight": 1
-    },
-    {
-      "version": "17.1",
-      "weight": 1
-    },
-    {
-      "version": "17.0.3",
-      "weight": 1
-    },
-    {
-      "version": "17.0.2",
-      "weight": 1
-    },
-    {
-      "version": "17.0.1",
-      "weight": 1
-    },
-    {
-      "version": "17.0",
-      "weight": 1
-    },
-    {
-      "version": "16.7.3",
-      "weight": 3
-    },
-    {
-      "version": "16.7.2",
-      "weight": 1
-    },
-    {
-      "version": "16.7.1",
-      "weight": 1
-    },
-    {
-      "version": "16.7",
-      "weight": 1
-    },
-    {
-      "version": "16.6.1",
-      "weight": 1
-    },
-    {
-      "version": "16.6",
-      "weight": 1
-    },
-    {
-      "version": "16.5.1",
-      "weight": 1
-    },
-    {
-      "version": "16.5",
-      "weight": 1
-    },
-    {
-      "version": "16.4.1",
-      "weight": 1
-    },
-    {
-      "version": "16.4",
-      "weight": 1
-    },
-    {
-      "version": "16.3.1",
-      "weight": 1
-    },
-    {
-      "version": "16.3",
-      "weight": 1
-    },
-    {
-      "version": "16.2",
-      "weight": 1
-    },
-    {
-      "version": "16.1.2",
-      "weight": 1
-    },
-    {
-      "version": "16.1.1",
-      "weight": 1
-    },
-    {
-      "version": "16.1",
-      "weight": 1
-    },
-    {
-      "version": "16.0.3",
-      "weight": 1
-    },
-    {
-      "version": "16.0.2",
-      "weight": 1
-    },
-    {
-      "version": "16.0.1",
-      "weight": 1
-    },
-    {
-      "version": "16.0",
-      "weight": 1
     }
   ],
   "only": {
-    "16.0.1": [
-      "iPhone 14",
-      "iPhone 14 Plus",
-      "iPhone 14 Pro",
-      "iPhone 14 Pro Max"
-    ],
-    "17.0.2": [
-      "iPhone 15",
-      "iPhone 15 Plus",
-      "iPhone 15 Pro",
-      "iPhone 15 Pro Max"
-    ],
     "18.7.3": [
       "iPhone XS",
       "iPhone XS Max",
@@ -598,16 +420,8 @@
       "iPhone 17",
       "iPhone 17 Pro",
       "iPhone 17 Pro Max",
-      "iPhone Air",
-      "Unknown iPhone"
+      "iPhone Air"
     ]
   },
-  "except": {
-    "17.0.1": [
-      "iPhone 15",
-      "iPhone 15 Plus",
-      "iPhone 15 Pro",
-      "iPhone 15 Pro Max"
-    ]
-  }
+  "except": {}
 }
