@@ -3,11 +3,7 @@ omit =
     tests/*
     setup.py
     src/debug.py
-exclude_lines =
-    pragma: no cover
-    nocov
-    pass
-    def __repr__
-    def __str__
-    raise
-    except
+exclude_also =
+    if TYPE_CHECKING:
+    @overload
+    raise NotImplementedError
