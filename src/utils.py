@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import abc
-from collections.abc import Callable
-from typing import TypeVar
+import functools
+import typing
+from collections.abc import Callable, Mapping, Sequence
+from typing import Generic, TypeVar
 
 from . import debug
 
@@ -34,14 +36,13 @@ __all__ = [
     "sharemethod",
 ]
 
-_T = TypeVar("_T")
-_F = TypeVar("_F", bound=Callable[..., object])
+_R = TypeVar("_R")
 
 
 class BaseMetaClass(abc.ABCMeta):
     def __new__(
-        cls: type[_T], clsName: str, bases: tuple[type], attrs: dict[str, object]
-    ) -> _T:
+        cls, clsName: str, bases: tuple[type, ...], attrs: dict[str, object]
+    ) -> BaseMetaClass:
         if debug.IS_DEBUG_MODE:
             ignore_list = [
                 "__new__",
@@ -72,29 +73,23 @@ class BaseObject(metaclass=BaseMetaClass):
     pass
 
 
-class sharemethod(type):
-    def __get__(self, obj: object | None, cls: type[object] | None) -> sharemethod:
-        self.__owner__ = obj if obj else cls
-        return self
+class sharemethod(Generic[_R]):
+    """A method bound to the instance when called on one, else to the class.
 
-    def __call__(self, *args: object) -> object:
-        return self.__fget__.__get__(self.__owner__)(*args)
+    The first parameter receives whichever it was called on, so one body can
+    serve ``API.TelegramDesktop.copy()`` and ``api.copy()`` alike.
+    """
 
-    def __set_name__(self, owner: type[object], name: str) -> None:
-        self.__owner__ = owner
+    def __init__(self, func: Callable[..., _R]) -> None:
+        self.__fget__ = func
+        functools.update_wrapper(typing.cast("Callable[..., _R]", self), func)
 
-    def __new__(cls: type[_T], func: _F) -> type[_F]:
-        clsName = func.__class__.__name__
-        bases = func.__class__.__bases__
-        attrs = func.__dict__
-        result = super().__new__(cls, clsName, bases, attrs)
-        result.__fget__ = func
-
-        return result
+    def __get__(self, obj: object | None, cls: type | None = None) -> Callable[..., _R]:
+        return functools.partial(self.__fget__, cls if obj is None else obj)
 
 
 def PrettyTable(
-    table: list[dict[str, object]], addSplit: list[int] | None = None
+    table: Sequence[Mapping[str, object]], addSplit: list[int] | None = None
 ) -> str:
     if addSplit is None:
         addSplit = []

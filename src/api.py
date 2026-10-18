@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import typing
 from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
@@ -67,45 +68,54 @@ def _coalesce(val: _T | None, default: _T) -> _T:
     return val if val is not None else default
 
 
+def _describe_api(glob: object) -> str:
+    """``str()`` of an API class or instance: its plain data attributes."""
+    if isinstance(glob, type):
+        cls = glob
+        result = f"{cls.__name__} {{\n"
+    else:
+        cls = glob.__class__
+        result = f"{cls.__name__}() = {{\n"
+
+    base = cls.__base__.__name__ if cls.__base__ is not None else ""
+    for attr, val in glob.__dict__.items():
+        if (
+            attr.startswith((f"_{base}__", f"_{cls.__name__}__"))
+            or (attr.startswith("__") and attr.endswith("__"))
+            or type(val) is classmethod
+            or callable(val)
+        ):
+            continue
+
+        result += f"    {attr}: {val}\n"
+
+    return result + "}"
+
+
 class BaseAPIMetaClass(BaseMetaClass):
-    def __new__(cls, clsName: str, bases: tuple[type], attrs: dict[str, Any]) -> Self:
+    def __new__(
+        cls, clsName: str, bases: tuple[type, ...], attrs: dict[str, Any]
+    ) -> BaseMetaClass:
         result = super().__new__(cls, clsName, bases, attrs)
-        result.__str__ = BaseAPIMetaClass.__str__
+        # The same description serves str(SomeAPI) and str(SomeAPI()).
+        result.__str__ = sharemethod(_describe_api)  # ty: ignore[invalid-assignment]
 
         return result
 
-    @sharemethod
-    def __str__(glob) -> str:
-        if isinstance(glob, type):
-            cls = glob
-            result = f"{cls.__name__} {{\n"
-        else:
-            cls = glob.__class__
-            result = f"{cls.__name__}() = {{\n"
-
-        for attr, val in glob.__dict__.items():
-            if (
-                attr.startswith((f"_{cls.__base__.__name__}__", f"_{cls.__name__}__"))
-                or (attr.startswith("__") and attr.endswith("__"))
-                or type(val) is classmethod
-                or callable(val)
-            ):
-                continue
-
-            result += f"    {attr}: {val}\n"
-
-        return result + "}"
+    __str__ = sharemethod(_describe_api)
 
 
 class APIData(metaclass=BaseAPIMetaClass):
-    api_id: int = None
-    api_hash: str = None
-    device_model: str = None
-    system_version: str = None
-    app_version: str = None
-    lang_code: str = None
-    system_lang_code: str = None
-    lang_pack: str = None
+    # Unset on the base class only; every concrete API and every instance
+    # built from explicit values carries real ones.
+    api_id: int = None  # ty: ignore[invalid-assignment]
+    api_hash: str = None  # ty: ignore[invalid-assignment]
+    device_model: str = None  # ty: ignore[invalid-assignment]
+    system_version: str = None  # ty: ignore[invalid-assignment]
+    app_version: str = None  # ty: ignore[invalid-assignment]
+    lang_code: str = None  # ty: ignore[invalid-assignment]
+    system_lang_code: str = None  # ty: ignore[invalid-assignment]
+    lang_pack: str = None  # ty: ignore[invalid-assignment]
 
     def __init__(
         self,
@@ -145,7 +155,7 @@ class APIData(metaclass=BaseAPIMetaClass):
                 self.device_model = system.machine
 
     @sharemethod
-    def copy(glob: type[_T] | _T = _T) -> _T:
+    def copy(glob: type[APIData] | APIData) -> APIData:
         cls = glob if isinstance(glob, type) else glob.__class__
 
         return cls(
@@ -160,11 +170,13 @@ class APIData(metaclass=BaseAPIMetaClass):
         )
 
     @sharemethod
-    def get_cls(glob: type[_T] | _T) -> type[_T]:
-        return glob if isinstance(glob, type) else glob.__class__
+    def get_cls(glob: type[APIData] | APIData) -> type[APIData]:
+        return (
+            typing.cast("type[APIData]", glob) if isinstance(glob, type) else type(glob)
+        )
 
     @sharemethod
-    def destroy(glob: type[_T] | _T) -> None:
+    def destroy(glob: type[APIData] | APIData) -> None:
         if isinstance(glob, type):
             return
 
@@ -237,7 +249,7 @@ class APIData(metaclass=BaseAPIMetaClass):
 
     @classmethod
     def Generate(cls, unique_id: str | None = None) -> Self:
-        _GENERATE_MAP = {
+        _GENERATE_MAP: dict[type[APIData], tuple[type[SystemInfo], dict[str, str]]] = {
             API.TelegramAndroid: (AndroidDevice, {}),
             API.TelegramAndroidX: (AndroidDevice, {}),
             API.TelegramIOS: (IOSDevice, {}),
@@ -287,9 +299,10 @@ class API(BaseObject):
         lang_pack = "tdesktop"
 
         @classmethod
-        def Generate(
+        def Generate(  # ty: ignore[invalid-method-override]
             cls, system: str | None = None, unique_id: str | None = None
         ) -> Self:
+            # Public API since opentele: the platform comes before unique_id.
             validList = ["windows", "macos", "linux"]
             if system is None or system not in validList:
                 system = SystemInfo._hashtovalue(
