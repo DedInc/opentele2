@@ -33,7 +33,7 @@ def _qt_stream(data: QByteArray, write: bool = False) -> QDataStream:
     return stream
 
 
-class MTP(BaseObject):  # nocov
+class MTP(BaseObject):
     class Environment(IntEnum):
         Production = 0
         Test = 1
@@ -315,9 +315,11 @@ class MTP(BaseObject):  # nocov
             Address = MTP.DcOptions.Address
             Protocol = MTP.DcOptions.Protocol
             Flag = MTP.DcOptions.Flag
-            Endpoint = MTP.DcOptions.Endpoint
 
-            results: dict[Address, dict[Protocol, list[Endpoint]]] = {}  # type: ignore[valid-type]
+            results: dict[
+                MTP.DcOptions.Address,
+                dict[MTP.DcOptions.Protocol, list[MTP.DcOptions.Endpoint]],
+            ] = {}
             results[Address.IPv4] = {Protocol.Tcp: [], Protocol.Http: []}
             results[Address.IPv6] = {Protocol.Tcp: [], Protocol.Http: []}
 

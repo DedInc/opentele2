@@ -25,7 +25,7 @@ DraftReadMap = dict[PeerId, bool]
 ParsedKeys = dict[str, int]
 
 
-class MapData(BaseObject):  # nocov
+class MapData(BaseObject):
     _HARDCODED_SETTINGS_KEY = FileKey(1851671142505648812)
     _LEGACY_SALT_SIZE = 32
 
