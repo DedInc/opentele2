@@ -25,7 +25,7 @@ class TDataAccountMapReadFailed(OpenTeleException):
     """The map file of a single account could not be read."""
 
 
-class StorageAccount(BaseObject):  # nocov
+class StorageAccount(BaseObject):
     def __init__(self, owner: Account, basePath: str, keyFile: str) -> None:
         self.__owner = owner
         self.__keyFile = keyFile
@@ -49,6 +49,15 @@ class StorageAccount(BaseObject):  # nocov
     @localKey.setter
     def localKey(self, value: td.AuthKey | None) -> None:
         self.__localKey = value
+
+    def _requireLocalKey(self) -> td.AuthKey:
+        localKey = self.__localKey
+        if localKey is None:
+            raise AccountAuthKeyNotFound(
+                f"The localKey of account {self.__keyFile!r} "
+                "has not been initialized yet"
+            )
+        return localKey
 
     @property
     def keyFile(self) -> str:
@@ -127,13 +136,10 @@ class StorageAccount(BaseObject):  # nocov
             )
 
     def _readMtpConfig(self) -> td.MTP.Config:
-        Expects(
-            self.localKey is not None,
-            AccountAuthKeyNotFound("The localKey has not been initialized yet"),
-        )
+        localKey = self._requireLocalKey()
 
         try:
-            file = td.Storage.ReadEncryptedFile("config", self.basePath, self.localKey)  # type: ignore
+            file = td.Storage.ReadEncryptedFile("config", self.basePath, localKey)
             serialized = QByteArray()
             file.stream >> serialized
             ExpectStreamStatus(file.stream, "Could not stream data from MtpConfig")
@@ -158,7 +164,7 @@ class StorageAccount(BaseObject):  # nocov
         self._readMtpData()
 
     def _writeMtpConfig(self, basePath: str) -> None:
-        Expects(self.localKey is not None, "localKey not found")
+        localKey = self._requireLocalKey()
         Expects(basePath is not None and basePath != "", "basePath can't be empty")
 
         serialized = self.owner.MtpConfig.Serialize()
@@ -166,11 +172,11 @@ class StorageAccount(BaseObject):  # nocov
         file = td.Storage.FileWriteDescriptor("config", basePath)
         data = td.Storage.EncryptedDescriptor(size)
         data.stream << serialized
-        file.writeEncrypted(data, self.localKey)  # type: ignore
+        file.writeEncrypted(data, localKey)
         file.finish()
 
     def _writeMap(self, basePath: str) -> None:
-        Expects(self.localKey is not None, "localKey not found")
+        localKey = self._requireLocalKey()
         Expects(basePath is not None and basePath != "", "basePath can't be empty")
 
         map = td.Storage.FileWriteDescriptor("map", basePath)
@@ -178,11 +184,11 @@ class StorageAccount(BaseObject):  # nocov
         map.writeData(QByteArray())
 
         mapDataEncrypted = self.mapData.prepareToWrite()
-        map.writeEncrypted(mapDataEncrypted, self.localKey)  # type: ignore
+        map.writeEncrypted(mapDataEncrypted, localKey)
         map.finish()
 
     def _writeMtpData(self, baseGlobalPath: str, dataNameKey: int) -> None:
-        Expects(self.localKey is not None, "localKey not found")
+        localKey = self._requireLocalKey()
         Expects(
             baseGlobalPath is not None and baseGlobalPath != "",
             "baseGlobalPath can't be empty",
@@ -196,7 +202,7 @@ class StorageAccount(BaseObject):  # nocov
         data = td.Storage.EncryptedDescriptor(size)
         data.stream.writeInt32(dbi.MtpAuthorization)
         data.stream << serialized
-        mtp.writeEncrypted(data, self.localKey)  # type: ignore
+        mtp.writeEncrypted(data, localKey)
         mtp.finish()
 
     def _writeData(self, baseGlobalPath: str, keyFile: str | None = None) -> None:

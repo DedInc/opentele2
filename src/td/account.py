@@ -288,13 +288,8 @@ class Account(BaseObject):
                 await copy.connect()
                 await copy.get_me()
                 userId = copy.UserId
-            Expects(
-                userId is not None,
-                exception=TelethonUnauthorized(
-                    "Could not resolve the account's user id"
-                ),
-            )
-            assert userId is not None
+            if userId is None:
+                raise TelethonUnauthorized("Could not resolve the account's user id")
 
             if owner is not None:
                 Expects(

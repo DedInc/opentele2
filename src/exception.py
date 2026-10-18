@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 import types
 import typing
 
@@ -46,12 +47,9 @@ class OpenTeleException(BaseException):
         self.message = message
         self.desc = self.__class__.__name__
 
-        frame = inspect.currentframe()
-        for _ in range(stack_index):
-            assert frame is not None
-            frame = frame.f_back
-        assert frame is not None
-        self.frame = frame
+        # Depth 0 is this __init__ frame, so stack_index walks back to the
+        # caller the same way stack_index f_back steps from currentframe() do.
+        self.frame = sys._getframe(stack_index)
 
         self._caller_class = (
             self.frame.f_locals["self"].__class__

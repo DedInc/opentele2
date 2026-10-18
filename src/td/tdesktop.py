@@ -82,8 +82,10 @@ _PERF_PASSCODE_KEY_ENCRYPTED = QByteArray(
 )
 
 
-def _ensure_base_path(basePath: str) -> None:
-    Expects(basePath is not None and basePath != "", "No folder provided")
+def _ensure_base_path(basePath: str | None) -> str:
+    if basePath is None or basePath == "":
+        raise OpenTeleException("No folder provided")
+    return basePath
 
 
 class TDesktop(BaseObject):
@@ -141,7 +143,6 @@ class TDesktop(BaseObject):
         if basePath is None:
             basePath = self.basePath
 
-        assert basePath is not None
         _ensure_base_path(basePath)
 
         if keyFile is not None and self.__keyFile != keyFile:
@@ -186,8 +187,7 @@ class TDesktop(BaseObject):
             else self.keyFile
         )
 
-        assert basePath is not None
-        _ensure_base_path(basePath)
+        basePath = _ensure_base_path(basePath)
 
         if passcode is not None and self.__passcode != passcode:
             self.__passcode = passcode
@@ -199,7 +199,7 @@ class TDesktop(BaseObject):
         elif self.__keyData.legacy:
             # tdesktop 7.3 migrates a pre-7.3 key file on start; write the
             # migrated shape directly, keeping the local key the accounts use.
-            self.__installKeyData()
+            self.__installKeyData(self.__requireLocalKey())
         Expects(self.isLoaded(), "Failed to load? Something went seriously wrong")
 
         try:
@@ -232,7 +232,7 @@ class TDesktop(BaseObject):
             keyData.stream.writeInt32(account.index)
 
         keyData.stream.writeInt32(self.__active_index)
-        key.writeEncrypted(keyData, self.__localKey)  # type: ignore
+        key.writeEncrypted(keyData, self.__requireLocalKey())
         if not self.__keyData.legacy:
             key.writeData(key_data_trailer(self.__keyData))
         key.finish()
@@ -251,30 +251,36 @@ class TDesktop(BaseObject):
         else:
             _pass = td.Storage.RandomGenerate(td.AuthKey.kSize)
             _salt = td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE)
-            self.__localKey = td.Storage.CreateLocalKey(_salt, _pass)
-            self.__installKeyData()
+            localKey = td.Storage.CreateLocalKey(_salt, _pass)
+            self.__localKey = localKey
+            self.__installKeyData(localKey)
 
         for account in self.accounts:
             account.localKey = self.localKey
 
         self.__isLoaded = True
 
-    def __installKeyData(self) -> None:
-        """Wrap the current local key in the 7.3 key_data shape.
+    def __requireLocalKey(self) -> td.AuthKey:
+        localKey = self.__localKey
+        if localKey is None:
+            raise TDesktopNotLoaded(
+                "The local key has not been generated or loaded from tdata yet"
+            )
+        return localKey
+
+    def __installKeyData(self, localKey: td.AuthKey) -> None:
+        """Wrap the given local key in the 7.3 key_data shape.
 
         Same shape Domain::generateLocalKey / migrateFromLegacy produce: an
         open wrap without a passcode, otherwise only a passcode wrap and an
         empty open wrap beside a real random salt.
         """
-        assert self.__localKey is not None
         keyData = KeyData(
             openSalt=td.Storage.RandomGenerate(LOCAL_ENCRYPT_SALT_SIZE), legacy=False
         )
         if not self.__passcodeBytes:
             self.__passcodeKey = td.Storage.CreateLocalKey(keyData.openSalt)
-            keyData.openKeyEncrypted = wrap_local_key(
-                self.__localKey, self.__passcodeKey
-            )
+            keyData.openKeyEncrypted = wrap_local_key(localKey, self.__passcodeKey)
         else:
             wrap = PasscodeWrap(
                 kdf=default_passcode_kdf(),
@@ -284,7 +290,7 @@ class TDesktop(BaseObject):
             self.__passcodeKey = create_passcode_key(
                 self.__passcodeBytes, wrap.salt, wrap.kdf
             )
-            wrap.keyEncrypted = wrap_local_key(self.__localKey, self.__passcodeKey)
+            wrap.keyEncrypted = wrap_local_key(localKey, self.__passcodeKey)
             keyData.passcodeWraps.append(wrap)
             keyData.committed = 1
         self.__keyData = keyData
@@ -303,26 +309,24 @@ class TDesktop(BaseObject):
             self.__mainAccount = self.__accounts[0]
 
     def __loadFromTData(self) -> None:
-        assert self.basePath is not None
-        _ensure_base_path(self.basePath)
+        basePath = _ensure_base_path(self.basePath)
 
         self.accounts.clear()
 
-        keyData = td.Storage.ReadFile("key_" + self.keyFile, self.basePath)
+        keyData = td.Storage.ReadFile("key_" + self.keyFile, basePath)
 
         parsed, infoEncrypted = read_key_data(keyData.stream)
 
         self.__AppVersion = keyData.version
-        self.__localKey, self.__passcodeKey = open_local_key(
-            parsed, self.__passcodeBytes
-        )
+        localKey, self.__passcodeKey = open_local_key(parsed, self.__passcodeBytes)
+        self.__localKey = localKey
         # startModern keeps only the committed generation; staged or stale
         # wraps from an interrupted passcode change are not written back.
         parsed.passcodeWraps = parsed.liveWraps()
         self.__keyData = parsed
 
         try:
-            info = td.Storage.DecryptLocal(infoEncrypted, self.localKey)  # type: ignore
+            info = td.Storage.DecryptLocal(infoEncrypted, localKey)
         except OpenTeleException as e:
             # startModern: only a surviving passcode wrap makes this a
             # passcode problem; otherwise the accounts info itself is broken.
@@ -345,7 +349,6 @@ class TDesktop(BaseObject):
                 "known to Telegram Desktop 7.3.1; loading them anyway"
             )
 
-        assert self.__localKey is not None
         seenIndexes: set[int] = set()
         for i in range(count):
             index = info.stream.readInt32()
@@ -357,12 +360,12 @@ class TDesktop(BaseObject):
                 try:
                     account = td.Account(
                         self,
-                        basePath=self.basePath,  # type: ignore[arg-type]
+                        basePath=basePath,
                         api=self.api,
                         keyFile=self.keyFile,
                         index=index,
                     )
-                    account.prepareToStart(self.__localKey)
+                    account.prepareToStart(localKey)
 
                     if account.isLoaded():
                         self.accounts.append(account)
@@ -403,14 +406,18 @@ class TDesktop(BaseObject):
             self.accountsCount > 0,
             TDesktopHasNoAccount("There is no account in this instance of TDesktop"),
         )
-        assert self.mainAccount
+        mainAccount = self.mainAccount
+        if mainAccount is None:
+            raise TDesktopHasNoAccount(
+                "There is no main account in this instance of TDesktop"
+            )
 
         return await tl.TelegramClient.FromTDesktop(
-            self.mainAccount,
+            mainAccount,
             session=session,
             flag=flag,
             api=api,
-            password=password,  # type: ignore[arg-type]
+            password=password,
             **kwargs,
         )
 
@@ -462,7 +469,7 @@ class TDesktop(BaseObject):
             session_path,
             json_path,
             flag=UseCurrentSession,
-            password=password,  # type: ignore[arg-type]
+            password=password,
         )
         use_api = api if api is not None else (client._api_data or API.TelegramDesktop)
         try:
