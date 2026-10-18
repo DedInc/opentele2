@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
@@ -217,9 +219,8 @@ class TestSessionJsonConsistency:
     def test_web_sessions_have_user_agent(self, session_id: SessionId) -> None:
         data = load_session_json(session_id)
         lp = data.get("lang_pack", "")
-        if lp in ("weba", "webk", ""):
-            if data["app_id"] == 2496:
-                assert "Mozilla" in data["device"] or "Chrome" in data["device"]
+        if lp in ("weba", "webk", "") and data["app_id"] == 2496:
+            assert "Mozilla" in data["device"] or "Chrome" in data["device"]
 
     def test_desktop_sessions_have_device_name(self, session_id: SessionId) -> None:
         data = load_session_json(session_id)
@@ -785,8 +786,7 @@ class TestSessionJsonExport:
         out_base = str(tmp_path / "field_test")
         _, j_path = await client.SaveSessionJson(out_base)
 
-        with open(j_path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = json.loads(pathlib.Path(j_path).read_text(encoding="utf-8"))
 
         for field in [
             "app_id",
@@ -817,8 +817,7 @@ class TestSessionJsonExport:
         out_base = str(tmp_path / "preserve_test")
         _, j_path = await client.SaveSessionJson(out_base)
 
-        with open(j_path, encoding="utf-8") as f:
-            exported = json.load(f)
+        exported = json.loads(pathlib.Path(j_path).read_text(encoding="utf-8"))
 
         assert exported["app_id"] == orig_data["app_id"]
         assert exported["app_hash"] == orig_data["app_hash"]
@@ -837,8 +836,7 @@ class TestSessionJsonExport:
         out_base = str(tmp_path / "my_session")
         _, j_path = await client.SaveSessionJson(out_base)
 
-        with open(j_path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = json.loads(pathlib.Path(j_path).read_text(encoding="utf-8"))
 
         assert data["session_file"] == "my_session"
 

@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import os
 import pathlib
@@ -25,6 +26,7 @@ import pytest
 from _pytest._io import TerminalWriter
 
 from src.api import API, APIData, UseCurrentSession
+from src.exception import OpenTeleException
 from src.td import TDesktop
 from src.td.account import Account
 from src.tl.telethon import TelegramClient
@@ -211,10 +213,8 @@ async def check_telegramclient() -> None:
         tdesk, flag=UseCurrentSession, api=api_ios
     )
 
-    try:
+    with contextlib.suppress(Exception, OpenTeleException):
         await oldClient.TerminateSession(0)
-    except BaseException:
-        pass
 
     await oldClient.connect()
     assert await oldClient.is_user_authorized()
@@ -225,10 +225,8 @@ async def check_telegramclient() -> None:
         oldClient, flag=UseCurrentSession, api=api_ios
     )
 
-    try:
+    with contextlib.suppress(Exception, OpenTeleException):
         await oldClient.TerminateSession(0)
-    except BaseException:
-        pass
 
     assert await oldClient.TerminateAllSessions()
 

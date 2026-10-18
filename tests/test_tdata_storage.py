@@ -145,7 +145,7 @@ def test_trailing_legacy_blocks_after_authorization_do_not_break_reading(
 def test_failed_map_read_raises_instead_of_silently_skipping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    account, owner = _storageAccount(monkeypatch, None)
+    account, _owner = _storageAccount(monkeypatch, None)
 
     def _boom(localKey: Any, legacyPasscode: Any) -> None:
         raise TDataReadMapDataFailed("could not decrypt map data")

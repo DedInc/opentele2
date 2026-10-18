@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
@@ -23,6 +25,7 @@ from src.devices import (
     WindowsDevice,
     macOSDevice,
 )
+from src.exception import NoInstanceMatched, TFileNotFound
 from src.fingerprint import (
     DEFAULT_CONFIG,
     LAYER,
@@ -1119,11 +1122,11 @@ class TestEdgeCases:
         assert tdesk.accountsCount == 0
 
     def test_tdesktop_invalid_path(self) -> None:
-        with pytest.raises(BaseException):
+        with pytest.raises(TFileNotFound):
             TDesktop("/nonexistent/path/tdata")
 
     def test_api_data_requires_id_and_hash(self) -> None:
-        with pytest.raises(BaseException):
+        with pytest.raises(NoInstanceMatched):
             APIData()
 
     def test_login_flag_hierarchy(self) -> None:
@@ -1368,7 +1371,7 @@ class TestLiveCreateNewSession:
                 _safe_print(f"  New session DC: {new_client.session.dc_id}")
                 assert new_me.id == me.id, "New session should be for the same account"
                 await new_client.disconnect()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - report any live failure
                 _safe_print(
                     "  CreateNewSession failed (expected in CI): "
                     f"{type(e).__name__}: {e}"
@@ -1406,8 +1409,7 @@ class TestLiveCreateNewSession:
             assert os.path.isfile(s_path)
             assert os.path.isfile(j_path)
 
-            with open(j_path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = json.loads(pathlib.Path(j_path).read_text(encoding="utf-8"))
 
             _safe_print("\n--- SaveSessionJson with fetch_user_info ---")
             _safe_print(f"  session_file : {data.get('session_file')}")
