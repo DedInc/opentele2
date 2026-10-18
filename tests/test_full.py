@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import pathlib
 import sqlite3
 import sys
+from types import ModuleType
 from typing import Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
 
 import pytest
+from telethon.errors import RPCError
+from telethon.sessions.memory import MemorySession
 from telethon.tl.types import User
 
 from src.api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
@@ -27,7 +31,13 @@ from src.devices import (
     WindowsDevice,
     macOSDevice,
 )
-from src.exception import NoInstanceMatched, TFileNotFound
+from src.exception import (
+    NoInstanceMatched,
+    OpenTeleException,
+    TDataAuthKeyNotFound,
+    TDesktopHasNoAccount,
+    TFileNotFound,
+)
 from src.fingerprint import (
     DEFAULT_CONFIG,
     LAYER,
@@ -41,7 +51,7 @@ from src.fingerprint import (
     is_valid_msg_id,
     validate_init_connection_params,
 )
-from src.td import TDesktop
+from src.td import TDesktop, storage
 from src.td.account import Account
 from src.tl.telethon import TelegramClient
 
@@ -1097,6 +1107,55 @@ class TestTelegramClientConstructor:
         client = TelegramClient(None, api=api)
         assert client.api_id == API.TelegramIOS.api_id
 
+    def test_none_session_becomes_memory_session(self) -> None:
+        client = TelegramClient(None)
+        assert isinstance(client.session, MemorySession)
+
+    def test_missing_api_hash_raises_telethons_value_error(self) -> None:
+        with pytest.raises(ValueError, match="cannot be empty"):
+            TelegramClient(None, api_id=1234)
+
+    def test_tgcrypto_without_ige256_is_an_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            storage.importlib, "import_module", lambda _name: ModuleType("x")
+        )
+        with pytest.raises(ImportError, match="tgcrypto"):
+            storage._load_tgcrypto()
+
+
+class TestTelegramClientChecks:
+    @pytest.mark.asyncio
+    async def test_print_sessions_without_sessions_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        client = TelegramClient()
+
+        async def _no_sessions() -> None:
+            return None
+
+        monkeypatch.setattr(client, "GetSessions", _no_sessions)
+        with pytest.raises(OpenTeleException):
+            await client.PrintSessions()
+
+    @pytest.mark.asyncio
+    async def test_from_tdesktop_without_auth_key_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tdesk = TDesktop(str(TESTS_DIR / "data" / "254593786_tdata" / "tdata"))
+        monkeypatch.setattr(_main(tdesk), "_Account__authKey", None)
+        with pytest.raises(TDataAuthKeyNotFound):
+            await TelegramClient.FromTDesktop(tdesk, flag=UseCurrentSession)
+
+    def test_resolve_account_without_main_account_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tdesk = TDesktop(str(TESTS_DIR / "data" / "254593786_tdata" / "tdata"))
+        monkeypatch.setattr(tdesk, "_TDesktop__mainAccount", None)
+        with pytest.raises(TDesktopHasNoAccount):
+            TelegramClient._resolveTDesktopAccount(tdesk)
+
 
 @requires_tdatas_dir
 class TestTDataSaveLoad:
@@ -1379,14 +1438,27 @@ class TestLiveCreateNewSession:
                     session=new_session_path,
                     api=API.TelegramDesktop,
                 )
-                new_me = await new_client.get_me()
-                assert isinstance(new_me, User)
-                _safe_print("  New session created successfully!")
-                _safe_print(f"  New session account: {new_me.id}")
-                _safe_print(f"  New session DC: {new_client.session.dc_id}")
-                assert new_me.id == me.id, "New session should be for the same account"
-                await new_client.disconnect()
-            except Exception as e:  # noqa: BLE001 - report any live failure
+                try:
+                    new_me = await new_client.get_me()
+                    assert isinstance(new_me, User)
+                    _safe_print("  New session created successfully!")
+                    _safe_print(f"  New session account: {new_me.id}")
+                    _safe_print(f"  New session DC: {new_client.session.dc_id}")
+                    assert new_me.id == me.id, (
+                        "New session should be for the same account"
+                    )
+                finally:
+                    await new_client.disconnect()
+            # The failures a live QR login can hit: Telegram's RPC errors,
+            # opentele2's own (password, auth key), and the network, where
+            # TimeoutError and ConnectionError are OSErrors and asyncio's
+            # TimeoutError is separate before 3.11. A bug still fails the test.
+            except (
+                RPCError,
+                OpenTeleException,
+                OSError,
+                asyncio.TimeoutError,
+            ) as e:
                 _safe_print(
                     "  CreateNewSession failed (expected in CI): "
                     f"{type(e).__name__}: {e}"

@@ -4,7 +4,6 @@ import asyncio
 import datetime
 import logging
 import random
-import typing
 import warnings
 from collections.abc import Awaitable
 from typing import TYPE_CHECKING
@@ -31,7 +30,9 @@ from ..exception import (
     Expects,
     LoginFlagInvalid,
     NoPasswordProvided,
+    OpenTeleException,
     PasswordIncorrect,
+    TDataAuthKeyNotFound,
     TDesktopHasNoAccount,
     TDesktopNotLoaded,
     TDesktopUnauthorized,
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
     from typing_extensions import Unpack
 
     from ..consistency import ConsistencyReport
-    from .client_kwargs import ClientKwargs, TelethonClientKwargs
+    from .client_kwargs import TelethonClientKwargs
 
 _DEFAULT_REQUEST_RETRIES = 5
 _QR_EXPIRE_SAFETY_SECONDS = 5
@@ -136,12 +137,15 @@ class TelegramClient(telethon.TelegramClient):
         api: type[APIData] | APIData | int | str | None = None,
         api_id: int | str = 0,
         api_hash: str | None = None,
-        **kwargs: Unpack[ClientKwargs],
+        *,
+        fingerprint_config: FingerprintConfig | None = None,
+        auto_post_login: bool = True,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> None:
         self._fingerprint_config: FingerprintConfig = (
-            kwargs.pop("fingerprint_config", None) or DEFAULT_CONFIG
+            fingerprint_config or DEFAULT_CONFIG
         )
-        self._auto_post_login: bool = kwargs.pop("auto_post_login", True)
+        self._auto_post_login: bool = auto_post_login
         self._post_login_done: bool = False
 
         if "connection" not in kwargs:
@@ -164,23 +168,28 @@ class TelegramClient(telethon.TelegramClient):
             api_id = api_data.api_id
             api_hash = api_data.api_hash
             kwargs.setdefault("device_model", api_data.device_model)
-            kwargs.setdefault("system_version", api_data.system_version)
-            kwargs.setdefault("app_version", api_data.app_version)
+            # Telethon defaults both to None, so a missing value is left out.
+            if api_data.system_version is not None:
+                kwargs.setdefault("system_version", api_data.system_version)
+            if api_data.app_version is not None:
+                kwargs.setdefault("app_version", api_data.app_version)
             kwargs.setdefault("lang_code", api_data.lang_code or "en")
             kwargs.setdefault("system_lang_code", api_data.system_lang_code or "en")
 
         self._api_data: APIData | None = api_data
         self._user_id = None
 
-        # fingerprint_config and auto_post_login were popped above; Telethon
-        # takes None for a session and builds a MemorySession from it.
-        telethon_kwargs = typing.cast("dict[str, typing.Any]", kwargs)
-        super().__init__(
-            typing.cast("str | Session", session),
-            typing.cast("int", api_id),
-            typing.cast("str", api_hash),
-            **telethon_kwargs,
-        )
+        # Telethon's own guard and int(), run here so api_id and api_hash
+        # reach it as the int and str its signature declares.
+        if not api_id or not api_hash:
+            raise ValueError(
+                "Your API ID or Hash cannot be empty or None. "
+                "Refer to telethon.rtfd.io for more information."
+            )
+        # Telethon builds a MemorySession from None; do it here so the
+        # argument matches its declared str | Path | Session.
+        telethon_session = MemorySession() if session is None else session
+        super().__init__(telethon_session, int(api_id), api_hash, **kwargs)
 
         # Telethon hardcodes lang_pack to '' — override it for official client mimicry
         if api_data is not None and api_data.lang_pack:
@@ -301,7 +310,8 @@ class TelegramClient(telethon.TelegramClient):
         if sessions is None or not isinstance(sessions, types.account.Authorizations):
             sessions = await self.GetSessions()
 
-        assert sessions
+        if sessions is None:
+            raise OpenTeleException("Could not fetch the account's sessions")
 
         table = []
         for index, session in enumerate(sessions.authorizations):
@@ -488,14 +498,11 @@ class TelegramClient(telethon.TelegramClient):
     async def _handle2FA(
         self, newClient: TelegramClient, password: str | None
     ) -> TelegramClient:
-        Expects(
-            password is not None,
-            NoPasswordProvided(
+        if password is None:
+            raise NoPasswordProvided(
                 "Two-step verification is enabled for this account.\n"
                 "You need to provide the `password` to argument"
-            ),
-        )
-        assert password is not None
+            )
 
         try:
             pwd: types.account.Password = await newClient(
@@ -569,7 +576,8 @@ class TelegramClient(telethon.TelegramClient):
         endpoint = endpoints[address][protocol][0]
 
         auth_session.set_dc(endpoint.id, endpoint.ip, endpoint.port)
-        assert account.authKey is not None
+        if account.authKey is None:
+            raise TDataAuthKeyNotFound("The account has no authKey loaded")
         auth_session.auth_key = AuthKey(account.authKey.key)
 
         client = TelegramClient(auth_session, api=account.api, **kwargs)
@@ -608,8 +616,12 @@ class TelegramClient(telethon.TelegramClient):
                     "There is no account in this instance of TDesktop"
                 ),
             )
-            assert account.mainAccount
-            return account.mainAccount
+            mainAccount = account.mainAccount
+            if mainAccount is None:
+                raise TDesktopHasNoAccount(
+                    "There is no main account in this instance of TDesktop"
+                )
+            return mainAccount
         return account
 
     @staticmethod

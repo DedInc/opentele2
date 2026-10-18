@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import os
 from ctypes import c_uint32 as uint32
 from ctypes import sizeof
-from typing import ClassVar
-
-import tgcrypto  # ty: ignore[unresolved-import]  # compiled, ships no stubs
+from typing import ClassVar, Protocol, runtime_checkable
 
 from ..exception import (
     Expects,
@@ -39,6 +38,26 @@ _PBKDF2_ITERATIONS_EMPTY = 1
 _LEGACY_PBKDF2_ITERATIONS = 4000
 _LEGACY_PBKDF2_ITERATIONS_EMPTY = 4
 _TDF_FILE_SUFFIXES = ("s", "1", "0")
+
+
+@runtime_checkable
+class _TgCrypto(Protocol):
+    """The part of the compiled, stub-less tgcrypto module this file calls."""
+
+    def ige256_encrypt(self, data: bytes, key: bytes, iv: bytes, /) -> bytes: ...
+
+    def ige256_decrypt(self, data: bytes, key: bytes, iv: bytes, /) -> bytes: ...
+
+
+def _load_tgcrypto() -> _TgCrypto:
+    module = importlib.import_module("tgcrypto")
+    if isinstance(module, _TgCrypto):
+        return module
+    # A tgcrypto without these is a broken install, reported like a missing one.
+    raise ImportError("tgcrypto does not provide ige256_encrypt and ige256_decrypt")
+
+
+tgcrypto = _load_tgcrypto()
 
 
 class Serialize(BaseObject):
