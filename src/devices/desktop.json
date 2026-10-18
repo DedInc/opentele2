@@ -1,245 +1,616 @@
 {
-    "models": [
-        {"model": "Desktop", "weight": 10},
-
-        {"model": "H410M H", "weight": 5},
-        {"model": "H410M H V3", "weight": 5},
-        {"model": "H410M S2H", "weight": 4},
-        {"model": "H510M S2H", "weight": 5},
-        {"model": "H510M H", "weight": 5},
-        {"model": "H610M S2H", "weight": 6},
-        {"model": "H610M H", "weight": 6},
-        {"model": "H610M H DDR4", "weight": 4},
-        {"model": "B450M DS3H", "weight": 4},
-        {"model": "B450M S2H", "weight": 3},
-        {"model": "B450 AORUS M", "weight": 2},
-        {"model": "B550M DS3H", "weight": 5},
-        {"model": "B550M DS3H AC", "weight": 3},
-        {"model": "B550 GAMING X", "weight": 2},
-        {"model": "B550 AORUS PRO", "weight": 2},
-        {"model": "A520M S2H", "weight": 3},
-        {"model": "A520M DS3H", "weight": 3},
-        {"model": "B560M DS3H", "weight": 4},
-        {"model": "B660M DS3H", "weight": 5},
-        {"model": "B660M GAMING X", "weight": 3},
-        {"model": "B760M DS3H", "weight": 5},
-        {"model": "B760M GAMING X", "weight": 3},
-        {"model": "B650M DS3H", "weight": 3},
-        {"model": "A620M S2H", "weight": 3},
-        {"model": "Z490M", "weight": 2},
-        {"model": "H470M DS3H", "weight": 3},
-
-        {"model": "PRIME B450M-A", "weight": 4},
-        {"model": "PRIME B550M-A", "weight": 5},
-        {"model": "PRIME B550-PLUS", "weight": 4},
-        {"model": "PRIME A520M-K", "weight": 3},
-        {"model": "PRIME H510M-A", "weight": 5},
-        {"model": "PRIME H610M-A", "weight": 5},
-        {"model": "PRIME H610M-E", "weight": 4},
-        {"model": "PRIME B660M-A", "weight": 4},
-        {"model": "PRIME B760M-A", "weight": 4},
-        {"model": "PRIME B650M-A", "weight": 3},
-        {"model": "PRIME H310M-R", "weight": 3},
-        {"model": "PRIME Z690-P", "weight": 2},
-        {"model": "PRO B660M-C", "weight": 3},
-        {"model": "EX-B660M-V5", "weight": 2},
-
-        {"model": "MS-7C02", "weight": 2},
-        {"model": "MS-7C56", "weight": 2},
-        {"model": "MS-7C95", "weight": 2},
-        {"model": "MS-7D25", "weight": 3},
-        {"model": "MS-7E06", "weight": 3},
-        {"model": "MS-7E07", "weight": 2},
-        {"model": "MS-7D42", "weight": 2},
-        {"model": "MS-7E26", "weight": 2},
-        {"model": "MS-7B86", "weight": 1},
-        {"model": "MS-7B89", "weight": 1},
-        {"model": "MS-7C91", "weight": 1},
-        {"model": "MS-7D75", "weight": 1},
-
-        {"model": "B550M-HDV", "weight": 3},
-        {"model": "B450M-HDV R4.0", "weight": 3},
-        {"model": "B660M-HDV", "weight": 3},
-        {"model": "B760M-HDV", "weight": 3},
-        {"model": "A520M-HVS", "weight": 2},
-        {"model": "H510M-HVS R2.0", "weight": 2},
-        {"model": "H310CM-HDV", "weight": 2},
-        {"model": "B450M Pro4", "weight": 2},
-        {"model": "B650M-HDV/M.2", "weight": 2},
-
-        {"model": "XPS 15 9530", "weight": 3},
-        {"model": "XPS 15 9520", "weight": 2},
-        {"model": "XPS 15 9570", "weight": 2},
-        {"model": "XPS 13 9310", "weight": 2},
-        {"model": "XPS 13 9340", "weight": 2},
-        {"model": "XPS 14 9440", "weight": 2},
-        {"model": "XPS 16 9640", "weight": 1},
-        {"model": "Latitude 5530", "weight": 3},
-        {"model": "Latitude 7440", "weight": 2},
-        {"model": "Vostro 3510", "weight": 3},
-        {"model": "Vostro 3520", "weight": 2},
-        {"model": "OptiPlex 3080", "weight": 3},
-        {"model": "OptiPlex 7090", "weight": 2},
-        {"model": "OptiPlex 5090", "weight": 2},
-
-        {"model": "Surface Pro 9", "weight": 2},
-        {"model": "Surface Pro 10", "weight": 2},
-        {"model": "Surface Pro 11", "weight": 1},
-
-        {"model": "Nitro AN515-55", "weight": 2},
-        {"model": "Nitro AN515-58", "weight": 2},
-        {"model": "Nitro AN517-55", "weight": 1},
-        {"model": "Aspire A515-57", "weight": 2},
-
-        {"model": "HP Laptop 15", "weight": 4},
-        {"model": "HP Laptop 14", "weight": 3},
-        {"model": "HP Pavilion 15", "weight": 4},
-        {"model": "HP Pavilion 14", "weight": 3},
-        {"model": "HP 250 G9", "weight": 3},
-        {"model": "HP 250 G10", "weight": 2},
-        {"model": "HP 255 G8", "weight": 2},
-        {"model": "HP 255 G9", "weight": 2},
-        {"model": "HP ProBook 450 G8", "weight": 3},
-        {"model": "HP ProBook 450 G10", "weight": 2},
-        {"model": "HP EliteBook 840 G9", "weight": 2},
-        {"model": "HP OMEN 16", "weight": 2},
-        {"model": "HP OMEN 17", "weight": 1},
-        {"model": "HP Victus 15", "weight": 2},
-        {"model": "HP ENVY x360 15", "weight": 2},
-        {"model": "HP Spectre x360 14", "weight": 1},
-
-        {"model": "82YN", "weight": 2},
-        {"model": "82RE", "weight": 1},
-        {"model": "82RA", "weight": 1},
-        {"model": "21HH", "weight": 1},
-        {"model": "21KC", "weight": 1},
-        {"model": "82K2", "weight": 2},
-        {"model": "82LN", "weight": 1},
-        {"model": "UX425EA", "weight": 1},
-        {"model": "UM425QA", "weight": 1},
-        {"model": "FX505DT", "weight": 1},
-        {"model": "G614JU", "weight": 1},
-        {"model": "07TYC2", "weight": 1},
-        {"model": "0X2MHF", "weight": 1},
-        {"model": "0YNVJG", "weight": 1}
-    ],
-    "versions": [
-        "Windows 11 x64",
-        "Windows 11",
-        "Windows 10 x64",
-        "Windows 10"
-    ],
-    "environments": [
-        "GNOME",
-        "KDE Plasma",
-        "MATE",
-        "XFCE",
-        "Cinnamon",
-        "Pantheon",
-        "Budgie",
-        "Deepin",
-        "LXQt"
-    ],
-    "wayland": [
-        "Wayland",
-        "XWayland",
-        "X11"
-    ],
-    "linuxDistros": {
-        "Ubuntu 24.04 LTS": {
-            "kernel": "6.8",
-            "glibc": "2.39",
-            "weight": 8
-        },
-        "Ubuntu 25.04": {
-            "kernel": "6.14",
-            "glibc": "2.41",
-            "weight": 3
-        },
-        "Ubuntu 22.04 LTS": {
-            "kernel": "6.8",
-            "glibc": "2.35",
-            "weight": 4
-        },
-        "Linux Mint 22.1": {
-            "kernel": "6.8",
-            "glibc": "2.39",
-            "weight": 5
-        },
-        "Linux Mint 22.3": {
-            "kernel": "6.14",
-            "glibc": "2.39",
-            "weight": 3
-        },
-        "Fedora Linux 42": {
-            "kernel": "6.14",
-            "glibc": "2.41",
-            "weight": 4
-        },
-        "Fedora Linux 41": {
-            "kernel": "6.11",
-            "glibc": "2.40",
-            "weight": 2
-        },
-        "Debian GNU/Linux 13": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 4
-        },
-        "Debian GNU/Linux 12": {
-            "kernel": "6.1",
-            "glibc": "2.36",
-            "weight": 3
-        },
-        "Arch Linux": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 3
-        },
-        "Manjaro Linux": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 2
-        },
-        "Pop!_OS 24.04 LTS": {
-            "kernel": "6.8",
-            "glibc": "2.39",
-            "weight": 2
-        },
-        "openSUSE Tumbleweed": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 2
-        },
-        "openSUSE Leap 15.6": {
-            "kernel": "6.4",
-            "glibc": "2.38",
-            "weight": 1
-        },
-        "Zorin OS 18": {
-            "kernel": "6.14",
-            "glibc": "2.39",
-            "weight": 2
-        },
-        "EndeavourOS": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 1
-        },
-        "elementary OS 8.1": {
-            "kernel": "6.14",
-            "glibc": "2.39",
-            "weight": 1
-        },
-        "KDE neon": {
-            "kernel": "6.8",
-            "glibc": "2.39",
-            "weight": 1
-        },
-        "NixOS 25.11": {
-            "kernel": "6.12",
-            "glibc": "2.41",
-            "weight": 1
-        }
+  "models": [
+    {
+      "model": "Desktop",
+      "weight": 3
+    },
+    {
+      "model": "H410M H",
+      "weight": 5
+    },
+    {
+      "model": "H410M H V3",
+      "weight": 5
+    },
+    {
+      "model": "H410M S2H",
+      "weight": 4
+    },
+    {
+      "model": "H510M S2H",
+      "weight": 5
+    },
+    {
+      "model": "H510M H",
+      "weight": 5
+    },
+    {
+      "model": "H610M S2H",
+      "weight": 6
+    },
+    {
+      "model": "H610M H",
+      "weight": 6
+    },
+    {
+      "model": "H610M H DDR4",
+      "weight": 4
+    },
+    {
+      "model": "B450M DS3H",
+      "weight": 4
+    },
+    {
+      "model": "B450M S2H",
+      "weight": 3
+    },
+    {
+      "model": "B450 AORUS M",
+      "weight": 2
+    },
+    {
+      "model": "B550M DS3H",
+      "weight": 5
+    },
+    {
+      "model": "B550M DS3H AC",
+      "weight": 3
+    },
+    {
+      "model": "B550 GAMING X",
+      "weight": 2
+    },
+    {
+      "model": "B550 AORUS PRO",
+      "weight": 2
+    },
+    {
+      "model": "A520M S2H",
+      "weight": 3
+    },
+    {
+      "model": "A520M DS3H",
+      "weight": 3
+    },
+    {
+      "model": "B560M DS3H",
+      "weight": 4
+    },
+    {
+      "model": "B660M DS3H",
+      "weight": 5
+    },
+    {
+      "model": "B660M GAMING X",
+      "weight": 3
+    },
+    {
+      "model": "B760M DS3H",
+      "weight": 5
+    },
+    {
+      "model": "B760M GAMING X",
+      "weight": 3
+    },
+    {
+      "model": "B650M DS3H",
+      "weight": 3
+    },
+    {
+      "model": "A620M S2H",
+      "weight": 3
+    },
+    {
+      "model": "Z490M",
+      "weight": 2
+    },
+    {
+      "model": "H470M DS3H",
+      "weight": 3
+    },
+    {
+      "model": "PRIME B450M-A",
+      "weight": 4
+    },
+    {
+      "model": "PRIME B550M-A",
+      "weight": 5
+    },
+    {
+      "model": "PRIME B550-PLUS",
+      "weight": 4
+    },
+    {
+      "model": "PRIME A520M-K",
+      "weight": 3
+    },
+    {
+      "model": "PRIME H510M-A",
+      "weight": 5
+    },
+    {
+      "model": "PRIME H610M-A",
+      "weight": 5
+    },
+    {
+      "model": "PRIME H610M-E",
+      "weight": 4
+    },
+    {
+      "model": "PRIME B660M-A",
+      "weight": 4
+    },
+    {
+      "model": "PRIME B760M-A",
+      "weight": 4
+    },
+    {
+      "model": "PRIME B650M-A",
+      "weight": 3
+    },
+    {
+      "model": "PRIME H310M-R",
+      "weight": 3
+    },
+    {
+      "model": "PRIME Z690-P",
+      "weight": 2
+    },
+    {
+      "model": "PRO B660M-C",
+      "weight": 3
+    },
+    {
+      "model": "EX-B660M-V5",
+      "weight": 2
+    },
+    {
+      "model": "MS-7C02",
+      "weight": 2
+    },
+    {
+      "model": "MS-7C56",
+      "weight": 2
+    },
+    {
+      "model": "MS-7C95",
+      "weight": 2
+    },
+    {
+      "model": "MS-7D25",
+      "weight": 3
+    },
+    {
+      "model": "MS-7E06",
+      "weight": 3
+    },
+    {
+      "model": "MS-7E07",
+      "weight": 2
+    },
+    {
+      "model": "MS-7D42",
+      "weight": 2
+    },
+    {
+      "model": "MS-7E26",
+      "weight": 2
+    },
+    {
+      "model": "MS-7B86",
+      "weight": 1
+    },
+    {
+      "model": "MS-7B89",
+      "weight": 1
+    },
+    {
+      "model": "MS-7C91",
+      "weight": 1
+    },
+    {
+      "model": "MS-7D75",
+      "weight": 1
+    },
+    {
+      "model": "B550M-HDV",
+      "weight": 3
+    },
+    {
+      "model": "B450M-HDV R4.0",
+      "weight": 3
+    },
+    {
+      "model": "B660M-HDV",
+      "weight": 3
+    },
+    {
+      "model": "B760M-HDV",
+      "weight": 3
+    },
+    {
+      "model": "A520M-HVS",
+      "weight": 2
+    },
+    {
+      "model": "H510M-HVS R2.0",
+      "weight": 2
+    },
+    {
+      "model": "H310CM-HDV",
+      "weight": 2
+    },
+    {
+      "model": "B450M Pro4",
+      "weight": 2
+    },
+    {
+      "model": "B650M-HDV/M.2",
+      "weight": 2
+    },
+    {
+      "model": "XPS 15 9530",
+      "weight": 3
+    },
+    {
+      "model": "XPS 15 9520",
+      "weight": 2
+    },
+    {
+      "model": "XPS 15 9570",
+      "weight": 2
+    },
+    {
+      "model": "XPS 13 9310",
+      "weight": 2
+    },
+    {
+      "model": "XPS 13 9340",
+      "weight": 2
+    },
+    {
+      "model": "XPS 14 9440",
+      "weight": 2
+    },
+    {
+      "model": "XPS 16 9640",
+      "weight": 1
+    },
+    {
+      "model": "Latitude 5530",
+      "weight": 3
+    },
+    {
+      "model": "Latitude 7440",
+      "weight": 2
+    },
+    {
+      "model": "Vostro 3510",
+      "weight": 3
+    },
+    {
+      "model": "Vostro 3520",
+      "weight": 2
+    },
+    {
+      "model": "OptiPlex 3080",
+      "weight": 3
+    },
+    {
+      "model": "OptiPlex 7090",
+      "weight": 2
+    },
+    {
+      "model": "OptiPlex 5090",
+      "weight": 2
+    },
+    {
+      "model": "Surface Pro 9",
+      "weight": 2
+    },
+    {
+      "model": "Surface Pro 10",
+      "weight": 2
+    },
+    {
+      "model": "Surface Pro 11",
+      "weight": 1
+    },
+    {
+      "model": "Nitro AN515-55",
+      "weight": 2
+    },
+    {
+      "model": "Nitro AN515-58",
+      "weight": 2
+    },
+    {
+      "model": "Nitro AN517-55",
+      "weight": 1
+    },
+    {
+      "model": "Aspire A515-57",
+      "weight": 2
+    },
+    {
+      "model": "HP Laptop 15",
+      "weight": 4
+    },
+    {
+      "model": "HP Laptop 14",
+      "weight": 3
+    },
+    {
+      "model": "HP Pavilion 15",
+      "weight": 4
+    },
+    {
+      "model": "HP Pavilion 14",
+      "weight": 3
+    },
+    {
+      "model": "HP 250 G9",
+      "weight": 3
+    },
+    {
+      "model": "HP 250 G10",
+      "weight": 2
+    },
+    {
+      "model": "HP 255 G8",
+      "weight": 2
+    },
+    {
+      "model": "HP 255 G9",
+      "weight": 2
+    },
+    {
+      "model": "HP ProBook 450 G8",
+      "weight": 3
+    },
+    {
+      "model": "HP ProBook 450 G10",
+      "weight": 2
+    },
+    {
+      "model": "HP EliteBook 840 G9",
+      "weight": 2
+    },
+    {
+      "model": "HP OMEN 16",
+      "weight": 2
+    },
+    {
+      "model": "HP OMEN 17",
+      "weight": 1
+    },
+    {
+      "model": "HP Victus 15",
+      "weight": 2
+    },
+    {
+      "model": "HP ENVY x360 15",
+      "weight": 2
+    },
+    {
+      "model": "HP Spectre x360 14",
+      "weight": 1
+    },
+    {
+      "model": "82YN",
+      "weight": 2
+    },
+    {
+      "model": "82RE",
+      "weight": 1
+    },
+    {
+      "model": "82RA",
+      "weight": 1
+    },
+    {
+      "model": "21HH",
+      "weight": 1
+    },
+    {
+      "model": "21KC",
+      "weight": 1
+    },
+    {
+      "model": "82K2",
+      "weight": 2
+    },
+    {
+      "model": "82LN",
+      "weight": 1
+    },
+    {
+      "model": "UX425EA",
+      "weight": 1
+    },
+    {
+      "model": "UM425QA",
+      "weight": 1
+    },
+    {
+      "model": "FX505DT",
+      "weight": 1
+    },
+    {
+      "model": "G614JU",
+      "weight": 1
+    },
+    {
+      "model": "07TYC2",
+      "weight": 1
+    },
+    {
+      "model": "0X2MHF",
+      "weight": 1
+    },
+    {
+      "model": "0YNVJG",
+      "weight": 1
+    },
+    {
+      "model": "B850M DS3H",
+      "weight": 5
+    },
+    {
+      "model": "PRIME B850M-A",
+      "weight": 4
+    },
+    {
+      "model": "PRIME X870-P",
+      "weight": 3
     }
+  ],
+  "windows": [
+    {
+      "version": "Windows 11 x64",
+      "weight": 7
+    },
+    {
+      "version": "Windows 10 x64",
+      "weight": 3
+    }
+  ],
+  "linux": [
+    {
+      "version": "Linux ubuntu GNOME Wayland glibc 2.39",
+      "weight": 8
+    },
+    {
+      "version": "Linux ubuntu GNOME X11 glibc 2.39",
+      "weight": 2
+    },
+    {
+      "version": "Linux ubuntu GNOME Wayland glibc 2.35",
+      "weight": 3
+    },
+    {
+      "version": "Linux ubuntu GNOME X11 glibc 2.35",
+      "weight": 1
+    },
+    {
+      "version": "Linux ubuntu GNOME Wayland glibc 2.43",
+      "weight": 5
+    },
+    {
+      "version": "Linux ubuntu GNOME Wayland glibc 2.44",
+      "weight": 2
+    },
+    {
+      "version": "Linux KDE X11 glibc 2.39",
+      "weight": 2
+    },
+    {
+      "version": "Linux KDE Wayland glibc 2.43",
+      "weight": 2
+    },
+    {
+      "version": "Linux X-Cinnamon X11 glibc 2.39",
+      "weight": 6
+    },
+    {
+      "version": "Linux X-Cinnamon X11 glibc 2.35",
+      "weight": 2
+    },
+    {
+      "version": "Linux X-Cinnamon X11 glibc 2.44",
+      "weight": 2
+    },
+    {
+      "version": "Linux MATE X11 glibc 2.39",
+      "weight": 1
+    },
+    {
+      "version": "Linux XFCE X11 glibc 2.39",
+      "weight": 1
+    },
+    {
+      "version": "Linux GNOME Wayland glibc 2.43",
+      "weight": 3
+    },
+    {
+      "version": "Linux GNOME Wayland glibc 2.42",
+      "weight": 2
+    },
+    {
+      "version": "Linux KDE Wayland glibc 2.42",
+      "weight": 1
+    },
+    {
+      "version": "Linux GNOME Wayland glibc 2.41",
+      "weight": 2
+    },
+    {
+      "version": "Linux KDE Wayland glibc 2.41",
+      "weight": 1
+    },
+    {
+      "version": "Linux XFCE X11 glibc 2.41",
+      "weight": 1
+    },
+    {
+      "version": "Linux GNOME Wayland glibc 2.36",
+      "weight": 1
+    },
+    {
+      "version": "Linux XFCE X11 glibc 2.36",
+      "weight": 1
+    },
+    {
+      "version": "Linux KDE Wayland glibc 2.44",
+      "weight": 4
+    },
+    {
+      "version": "Linux GNOME Wayland glibc 2.44",
+      "weight": 3
+    },
+    {
+      "version": "Linux Hyprland Wayland glibc 2.44",
+      "weight": 2
+    },
+    {
+      "version": "Linux sway Wayland glibc 2.44",
+      "weight": 1
+    },
+    {
+      "version": "Linux pop GNOME X11 glibc 2.35",
+      "weight": 1
+    },
+    {
+      "version": "Linux COSMIC Wayland glibc 2.39",
+      "weight": 2
+    },
+    {
+      "version": "Linux Pantheon Wayland glibc 2.39",
+      "weight": 1
+    },
+    {
+      "version": "Linux Pantheon X11 glibc 2.39",
+      "weight": 1
+    },
+    {
+      "version": "Linux zorin GNOME Wayland glibc 2.39",
+      "weight": 1
+    },
+    {
+      "version": "Linux zorin GNOME X11 glibc 2.35",
+      "weight": 1
+    },
+    {
+      "version": "Linux KDE Wayland glibc 2.40",
+      "weight": 1
+    },
+    {
+      "version": "Linux XFCE X11 glibc 2.43",
+      "weight": 1
+    },
+    {
+      "version": "Linux GNOME Xwayland glibc 2.43",
+      "weight": 1
+    }
+  ]
 }

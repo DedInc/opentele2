@@ -143,15 +143,20 @@ class SystemInfo(BaseObject):
 
     @classmethod
     def _build_weighted_device_list(
-        cls, models: list[str], versions: list[str], weights: dict
+        cls,
+        models: list[str],
+        versions: list[str],
+        weights: dict,
+        version_weights: dict[str, int] | None = None,
     ) -> list[DeviceInfo]:
-        result = []
+        # A pair is repeated model weight times version weight, so a uniform
+        # hash pick lands on it with the product of both shares.
+        result: list[DeviceInfo] = []
         for m in models:
             w = weights.get(m, 1)
             for v in versions:
-                device = DeviceInfo(m, v)
-                for _ in range(w):
-                    result.append(device)
+                vw = 1 if version_weights is None else version_weights.get(v, 1)
+                result.extend([DeviceInfo(m, v)] * (w * vw))
         return result
 
     @classmethod
@@ -177,6 +182,26 @@ class GeneralDesktopDevice(SystemInfo):
             }
             cls._data_loaded = True
 
+    @classmethod
+    def _gen_desktop(cls, versions_key: str) -> None:
+        """Pair the cleaned catalog models with the weighted versions under
+        ``versions_key`` ("windows" or "linux") of desktop.json."""
+        if cls.deviceList:
+            return
+        cls._ensure_data()
+        entries = _desktop_lazy[versions_key]
+        cls.system_versions = [e["version"] for e in entries]
+        version_weights = {e["version"]: e.get("weight", 1) for e in entries}
+        cleaned_models = []
+        cleaned_weights = {}
+        for m in cls.device_models:
+            c = cls._CleanAndSimplify(m.replace("_", ""))
+            cleaned_models.append(c)
+            cleaned_weights[c] = cls._model_weights.get(m, 1)
+        cls.deviceList = cls._build_weighted_device_list(
+            cleaned_models, cls.system_versions, cleaned_weights, version_weights
+        )
+
 
 class WindowsDevice(GeneralDesktopDevice):
     system_versions: ClassVar[list[str]] = []
@@ -184,19 +209,8 @@ class WindowsDevice(GeneralDesktopDevice):
 
     @classmethod
     def __gen__(cls: type[WindowsDevice]) -> None:
-        if not cls.deviceList:
-            cls._ensure_data()
-            if not cls.system_versions:
-                cls.system_versions = _desktop_lazy["versions"]
-            cleaned_models = []
-            cleaned_weights = {}
-            for m in cls.device_models:
-                c = cls._CleanAndSimplify(m.replace("_", ""))
-                cleaned_models.append(c)
-                cleaned_weights[c] = cls._model_weights.get(m, 1)
-            cls.deviceList = cls._build_weighted_device_list(
-                cleaned_models, cls.system_versions, cleaned_weights
-            )
+        # lib_base sends "Windows 11"/"Windows 10", plus " x64" on AMD64.
+        cls._gen_desktop("windows")
 
 
 class LinuxDevice(GeneralDesktopDevice):
@@ -205,33 +219,9 @@ class LinuxDevice(GeneralDesktopDevice):
 
     @classmethod
     def __gen__(cls: type[LinuxDevice]) -> None:
-        if cls.system_versions:
-            return
-
-        cls._ensure_data()
-        data = _desktop_lazy.data
-        linux_distros = data["linuxDistros"]
-        enviroments = data["environments"]
-        wayland = data["wayland"]
-
-        versions = []
-        for distro_name, distro_info in linux_distros.items():
-            kernel = distro_info["kernel"]
-            glibc = distro_info["glibc"]
-            distro_weight = distro_info.get("weight", 1)
-
-            for env in enviroments:
-                for wl in wayland:
-                    version = f"Linux {kernel} {distro_name} {env} {wl} glibc {glibc}"
-                    cleaned = cls._CleanAndSimplify(version)
-                    for _ in range(distro_weight):
-                        versions.append(cleaned)
-
-        cls.system_versions = versions
-
-        cls.deviceList = cls._build_weighted_device_list(
-            cls.device_models, cls.system_versions, cls._model_weights
-        )
+        # lib_base sends "Linux", the XDG_CURRENT_DESKTOP items, the display
+        # server and "glibc <version>"; no kernel and no distro name.
+        cls._gen_desktop("linux")
 
 
 class macOSDevice(GeneralDesktopDevice):

@@ -292,7 +292,7 @@ class API(BaseObject):
         api_id = 2040
         api_hash = "b18441a1ff607e10a989891a5462e627"
         device_model = "Desktop"
-        system_version = "Windows 11"
+        system_version = "Windows 11 x64"
         app_version = "6.5 x64"
         lang_code = "en"
         system_lang_code = "en-US"
