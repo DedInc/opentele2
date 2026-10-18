@@ -253,7 +253,7 @@ class APIData(metaclass=BaseAPIMetaClass):
             API.TelegramAndroid: (AndroidDevice, {}),
             API.TelegramAndroidX: (AndroidDevice, {}),
             API.TelegramIOS: (IOSDevice, {}),
-            API.TelegramMacOS: (macOSDevice, {}),
+            API.TelegramMacOS: (macOSDevice, {"variant": "swift"}),
             API.TelegramWeb_A: (WebBrowserDevice, {"variant": "z"}),
             API.TelegramWeb_K: (WebBrowserDevice, {"variant": "k"}),
             API.Webogram: (WebBrowserDevice, {"variant": "k"}),
@@ -357,8 +357,8 @@ class API(BaseObject):
     class TelegramMacOS(APIData):
         api_id = 2834
         api_hash = "68875f756c9b437a8b916ca3de215815"
-        device_model = "MacBook Pro"
-        system_version = "macOS 26.2"
+        device_model = "MacBook Air M4"
+        system_version = "27.0.1"
         app_version = "12.7"
         lang_code = "en"
         system_lang_code = "en-US"

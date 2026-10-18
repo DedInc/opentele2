@@ -1,78 +1,622 @@
 {
-    "models": [
-        {"model": "Mac17,2", "weight": 3},
-
-        {"model": "Mac16,13", "weight": 5},
-        {"model": "Mac16,12", "weight": 5},
-        {"model": "Mac16,11", "weight": 7},
-        {"model": "Mac16,10", "weight": 6},
-        {"model": "Mac16,9", "weight": 4},
-        {"model": "Mac16,8", "weight": 5},
-        {"model": "Mac16,7", "weight": 4},
-        {"model": "Mac16,6", "weight": 3},
-        {"model": "Mac16,5", "weight": 3},
-        {"model": "Mac16,3", "weight": 6},
-        {"model": "Mac16,2", "weight": 5},
-        {"model": "Mac16,1", "weight": 7},
-
-        {"model": "Mac15,14", "weight": 3},
-        {"model": "Mac15,13", "weight": 4},
-        {"model": "Mac15,12", "weight": 5},
-        {"model": "Mac15,11", "weight": 4},
-        {"model": "Mac15,10", "weight": 3},
-        {"model": "Mac15,9", "weight": 3},
-        {"model": "Mac15,8", "weight": 2},
-        {"model": "Mac15,7", "weight": 3},
-        {"model": "Mac15,6", "weight": 4},
-        {"model": "Mac15,5", "weight": 3},
-        {"model": "Mac15,4", "weight": 2},
-        {"model": "Mac15,3", "weight": 5},
-
-        {"model": "Mac14,15", "weight": 6},
-        {"model": "Mac14,14", "weight": 2},
-        {"model": "Mac14,13", "weight": 2},
-        {"model": "Mac14,12", "weight": 3},
-        {"model": "Mac14,10", "weight": 3},
-        {"model": "Mac14,9", "weight": 2},
-        {"model": "Mac14,8", "weight": 2},
-        {"model": "Mac14,7", "weight": 4},
-        {"model": "Mac14,6", "weight": 3},
-        {"model": "Mac14,5", "weight": 3},
-        {"model": "Mac14,2", "weight": 6},
-
-        {"model": "MacBookPro18,4", "weight": 3},
-        {"model": "MacBookPro18,3", "weight": 4},
-        {"model": "MacBookPro18,2", "weight": 5},
-        {"model": "MacBookPro18,1", "weight": 4},
-        {"model": "MacBookPro17,1", "weight": 4},
-        {"model": "MacBookAir10,1", "weight": 7},
-        {"model": "Macmini9,1", "weight": 3},
-        {"model": "iMac21,2", "weight": 3},
-        {"model": "iMac21,1", "weight": 4}
-    ],
-    "versions": [
-        {"version": "macOS 26.3", "weight": 3},
-        {"version": "macOS 26.2", "weight": 10},
-        {"version": "macOS 26.1", "weight": 5},
-        {"version": "macOS 26.0", "weight": 2},
-        {"version": "macOS 15.7", "weight": 4},
-        {"version": "macOS 15.6", "weight": 7},
-        {"version": "macOS 15.5", "weight": 2},
-        {"version": "macOS 15.4", "weight": 2},
-        {"version": "macOS 15.3", "weight": 1},
-        {"version": "macOS 15.2", "weight": 1},
-        {"version": "macOS 15.1", "weight": 1},
-        {"version": "macOS 15.0", "weight": 1},
-        {"version": "macOS 14.7", "weight": 3},
-        {"version": "macOS 14.6", "weight": 2},
-        {"version": "macOS 14.5", "weight": 1},
-        {"version": "macOS 14.4", "weight": 1},
-        {"version": "macOS 14.3", "weight": 1},
-        {"version": "macOS 14.2", "weight": 1},
-        {"version": "macOS 14.1", "weight": 1},
-        {"version": "macOS 14.0", "weight": 1},
-        {"version": "macOS 13.7", "weight": 1},
-        {"version": "macOS 13.6", "weight": 1},
-        {"version": "macOS 12.7", "weight": 1}
-    ]
+  "models": [
+    {
+      "model": "MacBook Pro M1",
+      "min_macos": "11.0",
+      "weight": 5
+    },
+    {
+      "model": "MacBook Air M1",
+      "min_macos": "11.0",
+      "weight": 10
+    },
+    {
+      "model": "Mac mini M1",
+      "min_macos": "11.0",
+      "weight": 4
+    },
+    {
+      "model": "iMac M1",
+      "min_macos": "11.3",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M1 Pro",
+      "min_macos": "12.0",
+      "weight": 6
+    },
+    {
+      "model": "MacBook Pro M1 Max",
+      "min_macos": "12.0",
+      "weight": 3
+    },
+    {
+      "model": "Mac Studio M1 Max",
+      "min_macos": "12.3",
+      "weight": 2
+    },
+    {
+      "model": "Mac Studio M1 Ultra",
+      "min_macos": "12.3",
+      "weight": 1
+    },
+    {
+      "model": "MacBook Pro M2",
+      "min_macos": "12.4",
+      "weight": 5
+    },
+    {
+      "model": "MacBook Air M2",
+      "min_macos": "12.4",
+      "weight": 8
+    },
+    {
+      "model": "Mac mini M2",
+      "min_macos": "13.2",
+      "weight": 4
+    },
+    {
+      "model": "Mac mini M2 Pro",
+      "min_macos": "13.2",
+      "weight": 2
+    },
+    {
+      "model": "MacBook Pro M2 Max",
+      "min_macos": "13.2",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M2 Pro",
+      "min_macos": "13.2",
+      "weight": 6
+    },
+    {
+      "model": "Mac Pro M2 Ultra",
+      "min_macos": "13.4",
+      "weight": 1
+    },
+    {
+      "model": "Mac Studio M2 Max",
+      "min_macos": "13.4",
+      "weight": 2
+    },
+    {
+      "model": "Mac Studio M2 Ultra",
+      "min_macos": "13.4",
+      "weight": 1
+    },
+    {
+      "model": "MacBook Pro M3",
+      "min_macos": "14.1",
+      "weight": 5
+    },
+    {
+      "model": "iMac M3",
+      "min_macos": "14.1",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M3 Pro",
+      "min_macos": "14.1",
+      "weight": 6
+    },
+    {
+      "model": "MacBook Pro M3 Max",
+      "min_macos": "14.1",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Air M3",
+      "min_macos": "14.3",
+      "weight": 8
+    },
+    {
+      "model": "MacBook Pro M4",
+      "min_macos": "15.1",
+      "weight": 5
+    },
+    {
+      "model": "iMac M4",
+      "min_macos": "15.1",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M4 Max",
+      "min_macos": "15.1",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M4 Pro",
+      "min_macos": "15.1",
+      "weight": 6
+    },
+    {
+      "model": "Mac mini M4",
+      "min_macos": "15.1",
+      "weight": 4
+    },
+    {
+      "model": "Mac mini M4 Pro",
+      "min_macos": "15.1",
+      "weight": 2
+    },
+    {
+      "model": "MacBook Air M4",
+      "min_macos": "15.3",
+      "weight": 8
+    },
+    {
+      "model": "Mac Studio M4 Max",
+      "min_macos": "15.3",
+      "weight": 2
+    },
+    {
+      "model": "Mac Studio M3 Ultra",
+      "min_macos": "15.3",
+      "weight": 1
+    },
+    {
+      "model": "MacBook Pro M5",
+      "min_macos": "26.0",
+      "weight": 5
+    },
+    {
+      "model": "MacBook Air M5",
+      "min_macos": "26.3",
+      "weight": 8
+    },
+    {
+      "model": "MacBook Neo A18 Pro",
+      "min_macos": "26.3",
+      "weight": 4
+    },
+    {
+      "model": "MacBook Pro M5 Max",
+      "min_macos": "26.3",
+      "weight": 3
+    },
+    {
+      "model": "MacBook Pro M5 Pro",
+      "min_macos": "26.3",
+      "weight": 6
+    },
+    {
+      "model": "Mac Studio M5 Max",
+      "min_macos": "27.0",
+      "weight": 2
+    },
+    {
+      "model": "Mac Studio M5 Ultra",
+      "min_macos": "27.0",
+      "weight": 1
+    },
+    {
+      "model": "Mac mini M5 Pro",
+      "min_macos": "27.0",
+      "weight": 2
+    },
+    {
+      "model": "Mac mini M6",
+      "min_macos": "27.0",
+      "weight": 4
+    }
+  ],
+  "versions": [
+    {
+      "version": "27.0.1",
+      "weight": 24
+    },
+    {
+      "version": "27.0",
+      "weight": 1
+    },
+    {
+      "version": "26.7.1",
+      "weight": 30
+    },
+    {
+      "version": "26.7",
+      "weight": 1
+    },
+    {
+      "version": "26.6.2",
+      "weight": 5
+    },
+    {
+      "version": "26.6.1",
+      "weight": 1
+    },
+    {
+      "version": "26.6",
+      "weight": 1
+    },
+    {
+      "version": "26.5.2",
+      "weight": 5
+    },
+    {
+      "version": "26.5.1",
+      "weight": 1
+    },
+    {
+      "version": "26.5",
+      "weight": 1
+    },
+    {
+      "version": "26.4.1",
+      "weight": 5
+    },
+    {
+      "version": "26.4",
+      "weight": 1
+    },
+    {
+      "version": "26.3.1",
+      "weight": 5
+    },
+    {
+      "version": "26.3",
+      "weight": 1
+    },
+    {
+      "version": "26.2",
+      "weight": 5
+    },
+    {
+      "version": "26.1",
+      "weight": 5
+    },
+    {
+      "version": "26.0.1",
+      "weight": 5
+    },
+    {
+      "version": "26.0",
+      "weight": 1
+    },
+    {
+      "version": "15.8.1",
+      "weight": 12
+    },
+    {
+      "version": "15.8",
+      "weight": 1
+    },
+    {
+      "version": "15.7.9",
+      "weight": 2
+    },
+    {
+      "version": "15.7.8",
+      "weight": 1
+    },
+    {
+      "version": "15.7.7",
+      "weight": 1
+    },
+    {
+      "version": "15.7.5",
+      "weight": 1
+    },
+    {
+      "version": "15.7.4",
+      "weight": 1
+    },
+    {
+      "version": "15.7.3",
+      "weight": 1
+    },
+    {
+      "version": "15.7.2",
+      "weight": 1
+    },
+    {
+      "version": "15.7.1",
+      "weight": 1
+    },
+    {
+      "version": "15.7",
+      "weight": 1
+    },
+    {
+      "version": "15.6.1",
+      "weight": 2
+    },
+    {
+      "version": "15.6",
+      "weight": 1
+    },
+    {
+      "version": "15.5",
+      "weight": 2
+    },
+    {
+      "version": "15.4.1",
+      "weight": 2
+    },
+    {
+      "version": "15.4",
+      "weight": 1
+    },
+    {
+      "version": "15.3.2",
+      "weight": 2
+    },
+    {
+      "version": "15.3.1",
+      "weight": 1
+    },
+    {
+      "version": "15.3",
+      "weight": 1
+    },
+    {
+      "version": "15.2",
+      "weight": 2
+    },
+    {
+      "version": "15.1.1",
+      "weight": 2
+    },
+    {
+      "version": "15.1",
+      "weight": 1
+    },
+    {
+      "version": "15.0.1",
+      "weight": 2
+    },
+    {
+      "version": "15.0",
+      "weight": 1
+    },
+    {
+      "version": "14.8.9",
+      "weight": 6
+    },
+    {
+      "version": "14.8.8",
+      "weight": 1
+    },
+    {
+      "version": "14.8.7",
+      "weight": 1
+    },
+    {
+      "version": "14.8.5",
+      "weight": 1
+    },
+    {
+      "version": "14.8.4",
+      "weight": 1
+    },
+    {
+      "version": "14.8.3",
+      "weight": 1
+    },
+    {
+      "version": "14.8.2",
+      "weight": 1
+    },
+    {
+      "version": "14.8.1",
+      "weight": 1
+    },
+    {
+      "version": "14.8",
+      "weight": 1
+    },
+    {
+      "version": "14.7.8",
+      "weight": 1
+    },
+    {
+      "version": "14.7.7",
+      "weight": 1
+    },
+    {
+      "version": "14.7.6",
+      "weight": 1
+    },
+    {
+      "version": "14.7.5",
+      "weight": 1
+    },
+    {
+      "version": "14.7.4",
+      "weight": 1
+    },
+    {
+      "version": "14.7.3",
+      "weight": 1
+    },
+    {
+      "version": "14.7.2",
+      "weight": 1
+    },
+    {
+      "version": "14.7.1",
+      "weight": 1
+    },
+    {
+      "version": "14.7",
+      "weight": 1
+    },
+    {
+      "version": "14.6.1",
+      "weight": 1
+    },
+    {
+      "version": "14.6",
+      "weight": 1
+    },
+    {
+      "version": "14.5",
+      "weight": 1
+    },
+    {
+      "version": "14.4.1",
+      "weight": 1
+    },
+    {
+      "version": "14.4",
+      "weight": 1
+    },
+    {
+      "version": "14.3.1",
+      "weight": 1
+    },
+    {
+      "version": "14.3",
+      "weight": 1
+    },
+    {
+      "version": "14.2.1",
+      "weight": 1
+    },
+    {
+      "version": "14.2",
+      "weight": 1
+    },
+    {
+      "version": "14.1.2",
+      "weight": 1
+    },
+    {
+      "version": "14.1.1",
+      "weight": 1
+    },
+    {
+      "version": "14.1",
+      "weight": 1
+    },
+    {
+      "version": "14.0",
+      "weight": 1
+    },
+    {
+      "version": "13.7.8",
+      "weight": 3
+    },
+    {
+      "version": "13.7.7",
+      "weight": 1
+    },
+    {
+      "version": "13.7.6",
+      "weight": 1
+    },
+    {
+      "version": "13.7.5",
+      "weight": 1
+    },
+    {
+      "version": "13.7.4",
+      "weight": 1
+    },
+    {
+      "version": "13.7.3",
+      "weight": 1
+    },
+    {
+      "version": "13.7.2",
+      "weight": 1
+    },
+    {
+      "version": "13.7.1",
+      "weight": 1
+    },
+    {
+      "version": "13.7",
+      "weight": 1
+    },
+    {
+      "version": "13.6.9",
+      "weight": 1
+    },
+    {
+      "version": "13.6.8",
+      "weight": 1
+    },
+    {
+      "version": "13.6.7",
+      "weight": 1
+    },
+    {
+      "version": "13.6.6",
+      "weight": 1
+    },
+    {
+      "version": "13.6.5",
+      "weight": 1
+    },
+    {
+      "version": "13.6.4",
+      "weight": 1
+    },
+    {
+      "version": "13.6.3",
+      "weight": 1
+    },
+    {
+      "version": "13.6.2",
+      "weight": 1
+    },
+    {
+      "version": "13.6.1",
+      "weight": 1
+    },
+    {
+      "version": "13.6",
+      "weight": 1
+    },
+    {
+      "version": "13.5.2",
+      "weight": 1
+    },
+    {
+      "version": "13.5.1",
+      "weight": 1
+    },
+    {
+      "version": "13.5",
+      "weight": 1
+    },
+    {
+      "version": "13.4.1",
+      "weight": 1
+    },
+    {
+      "version": "13.4",
+      "weight": 1
+    },
+    {
+      "version": "13.3.1",
+      "weight": 1
+    },
+    {
+      "version": "13.3",
+      "weight": 1
+    },
+    {
+      "version": "13.2.1",
+      "weight": 1
+    },
+    {
+      "version": "13.2",
+      "weight": 1
+    },
+    {
+      "version": "13.1",
+      "weight": 1
+    },
+    {
+      "version": "13.0.1",
+      "weight": 1
+    },
+    {
+      "version": "13.0",
+      "weight": 1
+    }
+  ]
 }

@@ -63,25 +63,9 @@ _mac_lazy = _LazyData("mac.json")
 _android_lazy = _LazyData("android.json")
 
 
-def _mac_identifier_to_name(identifier: str) -> str:
-    words = []
-    word = ""
-    for ch in identifier:
-        if not ch.isalpha():
-            continue
-        if ch.isupper() and word:
-            words.append(word)
-            word = ""
-        word += ch
-    if word:
-        words.append(word)
-
-    result = ""
-    for word in words:
-        if result and word not in ("Mac", "Book"):
-            result += " "
-        result += word
-    return result
+def _version_tuple(version: str) -> tuple[int, ...]:
+    # Compare as integers so "26.10" sorts after "26.9".
+    return tuple(int(part) for part in version.split("."))
 
 
 class DeviceInfo:
@@ -230,6 +214,7 @@ class macOSDevice(GeneralDesktopDevice):
     system_versions: ClassVar[list[str]] = []
     _version_weights: ClassVar[dict[str, int]] = {}
     deviceList: ClassVar[list[DeviceInfo]] = []
+    _min_macos: ClassVar[dict[str, tuple[int, ...]]] = {}
     _mac_data_loaded: bool = False
 
     @classmethod
@@ -244,35 +229,44 @@ class macOSDevice(GeneralDesktopDevice):
             cls._version_weights = {
                 e["version"]: e.get("weight", 1) for e in data["versions"]
             }
+            cls._min_macos = {
+                e["model"]: _version_tuple(e["min_macos"]) for e in data["models"]
+            }
             cls._mac_data_loaded = True
 
     @classmethod
     def __gen__(cls: type[macOSDevice]) -> None:
-        if not cls.deviceList:
-            cls._ensure_mac_data()
-            seen = []
-            seen_weights = {}
-            for model in cls.device_models:
-                name = cls._CleanAndSimplify(_mac_identifier_to_name(model))
-                if name not in seen:
-                    seen.append(name)
-                    seen_weights[name] = cls._model_weights.get(model, 1)
-                else:
-                    existing_w = seen_weights.get(name, 1)
-                    new_w = cls._model_weights.get(model, 1)
-                    if new_w > existing_w:
-                        seen_weights[name] = new_w
-
-            weighted_versions = []
-            for v in cls.system_versions:
-                w = cls._version_weights.get(v, 1)
-                for _ in range(w):
-                    weighted_versions.append(v)
-
-            cls.device_models = seen
-            cls.deviceList = cls._build_weighted_device_list(
-                cls.device_models, weighted_versions, seen_weights
+        # Catalog models are already the "<machine_name> <chip_type>" string
+        # tdesktop and TelegramSwift read from system_profiler; each one only
+        # pairs with releases at or after its launch version.
+        if cls.deviceList:
+            return
+        cls._ensure_mac_data()
+        device_list: list[DeviceInfo] = []
+        for model in cls.device_models:
+            minimum = cls._min_macos[model]
+            versions = [v for v in cls.system_versions if _version_tuple(v) >= minimum]
+            device_list.extend(
+                cls._build_weighted_device_list(
+                    [model], versions, cls._model_weights, cls._version_weights
+                )
             )
+        cls.deviceList = device_list
+
+    @classmethod
+    def RandomDevice(
+        cls, unique_id: str | None = None, variant: str = "tdesktop"
+    ) -> DeviceInfo:
+        """A catalog Mac for ``unique_id``.
+
+        ``variant="tdesktop"`` formats the version as lib_base does
+        ("macOS 26.7.1"); ``variant="swift"`` keeps TelegramSwift's bare
+        "26.7.1".
+        """
+        device = super().RandomDevice(unique_id)
+        if variant == "swift":
+            return device
+        return DeviceInfo(device.model, f"macOS {device.version}")
 
 
 _SDK_TO_ANDROID = {
