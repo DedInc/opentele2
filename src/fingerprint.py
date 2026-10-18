@@ -82,8 +82,8 @@ def get_recommended_layer() -> int:
 class PlatformVersions:
     android_app_version: str = "12.7.3"
     android_app_version_code: int = 6750
-    android_sdk_range: tuple[int, int] = (23, 35)
-    android_latest_sdk: int = 35
+    android_sdk_range: tuple[int, int] = (29, 37)
+    android_latest_sdk: int = 37
 
     ios_app_version: str = "12.7"
     ios_build_number: int = 32933

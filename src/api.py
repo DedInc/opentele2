@@ -327,8 +327,8 @@ class API(BaseObject):
     class TelegramAndroid(APIData):
         api_id = 6
         api_hash = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
-        device_model = "Samsung SM-S928B"
-        system_version = "SDK 35"
+        device_model = "samsungSM-S938B"
+        system_version = "SDK 36"
         app_version = "12.7.3"
         lang_code = "en"
         system_lang_code = "en-US"
@@ -337,8 +337,8 @@ class API(BaseObject):
     class TelegramAndroidX(APIData):
         api_id = 21724
         api_hash = "3e0cb5efcd52300aec5994fdfc5bdc16"
-        device_model = "Samsung SM-S928B"
-        system_version = "SDK 35"
+        device_model = "samsungSM-S938B"
+        system_version = "SDK 36"
         app_version = "0.28.3.1785"
         lang_code = "en"
         system_lang_code = "en-US"

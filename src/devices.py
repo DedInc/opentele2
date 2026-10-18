@@ -286,11 +286,6 @@ class macOSDevice(GeneralDesktopDevice):
 
 
 _SDK_TO_ANDROID = {
-    24: "7",
-    25: "7.1",
-    26: "8",
-    27: "8.1",
-    28: "9",
     29: "10",
     30: "11",
     31: "12",
@@ -298,7 +293,13 @@ _SDK_TO_ANDROID = {
     33: "13",
     34: "14",
     35: "15",
+    36: "16",
+    37: "17",
 }
+
+# SDK 32 (12L) shipped only on a few large-screen and Pixel devices, so it is
+# emitted only for catalog entries that actually reported it.
+_SDK_12L = 32
 
 
 class AndroidDevice(SystemInfo):
@@ -317,11 +318,15 @@ class AndroidDevice(SystemInfo):
         cls._ensure_android_data()
         result = []
         for entry in cls._devices or []:
-            model = entry["model"]
+            # Telegram Android sends Build.MANUFACTURER + Build.MODEL verbatim.
+            model = entry["manufacturer"] + entry["model"]
             min_sdk = entry["min_sdk"]
             max_sdk = entry["max_sdk"]
             weight = entry.get("weight", 1)
+            allow_12l = entry.get("sdk_32") is True or min_sdk == _SDK_12L
             for sdk in range(min_sdk, max_sdk + 1):
+                if sdk == _SDK_12L and not allow_12l:
+                    continue
                 ver_str = _SDK_TO_ANDROID.get(sdk)
                 if ver_str:
                     device = DeviceInfo(model, f"SDK {sdk}")
