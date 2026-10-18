@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import logging
 import os
@@ -541,8 +542,11 @@ class WebBrowserDevice(SystemInfo):
             return
 
         try:
-            import browserforge.headers  # noqa: F401
+            # A missing parent package raises; a missing submodule returns None.
+            headers_spec = importlib.util.find_spec("browserforge.headers")
         except ImportError:
+            headers_spec = None
+        if headers_spec is None:
             raise ImportError(
                 "browserforge is required for web browser fingerprint generation. "
                 "Install it with: pip install browserforge"

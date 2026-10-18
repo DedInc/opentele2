@@ -1,1 +1,1 @@
-from .shared import TelegramClient  # noqa: F401
+from .shared import TelegramClient as TelegramClient

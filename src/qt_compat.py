@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import contextlib
 import os
 import struct
 import sys
@@ -438,18 +439,31 @@ class QFile:
     def __init__(self, path: str) -> None:
         self._path = path
         self._file: typing.IO[bytes] | None = None
+        # Qt's open()/close() pair outlives any single `with` block, so the
+        # handle's lifetime is owned by a stack that close() unwinds.
+        self._handle_stack = contextlib.ExitStack()
 
     def open(self, mode: int) -> bool:
+        if mode == QIODevice.OpenModeFlag.ReadOnly:
+            file_mode = "rb"
+        elif mode == QIODevice.OpenModeFlag.WriteOnly:
+            file_mode = "wb"
+        else:
+            file_mode = "r+b"
         try:
-            if mode == QIODevice.OpenModeFlag.ReadOnly:
-                self._file = builtins.open(self._path, "rb")  # noqa: SIM115 - Qt-style open/close API
-            elif mode == QIODevice.OpenModeFlag.WriteOnly:
-                self._file = builtins.open(self._path, "wb")  # noqa: SIM115 - Qt-style open/close API
-            else:
-                self._file = builtins.open(self._path, "r+b")  # noqa: SIM115 - Qt-style open/close API
-            return True
+            with contextlib.ExitStack() as handle_stack:
+                handle = handle_stack.enter_context(
+                    builtins.open(self._path, file_mode)
+                )
+                # pop_all() hands the open handle to a stack close() unwinds.
+                owned_stack = handle_stack.pop_all()
         except OSError:
             return False
+        # A re-open releases the previous handle, as rebinding it used to.
+        self._handle_stack.close()
+        self._handle_stack = owned_stack
+        self._file = handle
+        return True
 
     def read(self, n: int) -> bytes:
         if self._file is None:
@@ -468,9 +482,8 @@ class QFile:
         return self._file.write(raw)
 
     def close(self) -> None:
-        if self._file is not None:
-            self._file.close()
-            self._file = None
+        self._handle_stack.close()
+        self._file = None
 
     def size(self) -> int:
         if self._file is not None:

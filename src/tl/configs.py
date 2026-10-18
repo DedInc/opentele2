@@ -24,7 +24,7 @@ Dict = dict
 List = list
 Type = type
 
-__all__ = [  # noqa: PLE0604
+__all__ = [
     "API",
     "TYPE_CHECKING",
     "APIData",
@@ -53,6 +53,6 @@ __all__ = [  # noqa: PLE0604
     "tl",
     "types",
     "utils",
-    *_exception.__all__,
-    *_utils.__all__,
 ]
+__all__ += _exception.__all__
+__all__ += _utils.__all__
