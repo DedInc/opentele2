@@ -1,9 +1,19 @@
-from .account import Account as Account
-from .auth import AuthKey as AuthKey
-from .auth import AuthKeyType as AuthKeyType
-from .map_data import MapData as MapData
-from .mtp import MTP as MTP
-from .storage import Serialize as Serialize
-from .storage import Storage as Storage
-from .storage_account import StorageAccount as StorageAccount
-from .tdesktop import TDesktop as TDesktop
+from .account import Account
+from .auth import AuthKey, AuthKeyType
+from .map_data import MapData
+from .mtp import MTP
+from .storage import Serialize, Storage
+from .storage_account import StorageAccount
+from .tdesktop import TDesktop
+
+__all__ = [
+    "MTP",
+    "Account",
+    "AuthKey",
+    "AuthKeyType",
+    "MapData",
+    "Serialize",
+    "Storage",
+    "StorageAccount",
+    "TDesktop",
+]
