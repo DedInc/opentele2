@@ -80,14 +80,14 @@ def get_recommended_layer() -> int:
 
 @dataclass
 class PlatformVersions:
-    android_app_version: str = "12.7.3"
-    android_app_version_code: int = 6750
+    android_app_version: str = "13.0.3"
+    android_app_version_code: int = 7183
     android_sdk_range: tuple[int, int] = (29, 37)
     android_latest_sdk: int = 37
 
-    ios_app_version: str = "12.7"
-    ios_build_number: int = 32933
-    ios_version_range: tuple[str, str] = ("16.0", "27.0.1")
+    ios_app_version: str = "13.0"
+    ios_build_number: int = 35303
+    ios_version_range: tuple[str, str] = ("18.0", "27.0.1")
 
     ios_system_version: str = "27.0.1"
     macos_system_version: str = "27.0.1"
@@ -96,19 +96,19 @@ class PlatformVersions:
     desktop_app_version: str = APP_VERSION_STR
     desktop_app_version_suffix: str = "x64"
 
-    macos_app_version: str = "12.7"
-    macos_build_number: int = 281600
+    macos_app_version: str = "13.0"
+    macos_build_number: int = 283305
 
-    android_x_app_version: str = "0.28.3.1785"
+    android_x_app_version: str = "0.29.1.1817"
 
-    web_a_version: str = "12.0.17 A"
+    web_a_version: str = "12.0.47 A"
     web_k_version: str = "2.2 K"
 
-    chrome_version: str = "148.0.0.0"
+    chrome_version: str = "155.0.0.0"
     user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/148.0.0.0 Safari/537.36"
+        "Chrome/155.0.0.0 Safari/537.36"
     )
 
 

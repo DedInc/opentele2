@@ -60,7 +60,7 @@ _DEFAULT_EXTRA_FIELDS = {
 _DEFAULT_WEB_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/148.0.0.0 Safari/537.36"
+    "Chrome/155.0.0.0 Safari/537.36"
 )
 
 
@@ -293,7 +293,7 @@ class API(BaseObject):
         api_hash = "b18441a1ff607e10a989891a5462e627"
         device_model = "Desktop"
         system_version = "Windows 11 x64"
-        app_version = "6.5 x64"
+        app_version = "7.3.1 x64"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "tdesktop"
@@ -329,7 +329,7 @@ class API(BaseObject):
         api_hash = "eb06d4abfb49dc3eeb1aeb98ae0f581e"
         device_model = "samsungSM-S938B"
         system_version = "SDK 36"
-        app_version = "12.7.3"
+        app_version = "13.0.3"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "android"
@@ -339,7 +339,7 @@ class API(BaseObject):
         api_hash = "3e0cb5efcd52300aec5994fdfc5bdc16"
         device_model = "samsungSM-S938B"
         system_version = "SDK 36"
-        app_version = "0.28.3.1785"
+        app_version = "0.29.1.1817"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "android"
@@ -349,7 +349,7 @@ class API(BaseObject):
         api_hash = "33c45224029d59cb3ad0c16134215aeb"
         device_model = "iPhone 17 Pro"
         system_version = "27.0.1"
-        app_version = "12.7"
+        app_version = "13.0"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "ios"
@@ -359,7 +359,7 @@ class API(BaseObject):
         api_hash = "68875f756c9b437a8b916ca3de215815"
         device_model = "MacBook Air M4"
         system_version = "27.0.1"
-        app_version = "12.7"
+        app_version = "13.0"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = "macos"
@@ -369,7 +369,7 @@ class API(BaseObject):
         api_hash = "8da85b0d5bfe62527e5b244c209159c3"
         device_model = _DEFAULT_WEB_USER_AGENT
         system_version = "Windows"
-        app_version = "12.0.28 A"
+        app_version = "12.0.47 A"
         lang_code = "en"
         system_lang_code = "en-US"
         lang_pack = ""
