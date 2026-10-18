@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -9,6 +9,7 @@ from src.exception import OpenTeleException, TDataBadDecryptKey
 from src.qt_compat import QByteArray
 from src.td import key_data as kd
 from src.td import shared as td
+from src.td.account import Account
 from src.td.tdesktop import TDesktop
 
 
@@ -183,19 +184,20 @@ def test_a_bad_trailer_is_rejected(
         kd.read_key_data(file.stream)
 
 
-class _FakeAccount:
-    def __init__(self, index: int) -> None:
-        self.index = index
-        self.localKey: td.AuthKey | None = None
+class _UnsavedAccount(Account):
+    """A real Account whose own files are not written: these tests only read
+    back the key file TDesktop writes around them."""
 
-    def _writeData(self, basePath: str, keyFile: str | None = None) -> None:
+    def _writeData(self, baseGlobalPath: str, keyFile: str | None = None) -> None:
         pass
 
 
 def _writtenKeyData(
     tmp_path: pathlib.Path, client: TDesktop
 ) -> tuple[kd.KeyData, QByteArray]:
-    client.accounts.extend(cast("list[Any]", [_FakeAccount(0), _FakeAccount(2)]))
+    client.accounts.extend(
+        [_UnsavedAccount(client, index=0), _UnsavedAccount(client, index=2)]
+    )
     _private(client, "generateLocalKey")()
     _private(client, "writeAccounts")(str(tmp_path))
     file = td.Storage.ReadFile("key_data", str(tmp_path))
@@ -236,7 +238,7 @@ def test_saving_a_loaded_legacy_key_file_migrates_it_to_7_3(
     tmp_path: pathlib.Path,
 ) -> None:
     client = TDesktop()
-    client.accounts.append(cast("Any", _FakeAccount(0)))
+    client.accounts.append(_UnsavedAccount(client, index=0))
     _private(client, "generateLocalKey")()
     localKey = client.localKey
     assert localKey is not None

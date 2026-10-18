@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 from src.exception import AccountAuthKeyNotFound, TDataReadMapDataFailed
 from src.qt_compat import QByteArray, QDataStream, QIODevice
 from src.td import shared as td
+from src.td.account import Account
 from src.td.configs import DcId, FileKey, dbi
 from src.td.map_data import MapData
 from src.td.storage_account import StorageAccount, TDataAccountMapReadFailed
+from src.td.tdesktop import TDesktop
 
 
 def _writeStream(data: QByteArray) -> QDataStream:
@@ -29,29 +31,33 @@ def _readDescriptor(payload: QByteArray) -> td.Storage.FileReadDescriptor:
     return descriptor
 
 
-class _OwnerStub:
+class _RecordingAccount(Account):
+    """A real Account that records what StorageAccount hands it instead of
+    parsing it."""
+
     def __init__(self) -> None:
+        super().__init__(TDesktop())
         self.serialized: QByteArray | None = None
-        self.custom: tuple[int, int, list[Any]] | None = None
+        self.custom: tuple[int, int, list[td.AuthKey]] | None = None
 
     def _setMtpAuthorization(self, serialized: QByteArray) -> None:
         self.serialized = serialized
 
     def _setMtpAuthorizationCustom(
         self,
-        dcId: int,
+        dcId: DcId,
         userId: int,
-        mtpKeys: list[Any],
-        mtpKeysToDestroy: list[Any] | None = None,
+        mtpKeys: list[td.AuthKey],
+        mtpKeysToDestroy: list[td.AuthKey] | None = None,
     ) -> None:
         self.custom = (int(dcId), int(userId), list(mtpKeys))
 
 
 def _storageAccount(
     monkeypatch: pytest.MonkeyPatch, payload: QByteArray | None
-) -> tuple[StorageAccount, _OwnerStub]:
-    owner = _OwnerStub()
-    account = StorageAccount(cast("Any", owner), "in-memory-base", "data")
+) -> tuple[StorageAccount, _RecordingAccount]:
+    owner = _RecordingAccount()
+    account = StorageAccount(owner, "in-memory-base", "data")
     account.localKey = td.AuthKey(bytes(range(256)))
 
     if payload is not None:
@@ -169,7 +175,8 @@ def test_failed_map_read_raises_instead_of_silently_skipping(
     monkeypatch.setattr(account, "_readMtpData", _neverCalled)
 
     with pytest.raises(TDataAccountMapReadFailed) as excinfo:
-        account.start(cast("Any", None))
+        # start() takes a real key; the patched map read fails regardless.
+        account.start(td.AuthKey(bytes(range(256))))
 
     assert "data" in str(excinfo.value)
 

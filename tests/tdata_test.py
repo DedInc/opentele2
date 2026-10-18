@@ -3,7 +3,6 @@ import importlib
 import os
 import pathlib
 import sys
-from typing import Any, cast
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
@@ -20,7 +19,8 @@ from src import debug
 if not debug.IS_DEBUG_MODE:
     # src.debug was already imported by another test module before the env var
     # was set; re-import it so the flag and its instrumentation classes exist.
-    debug = cast("Any", importlib.reload(debug))
+    # reload re-executes the module into the same object, so `debug` sees it.
+    importlib.reload(debug)
 
 
 import pytest
@@ -87,7 +87,7 @@ def test_random_api() -> None:
             and src.lang_pack == dst.lang_pack
         )
 
-    apis: list[API_TYPE] = [
+    apis: list[type[APIData]] = [
         API.TelegramDesktop,
         API.TelegramAndroid,
         API.TelegramAndroidX,
@@ -99,7 +99,7 @@ def test_random_api() -> None:
         API.Webogram,
     ]
     for api in apis:
-        assert cmp(api, cast("type[APIData]", api)())
+        assert cmp(api, api())
 
         check = False
 
@@ -236,7 +236,7 @@ async def check_telegramclient() -> None:
 
 
 @pytest.mark.asyncio
-async def test_entry_point() -> None:
+async def test_entry_point(monkeypatch: pytest.MonkeyPatch) -> None:
     import asyncio
 
     profile = profile_path()
@@ -246,9 +246,8 @@ async def test_entry_point() -> None:
     loop = asyncio.get_event_loop()
     ter = TerminalWriter(sys.stdout)
     ter.hasmarkup = True
-    patched_loop = cast("Any", loop)
-    patched_loop._close = loop.close
-    patched_loop.close = lambda: None
+    # Keep the loop open for the clients; monkeypatch restores the real close.
+    monkeypatch.setattr(loop, "close", lambda: None)
 
     ter.write("\n\n")
     ter.sep("=", f"Begin testing for Python {PythonVersion()}", cyan=True)

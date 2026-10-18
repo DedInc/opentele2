@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, cast
+from typing import Any
 
 from src.qt_compat import QByteArray
+from src.td.account import Account
 from src.td.auth import AuthKey
 from src.td.storage import Storage
 from src.td.tdesktop import TDesktop
@@ -34,14 +35,6 @@ def _expectedLegacyKey(passcode: bytes, salt: bytes) -> bytes:
         LOCAL_ENCRYPT_NO_PWD_ITER_COUNT if not passcode else LOCAL_ENCRYPT_ITER_COUNT
     )
     return hashlib.pbkdf2_hmac("sha1", passcode, salt, iterations, AuthKey.kSize)
-
-
-class _FakeAccount:
-    """Stand-in for td.Account: only ``localKey`` is touched by
-    TDesktop.__generateLocalKey."""
-
-    def __init__(self) -> None:
-        self.localKey: AuthKey | None = None
 
 
 def test_legacy_local_key_empty_passcode_is_pbkdf2_sha1_4_iterations() -> None:
@@ -101,8 +94,8 @@ def test_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
     assert TDesktop.kPerformanceMode is True
 
     client = TDesktop()
-    accounts = [_FakeAccount() for _ in range(3)]
-    client.accounts.extend(cast("list[Any]", accounts))
+    accounts = [Account(client, index=i) for i in range(3)]
+    client.accounts.extend(accounts)
 
     _private(client, "generateLocalKey")()
 
@@ -114,8 +107,8 @@ def test_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
 
 def test_non_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
     client = TDesktop(passcode="hunter2")
-    accounts = [_FakeAccount() for _ in range(2)]
-    client.accounts.extend(cast("list[Any]", accounts))
+    accounts = [Account(client, index=i) for i in range(2)]
+    client.accounts.extend(accounts)
 
     _private(client, "generateLocalKey")()
 

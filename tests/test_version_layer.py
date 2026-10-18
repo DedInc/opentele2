@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
-from typing import Any, cast
 
 import pytest
 
@@ -12,6 +11,7 @@ from src.consistency import CheckResult, ConsistencyChecker
 from src.exception import OpenTeleException
 from src.qt_compat import QByteArray
 from src.td import shared as td
+from src.tl.telethon import TelegramClient
 from src.utils import APP_VERSION, TDF_MAGIC
 
 _VERSION_H = (
@@ -106,12 +106,9 @@ class TestAdvertisedLayer:
         assert result.passed, result.detail
 
 
-class _ClientStub:
-    pass
-
-
 def _run_layer_check() -> CheckResult:
-    checker = ConsistencyChecker(cast("Any", _ClientStub()), auto_warn=False)
+    # A real, never-connected client: construction is offline (MemorySession).
+    checker = ConsistencyChecker(TelegramClient(), auto_warn=False)
     return asyncio.run(checker.check_layer_match())
 
 
