@@ -15,7 +15,7 @@ __all__ = ["fetch_all_versions"]
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 10
-_CACHED: dict[str, object] | None = None
+_CACHED: dict[str, str | int] | None = None
 
 _TG_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -201,7 +201,7 @@ _FETCHERS: list[Callable[[], dict]] = [
 ]
 
 
-def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, object]:
+def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, str | int]:
     global _CACHED
     if _CACHED is not None:
         return _CACHED
@@ -210,7 +210,7 @@ def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, object]:
         _CACHED = {}
         return _CACHED
 
-    result: dict[str, object] = {}
+    result: dict[str, str | int] = {}
     try:
         with ThreadPoolExecutor(max_workers=len(_FETCHERS)) as pool:
             futures = {
