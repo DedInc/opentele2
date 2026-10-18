@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 import platform
-import typing
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar, overload
 
 if TYPE_CHECKING:
     from typing_extensions import Self
@@ -34,6 +33,7 @@ _T = TypeVar("_T")
 
 _X64_ARCHES = ("x86_64", "AMD64")
 _X86_ARCHES = ("i386", "i686", "x86")
+_DESKTOP_SYSTEMS = ("windows", "macos", "linux")
 
 _DEFAULT_EXTRA_FIELDS = {
     "twoFA": None,
@@ -93,29 +93,36 @@ def _describe_api(glob: object) -> str:
 
 
 class BaseAPIMetaClass(BaseMetaClass):
-    def __new__(
-        cls, clsName: str, bases: tuple[type, ...], attrs: dict[str, Any]
-    ) -> BaseMetaClass:
-        result = super().__new__(cls, clsName, bases, attrs)
-        # The same description serves str(SomeAPI) and str(SomeAPI()).
-        result.__str__ = sharemethod(_describe_api)  # ty: ignore[invalid-assignment]
-
-        return result
-
+    # str(SomeAPI); APIData.__str__ below serves str(SomeAPI()).
     __str__ = sharemethod(_describe_api)
 
 
+def _local_device_model() -> str:
+    system = platform.uname()
+    if system.machine in _X64_ARCHES:
+        return "PC 64bit"
+    if system.machine in _X86_ARCHES:
+        return "PC 32bit"
+    return system.machine
+
+
 class APIData(metaclass=BaseAPIMetaClass):
-    # Unset on the base class only; every concrete API and every instance
-    # built from explicit values carries real ones.
-    api_id: int = None  # ty: ignore[invalid-assignment]
-    api_hash: str = None  # ty: ignore[invalid-assignment]
-    device_model: str = None  # ty: ignore[invalid-assignment]
-    system_version: str = None  # ty: ignore[invalid-assignment]
-    app_version: str = None  # ty: ignore[invalid-assignment]
-    lang_code: str = None  # ty: ignore[invalid-assignment]
-    system_lang_code: str = None  # ty: ignore[invalid-assignment]
-    lang_pack: str = None  # ty: ignore[invalid-assignment]
+    # Declared, not bound: the base class has no credentials or device of its
+    # own. Every concrete API binds them, and __init__ refuses to build an
+    # instance without api_id/api_hash and falls back to the local machine
+    # for device_model.
+    api_id: int
+    api_hash: str
+    device_model: str
+    # None is a real state here: APIData(api_id, api_hash) and from_json()
+    # leave whatever was not supplied unset.
+    system_version: str | None = None
+    app_version: str | None = None
+    lang_code: str | None = None
+    system_lang_code: str | None = None
+    lang_pack: str | None = None
+
+    __str__ = sharemethod(_describe_api)
 
     def __init__(
         self,
@@ -128,37 +135,38 @@ class APIData(metaclass=BaseAPIMetaClass):
         system_lang_code: str | None = None,
         lang_pack: str | None = None,
     ) -> None:
+        cls = self.get_cls()
+
+        # A class that binds no api_id/api_hash (APIData itself) needs both
+        # passed explicitly.
         Expects(
-            (self.__class__ != APIData)
-            or (api_id is not None and api_hash is not None),
+            (api_id is not None or hasattr(cls, "api_id"))
+            and (api_hash is not None or hasattr(cls, "api_hash")),
             NoInstanceMatched("No instace of API matches the arguments"),
         )
 
-        cls = self.get_cls()
-
-        self.api_id = _coalesce(api_id, cls.api_id)
-        self.api_hash = _coalesce(api_hash, cls.api_hash)
-        self.device_model = _coalesce(device_model, cls.device_model)
+        self.api_id = cls.api_id if api_id is None else api_id
+        self.api_hash = cls.api_hash if api_hash is None else api_hash
+        if device_model is None:
+            device_model = (
+                cls.device_model
+                if hasattr(cls, "device_model")
+                else _local_device_model()
+            )
+        self.device_model = device_model
         self.system_version = _coalesce(system_version, cls.system_version)
         self.app_version = _coalesce(app_version, cls.app_version)
         self.system_lang_code = _coalesce(system_lang_code, cls.system_lang_code)
         self.lang_pack = _coalesce(lang_pack, cls.lang_pack)
         self.lang_code = _coalesce(lang_code, cls.lang_code)
 
-        if self.device_model is None:
-            system = platform.uname()
-            if system.machine in _X64_ARCHES:
-                self.device_model = "PC 64bit"
-            elif system.machine in _X86_ARCHES:
-                self.device_model = "PC 32bit"
-            else:
-                self.device_model = system.machine
-
     @sharemethod
     def copy(glob: type[APIData] | APIData) -> APIData:
-        cls = glob if isinstance(glob, type) else glob.__class__
+        if not isinstance(glob, APIData):
+            # A class's own values are exactly what its constructor defaults to.
+            return glob()
 
-        return cls(
+        return glob.__class__(
             glob.api_id,
             glob.api_hash,
             glob.device_model,
@@ -171,9 +179,7 @@ class APIData(metaclass=BaseAPIMetaClass):
 
     @sharemethod
     def get_cls(glob: type[APIData] | APIData) -> type[APIData]:
-        return (
-            typing.cast("type[APIData]", glob) if isinstance(glob, type) else type(glob)
-        )
+        return type(glob) if isinstance(glob, APIData) else glob
 
     @sharemethod
     def destroy(glob: type[APIData] | APIData) -> None:
@@ -298,15 +304,37 @@ class API(BaseObject):
         system_lang_code = "en-US"
         lang_pack = "tdesktop"
 
+        @overload
         @classmethod
-        def Generate(  # ty: ignore[invalid-method-override]
+        def Generate(cls, unique_id: str | None = None) -> Self: ...
+
+        @overload
+        @classmethod
+        def Generate(cls, system: str | None, unique_id: str | None) -> Self: ...
+
+        @overload
+        @classmethod
+        def Generate(
+            cls, *, system: str | None = None, unique_id: str | None = None
+        ) -> Self: ...
+
+        @classmethod
+        def Generate(
             cls, system: str | None = None, unique_id: str | None = None
         ) -> Self:
-            # Public API since opentele: the platform comes before unique_id.
-            validList = ["windows", "macos", "linux"]
-            if system is None or system not in validList:
+            """A random desktop device, seeded by ``unique_id``.
+
+            Public API since opentele puts the platform first:
+            ``Generate("windows", "id")``. A single positional argument that
+            is not a platform name is the ``unique_id`` of the base-class
+            form ``Generate("id")``.
+            """
+            if unique_id is None and system not in (None, *_DESKTOP_SYSTEMS):
+                system, unique_id = None, system
+
+            if system is None or system not in _DESKTOP_SYSTEMS:
                 system = SystemInfo._hashtovalue(
-                    SystemInfo._strtohashid(unique_id), validList
+                    SystemInfo._strtohashid(unique_id), list(_DESKTOP_SYSTEMS)
                 )
 
             system = system.lower()
