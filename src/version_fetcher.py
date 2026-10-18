@@ -213,7 +213,9 @@ def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, object]:
     result: dict[str, object] = {}
     try:
         with ThreadPoolExecutor(max_workers=len(_FETCHERS)) as pool:
-            futures = {pool.submit(fn): fn.__name__ for fn in _FETCHERS}
+            futures = {
+                pool.submit(fn): getattr(fn, "__name__", repr(fn)) for fn in _FETCHERS
+            }
             for future in as_completed(futures, timeout=timeout + 5):
                 name = futures[future]
                 try:

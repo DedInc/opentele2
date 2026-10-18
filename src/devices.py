@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import ItemsView
-from typing import Any, ClassVar, TypeVar
-
-try:
-    from .utils import BaseObject
-except ImportError:
-    from utils import BaseObject
 import hashlib
 import json
 import logging
 import os
 import re
+from collections.abc import ItemsView
+from typing import Any, ClassVar, NamedTuple, TypeVar
+
+from .utils import BaseObject
 
 __all__ = [
     "AndroidDevice",
@@ -32,7 +29,7 @@ _T = TypeVar("_T")
 _DEVICES_DIR = os.path.join(os.path.dirname(__file__), "devices")
 
 
-def _load_device_data(filename: str) -> dict[str, object]:
+def _load_device_data(filename: str) -> dict[str, Any]:
     filepath = os.path.join(_DEVICES_DIR, filename)
     with open(filepath, encoding="utf-8") as f:
         return json.load(f)
@@ -43,21 +40,21 @@ class _LazyData:
 
     def __init__(self, filename: str) -> None:
         self._filename = filename
-        self._data: dict[str, object] | None = None
+        self._data: dict[str, Any] | None = None
 
     @property
-    def data(self) -> dict[str, object]:
+    def data(self) -> dict[str, Any]:
         if self._data is None:
             self._data = _load_device_data(self._filename)
         return self._data
 
-    def __getitem__(self, key: str) -> object:
+    def __getitem__(self, key: str) -> Any:
         return self.data[key]
 
-    def get(self, key: str, default: object = None) -> object:
+    def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
 
-    def items(self) -> ItemsView[str, object]:
+    def items(self) -> ItemsView[str, Any]:
         return self.data.items()
 
 
@@ -305,7 +302,7 @@ _SDK_TO_ANDROID = {
 
 
 class AndroidDevice(SystemInfo):
-    _devices: list | None = None
+    _devices: ClassVar[list[dict[str, Any]] | None] = None
     deviceList: ClassVar[list[DeviceInfo]] = []
 
     @classmethod
@@ -319,7 +316,7 @@ class AndroidDevice(SystemInfo):
             return
         cls._ensure_android_data()
         result = []
-        for entry in cls._devices:
+        for entry in cls._devices or []:
             model = entry["model"]
             min_sdk = entry["min_sdk"]
             max_sdk = entry["max_sdk"]
@@ -500,6 +497,13 @@ class IOSDevice(SystemInfo):
 iOSDevice = IOSDevice
 
 
+class _BrowserConfig(NamedTuple):
+    name: str
+    window: tuple[int, int]
+    os: tuple[str, ...]
+    count: int
+
+
 def _get_firefox_latest_version() -> tuple[int | None, int | None]:
     import urllib.request
 
@@ -523,7 +527,7 @@ def _get_firefox_latest_version() -> tuple[int | None, int | None]:
         return None, None
 
 
-def _get_chrome_last_good_versions() -> dict[str, object] | None:
+def _get_chrome_last_good_versions() -> dict[str, Any] | None:
     import urllib.request
 
     url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
@@ -661,43 +665,32 @@ class WebBrowserDevice(SystemInfo):
         chrome_min = max_v - _rnd.randint(2, 4)
 
         ff_max, ff_min = _get_firefox_latest_version()
-        if ff_max is not None:
+        if ff_max is not None and ff_min is not None:
             cls._firefox_max = ff_max
             cls._firefox_min = ff_min
         ff_max = cls._firefox_max
         ff_min = cls._firefox_min
 
         browser_configs = [
-            {
-                "name": "chrome",
-                "window": (chrome_min, max_v),
-                "os": ("windows", "macos", "linux"),
-                "count": 60,
-            },
-            {
-                "name": "edge",
-                "window": (chrome_min - 2, max_v),
-                "os": ("windows", "macos"),
-                "count": 30,
-            },
-            {
-                "name": "firefox",
-                "window": (ff_min, ff_max),
-                "os": ("windows", "macos", "linux"),
-                "count": 20,
-            },
+            _BrowserConfig(
+                "chrome", (chrome_min, max_v), ("windows", "macos", "linux"), 60
+            ),
+            _BrowserConfig("edge", (chrome_min - 2, max_v), ("windows", "macos"), 30),
+            _BrowserConfig(
+                "firefox", (ff_min, ff_max), ("windows", "macos", "linux"), 20
+            ),
         ]
 
         z_a_list: list[DeviceInfo] = []
         k_list: list[DeviceInfo] = []
-        seen_uas: set = set()
+        seen_uas: set[str] = set()
 
         for cfg in browser_configs:
-            name = str(cfg["name"])
+            name = cfg.name
             weight = cls.BROWSER_WEIGHTS.get(name, 1)
-            min_v, window_max = cfg["window"]
+            min_v, window_max = cfg.window
             try:
-                gen, offset = cls._header_generator(name, cfg["os"], min_v, window_max)
+                gen, offset = cls._header_generator(name, cfg.os, min_v, window_max)
             except Exception:
                 # browserforge raises assorted errors for unknown inputs; one
                 # browser family missing must not break the others.
@@ -706,7 +699,7 @@ class WebBrowserDevice(SystemInfo):
             if gen is None:
                 continue
 
-            for _ in range(int(cfg["count"])):
+            for _ in range(cfg.count):
                 try:
                     headers = gen.generate()
                 except ValueError:

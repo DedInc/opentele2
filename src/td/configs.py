@@ -103,18 +103,29 @@ class FileKey(int):
 
 
 class DcId(int):
-    kDcShift: DcId = 10000
-    Invalid: DcId = 0
-    _0: DcId = 0
-    _1: DcId = 1
-    _2: DcId = 2
-    _3: DcId = 3
-    _4: DcId = 4
-    _5: DcId = 5
+    # Filled in right after the class, since a DcId cannot be built in its body.
+    kDcShift: ClassVar[DcId]
+    Invalid: ClassVar[DcId]
+    _0: ClassVar[DcId]
+    _1: ClassVar[DcId]
+    _2: ClassVar[DcId]
+    _3: ClassVar[DcId]
+    _4: ClassVar[DcId]
+    _5: ClassVar[DcId]
 
     @staticmethod
     def BareDcId(shiftedDcId: ShiftedDcId | DcId) -> DcId:
         return DcId(shiftedDcId % DcId.kDcShift)
+
+
+DcId.kDcShift = DcId(10000)
+DcId.Invalid = DcId(0)
+DcId._0 = DcId(0)
+DcId._1 = DcId(1)
+DcId._2 = DcId(2)
+DcId._3 = DcId(3)
+DcId._4 = DcId(4)
+DcId._5 = DcId(5)
 
 
 class ShiftedDcId(DcId):

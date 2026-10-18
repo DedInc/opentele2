@@ -46,11 +46,12 @@ class OpenTeleException(BaseException):
         self.message = message
         self.desc = self.__class__.__name__
 
-        self.frame = inspect.currentframe()
-        assert self.frame is not None
-        for i in range(stack_index):
-            self.frame = self.frame.f_back
-        assert self.frame is not None
+        frame = inspect.currentframe()
+        for _ in range(stack_index):
+            assert frame is not None
+            frame = frame.f_back
+        assert frame is not None
+        self.frame = frame
 
         self._caller_class = (
             self.frame.f_locals["self"].__class__
@@ -201,7 +202,7 @@ class SessionFileInvalid(OpenTeleException):
 @typing.overload
 def Expects(
     condition: bool,
-    message: str | None = None,
+    exception: str | None = None,
     done: typing.Callable[[], None] | None = None,
     fail: typing.Callable[[OpenTeleException], None] | None = None,
     silent: bool = False,

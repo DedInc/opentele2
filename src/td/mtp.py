@@ -96,7 +96,7 @@ class MTP(BaseObject):  # nocov
                 MTP.DcOptions.Flag(
                     MTP.DcOptions.Flag.f_static | MTP.DcOptions.Flag.f_ipv6
                 ),
-            )  # type: ignore
+            )
 
         def constructFromSerialized(self, serialized: QByteArray) -> None:
             stream = _qt_stream(serialized)
@@ -181,11 +181,11 @@ class MTP(BaseObject):  # nocov
 
             return result
 
-        class Address(int):
+        class Address(IntEnum):
             IPv4 = 0
             IPv6 = 1
 
-        class Protocol(int):
+        class Protocol(IntEnum):
             Tcp = 0
             Http = 1
 
@@ -318,17 +318,17 @@ class MTP(BaseObject):  # nocov
             Endpoint = MTP.DcOptions.Endpoint
 
             results: dict[Address, dict[Protocol, list[Endpoint]]] = {}  # type: ignore[valid-type]
-            results[Address.IPv4] = {Protocol.Tcp: [], Protocol.Http: []}  # type: ignore
-            results[Address.IPv6] = {Protocol.Tcp: [], Protocol.Http: []}  # type: ignore
+            results[Address.IPv4] = {Protocol.Tcp: [], Protocol.Http: []}
+            results[Address.IPv6] = {Protocol.Tcp: [], Protocol.Http: []}
 
             for endpoint in endpoints:
                 if dcId == 0 or endpoint.id == dcId:
                     flags = endpoint.flags
                     address = Address.IPv6 if (flags & Flag.f_ipv6) else Address.IPv4
-                    results[address][Protocol.Tcp].append(endpoint)  # type: ignore
+                    results[address][Protocol.Tcp].append(endpoint)
 
                     if not (flags & (Flag.f_tcpo_only | Flag.f_secret)):
-                        results[address][Protocol.Http].append(endpoint)  # type: ignore
+                        results[address][Protocol.Http].append(endpoint)
 
             return results
 

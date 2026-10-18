@@ -6,7 +6,7 @@ from ctypes import c_uint32 as uint32
 from ctypes import sizeof
 from typing import ClassVar
 
-import tgcrypto
+import tgcrypto  # ty: ignore[unresolved-import]  # compiled, ships no stubs
 
 from ..exception import (
     Expects,

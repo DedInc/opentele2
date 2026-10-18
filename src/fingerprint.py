@@ -7,6 +7,10 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from telethon.network.connection.connection import Connection
 
 from .utils import APP_VERSION_STR
 
@@ -356,7 +360,7 @@ class FingerprintConfig:
             return self.layer_override
         return get_recommended_layer()
 
-    def validate_params(self, **kwargs: object) -> None:
+    def validate_params(self, **kwargs: Any) -> None:
         if not self.auto_validate:
             return
 
@@ -383,19 +387,18 @@ DEFAULT_CONFIG = FingerprintConfig()
 
 class TransportRecommendation:
     @staticmethod
-    def get_connection_class(lang_pack: str = "tdesktop") -> type[object]:
-        normalized_lang_pack = lang_pack or "tdesktop"
+    def get_connection_class(lang_pack: str = "tdesktop") -> type[Connection]:
+        # Every official client uses the obfuscated transport, whatever its
+        # lang_pack; the parameter is kept for API compatibility.
         try:
-            if normalized_lang_pack:
-                from telethon.network.connection.tcpobfuscated import (
-                    ConnectionTcpObfuscated,
-                )
-
-                return ConnectionTcpObfuscated
+            from telethon.network.connection.tcpobfuscated import (
+                ConnectionTcpObfuscated,
+            )
         except ImportError:
             from telethon.network.connection.tcpfull import ConnectionTcpFull
 
             return ConnectionTcpFull
+        return ConnectionTcpObfuscated
 
     @staticmethod
     def get_available_transports() -> dict[str, type[object]]:
