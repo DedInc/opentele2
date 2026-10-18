@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ctypes import c_uint32 as uint32
 from ctypes import sizeof
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from ..exception import (
     AccountAuthKeyNotFound,
@@ -109,7 +109,7 @@ class StorageAccount(BaseObject):
         mtp = td.Storage.ReadEncryptedFile(
             td.Storage.ToFilePart(self.__dataNameKey),
             self.__baseGlobalPath,
-            cast("td.AuthKey", self.localKey),
+            self._requireLocalKey(),
         )
 
         context = td.Storage.ReadSettingsContext()

@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from src.exception import TDataReadMapDataFailed
+from src.exception import AccountAuthKeyNotFound, TDataReadMapDataFailed
 from src.qt_compat import QByteArray, QDataStream, QIODevice
 from src.td import shared as td
 from src.td.configs import DcId, FileKey, dbi
@@ -52,6 +52,7 @@ def _storageAccount(
 ) -> tuple[StorageAccount, _OwnerStub]:
     owner = _OwnerStub()
     account = StorageAccount(cast("Any", owner), "in-memory-base", "data")
+    account.localKey = td.AuthKey(bytes(range(256)))
 
     if payload is not None:
 
@@ -140,6 +141,16 @@ def test_trailing_legacy_blocks_after_authorization_do_not_break_reading(
     assert owner.custom is None
     assert owner.serialized is not None
     assert bytes(owner.serialized) == bytes(serialized)
+
+
+def test_reading_mtp_data_without_a_local_key_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account, _owner = _storageAccount(monkeypatch, _modernPayload(QByteArray(b"x")))
+    account.localKey = None
+
+    with pytest.raises(AccountAuthKeyNotFound):
+        account._readMtpData()
 
 
 def test_failed_map_read_raises_instead_of_silently_skipping(
