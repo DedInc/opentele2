@@ -3,7 +3,10 @@ src/tests.py
 tests.py
 test.py
 __pycache__/
- *.pyc
+*.pyc
+.venv/
+.venv*/
+venv/
 build/*
 pydoc-markdown.yml
 build_script*
