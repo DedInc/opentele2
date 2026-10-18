@@ -132,8 +132,9 @@ class TelegramClient(telethon.TelegramClient):
     def __init__(
         self,
         session: str | Session | None = None,
-        api: type[APIData] | APIData | None = None,
-        api_id: int = 0,
+        # int and str cover the legacy TelegramClient(session, api_id, api_hash).
+        api: type[APIData] | APIData | int | str | None = None,
+        api_id: int | str = 0,
         api_hash: str | None = None,
         **kwargs: Unpack[ClientKwargs],
     ) -> None:
@@ -149,8 +150,9 @@ class TelegramClient(telethon.TelegramClient):
         # Handle the legacy pattern: TelegramClient(session, api_id_int, api_hash_str)
         if api is not None and not isinstance(api, (APIData, type)):
             if isinstance(api, (int, str)) and api_id and isinstance(api_id, str):
-                api_id = int(api)
-                api_hash = str(api_id)
+                # Both from the original arguments: api holds the id and
+                # api_id the hash in this positional form.
+                api_id, api_hash = int(api), api_id
             api = None
 
         # Resolve APIData
@@ -175,7 +177,7 @@ class TelegramClient(telethon.TelegramClient):
         telethon_kwargs = typing.cast("dict[str, typing.Any]", kwargs)
         super().__init__(
             typing.cast("str | Session", session),
-            api_id,
+            typing.cast("int", api_id),
             typing.cast("str", api_hash),
             **telethon_kwargs,
         )
