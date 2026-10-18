@@ -8,7 +8,7 @@ version = "1.2.1"
 description = "A Python Telegram API Library for converting between tdata and telethon sessions, with built-in official Telegram APIs."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
     { name = "DedInc.", email = "visitanimation@gmail.com" },
 ]
@@ -19,7 +19,7 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.10",
     "Development Status :: 5 - Production/Stable",
 ]
 dependencies = [
