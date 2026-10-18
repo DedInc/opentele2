@@ -5,6 +5,7 @@ import os
 import pathlib
 import sqlite3
 import sys
+from typing import Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
@@ -29,7 +30,7 @@ TESTS_DIR = pathlib.Path(__file__).parent
 SESSIONS_DIR = TESTS_DIR / "sessions"
 TDATAS_DIR = TESTS_DIR / "tdatas"
 
-JsonDict = dict[str, object]
+JsonDict = dict[str, Any]
 SessionId = str
 TDataId = str
 ApiClass = type[APIData]
@@ -505,8 +506,8 @@ class TestAllGenerateAPIs:
     )
     def test_generate_deterministic_with_unique_id(self, api_cls: ApiClass) -> None:
         if api_cls == API.TelegramDesktop:
-            a = api_cls.Generate("windows", "seed123")
-            b = api_cls.Generate("windows", "seed123")
+            a = API.TelegramDesktop.Generate("windows", "seed123")
+            b = API.TelegramDesktop.Generate("windows", "seed123")
         else:
             a = api_cls.Generate("seed123")
             b = api_cls.Generate("seed123")
@@ -877,12 +878,14 @@ class TestVersionFetcher:
     def test_fetched_desktop_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("desktop_app_version", "")
+        assert isinstance(v, str)
         assert v, "desktop_app_version should be fetched"
         assert all(c.isdigit() or c == "." for c in v), f"Bad format: {v}"
 
     def test_fetched_android_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("android_app_version", "")
+        assert isinstance(v, str)
         assert v, "android_app_version should be fetched"
         parts = v.split(".")
         assert len(parts) >= 2
@@ -890,26 +893,31 @@ class TestVersionFetcher:
     def test_fetched_telegram_x_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("android_x_app_version", "")
+        assert isinstance(v, str)
         assert v, "android_x_app_version should be fetched"
 
     def test_fetched_ios_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("ios_app_version", "")
+        assert isinstance(v, str)
         assert v, "ios_app_version should be fetched"
 
     def test_fetched_macos_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("macos_app_version", "")
+        assert isinstance(v, str)
         assert v, "macos_app_version should be fetched"
 
     def test_fetched_web_k_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("web_k_version", "")
+        assert isinstance(v, str)
         assert v.endswith(" K"), f"web_k_version should end with ' K': {v}"
 
     def test_fetched_web_a_version(self) -> None:
         result = fetch_all_versions()
         v = result.get("web_a_version", "")
+        assert isinstance(v, str)
         assert v.endswith(" A"), f"web_a_version should end with ' A': {v}"
 
     def test_platform_versions_updated(self) -> None:

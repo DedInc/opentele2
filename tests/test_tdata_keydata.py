@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from typing import Any, cast
 
 import pytest
 
@@ -9,6 +10,21 @@ from src.qt_compat import QByteArray
 from src.td import key_data as kd
 from src.td import shared as td
 from src.td.tdesktop import TDesktop
+
+
+def _private(client: TDesktop, name: str) -> Any:
+    """A name-mangled TDesktop internal the test drives directly."""
+    return getattr(client, f"_TDesktop__{name}")
+
+
+def _client_key(client: TDesktop) -> bytes:
+    assert client.localKey is not None
+    return client.localKey.key
+
+
+def _set_private(client: TDesktop, name: str, value: object) -> None:
+    setattr(client, f"_TDesktop__{name}", value)
+
 
 # Cheap but valid parameters; the format stores them per wrap.
 _FAST_SCRYPT = kd.PasscodeKdf(kd.KDF_SCRYPT, memory=1024, time=8, parallel=1)
@@ -179,9 +195,9 @@ class _FakeAccount:
 def _writtenKeyData(
     tmp_path: pathlib.Path, client: TDesktop
 ) -> tuple[kd.KeyData, QByteArray]:
-    client.accounts.extend([_FakeAccount(0), _FakeAccount(2)])  # type: ignore[list-item]
-    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
-    client._TDesktop__writeAccounts(str(tmp_path))  # type: ignore[attr-defined]
+    client.accounts.extend(cast("list[Any]", [_FakeAccount(0), _FakeAccount(2)]))
+    _private(client, "generateLocalKey")()
+    _private(client, "writeAccounts")(str(tmp_path))
     file = td.Storage.ReadFile("key_data", str(tmp_path))
     return kd.read_key_data(file.stream)
 
@@ -195,7 +211,7 @@ def test_saved_tdata_without_passcode_has_an_open_7_3_key_file(
     assert not data.legacy
     assert data.passcodeWraps == []
     localKey, _ = kd.open_local_key(data, b"")
-    assert localKey.key == client.localKey.key
+    assert localKey.key == _client_key(client)
     info = td.Storage.DecryptLocal(infoEncrypted, localKey)
     assert [info.stream.readInt32() for _ in range(3)] == [2, 0, 2]
 
@@ -211,7 +227,7 @@ def test_saved_tdata_with_passcode_locks_the_open_wrap(
     assert data.openSalt.size() == kd.LOCAL_ENCRYPT_SALT_SIZE
     assert data.committed == 1
     assert [w.generation for w in data.passcodeWraps] == [1]
-    assert kd.open_local_key(data, _PASSCODE)[0].key == client.localKey.key
+    assert kd.open_local_key(data, _PASSCODE)[0].key == _client_key(client)
     with pytest.raises(TDataBadDecryptKey):
         kd.open_local_key(data, b"")
 
@@ -220,10 +236,11 @@ def test_saving_a_loaded_legacy_key_file_migrates_it_to_7_3(
     tmp_path: pathlib.Path,
 ) -> None:
     client = TDesktop()
-    client.accounts.append(_FakeAccount(0))  # type: ignore[arg-type]
-    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
+    client.accounts.append(cast("Any", _FakeAccount(0)))
+    _private(client, "generateLocalKey")()
     localKey = client.localKey
-    client._TDesktop__keyData.legacy = True  # type: ignore[attr-defined]
+    assert localKey is not None
+    _private(client, "keyData").legacy = True
 
     client.SaveTData(str(tmp_path))
 
@@ -320,12 +337,12 @@ def test_loading_drops_wraps_of_other_generations(tmp_path: pathlib.Path) -> Non
     writer.finish()
 
     client = TDesktop()
-    client._TDesktop__basePath = str(tmp_path)  # type: ignore[attr-defined]
+    _set_private(client, "basePath", str(tmp_path))
     with pytest.raises(OpenTeleException, match="No account has been loaded"):
         # No account files exist; the key file itself must still parse.
-        client._TDesktop__loadFromTData()  # type: ignore[attr-defined]
+        _private(client, "loadFromTData")()
 
-    kept = client._TDesktop__keyData.passcodeWraps  # type: ignore[attr-defined]
+    kept = _private(client, "keyData").passcodeWraps
     assert [w.generation for w in kept] == [1]
 
 

@@ -1,11 +1,22 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any, cast
 
 from src.qt_compat import QByteArray
 from src.td.auth import AuthKey
 from src.td.storage import Storage
 from src.td.tdesktop import TDesktop
+
+
+def _private(client: TDesktop, name: str) -> Any:
+    """A name-mangled TDesktop internal the test drives directly."""
+    return getattr(client, f"_TDesktop__{name}")
+
+
+def _set_private(client: TDesktop, name: str, value: object) -> None:
+    setattr(client, f"_TDesktop__{name}", value)
+
 
 # refs/tdesktop-dev/Telegram/SourceFiles/config.h:15-17
 LOCAL_ENCRYPT_ITER_COUNT = 4000
@@ -91,9 +102,9 @@ def test_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
 
     client = TDesktop()
     accounts = [_FakeAccount() for _ in range(3)]
-    client.accounts.extend(accounts)  # type: ignore[arg-type]
+    client.accounts.extend(cast("list[Any]", accounts))
 
-    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
+    _private(client, "generateLocalKey")()
 
     assert client.isLoaded()
     assert client.localKey is not None
@@ -104,9 +115,9 @@ def test_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
 def test_non_performance_mode_key_regeneration_reaches_loaded_accounts() -> None:
     client = TDesktop(passcode="hunter2")
     accounts = [_FakeAccount() for _ in range(2)]
-    client.accounts.extend(accounts)  # type: ignore[arg-type]
+    client.accounts.extend(cast("list[Any]", accounts))
 
-    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
+    _private(client, "generateLocalKey")()
 
     for account in accounts:
         assert account.localKey is client.localKey
@@ -118,11 +129,9 @@ def test_non_ascii_passcode_is_encoded_as_utf8_without_raising() -> None:
     client = TDesktop(passcode=passcode)
 
     assert client.passcode == passcode
-    assert client._TDesktop__passcodeBytes == passcode.encode(  # type: ignore[attr-defined]
-        "utf-8"
-    )
+    assert _private(client, "passcodeBytes") == passcode.encode("utf-8")
 
-    client._TDesktop__generateLocalKey()  # type: ignore[attr-defined]
+    _private(client, "generateLocalKey")()
 
     assert client.isLoaded()
     assert client.localKey is not None

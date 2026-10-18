@@ -3,6 +3,7 @@ import importlib
 import os
 import pathlib
 import sys
+from typing import Any, cast
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
@@ -19,7 +20,7 @@ from src import debug
 if not debug.IS_DEBUG_MODE:
     # src.debug was already imported by another test module before the env var
     # was set; re-import it so the flag and its instrumentation classes exist.
-    debug = importlib.reload(debug)
+    debug = cast("Any", importlib.reload(debug))
 
 
 import pytest
@@ -98,7 +99,7 @@ def test_random_api() -> None:
         API.Webogram,
     ]
     for api in apis:
-        assert cmp(api, api())
+        assert cmp(api, cast("type[APIData]", api)())
 
         check = False
 
@@ -240,13 +241,14 @@ async def test_entry_point() -> None:
 
     profile = profile_path()
     if not os.path.isdir(profile):
-        pytest.skip(f"Test profile directory not found: {profile}")
+        raise pytest.skip.Exception(f"Test profile directory not found: {profile}")
 
     loop = asyncio.get_event_loop()
     ter = TerminalWriter(sys.stdout)
     ter.hasmarkup = True
-    loop._close = loop.close
-    loop.close = lambda: None
+    patched_loop = cast("Any", loop)
+    patched_loop._close = loop.close
+    patched_loop.close = lambda: None
 
     ter.write("\n\n")
     ter.sep("=", f"Begin testing for Python {PythonVersion()}", cyan=True)

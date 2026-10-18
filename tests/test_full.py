@@ -5,11 +5,13 @@ import os
 import pathlib
 import sqlite3
 import sys
+from typing import Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
 
 import pytest
+from telethon.tl.types import User
 
 from src.api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
 from src.consistency import (
@@ -47,6 +49,18 @@ TESTS_DIR = pathlib.Path(__file__).parent
 TDATAS_DIR = TESTS_DIR / "tdatas"
 SESSIONS_DIR = TESTS_DIR / "sessions"
 
+
+def _main(tdesk: TDesktop) -> Account:
+    account = tdesk.mainAccount
+    assert account is not None
+    return account
+
+
+def _key(account: Account) -> bytes:
+    assert account.authKey is not None
+    return account.authKey.key
+
+
 requires_tdatas_dir = pytest.mark.skipif(
     not TDATAS_DIR.is_dir(),
     reason=f"missing fixture directory: {TDATAS_DIR}",
@@ -64,8 +78,8 @@ ACCOUNT_IDS: list[str] = [
     "215342360",
 ]
 
-JsonDict = dict[str, object]
-SessionDbDict = dict[str, object]
+JsonDict = dict[str, Any]
+SessionDbDict = dict[str, Any]
 AccountId = str
 
 
@@ -771,31 +785,31 @@ class TestTDataLoading:
 
     def test_tdata_account_is_loaded(self, tdata_path: str) -> None:
         tdesk = TDesktop(tdata_path)
-        assert tdesk.mainAccount.isLoaded()
+        assert _main(tdesk).isLoaded()
 
     def test_tdata_account_has_auth_key(self, tdata_path: str) -> None:
         tdesk = TDesktop(tdata_path)
-        acct = tdesk.mainAccount
+        acct = _main(tdesk)
         assert acct.authKey is not None
-        assert len(acct.authKey.key) == 256
+        assert len(_key(acct)) == 256
 
     def test_tdata_account_has_user_id(
         self, tdata_path: str, account_id: AccountId
     ) -> None:
         tdesk = TDesktop(tdata_path)
-        acct = tdesk.mainAccount
+        acct = _main(tdesk)
         assert acct.UserId > 0, f"Invalid UserId for account {account_id}"
 
     def test_tdata_account_has_valid_dc_id(self, tdata_path: str) -> None:
         tdesk = TDesktop(tdata_path)
-        acct = tdesk.mainAccount
+        acct = _main(tdesk)
         assert 1 <= acct.MainDcId <= 5
 
     def test_tdata_user_id_matches_json(
         self, tdata_path: str, account_id: AccountId
     ) -> None:
         tdesk = TDesktop(tdata_path)
-        acct = tdesk.mainAccount
+        acct = _main(tdesk)
         assert acct.UserId > 0, f"Invalid UserId for account {account_id}"
 
     def test_tdata_keyfile(self, tdata_path: str) -> None:
@@ -804,7 +818,7 @@ class TestTDataLoading:
 
     def test_tdata_serialization_roundtrip(self, tdata_path: str) -> None:
         tdesk = TDesktop(tdata_path)
-        acct = tdesk.mainAccount
+        acct = _main(tdesk)
         serialized = acct.serializeMtpAuthorization()
         assert len(serialized) > 0
 
@@ -897,7 +911,7 @@ class TestJSONConsistency:
     def test_tdata_session_authkey_match(self, account_id: AccountId) -> None:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
-        tdata_key = tdesk.mainAccount.authKey.key
+        tdata_key = _key(_main(tdesk))
 
         session_data = _read_session_db(account_id)
         session_key = session_data["auth_key"]
@@ -907,7 +921,7 @@ class TestJSONConsistency:
     def test_tdata_session_dc_id_match(self, account_id: AccountId) -> None:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
-        tdata_dc = int(tdesk.mainAccount.MainDcId)
+        tdata_dc = int(_main(tdesk).MainDcId)
 
         session_data = _read_session_db(account_id)
         session_dc = session_data["dc_id"]
@@ -976,7 +990,7 @@ class TestConversion:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
-        original_key = tdesk.mainAccount.authKey.key
+        original_key = _key(_main(tdesk))
 
         session_path = str(tmp_path / f"test_conv_{account_id}")
         client = await tdesk.ToTelethon(
@@ -994,7 +1008,7 @@ class TestConversion:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
-        original_dc = int(tdesk.mainAccount.MainDcId)
+        original_dc = int(_main(tdesk).MainDcId)
 
         session_path = str(tmp_path / f"test_dc_{account_id}")
         client = await tdesk.ToTelethon(
@@ -1012,9 +1026,9 @@ class TestConversion:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
-        original_key = tdesk.mainAccount.authKey.key
-        original_dc = int(tdesk.mainAccount.MainDcId)
-        original_uid = tdesk.mainAccount.UserId
+        original_key = _key(_main(tdesk))
+        original_dc = int(_main(tdesk).MainDcId)
+        original_uid = _main(tdesk).UserId
 
         session_path = str(tmp_path / f"test_rt_{account_id}")
         client = await tdesk.ToTelethon(
@@ -1031,9 +1045,9 @@ class TestConversion:
 
         assert tdesk2.isLoaded()
         assert tdesk2.mainAccount is not None
-        assert tdesk2.mainAccount.authKey.key == original_key
-        assert int(tdesk2.mainAccount.MainDcId) == original_dc
-        assert tdesk2.mainAccount.UserId == original_uid
+        assert _key(_main(tdesk2)) == original_key
+        assert int(_main(tdesk2).MainDcId) == original_dc
+        assert _main(tdesk2).UserId == original_uid
 
     @pytest.mark.asyncio
     async def test_conversion_with_json_api(
@@ -1072,6 +1086,7 @@ class TestTelegramClientConstructor:
     def test_custom_api_id(self) -> None:
         client = TelegramClient(None, 1234, "testhash")
         assert client.api_id == 1234
+        assert client.api_hash == "testhash"
 
     def test_api_object(self) -> None:
         client = TelegramClient(None, api=API.TelegramAndroid)
@@ -1091,8 +1106,8 @@ class TestTDataSaveLoad:
         tdata_path = str(TDATAS_DIR / account_id / "tdata")
         tdesk = TDesktop(tdata_path)
 
-        original_key = tdesk.mainAccount.authKey.key
-        original_uid = tdesk.mainAccount.UserId
+        original_key = _key(_main(tdesk))
+        original_uid = _main(tdesk).UserId
 
         session_path = str(tmp_path / "save_test")
         client = await tdesk.ToTelethon(
@@ -1111,8 +1126,8 @@ class TestTDataSaveLoad:
 
         tdesk3 = TDesktop(save_path)
         assert tdesk3.isLoaded()
-        assert tdesk3.mainAccount.authKey.key == original_key
-        assert tdesk3.mainAccount.UserId == original_uid
+        assert _key(_main(tdesk3)) == original_key
+        assert _main(tdesk3).UserId == original_uid
 
 
 class TestEdgeCases:
@@ -1171,14 +1186,15 @@ class TestLiveSessionAccounts:
             try:
                 authorized = await client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip(f"Session {account_id} is deactivated/banned")
-                return
+                raise pytest.skip.Exception(
+                    f"Session {account_id} is deactivated/banned"
+                )
 
             if not authorized:
-                pytest.skip(f"Session {account_id} is not authorized")
-                return
+                raise pytest.skip.Exception(f"Session {account_id} is not authorized")
 
             me = await client.get_me()
+            assert isinstance(me, User)
             assert me is not None, f"get_me() returned None for {account_id}"
 
             _safe_print(f"\n{'=' * 60}")
@@ -1206,12 +1222,12 @@ class TestLiveSessionAccounts:
             try:
                 authorized = await client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip(f"Session {account_id} is deactivated/banned")
-                return
+                raise pytest.skip.Exception(
+                    f"Session {account_id} is deactivated/banned"
+                )
 
             if not authorized:
-                pytest.skip(f"Session {account_id} not authorized")
-                return
+                raise pytest.skip.Exception(f"Session {account_id} not authorized")
 
             sessions = await client.GetSessions()
             assert sessions is not None
@@ -1256,14 +1272,15 @@ class TestLiveTDataAccounts:
             try:
                 authorized = await client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip(f"tdata {account_id} is deactivated/banned")
-                return
+                raise pytest.skip.Exception(f"tdata {account_id} is deactivated/banned")
 
             if not authorized:
-                pytest.skip(f"tdata {account_id} session is not authorized")
-                return
+                raise pytest.skip.Exception(
+                    f"tdata {account_id} session is not authorized"
+                )
 
             me = await client.get_me()
+            assert isinstance(me, User)
             assert me is not None, f"get_me() returned None for tdata {account_id}"
 
             _safe_print(f"\n{'=' * 60}")
@@ -1301,12 +1318,10 @@ class TestLiveTDataAccounts:
             try:
                 authorized = await client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip(f"tdata {account_id} is deactivated/banned")
-                return
+                raise pytest.skip.Exception(f"tdata {account_id} is deactivated/banned")
 
             if not authorized:
-                pytest.skip(f"tdata {account_id} not authorized")
-                return
+                raise pytest.skip.Exception(f"tdata {account_id} not authorized")
 
             sessions = await client.GetSessions()
             assert sessions is not None
@@ -1346,16 +1361,15 @@ class TestLiveCreateNewSession:
             try:
                 authorized = await source_client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip("Source session is deactivated/banned")
-                return
+                raise pytest.skip.Exception("Source session is deactivated/banned")
 
             if not authorized:
-                pytest.skip(
+                raise pytest.skip.Exception(
                     "Source session not authorized, cannot test CreateNewSession"
                 )
-                return
 
             me = await source_client.get_me()
+            assert isinstance(me, User)
             _safe_print("\n--- CreateNewSession test ---")
             _safe_print(f"  Source account: {me.id} (+{me.phone})")
 
@@ -1366,6 +1380,7 @@ class TestLiveCreateNewSession:
                     api=API.TelegramDesktop,
                 )
                 new_me = await new_client.get_me()
+                assert isinstance(new_me, User)
                 _safe_print("  New session created successfully!")
                 _safe_print(f"  New session account: {new_me.id}")
                 _safe_print(f"  New session DC: {new_client.session.dc_id}")
@@ -1394,12 +1409,10 @@ class TestLiveCreateNewSession:
             try:
                 authorized = await client.is_user_authorized()
             except UserDeactivatedBanError:
-                pytest.skip("Session is deactivated/banned")
-                return
+                raise pytest.skip.Exception("Session is deactivated/banned")
 
             if not authorized:
-                pytest.skip("Session not authorized")
-                return
+                raise pytest.skip.Exception("Session not authorized")
 
             out_base = str(tmp_path / f"live_export_{account_id}")
             s_path, j_path = await client.SaveSessionJson(

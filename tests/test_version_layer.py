@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 from src import fingerprint
-from src.consistency import ConsistencyChecker
+from src.consistency import CheckResult, ConsistencyChecker
 from src.exception import OpenTeleException
 from src.qt_compat import QByteArray
 from src.td import shared as td
@@ -94,7 +95,7 @@ class TestAdvertisedLayer:
     def test_advertised_layer_matches_reference_schema(self, ref: str) -> None:
         api_tl = _SCHEMAS[ref]
         if not api_tl.is_file():
-            pytest.skip(f"missing {ref} reference checkout: {api_tl}")
+            raise pytest.skip.Exception(f"missing {ref} reference checkout: {api_tl}")
         source = api_tl.read_text(encoding="utf-8", errors="replace")
         match = re.search(r"^// LAYER (\d+)", source, re.MULTILINE)
         assert match is not None, "LAYER marker not found in api.tl"
@@ -109,8 +110,8 @@ class _ClientStub:
     pass
 
 
-def _run_layer_check() -> object:
-    checker = ConsistencyChecker(_ClientStub(), auto_warn=False)  # type: ignore[arg-type]
+def _run_layer_check() -> CheckResult:
+    checker = ConsistencyChecker(cast("Any", _ClientStub()), auto_warn=False)
     return asyncio.run(checker.check_layer_match())
 
 

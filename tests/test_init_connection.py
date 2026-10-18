@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from telethon import types
 
-from src.api import API
+from src.api import API, APIData
 from src.fingerprint import PLATFORM_VERSIONS, tdesktop_tz_offset
 from src.tl.telethon import TelegramClient
 
@@ -54,7 +54,7 @@ def test_a_desktop_client_sends_tz_offset_params() -> None:
 
 
 @pytest.mark.parametrize("api", [API.TelegramAndroid, API.TelegramIOS])
-def test_other_clients_keep_telethon_params(api: type) -> None:
+def test_other_clients_keep_telethon_params(api: type[APIData]) -> None:
     client = TelegramClient(None, api=api)
 
     assert client._init_request.params is None

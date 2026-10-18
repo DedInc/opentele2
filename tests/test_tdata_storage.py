@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -51,7 +51,7 @@ def _storageAccount(
     monkeypatch: pytest.MonkeyPatch, payload: QByteArray | None
 ) -> tuple[StorageAccount, _OwnerStub]:
     owner = _OwnerStub()
-    account = StorageAccount(owner, "in-memory-base", "data")
+    account = StorageAccount(cast("Any", owner), "in-memory-base", "data")
 
     if payload is not None:
 
@@ -158,7 +158,7 @@ def test_failed_map_read_raises_instead_of_silently_skipping(
     monkeypatch.setattr(account, "_readMtpData", _neverCalled)
 
     with pytest.raises(TDataAccountMapReadFailed) as excinfo:
-        account.start(None)
+        account.start(cast("Any", None))
 
     assert "data" in str(excinfo.value)
 
