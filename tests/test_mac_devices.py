@@ -74,6 +74,7 @@ def test_device_list_weights_are_model_times_version() -> None:
 def test_tdesktop_generate(seed: str) -> None:
     api = API.TelegramDesktop.Generate("macos", seed)
     assert _MODEL.match(api.device_model), api.device_model
+    assert api.system_version is not None
     assert _TDESKTOP_VERSION.match(api.system_version), api.system_version
     version = api.system_version.removeprefix("macOS ")
     assert _version_tuple(version) >= _min_macos()[api.device_model]
@@ -83,6 +84,7 @@ def test_tdesktop_generate(seed: str) -> None:
 def test_telegram_macos_generate(seed: str) -> None:
     api = API.TelegramMacOS.Generate(seed)
     assert _MODEL.match(api.device_model), api.device_model
+    assert api.system_version is not None
     assert _SWIFT_VERSION.match(api.system_version), api.system_version
     assert _version_tuple(api.system_version) >= _min_macos()[api.device_model]
 
