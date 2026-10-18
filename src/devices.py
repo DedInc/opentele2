@@ -61,6 +61,7 @@ class _LazyData:
 _desktop_lazy = _LazyData("desktop.json")
 _mac_lazy = _LazyData("mac.json")
 _android_lazy = _LazyData("android.json")
+_ios_lazy = _LazyData("ios.json")
 
 
 def _version_tuple(version: str) -> tuple[int, ...]:
@@ -320,167 +321,68 @@ class AndroidDevice(SystemInfo):
 
 
 class IOSDevice(SystemInfo):
-    device_models: ClassVar[dict[int, list[str]]] = {
-        5: ["S"],
-        6: [" Plus", "", "S", "S Plus"],
-        7: ["", " Plus"],
-        8: ["", " Plus"],
-        10: ["", "S", "S Max", "R"],
-        11: ["", " Pro", " Pro Max"],
-        12: [" mini", "", " Pro", " Pro Max"],
-        13: [" Pro", " Pro Max", " mini", ""],
-        14: ["", " Plus", " Pro", " Pro Max"],
-        15: ["", " Plus", " Pro", " Pro Max"],
-        16: ["", " Plus", " Pro", " Pro Max"],
-        17: ["", " Air", " Pro", " Pro Max"],
-    }
-
-    PATCH_PATTERNS: ClassVar[dict[str, list[int]]] = {
-        "initial": [],
-        "early": [1],
-        "stable": [1, 2],
-        "mature": [1, 2, 3],
-        "final": [1, 2, 3, 4, 5],
-    }
-
-    system_versions: ClassVar[dict[int, dict[int, list[int]]]] = {
-        12: {
-            5: [5, 4, 3, 2, 1],
-            4: [9, 8, 7, 6, 5, 4, 3, 2, 1],
-            3: [2, 1],
-            2: [],
-            1: [4, 3, 2, 1],
-            0: [1],
-        },
-        13: {
-            7: [],
-            6: [1],
-            5: [1],
-            4: [1],
-            3: [1],
-            2: [3, 2],
-            1: [3, 2, 1],
-            0: [],
-        },
-        14: {
-            8: [1],
-            7: [1],
-            6: [],
-            5: [1],
-            4: [2, 1],
-            3: [],
-            2: [1],
-            1: [],
-            0: [1],
-        },
-        15: {
-            8: [1],
-            7: [8, 7, 6, 5, 4, 3, 2, 1],
-            6: [1],
-            5: [],
-            4: [1],
-            3: [1],
-            2: [],
-            1: [1],
-            0: [2, 1],
-        },
-    }
-
-    _IOS_VERSION_MAP: ClassVar[dict[int, list[int]]] = {
-        5: [12],
-        6: [12, 13, 14, 15, 16],
-        7: [12, 13, 14, 15, 16, 17],
-        8: [12, 13, 14, 15, 16, 17, 18],
-        10: [12, 13, 14, 15, 16, 17, 18, 19, 20],
-        11: [13, 14, 15, 16, 17, 18, 19, 20, 21],
-        12: [14, 15, 16, 17, 18, 19, 20, 21, 22],
-        13: [15, 16, 17, 18, 19, 20, 21, 22, 23],
-        14: [16, 17, 18, 19, 20, 21, 22, 23, 24],
-        15: [17, 18, 19, 20, 21, 22, 23, 24, 25],
-        16: [18, 19, 20, 21, 22, 23, 24, 25, 26],
-        17: [26],
-    }
-
-    _MAJOR_VERSION_WEIGHTS: ClassVar[dict[int, int]] = {
-        26: 10,
-        25: 1,
-        24: 1,
-        23: 1,
-        22: 1,
-        21: 1,
-        20: 1,
-        19: 1,
-        18: 5,
-        17: 2,
-        16: 1,
-        15: 1,
-        14: 1,
-        13: 1,
-        12: 1,
-    }
-
+    device_models: ClassVar[list[str]] = []
+    _model_weights: ClassVar[dict[str, int]] = {}
+    system_versions: ClassVar[list[str]] = []
+    _version_weights: ClassVar[dict[str, int]] = {}
     deviceList: ClassVar[list[DeviceInfo]] = []
+    _min_ios: ClassVar[dict[str, tuple[int, ...]]] = {}
+    _max_major: ClassVar[dict[str, int]] = {}
+    _only: ClassVar[dict[str, list[str]]] = {}
+    _except: ClassVar[dict[str, list[str]]] = {}
+    _ios_data_loaded: bool = False
 
     @classmethod
-    def _get_patch_pattern(cls, minor: int, max_minor: int) -> list[int]:
-        if minor == 0:
-            return cls.PATCH_PATTERNS["initial"]
-        elif minor == 1:
-            return cls.PATCH_PATTERNS["early"]
-        elif minor <= 3:
-            return cls.PATCH_PATTERNS["stable"]
-        elif minor < max_minor:
-            return cls.PATCH_PATTERNS["mature"]
-        else:
-            return cls.PATCH_PATTERNS["final"]
+    def _ensure_ios_data(cls) -> None:
+        if not cls._ios_data_loaded:
+            data = _ios_lazy.data
+            cls.device_models = [e["model"] for e in data["models"]]
+            cls._model_weights = {
+                e["model"]: e.get("weight", 1) for e in data["models"]
+            }
+            cls.system_versions = [e["version"] for e in data["versions"]]
+            cls._version_weights = {
+                e["version"]: e.get("weight", 1) for e in data["versions"]
+            }
+            cls._min_ios = {
+                e["model"]: _version_tuple(e["min_ios"]) for e in data["models"]
+            }
+            cls._max_major = {e["model"]: e["max_major"] for e in data["models"]}
+            cls._only = data.get("only", {})
+            cls._except = data.get("except", {})
+            cls._ios_data_loaded = True
 
     @classmethod
-    def _generate_version_structure(
-        cls, _major: int, max_minor: int = 8
-    ) -> dict[int, list[int]]:
-        result = {}
-        for minor in range(max_minor + 1):
-            result[minor] = cls._get_patch_pattern(minor, max_minor)
-        return result
-
-    @classmethod
-    def _expand_versions(cls, major: int, minor: int, patches: list[int]) -> list[str]:
-        if not patches:
-            return [f"{major}.{minor}"]
-        return [f"{major}.{minor}.{patch}" for patch in patches]
+    def _model_gets_version(cls, model: str, version: str) -> bool:
+        parsed = _version_tuple(version)
+        if parsed < cls._min_ios[model] or parsed[0] > cls._max_major[model]:
+            return False
+        # Point releases that shipped to a subset of models (or skipped some)
+        # are listed per version in the catalog.
+        only = cls._only.get(version)
+        if only is not None and model not in only:
+            return False
+        excluded = cls._except.get(version)
+        return excluded is None or model not in excluded
 
     @classmethod
     def __gen__(cls: type[IOSDevice]) -> None:
+        # Telegram-iOS sends platformString(hw.machine), a marketing name such
+        # as "iPhone 15 Pro", and UIDevice systemVersion ("17.4.1", "26.0").
         if cls.deviceList:
             return
-
-        for major in range(16, 27):
-            if major not in cls.system_versions:
-                if major <= 18:
-                    max_minor = 8
-                elif major <= 22:
-                    max_minor = 7
-                else:
-                    max_minor = 2
-
-                cls.system_versions[major] = cls._generate_version_structure(
-                    major, max_minor
+        cls._ensure_ios_data()
+        device_list: list[DeviceInfo] = []
+        for model in cls.device_models:
+            versions = [
+                v for v in cls.system_versions if cls._model_gets_version(model, v)
+            ]
+            device_list.extend(
+                cls._build_weighted_device_list(
+                    [model], versions, cls._model_weights, cls._version_weights
                 )
-
-        results: list[DeviceInfo] = []
-        seen_versions: set = set()
-
-        for major in sorted(cls.system_versions.keys()):
-            weight = cls._MAJOR_VERSION_WEIGHTS.get(major, 1)
-            for minor, patches in cls.system_versions[major].items():
-                for ver in cls._expand_versions(major, minor, patches):
-                    if ver not in seen_versions:
-                        seen_versions.add(ver)
-                        device = DeviceInfo("iPhone", ver)
-                        for _ in range(weight):
-                            results.append(device)
-
-        cls.deviceList = results
+            )
+        cls.deviceList = device_list
 
 
 iOSDevice = IOSDevice

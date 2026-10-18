@@ -87,9 +87,9 @@ class PlatformVersions:
 
     ios_app_version: str = "12.7"
     ios_build_number: int = 32933
-    ios_version_range: tuple[str, str] = ("16.0", "26.2")
+    ios_version_range: tuple[str, str] = ("16.0", "27.0.1")
 
-    ios_system_version: str = "26.2"
+    ios_system_version: str = "27.0.1"
     macos_system_version: str = "27.0.1"
 
     # Bound to the version stamped into written tdata; never fetched.

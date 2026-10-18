@@ -347,8 +347,8 @@ class API(BaseObject):
     class TelegramIOS(APIData):
         api_id = 10840
         api_hash = "33c45224029d59cb3ad0c16134215aeb"
-        device_model = "iPhone"
-        system_version = "26.2"
+        device_model = "iPhone 17 Pro"
+        system_version = "27.0.1"
         app_version = "12.7"
         lang_code = "en"
         system_lang_code = "en-US"
