@@ -21,8 +21,6 @@ from telethon.errors.rpcerrorlist import (
     HashInvalidError,
     PasswordHashInvalidError,
 )
-from telethon.network.connection.connection import Connection
-from telethon.network.connection.tcpobfuscated import ConnectionTcpObfuscated
 from telethon.sessions.abstract import Session
 from telethon.sessions.memory import MemorySession
 from telethon.sessions.sqlite import SQLiteSession
@@ -52,7 +50,10 @@ from .session_io import (
 )
 
 if TYPE_CHECKING:
+    from typing_extensions import Unpack
+
     from ..consistency import ConsistencyReport
+    from .client_kwargs import ClientKwargs, TelethonClientKwargs
 
 _DEFAULT_REQUEST_RETRIES = 5
 _QR_EXPIRE_SAFETY_SECONDS = 5
@@ -125,53 +126,17 @@ class TelegramClient(telethon.TelegramClient):
     lang_code, system_lang_code, lang_pack) to mimic official clients.
     """
 
-    @typing.overload
-    def __init__(
-        self: TelegramClient,
-        session: str | Session = None,
-        api: type[APIData] | APIData = API.TelegramDesktop,
-    ) -> None: ...
-
-    @typing.overload
-    def __init__(
-        self,
-        session: str | Session = None,
-        api: type[APIData] | APIData | None = None,
-        api_id: int = 0,
-        api_hash: str | None = None,
-        *,
-        connection: type[Connection] = ConnectionTcpObfuscated,
-        use_ipv6: bool = False,
-        proxy: tuple | dict | None = None,
-        local_addr: str | tuple | None = None,
-        timeout: int = 10,
-        request_retries: int = 5,
-        connection_retries: int = 5,
-        retry_delay: int = 1,
-        auto_reconnect: bool = True,
-        sequential_updates: bool = False,
-        flood_sleep_threshold: int = 60,
-        raise_last_call_error: bool = False,
-        device_model: str | None = None,
-        system_version: str | None = None,
-        app_version: str | None = None,
-        lang_code: str = "en",
-        system_lang_code: str = "en",
-        loop: asyncio.AbstractEventLoop | None = None,
-        base_logger: str | logging.Logger | None = None,
-        receive_updates: bool = True,
-        fingerprint_config: FingerprintConfig | None = None,
-        auto_post_login: bool = True,
-    ) -> None: ...
+    # Telethon assigns this in __init__; it is never None afterwards.
+    session: Session
 
     def __init__(
         self,
-        session: str | Session = None,
+        session: str | Session | None = None,
         api: type[APIData] | APIData | None = None,
         api_id: int = 0,
         api_hash: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Unpack[ClientKwargs],
+    ) -> None:
         self._fingerprint_config: FingerprintConfig = (
             kwargs.pop("fingerprint_config", None) or DEFAULT_CONFIG
         )
@@ -205,7 +170,15 @@ class TelegramClient(telethon.TelegramClient):
         self._api_data: APIData | None = api_data
         self._user_id = None
 
-        super().__init__(session, api_id, api_hash, **kwargs)
+        # fingerprint_config and auto_post_login were popped above; Telethon
+        # takes None for a session and builds a MemorySession from it.
+        telethon_kwargs = typing.cast("dict[str, typing.Any]", kwargs)
+        super().__init__(
+            typing.cast("str | Session", session),
+            api_id,
+            typing.cast("str", api_hash),
+            **telethon_kwargs,
+        )
 
         # Telethon hardcodes lang_pack to '' — override it for official client mimicry
         if api_data is not None and api_data.lang_pack:
@@ -321,7 +294,7 @@ class TelegramClient(telethon.TelegramClient):
         return True
 
     async def PrintSessions(
-        self, sessions: types.account.Authorizations = None
+        self, sessions: types.account.Authorizations | None = None
     ) -> None:
         if sessions is None or not isinstance(sessions, types.account.Authorizations):
             sessions = await self.GetSessions()
@@ -356,36 +329,12 @@ class TelegramClient(telethon.TelegramClient):
         checker = ConsistencyChecker(self, auto_warn=auto_warn)
         return await checker.run_all()
 
-    @typing.overload
     async def QRLoginToNewClient(
         self,
-        session: str | Session = None,
+        session: str | Session | None = None,
         api: type[APIData] | APIData = API.TelegramDesktop,
         password: str | None = None,
-        *,
-        connection: type[Connection] = ConnectionTcpObfuscated,
-        use_ipv6: bool = False,
-        proxy: tuple | dict | None = None,
-        local_addr: str | tuple | None = None,
-        timeout: int = 10,
-        request_retries: int = 5,
-        connection_retries: int = 5,
-        retry_delay: int = 1,
-        auto_reconnect: bool = True,
-        sequential_updates: bool = False,
-        flood_sleep_threshold: int = 60,
-        raise_last_call_error: bool = False,
-        loop: asyncio.AbstractEventLoop | None = None,
-        base_logger: str | logging.Logger | None = None,
-        receive_updates: bool = True,
-    ) -> TelegramClient: ...
-
-    async def QRLoginToNewClient(
-        self,
-        session: str | Session = None,
-        api: type[APIData] | APIData = API.TelegramDesktop,
-        password: str | None = None,
-        **kwargs,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> TelegramClient:
         newClient = TelegramClient(session, api=api, **kwargs)
 
@@ -440,7 +389,7 @@ class TelegramClient(telethon.TelegramClient):
         session: str | Session | None,
         api: type[APIData] | APIData,
         password: str | None,
-        **kwargs: object,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> TelegramClient:
         currentAuth = await newClient.GetCurrentSession()
         if currentAuth is None:
@@ -470,7 +419,7 @@ class TelegramClient(telethon.TelegramClient):
         self,
         newClient: TelegramClient,
         password: str | None,
-        **kwargs: object,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> TelegramClient:
         timeout_err = None
         request_retries = kwargs.get("request_retries", _DEFAULT_REQUEST_RETRIES)
@@ -544,6 +493,7 @@ class TelegramClient(telethon.TelegramClient):
                 "You need to provide the `password` to argument"
             ),
         )
+        assert password is not None
 
         try:
             pwd: types.account.Password = await newClient(
@@ -573,40 +523,14 @@ class TelegramClient(telethon.TelegramClient):
             self, flag=flag, api=api, password=password
         )
 
-    @typing.overload
     @staticmethod
     async def FromTDesktop(
         account: td.TDesktop | td.Account,
-        session: str | Session = None,
+        session: str | Session | None = None,
         flag: type[LoginFlag] = CreateNewSession,
         api: type[APIData] | APIData = API.TelegramDesktop,
         password: str | None = None,
-        *,
-        connection: type[Connection] = ConnectionTcpObfuscated,
-        use_ipv6: bool = False,
-        proxy: tuple | dict | None = None,
-        local_addr: str | tuple | None = None,
-        timeout: int = 10,
-        request_retries: int = 5,
-        connection_retries: int = 5,
-        retry_delay: int = 1,
-        auto_reconnect: bool = True,
-        sequential_updates: bool = False,
-        flood_sleep_threshold: int = 60,
-        raise_last_call_error: bool = False,
-        loop: asyncio.AbstractEventLoop | None = None,
-        base_logger: str | logging.Logger | None = None,
-        receive_updates: bool = True,
-    ) -> TelegramClient: ...
-
-    @staticmethod
-    async def FromTDesktop(
-        account: td.TDesktop | td.Account,
-        session: str | Session = None,
-        flag: type[LoginFlag] = CreateNewSession,
-        api: type[APIData] | APIData = API.TelegramDesktop,
-        password: str | None = None,
-        **kwargs,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> TelegramClient:
         Expects(
             (flag == CreateNewSession) or (flag == UseCurrentSession),
@@ -643,6 +567,7 @@ class TelegramClient(telethon.TelegramClient):
         endpoint = endpoints[address][protocol][0]
 
         auth_session.set_dc(endpoint.id, endpoint.ip, endpoint.port)
+        assert account.authKey is not None
         auth_session.auth_key = AuthKey(account.authKey.key)
 
         client = TelegramClient(auth_session, api=account.api, **kwargs)
@@ -727,7 +652,7 @@ class TelegramClient(telethon.TelegramClient):
         json_path: str | None = None,
         flag: type[LoginFlag] = UseCurrentSession,
         password: str | None = None,
-        **kwargs: object,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> TelegramClient:
         return await from_session_json(
             session_path, json_path, flag, password, **kwargs

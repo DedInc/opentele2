@@ -17,19 +17,21 @@ from ..exception import (
 )
 
 if TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+    from .client_kwargs import TelethonClientKwargs
     from .telethon import TelegramClient
 
 from telethon.sessions.sqlite import SQLiteSession
+from telethon.tl.types import User
 
 logger = logging.getLogger(__name__)
 
 
 def _normalize_base_path(path: str) -> str:
     base = path
-    if base.endswith(".session"):
-        base = base[: -len(".session")]
-    if base.endswith(".json"):
-        base = base[: -len(".json")]
+    base = base.removesuffix(".session")
+    base = base.removesuffix(".json")
     return base
 
 
@@ -141,7 +143,7 @@ async def from_session_json(
     json_path: str | None = None,
     flag: type[LoginFlag] = UseCurrentSession,
     password: str | None = None,
-    **kwargs: object,
+    **kwargs: Unpack[TelethonClientKwargs],
 ) -> TelegramClient:
     from .telethon import TelegramClient
 
@@ -220,7 +222,7 @@ async def save_session_json(
     if fetch_user_info and client.is_connected():
         try:
             me = await client.get_me()
-            if me:
+            if isinstance(me, User):
                 extra["id"] = me.id
                 extra["phone"] = getattr(me, "phone", None)
                 extra["username"] = getattr(me, "username", None)

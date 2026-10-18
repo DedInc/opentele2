@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import typing
 from ctypes import c_int32 as int32
 from ctypes import sizeof
 
-from telethon.network.connection.connection import Connection
-from telethon.network.connection.tcpfull import ConnectionTcpFull
 from telethon.sessions.abstract import Session
 
 from .. import tl
@@ -36,6 +33,11 @@ from .key_data import (
     read_key_data,
     wrap_local_key,
 )
+
+if typing.TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+    from ..tl.client_kwargs import TelethonClientKwargs
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +308,7 @@ class TDesktop(BaseObject):
 
         self.accounts.clear()
 
-        keyData = td.Storage.ReadFile("key_" + self.keyFile, self.basePath)  # type: ignore
+        keyData = td.Storage.ReadFile("key_" + self.keyFile, self.basePath)
 
         parsed, infoEncrypted = read_key_data(keyData.stream)
 
@@ -384,38 +386,13 @@ class TDesktop(BaseObject):
 
         self.__isLoaded = True
 
-    @typing.overload  # type: ignore[misc]
     async def ToTelethon(
         self,
-        session: str | Session = None,
+        session: str | Session | None = None,
         flag: type[LoginFlag] = CreateNewSession,
         api: type[APIData] | APIData = API.TelegramDesktop,
         password: str | None = None,
-        *,
-        connection: type[Connection] = ConnectionTcpFull,
-        use_ipv6: bool = False,
-        proxy: tuple | dict | None = None,
-        local_addr: str | tuple | None = None,
-        timeout: int = 10,
-        request_retries: int = 5,
-        connection_retries: int = 5,
-        retry_delay: int = 1,
-        auto_reconnect: bool = True,
-        sequential_updates: bool = False,
-        flood_sleep_threshold: int = 60,
-        raise_last_call_error: bool = False,
-        loop: asyncio.AbstractEventLoop | None = None,
-        base_logger: str | logging.Logger | None = None,
-        receive_updates: bool = True,
-    ) -> tl.TelegramClient: ...
-
-    async def ToTelethon(
-        self,
-        session: str | Session = None,
-        flag: type[LoginFlag] = CreateNewSession,
-        api: type[APIData] | APIData = API.TelegramDesktop,
-        password: str | None = None,
-        **kwargs,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> tl.TelegramClient:
         """Convert this TDesktop to a TelegramClient."""
         Expects(

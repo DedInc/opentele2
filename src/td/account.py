@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-import logging
 import typing
 
-from telethon.network.connection.connection import Connection
-from telethon.network.connection.tcpfull import ConnectionTcpFull
 from telethon.sessions.abstract import Session
 
 from .. import tl
@@ -23,8 +19,12 @@ from ..qt_compat import QByteArray, QDataStream, QIODevice
 from ..utils import BaseObject
 from . import shared as td
 from .configs import DcId
-from .map_data import MapData
 from .storage_account import StorageAccount
+
+if typing.TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+    from ..tl.client_kwargs import TelethonClientKwargs
 
 
 class Account(BaseObject):
@@ -113,7 +113,7 @@ class Account(BaseObject):
         return self._local.config
 
     @property
-    def MapData(self) -> MapData:
+    def MapData(self) -> td.MapData:
         return self._local.mapData
 
     def isAuthorized(self) -> bool:
@@ -225,39 +225,13 @@ class Account(BaseObject):
 
         self.owner.SaveTData(basePath, passcode, keyFile)
 
-    @typing.overload
     async def ToTelethon(
         self,
         session: str | Session | None = None,
         flag: type[LoginFlag] = CreateNewSession,
         api: type[APIData] | APIData = API.TelegramDesktop,
         password: str | None = None,
-        *,
-        connection: type[Connection] = ConnectionTcpFull,
-        use_ipv6: bool = False,
-        proxy: tuple | dict | None = None,
-        local_addr: str | tuple | None = None,
-        timeout: int = 10,
-        request_retries: int = 5,
-        connection_retries: int = 5,
-        retry_delay: int = 1,
-        auto_reconnect: bool = True,
-        sequential_updates: bool = False,
-        flood_sleep_threshold: int = 60,
-        raise_last_call_error: bool = False,
-        loop: asyncio.AbstractEventLoop | None = None,
-        base_logger: str | logging.Logger | None = None,
-        receive_updates: bool = True,
-    ) -> tl.TelegramClient:
-        pass
-
-    async def ToTelethon(
-        self,
-        session: str | Session | None = None,
-        flag: type[LoginFlag] = CreateNewSession,
-        api: type[APIData] | APIData = API.TelegramDesktop,
-        password: str | None = None,
-        **kwargs,
+        **kwargs: Unpack[TelethonClientKwargs],
     ) -> tl.TelegramClient:
         Expects(
             self.isLoaded(),
@@ -314,6 +288,13 @@ class Account(BaseObject):
                 await copy.connect()
                 await copy.get_me()
                 userId = copy.UserId
+            Expects(
+                userId is not None,
+                exception=TelethonUnauthorized(
+                    "Could not resolve the account's user id"
+                ),
+            )
+            assert userId is not None
 
             if owner is not None:
                 Expects(
