@@ -194,7 +194,7 @@ class MapData(BaseObject):  # nocov
     def _parseMapStream(
         self,
         map: td.Storage.EncryptedDescriptor,
-        localKey: td.AuthKey,
+        localKey: td.AuthKey | None,
         mapVersion: int,
     ) -> None:
         draftsMap: DraftMap = {}
@@ -325,7 +325,7 @@ class MapData(BaseObject):  # nocov
 
     def _applyParsedKeys(
         self,
-        localKey: td.AuthKey,
+        localKey: td.AuthKey | None,
         mapVersion: int,
         draftsMap: DraftMap,
         draftCursorsMap: DraftMap,

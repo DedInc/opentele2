@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 from typing import ClassVar
 
 from ..exception import (
@@ -90,7 +90,7 @@ class MTP(BaseObject):  # nocov
             else:
                 dcs, dcs_ipv6 = BuiltInDc.kBuiltInDcs, BuiltInDc.kBuiltInDcsIPv6
 
-            addToData(dcs, MTP.DcOptions.Flag.f_static)  # type: ignore
+            addToData(dcs, MTP.DcOptions.Flag.f_static)
             addToData(
                 dcs_ipv6,
                 MTP.DcOptions.Flag(
@@ -189,7 +189,7 @@ class MTP(BaseObject):  # nocov
             Tcp = 0
             Http = 1
 
-        class Flag(int):
+        class Flag(IntFlag):
             f_ipv6 = 1 << 0
             f_media_only = 1 << 1
             f_tcpo_only = 1 << 2
