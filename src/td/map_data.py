@@ -4,6 +4,7 @@ import logging
 from ctypes import c_uint32 as uint32
 from ctypes import c_uint64 as uint64
 from ctypes import sizeof
+from typing import ClassVar
 
 from ..exception import (
     Expects,
@@ -17,6 +18,8 @@ from ..utils import BaseObject
 from . import shared as td
 from .configs import FileKey, PeerId, lskType
 
+logger = logging.getLogger(__name__)
+
 DraftMap = dict[PeerId, FileKey]
 DraftReadMap = dict[PeerId, bool]
 ParsedKeys = dict[str, int]
@@ -26,7 +29,7 @@ class MapData(BaseObject):  # nocov
     _HARDCODED_SETTINGS_KEY = FileKey(1851671142505648812)
     _LEGACY_SALT_SIZE = 32
 
-    _KEY_TO_ATTR = {
+    _KEY_TO_ATTR: ClassVar[dict[str, str]] = {
         "prefsKey": "_prefsKey",
         "locationsKey": "_locationsKey",
         "trustedBotsKey": "_trustedBotsKey",
@@ -54,7 +57,7 @@ class MapData(BaseObject):  # nocov
         "mediaLastPlaybackPositionsKey": "_mediaLastPlaybackPositionsKey",
     }
 
-    _LSK_KEY_MAP = {
+    _LSK_KEY_MAP: ClassVar[dict[int, tuple[str, ...]]] = {
         lskType.lskPrefs: ("prefsKey",),
         lskType.lskLocations: ("locationsKey",),
         lskType.lskTrustedBots: ("trustedBotsKey",),
@@ -312,7 +315,7 @@ class MapData(BaseObject):  # nocov
         else:
             # The payload size of an unknown key is unknowable, so reading on
             # would misparse everything after it. Keep what was read so far.
-            logging.warning(
+            logger.warning(
                 f"Unknown key type in encrypted map: {keyType}, "
                 "ignoring the rest of the map"
             )

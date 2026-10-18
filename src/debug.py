@@ -27,8 +27,6 @@ if IS_DEBUG_MODE:
     from rich import print
 
     _F = t.TypeVar("_F", bound=t.Callable[..., object])
-    _T = t.TypeVar("_T")
-    _R = t.TypeVar("_R")
 
     class DebugInfo:
         def __init__(self) -> None:

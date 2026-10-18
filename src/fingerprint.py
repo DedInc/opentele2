@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import logging
 import random
 import time
 import warnings
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from .utils import APP_VERSION_STR
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "LAYER",
@@ -133,7 +136,8 @@ def _apply_fetched_versions() -> None:
                 str(fetched["ios_system_version"]),
             )
     except Exception:
-        pass
+        # Fetching is best effort; the bundled defaults stay in place.
+        logger.debug("Could not apply fetched platform versions", exc_info=True)
 
 
 _apply_fetched_versions()
@@ -149,11 +153,12 @@ def tdesktop_tz_offset(now: datetime | None = None) -> float:
     Mirrors ``SessionPrivate::prepareInitParams``: the local UTC offset in
     seconds, wrapped into -12h..+14h and rounded to a multiple of 900.
     """
-    local = (
-        now
-        if now is not None and now.tzinfo is not None
-        else ((now or datetime.now()).astimezone())
-    )
+    if now is None:
+        local = datetime.now(timezone.utc).astimezone()
+    elif now.tzinfo is None:
+        local = now.astimezone()
+    else:
+        local = now
     offset = local.utcoffset()
     sliced = int(offset.total_seconds()) if offset is not None else 0
     while sliced < -12 * 3600:

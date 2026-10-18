@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import os
 import sqlite3
 import typing
@@ -19,6 +21,8 @@ if TYPE_CHECKING:
 
 from telethon.sessions.sqlite import SQLiteSession
 
+logger = logging.getLogger(__name__)
+
 
 def _normalize_base_path(path: str) -> str:
     base = path
@@ -29,6 +33,16 @@ def _normalize_base_path(path: str) -> str:
     return base
 
 
+def _read_json(path: str) -> typing.Any:
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_json(path: str, data: typing.Any) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
 SESSION_VERSION = 8
 
 _V8_SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
@@ -37,23 +51,31 @@ _V8_SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
         ("version",),
     ),
     "sessions": (
-        "sessions (dc_id integer primary key, server_address text, "
-        "port integer, auth_key blob, takeout_id integer, tmp_auth_key blob)",
+        (
+            "sessions (dc_id integer primary key, server_address text, "
+            "port integer, auth_key blob, takeout_id integer, tmp_auth_key blob)"
+        ),
         ("dc_id", "server_address", "port", "auth_key", "takeout_id", "tmp_auth_key"),
     ),
     "entities": (
-        "entities (id integer primary key, hash integer not null, "
-        "username text, phone integer, name text, date integer)",
+        (
+            "entities (id integer primary key, hash integer not null, "
+            "username text, phone integer, name text, date integer)"
+        ),
         ("id", "hash", "username", "phone", "name", "date"),
     ),
     "sent_files": (
-        "sent_files (md5_digest blob, file_size integer, type integer, "
-        "id integer, hash integer, primary key(md5_digest, file_size, type))",
+        (
+            "sent_files (md5_digest blob, file_size integer, type integer, "
+            "id integer, hash integer, primary key(md5_digest, file_size, type))"
+        ),
         ("md5_digest", "file_size", "type", "id", "hash"),
     ),
     "update_state": (
-        "update_state (id integer primary key, pts integer, qts integer, "
-        "date integer, seq integer)",
+        (
+            "update_state (id integer primary key, pts integer, qts integer, "
+            "date integer, seq integer)"
+        ),
         ("id", "pts", "qts", "date", "seq"),
     ),
 }
@@ -142,8 +164,7 @@ async def from_session_json(
     )
 
     try:
-        with open(json_file, encoding="utf-8") as f:
-            data = json.load(f)
+        data = await asyncio.to_thread(_read_json, json_file)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise SessionFileInvalid(f"Invalid JSON file: {e}")
 
@@ -207,14 +228,14 @@ async def save_session_json(
                 extra["last_name"] = getattr(me, "last_name", "") or ""
                 extra["is_premium"] = bool(getattr(me, "premium", False))
         except Exception:
-            pass
+            # User details are optional in the JSON; the session still saves.
+            logger.debug("Could not fetch user info for the JSON", exc_info=True)
 
     if client.UserId and "id" not in extra:
         extra["id"] = client.UserId
 
     json_data = api_data.to_json(extra)
-    with open(json_file, "w", encoding="utf-8") as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=2)
+    await asyncio.to_thread(_write_json, json_file, json_data)
 
     return (session_file, json_file)
 

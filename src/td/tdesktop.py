@@ -37,6 +37,8 @@ from .key_data import (
     wrap_local_key,
 )
 
+logger = logging.getLogger(__name__)
+
 _PERF_LOCAL_KEY = bytes.fromhex(
     "d8745944519e0d2d71309d6c8d272dc64948f5e3eba7685324d5c691ad810c20"
     "3b31d19d29aed6ac33c014be6e09843293f6fa32dbe42b6a04e00481fae99511"
@@ -162,7 +164,7 @@ class TDesktop(BaseObject):
                         "Failed to decrypt tdata folder because of invalid passcode"
                     )
             else:
-                raise e
+                raise
 
         Expects(self.isLoaded(), "Failed to load? Something went seriously wrong")
 
@@ -336,7 +338,7 @@ class TDesktop(BaseObject):
         if count > TDesktop.kMaxAccounts:
             # tdesktop 7.3.1 caps this at 6, but a later build may raise the
             # cap without changing the format, so read what is there.
-            logging.warning(
+            logger.warning(
                 f"tdata lists {count} accounts, above the {TDesktop.kMaxAccounts} "
                 "known to Telegram Desktop 7.3.1; loading them anyway"
             )

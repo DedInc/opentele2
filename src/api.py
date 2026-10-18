@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import platform
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -25,6 +26,8 @@ __all__ = [
     "LoginFlag",
     "UseCurrentSession",
 ]
+
+logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
 
@@ -82,8 +85,7 @@ class BaseAPIMetaClass(BaseMetaClass):
 
         for attr, val in glob.__dict__.items():
             if (
-                attr.startswith(f"_{cls.__base__.__name__}__")
-                or attr.startswith(f"_{cls.__name__}__")
+                attr.startswith((f"_{cls.__base__.__name__}__", f"_{cls.__name__}__"))
                 or (attr.startswith("__") and attr.endswith("__"))
                 or type(val) is classmethod
                 or callable(val)
@@ -208,15 +210,15 @@ class APIData(metaclass=BaseAPIMetaClass):
         result.update(defaults)
         return result
 
-    def __eq__(self, __o: object) -> bool:
-        if not isinstance(__o, APIData):
+    def __eq__(self, other: object, /) -> bool:
+        if not isinstance(other, APIData):
             return NotImplemented
         return (
-            self.api_id == __o.api_id
-            and self.api_hash == __o.api_hash
-            and self.device_model == __o.device_model
-            and self.system_version == __o.system_version
-            and self.app_version == __o.app_version
+            self.api_id == other.api_id
+            and self.api_hash == other.api_hash
+            and self.device_model == other.device_model
+            and self.system_version == other.system_version
+            and self.app_version == other.app_version
         )
 
     def __hash__(self) -> int:
@@ -432,7 +434,8 @@ def _sync_api_versions() -> None:
         API.TelegramWeb_A.app_version = pv.web_a_version
         API.TelegramWeb_K.app_version = pv.web_k_version
     except Exception:
-        pass
+        # Keep the class defaults if the platform versions are unusable.
+        logger.debug("Could not sync API versions", exc_info=True)
 
 
 _sync_api_versions()

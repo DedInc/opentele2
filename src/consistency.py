@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .tl.telethon import TelegramClient
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "CheckResult",
@@ -67,6 +70,7 @@ class ConsistencyChecker:
                 result = await check_fn()
                 report.checks.append(result)
             except Exception as e:
+                logger.debug("Consistency check raised", exc_info=True)
                 report.checks.append(
                     CheckResult(
                         name=check_fn.__name__.replace("check_", ""),
@@ -96,6 +100,7 @@ class ConsistencyChecker:
                 server_response=config,
             )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="get_config",
                 passed=False,
@@ -118,6 +123,7 @@ class ConsistencyChecker:
                 server_response=result,
             )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="nearest_dc",
                 passed=False,
@@ -147,6 +153,7 @@ class ConsistencyChecker:
                 server_response=auth,
             )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="current_session",
                 passed=False,
@@ -205,6 +212,7 @@ class ConsistencyChecker:
                 server_response=languages,
             )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="lang_pack",
                 passed=False,
@@ -232,6 +240,7 @@ class ConsistencyChecker:
                     server_response=result,
                 )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="app_update",
                 passed=False,
@@ -250,6 +259,7 @@ class ConsistencyChecker:
                 server_response=result,
             )
         except Exception as e:
+            logger.debug("Consistency check raised", exc_info=True)
             return CheckResult(
                 name="terms_of_service",
                 passed=False,

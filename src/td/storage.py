@@ -4,6 +4,7 @@ import hashlib
 import os
 from ctypes import c_uint32 as uint32
 from ctypes import sizeof
+from typing import ClassVar
 
 import tgcrypto
 
@@ -352,11 +353,11 @@ class Storage(BaseObject):
 
         try:
             data = Storage.DecryptLocal(encrypted, authKey)
-        except OpenTeleException as e:
+        except OpenTeleException:
             Storage._resetDescriptor(result)
             result.data = QByteArray()
             result.version = 0
-            raise e
+            raise
 
         Storage._resetDescriptor(result)
         result.data = data.data
@@ -369,7 +370,7 @@ class Storage(BaseObject):
 
         return result
 
-    _LEGACY_INT32_SETTINGS = {
+    _LEGACY_INT32_SETTINGS: ClassVar[dict[int, str]] = {
         dbi.ChatSizeMaxOld: "fallbackConfigLegacyChatSizeMax",
         dbi.SavedGifsLimitOld: "fallbackConfigLegacySavedGifsLimit",
         dbi.StickersRecentLimitOld: "fallbackConfigLegacyStickersRecentLimit",
@@ -453,8 +454,10 @@ class Storage(BaseObject):
 
     @staticmethod
     def CreateLocalKey(
-        salt: QByteArray, passcode: QByteArray = QByteArray()
+        salt: QByteArray, passcode: QByteArray | None = None
     ) -> td.AuthKey:
+        if passcode is None:
+            passcode = QByteArray()
         hashKey = hashlib.sha512(bytes(salt))
         hashKey.update(bytes(passcode))
         hashKey.update(bytes(salt))
@@ -470,8 +473,10 @@ class Storage(BaseObject):
 
     @staticmethod
     def CreateLegacyLocalKey(
-        salt: QByteArray, passcode: QByteArray = QByteArray()
+        salt: QByteArray, passcode: QByteArray | None = None
     ) -> td.AuthKey:
+        if passcode is None:
+            passcode = QByteArray()
         iterationsCount = (
             _LEGACY_PBKDF2_ITERATIONS_EMPTY
             if passcode.isEmpty()

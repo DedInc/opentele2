@@ -15,6 +15,9 @@ class AuthKeyType(IntEnum):
     Local = 3
 
 
+_NO_DC_ID = DcId(0)
+
+
 class AuthKey(BaseObject):
     kSize = 256
 
@@ -70,7 +73,7 @@ class AuthKey(BaseObject):
     def FromStream(
         stream: QDataStream,
         type: AuthKeyType = AuthKeyType.ReadFromFile,
-        dcId: DcId = DcId(0),
+        dcId: DcId = _NO_DC_ID,
     ) -> AuthKey:
         keyData = stream.readRawData(AuthKey.kSize)
         return AuthKey(keyData, type, dcId)

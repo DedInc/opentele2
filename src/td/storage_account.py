@@ -145,10 +145,13 @@ class StorageAccount(BaseObject):  # nocov
         return td.MTP.Config(td.MTP.Environment.Production)
 
     def _readMapWith(
-        self, localKey: td.AuthKey, legacyPasscode: QByteArray = QByteArray()
+        self, localKey: td.AuthKey, legacyPasscode: QByteArray | None = None
     ) -> bool | None:
         try:
-            self.__mapData.read(localKey, legacyPasscode)
+            self.__mapData.read(
+                localKey,
+                legacyPasscode if legacyPasscode is not None else QByteArray(),
+            )
         except OpenTeleException:
             return False
 

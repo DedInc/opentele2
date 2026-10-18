@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import ItemsView
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 try:
     from .utils import BaseObject
@@ -9,6 +9,7 @@ except ImportError:
     from utils import BaseObject
 import hashlib
 import json
+import logging
 import os
 import re
 
@@ -23,6 +24,8 @@ __all__ = [
     "iOSDevice",
     "macOSDevice",
 ]
+
+logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
 
@@ -94,9 +97,9 @@ class DeviceInfo:
 
 
 class SystemInfo(BaseObject):
-    deviceList: list[DeviceInfo] = []
-    device_models: Any = []
-    system_versions: Any = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
+    device_models: ClassVar[Any] = []
+    system_versions: ClassVar[Any] = []
 
     @classmethod
     def RandomDevice(cls: type[SystemInfo], unique_id: str | None = None) -> DeviceInfo:
@@ -163,8 +166,8 @@ class SystemInfo(BaseObject):
 
 
 class GeneralDesktopDevice(SystemInfo):
-    device_models: list[str] = []
-    _model_weights: dict[str, int] = {}
+    device_models: ClassVar[list[str]] = []
+    _model_weights: ClassVar[dict[str, int]] = {}
     _data_loaded: bool = False
 
     @classmethod
@@ -179,8 +182,8 @@ class GeneralDesktopDevice(SystemInfo):
 
 
 class WindowsDevice(GeneralDesktopDevice):
-    system_versions: list[str] = []
-    deviceList: list[DeviceInfo] = []
+    system_versions: ClassVar[list[str]] = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
 
     @classmethod
     def __gen__(cls: type[WindowsDevice]) -> None:
@@ -200,8 +203,8 @@ class WindowsDevice(GeneralDesktopDevice):
 
 
 class LinuxDevice(GeneralDesktopDevice):
-    system_versions: list[str] = []
-    deviceList: list[DeviceInfo] = []
+    system_versions: ClassVar[list[str]] = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
 
     @classmethod
     def __gen__(cls: type[LinuxDevice]) -> None:
@@ -235,11 +238,11 @@ class LinuxDevice(GeneralDesktopDevice):
 
 
 class macOSDevice(GeneralDesktopDevice):
-    device_models: list[str] = []
-    _model_weights: dict[str, int] = {}
-    system_versions: list[str] = []
-    _version_weights: dict[str, int] = {}
-    deviceList: list[DeviceInfo] = []
+    device_models: ClassVar[list[str]] = []
+    _model_weights: ClassVar[dict[str, int]] = {}
+    system_versions: ClassVar[list[str]] = []
+    _version_weights: ClassVar[dict[str, int]] = {}
+    deviceList: ClassVar[list[DeviceInfo]] = []
     _mac_data_loaded: bool = False
 
     @classmethod
@@ -303,7 +306,7 @@ _SDK_TO_ANDROID = {
 
 class AndroidDevice(SystemInfo):
     _devices: list | None = None
-    deviceList: list[DeviceInfo] = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
 
     @classmethod
     def _ensure_android_data(cls) -> None:
@@ -331,7 +334,7 @@ class AndroidDevice(SystemInfo):
 
 
 class IOSDevice(SystemInfo):
-    device_models = {
+    device_models: ClassVar[dict[int, list[str]]] = {
         5: ["S"],
         6: [" Plus", "", "S", "S Plus"],
         7: ["", " Plus"],
@@ -346,7 +349,7 @@ class IOSDevice(SystemInfo):
         17: ["", " Air", " Pro", " Pro Max"],
     }
 
-    PATCH_PATTERNS = {
+    PATCH_PATTERNS: ClassVar[dict[str, list[int]]] = {
         "initial": [],
         "early": [1],
         "stable": [1, 2],
@@ -354,7 +357,7 @@ class IOSDevice(SystemInfo):
         "final": [1, 2, 3, 4, 5],
     }
 
-    system_versions: dict[int, dict[int, list[int]]] = {
+    system_versions: ClassVar[dict[int, dict[int, list[int]]]] = {
         12: {
             5: [5, 4, 3, 2, 1],
             4: [9, 8, 7, 6, 5, 4, 3, 2, 1],
@@ -397,7 +400,7 @@ class IOSDevice(SystemInfo):
         },
     }
 
-    _IOS_VERSION_MAP = {
+    _IOS_VERSION_MAP: ClassVar[dict[int, list[int]]] = {
         5: [12],
         6: [12, 13, 14, 15, 16],
         7: [12, 13, 14, 15, 16, 17],
@@ -412,7 +415,7 @@ class IOSDevice(SystemInfo):
         17: [26],
     }
 
-    _MAJOR_VERSION_WEIGHTS: dict[int, int] = {
+    _MAJOR_VERSION_WEIGHTS: ClassVar[dict[int, int]] = {
         26: 10,
         25: 1,
         24: 1,
@@ -430,7 +433,7 @@ class IOSDevice(SystemInfo):
         12: 1,
     }
 
-    deviceList: list[DeviceInfo] = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
 
     @classmethod
     def _get_patch_pattern(cls, minor: int, max_minor: int) -> list[int]:
@@ -499,7 +502,6 @@ iOSDevice = IOSDevice
 
 def _get_firefox_latest_version() -> tuple[int | None, int | None]:
     import urllib.request
-    from urllib.error import HTTPError
 
     url = "https://product-details.mozilla.org/1.0/firefox_versions.json"
     try:
@@ -517,13 +519,12 @@ def _get_firefox_latest_version() -> tuple[int | None, int | None]:
                 return None, None
             major = int(latest.split(".")[0])
             return major, major - 3
-    except (HTTPError, Exception):
+    except (OSError, ValueError, AttributeError):
         return None, None
 
 
 def _get_chrome_last_good_versions() -> dict[str, object] | None:
     import urllib.request
-    from urllib.error import HTTPError
 
     url = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
     try:
@@ -536,7 +537,7 @@ def _get_chrome_last_good_versions() -> dict[str, object] | None:
                 return json.loads(text)
             except json.JSONDecodeError:
                 return None
-    except (HTTPError, Exception):
+    except (OSError, ValueError, AttributeError):
         return None
 
 
@@ -569,21 +570,21 @@ def _parse_platform_from_ua(user_agent: str) -> str:
 
 
 class WebBrowserDevice(SystemInfo):
-    BROWSER_WEIGHTS: dict[str, int] = {
+    BROWSER_WEIGHTS: ClassVar[dict[str, int]] = {
         "chrome": 19,
         "edge": 2,
         "firefox": 1,
     }
 
-    deviceList: list[DeviceInfo] = []
-    _k_deviceList: list[DeviceInfo] = []
+    deviceList: ClassVar[list[DeviceInfo]] = []
+    _k_deviceList: ClassVar[list[DeviceInfo]] = []
     _generated = False
     _max_chromium = 145
     _firefox_max = 147
     _firefox_min = 144
     # How many major versions the browserforge dataset may trail the live one.
     _max_dataset_lag = 24
-    _UA_MAJOR_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {
+    _UA_MAJOR_PATTERNS: ClassVar[dict[str, tuple[re.Pattern[str], ...]]] = {
         "chrome": (re.compile(r"(Chrome/)(\d+)"),),
         "edge": (re.compile(r"(Chrome/)(\d+)"), re.compile(r"(Edg/)(\d+)")),
         "firefox": (re.compile(r"(rv:)(\d+)"), re.compile(r"(Firefox/)(\d+)")),
@@ -698,6 +699,9 @@ class WebBrowserDevice(SystemInfo):
             try:
                 gen, offset = cls._header_generator(name, cfg["os"], min_v, window_max)
             except Exception:
+                # browserforge raises assorted errors for unknown inputs; one
+                # browser family missing must not break the others.
+                logger.debug("No header generator for %s", name, exc_info=True)
                 continue
             if gen is None:
                 continue
@@ -705,7 +709,8 @@ class WebBrowserDevice(SystemInfo):
             for _ in range(int(cfg["count"])):
                 try:
                     headers = gen.generate()
-                except Exception:
+                except ValueError:
+                    logger.debug("browserforge could not generate %s", name)
                     continue
                 ua = cls._shift_ua_major(name, headers.get("User-Agent", ""), offset)
                 if not ua or ua in seen_uas:

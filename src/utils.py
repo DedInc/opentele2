@@ -93,7 +93,11 @@ class sharemethod(type):
         return result
 
 
-def PrettyTable(table: list[dict[str, object]], addSplit: list[int] = []) -> str:
+def PrettyTable(
+    table: list[dict[str, object]], addSplit: list[int] | None = None
+) -> str:
+    if addSplit is None:
+        addSplit = []
     padding = {}
 
     result = ""

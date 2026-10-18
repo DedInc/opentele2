@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 import random
 import typing
 import warnings
@@ -51,12 +52,12 @@ from .session_io import (
 )
 
 if TYPE_CHECKING:
-    import logging
-
     from ..consistency import ConsistencyReport
 
 _DEFAULT_REQUEST_RETRIES = 5
 _QR_EXPIRE_SAFETY_SECONDS = 5
+
+logger = logging.getLogger(__name__)
 
 _POST_LOGIN_STEPS = [
     (None, lambda _lang_pack: functions.help.GetConfigRequest(), None),
@@ -223,7 +224,7 @@ class TelegramClient(telethon.TelegramClient):
                 lang_code=self._init_request.lang_code,
             )
         except Exception:
-            pass
+            logger.debug("Fingerprint validation raised", exc_info=True)
 
     @property
     def UserId(self) -> int | None:
@@ -256,7 +257,7 @@ class TelegramClient(telethon.TelegramClient):
                 if await self.is_user_authorized():
                     await self._run_post_login_requests()
             except Exception:
-                pass
+                logger.debug("Post-login requests failed", exc_info=True)
 
     def _get_lang_pack(self) -> str:
         init_req = getattr(self, "_init_request", None)
@@ -286,7 +287,7 @@ class TelegramClient(telethon.TelegramClient):
             try:
                 await self(request_factory(lang_pack))
             except Exception:
-                pass
+                logger.debug("Post-login request failed", exc_info=True)
 
     async def GetSessions(self) -> types.account.Authorizations | None:
         return await self(functions.account.GetAuthorizationsRequest())
@@ -409,7 +410,7 @@ class TelegramClient(telethon.TelegramClient):
             try:
                 await newClient._run_post_login_requests()
             except Exception:
-                pass
+                logger.debug("Post-login requests failed", exc_info=True)
 
         return newClient
 

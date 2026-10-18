@@ -27,6 +27,8 @@ from ..exception import (
 from ..qt_compat import QBuffer, QByteArray, QDataStream, QIODevice
 from . import shared as td
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "KDF_ARGON2ID",
     "KDF_PBKDF2",
@@ -244,7 +246,7 @@ def read_key_data(stream: QDataStream) -> tuple[KeyData, QByteArray]:
     if newerFormat:
         # tdesktop refuses these, but a later build may only append fields
         # after the wraps; read the known prefix instead of giving up.
-        logging.warning(
+        logger.warning(
             f"key data format {formatVersion} is newer than "
             f"{KEY_DATA_FORMAT_VERSION}; reading the known layout"
         )

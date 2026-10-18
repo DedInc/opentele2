@@ -6,6 +6,9 @@ import struct
 import sys
 import typing
 
+if typing.TYPE_CHECKING:
+    from typing_extensions import Self
+
 BufferInput = bytes | bytearray | memoryview | typing.Iterable[int]
 
 
@@ -30,7 +33,7 @@ class QByteArray:
         elif isinstance(data, QByteArray):
             self._data = bytearray(data._data)
             self._null = data._null
-        elif isinstance(data, (bytes, bytearray, memoryview)) or isinstance(data, int):
+        elif isinstance(data, (bytes, bytearray, memoryview, int)):
             self._data = bytearray(data)
             self._null = False
         else:
@@ -85,7 +88,7 @@ class QByteArray:
             return QByteArray(other + self._data)
         return NotImplemented
 
-    def __iadd__(self, other: QByteArray | bytes | bytearray) -> QByteArray:
+    def __iadd__(self, other: QByteArray | bytes | bytearray) -> Self:
         if isinstance(other, QByteArray):
             self._data.extend(other._data)
         elif isinstance(other, (bytes, bytearray)):
@@ -428,11 +431,11 @@ class QFile:
     def open(self, mode: int) -> bool:
         try:
             if mode == QIODevice.OpenModeFlag.ReadOnly:
-                self._file = builtins.open(self._path, "rb")
+                self._file = builtins.open(self._path, "rb")  # noqa: SIM115 - Qt-style open/close API
             elif mode == QIODevice.OpenModeFlag.WriteOnly:
-                self._file = builtins.open(self._path, "wb")
+                self._file = builtins.open(self._path, "wb")  # noqa: SIM115 - Qt-style open/close API
             else:
-                self._file = builtins.open(self._path, "r+b")
+                self._file = builtins.open(self._path, "r+b")  # noqa: SIM115 - Qt-style open/close API
             return True
         except OSError:
             return False

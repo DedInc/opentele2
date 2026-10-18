@@ -104,7 +104,7 @@ def _fetch_android() -> dict:
                 result["android_app_version_code"] = latest["build_code"]
             return result
     except Exception as exc:
-        logger.debug("TG android version fetch failed: %s", exc)
+        logger.debug("TG android version fetch failed: %s", exc, exc_info=True)
 
     data = json.loads(
         _fetch_url("https://play.rajkumaar.co.in/json?id=org.telegram.messenger")
@@ -133,7 +133,7 @@ def _fetch_ios() -> dict:
                 result["ios_build_number"] = latest["build_code"]
             return result
     except Exception as exc:
-        logger.debug("TG ios version fetch failed: %s", exc)
+        logger.debug("TG ios version fetch failed: %s", exc, exc_info=True)
 
     data = json.loads(_fetch_url("https://itunes.apple.com/lookup?id=686449807"))
     return {"ios_app_version": data["results"][0]["version"]}
@@ -156,7 +156,7 @@ def _fetch_macos() -> dict:
         if raw_version:
             return {"macos_app_version": raw_version}
     except Exception as exc:
-        logger.debug("Homebrew macos version fetch failed: %s", exc)
+        logger.debug("Homebrew macos version fetch failed: %s", exc, exc_info=True)
 
     data = json.loads(_fetch_url("https://itunes.apple.com/lookup?id=747648890"))
     return {"macos_app_version": data["results"][0]["version"]}
@@ -223,9 +223,11 @@ def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, object]:
                         {k: v for k, v in data.items() if v not in ("", None)}
                     )
                 except Exception as exc:
-                    logger.debug("Version fetch %s failed: %s", name, exc)
+                    logger.debug(
+                        "Version fetch %s failed: %s", name, exc, exc_info=True
+                    )
     except Exception as exc:
-        logger.debug("Version fetch pool error: %s", exc)
+        logger.debug("Version fetch pool error: %s", exc, exc_info=True)
 
     _CACHED = result
     return result

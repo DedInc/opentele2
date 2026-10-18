@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import IntEnum
+from typing import ClassVar
 
 from ..exception import (
     Expects,
@@ -254,7 +255,7 @@ class MTP(BaseObject):  # nocov
     class Config(BaseObject):
         kVersion = 1
 
-        _SERIALIZED_FIELDS = [
+        _SERIALIZED_FIELDS: ClassVar[list[str]] = [
             "chatSizeMax",
             "megagroupSizeMax",
             "forwardedCountMax",
