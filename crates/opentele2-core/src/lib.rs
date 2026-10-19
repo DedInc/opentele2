@@ -16,7 +16,9 @@
 //! carries a stable [`Error::code`] that bindings map onto their own
 //! exception types.
 
+pub mod crypto;
 mod error;
+pub mod kdf;
 pub mod qt;
 pub mod tdf;
 
