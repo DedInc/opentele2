@@ -1,290 +1,315 @@
-# opentele2 2.0.0 Architecture
+# opentele2 2.0.0 Architecture (v2)
 
-Status: implemented on branch `2.0.0` (from tag `1.5.0`) through OT-162 at
-version 2.0.0a1 / 2.0.0-alpha.1; CI and release workflows are open (Phases).
-This document records the Rust core and binding architecture. Facts cite
-`path:line` in this repository or a pinned version number; anything not
-established is listed under Open questions rather than assumed.
+Status: decision record for the stable 2.0.0 release. Version v1 of this file
+described the pre-release split (a pure-Python root package over a separate
+`opentele2-core` wheel); v2 replaces it with one package per ecosystem over one
+Rust core, and plans the removal of the 1.x Python implementation. Facts cite
+`path:line`; anything not established is under Open questions.
 
 ## Layout
 
+Final tree. The root holds only workspace, docs, licence and CI configuration.
+
 ```
-Cargo.toml                    workspace root: members crates/*, bindings/python, bindings/node; rust-version 1.89
+Cargo.toml, Cargo.lock        workspace: members crates/*, bindings/python, bindings/node; rust-version 1.89
+README.md, ARCHITECTURE.md, LICENSE, .gitignore
+opentele.png                  README logo; stays at the root (see below)
+.github/workflows/            maintainer-owned; agents stage edits in refs/github-workflows/
 crates/opentele2-core/        pure core: no async, no network, no FFI, unsafe_code forbidden
-  data/devices/*.json         device catalogs, embedded with include_str! (copies of src/devices/)
-  tests/vectors/              golden vectors produced by 1.5.0 (OT-141)
-crates/opentele2-grammers/    optional: core Account <-> grammers 0.11 SessionData, ConnectionParams
-bindings/python/              PyO3 0.29 abi3-py38 cdylib, maturin, PyPI `opentele2-core`, module `opentele2_core`
-  opentele2_core.pyi          typed stub, shipped as the package's __init__.pyi
-bindings/node/                napi-rs cdylib, npm package `opentele2`: index.js, index.d.ts
-  mtcute.mjs, mtcute.d.ts     the `opentele2/mtcute` entry point
-  __test__/                   node --test suite
-src/                          pure-Python `opentele2` (hatchling, src -> opentele2), depends on opentele2-core
-  devices/*.json              catalogs still read by src/devices.py:30 (duplicate, see Known gaps)
-scripts/gen_core_vectors.py   writes crates/opentele2-core/tests/vectors/
-.github/workflows/            not written yet (OT-163, OT-164)
+  src/                        qt, tdf, crypto, kdf, tdata, session, devices, api, batch,
+                              + fingerprint (new), auth (new)
+  data/devices/               android, desktop, ios, mac, + web.json (new); the only catalog copy
+  tests/                      Rust tests
+  tests/vectors/              frozen 1.5.0 oracle + gen_core_vectors.py (moved from scripts/)
+crates/opentele2-versions/    new: network version fetchers (7 sources), blocking HTTP, no tokio
+crates/opentele2-grammers/    grammers 0.11 bridge + client flows behind feature `client`
+bindings/python/              the one PyPI package `opentele2` (maturin, mixed layout)
+  Cargo.toml, src/            PyO3 cdylib, module `opentele2._native`
+  pyproject.toml              name opentele2, version from Cargo, telethon>=1.45.0
+  python/opentele2/           Telethon integration + thin public facades only
+  tests/                      binding + public-API tests (pytest, `live` marker)
+bindings/node/                npm `opentele2` + `opentele2/mtcute` (unchanged shape)
 ```
 
-The core crate owns, as modules: `qt` (big-endian QDataStream), `tdf` (TDF$
-container and md5 trailer), `crypto` (AES-256-IGE, `prepareAES_oldmtp`, local
-encryption), `kdf` (PBKDF2-SHA512 100000/1, legacy PBKDF2-SHA1 4000/4,
-Argon2id, scrypt read-only), `tdata` (key_data with the 0x4B443200 v2 trailer,
-map, MtpAuthorization, multi-account read and write), `session` (built-in DC
-table, Telethon string, mtcute string v3, a plain grammers-shaped
-SessionData), `devices` (catalogs and deterministic Generate), `api` (official
-client profiles and offline versions), `batch` (`load_many` on a rayon pool)
-and the private `error`, whose `Error` and `Result` are re-exported
-(crates/opentele2-core/src/lib.rs:23-34).
+Placement decisions:
+- Tests live with the code they test: Rust in `crates/*/tests/`, Python in
+  `bindings/python/tests/`, Node in `bindings/node/__test__/`. No root `tests/`.
+- `scripts/gen_core_vectors.py` moves to `crates/opentele2-core/tests/vectors/`,
+  next to the oracle it writes. Today it imports `src.*` from the checkout
+  (scripts/gen_core_vectors.py:84-90,164,206-213,322-324,500-501). Once `src/`
+  is gone it takes `--source <dir>`, a checkout of tag 1.5.0 (which has the same
+  `src/` and `src/td/` module tree), and keeps setting `OPENTELE_NO_FETCH=1`
+  (scripts/gen_core_vectors.py:87). The committed vectors stay the frozen
+  oracle: they are never regenerated from 2.0 code. `--check` is a CI job
+  against the 1.5.0 checkout; the script and fixtures are excluded from the
+  published crate (`exclude` in crates/opentele2-core/Cargo.toml).
+- `opentele.png` stays at the root: README.md:6 and the long descriptions of
+  every published 1.x release load it from `.../main/opentele.png`, so moving
+  it breaks old PyPI pages.
+- The agent kernel (AGENTS.md, install.py, tools/, .agents/, docs/, and the
+  untracked kernel tests under tests/) is not part of the product tree; this
+  plan neither moves nor deletes it (see Q3).
 
 ## Decisions
 
-### D1. Repository layout: one Cargo workspace, one pure core
-- Chosen: a root workspace with `crates/opentele2-core` holding every format and
-  crypto rule, thin binding crates under `bindings/`, and grammers glue in a
-  separate optional crate. Core has no tokio, no sockets, no filesystem walk
-  beyond explicit paths given by the caller.
-- Rejected: porting tdata logic separately per binding, or depending on
-  `hermes-tdata` 0.2.1 / `grammpars` 0.1.0. Per-binding ports violate DRY;
-  hermes-tdata is read-only and the core must write 7.3.1 tdata with the v2
-  key_data trailer (src/td/key_data.py:51-52).
-- Why (SRP, DRY): today every `td` import drags Telethon in through
-  src/td/shared.py:7 -> src/td/tdesktop.py:8 although the format code is IO and
-  crypto only; the core cuts that edge once for all three languages.
-- Catalogs: `crates/opentele2-core/data/devices/*.json` is the single source,
-  embedded with `include_str!` and exposed to Python as data. Rejected: keeping
-  them in `src/devices/` and including `../../../src/devices` from the crate,
-  because `cargo package` cannot ship files outside the crate directory.
-- AES-IGE: `grammers-crypto` 0.11 `aes::ige_encrypt`/`ige_decrypt` (in place,
-  over `aes` 0.9.3 with runtime AES-NI), as the maintainer requested. Core checks
-  `len % 16 == 0` and the 32-byte key/iv before every call and returns
-  `Error::BadLength`, so grammers' `assert_eq!` panic is unreachable. Rejected: a
-  core-owned IGE or the RustCrypto `ige` crate, which duplicate code grammers
-  already maintains and tests (DRY). The cost, core following grammers-crypto
-  releases, is accepted.
+Kept from v1: pure core (v1 D1); AES-IGE from `grammers-crypto` 0.11 with
+length checks before each call (v1 D1); PyO3 0.29 `abi3-py38` plus `cp314t`
+wheels, `gil_used = false`, `py.detach` around work (v1 D2, floor and wheel
+rules only); Telethon acceleration through a cryptg-compatible submodule
+registered only when real `cryptg` is absent (v1 D3, module path changes);
+npm `opentele2` with `opentele2/mtcute`, Node-API 4, `engines >=18` (v1 D4);
+grammers bridge kept out of the core (v1 D5); rayon `parallel` feature for
+batch only (v1 D6); one `#[non_exhaustive] Error` with stable `code()` (v1 D7);
+tooling (v1 D8); tag-only releases from protected environments (v1 D9).
 
-### D2. Python packaging: the pydantic / pydantic-core split
-- Chosen: two distributions. `opentele2` stays pure Python, keeps the `src/`
-  layout and hatchling build (pyproject.toml wheel sources `src = opentele2`),
-  keeps all Telethon integration, and depends on `opentele2-core==2.0.*`, an
-  abi3 wheel exporting the module `opentele2_core`.
-- Rejected: one maturin mixed package. It turns every pure-Python fix into a
-  full per-platform wheel matrix and replaces the build backend of code that
-  has no native part (KISS, SRP).
-- Floor of the core wheel: Python 3.8 via PyO3 0.29.x `abi3-py38`. Rejected:
-  3.7 via PyO3 0.28.x, because Telethon itself does not run below 3.8 (walrus at
-  refs/telethon/telethon/tl/custom/button.py:53), so 3.7 gains no user (YAGNI).
-  PyO3 0.30 is rejected for 2.0.0 because it needs Python >= 3.9.
-- Floor of the pure package: lowered from `>=3.10` to `>=3.8` to match the core
-  wheel and Telethon, as the maintainer requested. Blockers to remove: runtime
-  PEP 604 unions (src/qt_compat.py:13), `typing.ParamSpec` (src/utils.py:6, from
-  `typing_extensions` below 3.10), runtime `dict[...]` (src/td/map_data.py:23-25),
-  `str.removesuffix` and `asyncio.to_thread` (src/tl/session_io.py:33-34,169,240).
-  Most of src/td shrinks to core calls first, so the port is done after that.
-- Free-threaded: abi3 wheels do not load on free-threaded interpreters, so the
-  matrix adds the `cp314t` wheels that `maturin generate-ci` already emits
-  (`abi3t` exists only for CPython 3.15+, PyO3 `abi3t-py315`, and is deferred); the
-  module declares `gil_used = false`. The core keeps no global mutable state,
-  which makes that declaration true by construction.
-- GIL: every exported function that does crypto, KDF or file IO copies its
-  inputs to owned Rust values and runs inside `py.detach` (formerly
-  `allow_threads`). Trivial accessors do not detach.
+Superseded: v1 D2 (two Python distributions, pydantic/pydantic-core split) by
+M1; v1 Compatibility item 3 (web fingerprints stay in Python, outside the
+determinism contract) and item 5 (`browserforge` as the `web` extra) by M2;
+v1 Known gap "catalogs exist twice" is closed by Removal.
 
-### D3. Telethon acceleration through a cryptg-compatible surface
-- Chosen: `opentele2_core.cryptg` exposes `encrypt_ige(data, key, iv)` and
-  `decrypt_ige(data, key, iv)` with cryptg 0.6.0 signatures, raising
-  `ValueError` on bad lengths. `src/__init__.py:7-10` registers it as
-  `sys.modules["cryptg"]` before its first Telethon import and only when a
-  real `cryptg` is not importable. Telethon then selects it at
-  refs/telethon/telethon/crypto/aes.py:17-26 and calls it at :40 and :81.
-- Rejected: shipping a top-level `cryptg` module inside the wheel. It collides
-  file-for-file with the real cryptg distribution and pip would silently let
-  the last install win.
-- Limit: if the user imports `telethon` before `opentele2`, Telethon keeps its
-  own choice. This is documented, not patched. `factorize_pq_pair` is not
-  exposed because Telethon does not call it (grep of refs/telethon finds only
-  the two IGE calls).
+### M1. One PyPI package `opentele2` (maintainer decision, recorded)
+- maturin builds it from bindings/python in mixed layout: Rust extension
+  `opentele2._native`, Python sources in bindings/python/python/opentele2/.
+  It replaces the root hatchling package (pyproject.toml:1-3,59-63) and the
+  `opentele2-core` distribution (bindings/python/pyproject.toml:6).
+- Python sources hold only the Telethon integration (TelegramClient, session
+  files, consistency checks) and thin facades that keep 1.x names over
+  `_native`. Format, crypto, catalog and fingerprint logic is never Python.
+- Python >= 3.8; abi3-py38 and cp314t wheels as in release-python.yml today.
+- cryptg: `import opentele2` registers `opentele2._native.cryptg` as
+  `sys.modules["cryptg"]` under the same rule as src/__init__.py:4-10.
+- Errors: `_native` raises one `CoreError(code, message)`; `opentele2.exception`
+  maps `code` to the 1.x subclasses (src/exception.py:43-196) in one table.
+- Cost accepted: every pure-Python fix ships as a full wheel matrix.
 
-### D4. Node: one npm package with mtcute helpers
-- Chosen: npm package `opentele2` with napi-rs prebuilt binaries as
-  `optionalDependencies` (`@opentele2/core-<triple>`), plus TypeScript helpers
-  under `opentele2/mtcute`: string session v3 encode/decode (format of
-  refs/mtcute-master/packages/core/src/highlevel/utils/string-session.ts:23-60),
-  `initConnectionOptions` from a generated device (deviceModel, systemVersion,
-  appVersion, langPack, params), and a crypto provider that wraps mtcute's
-  default provider and overrides only `createAesIge`
-  (refs/mtcute-master/packages/core/src/utils/crypto/abstract.ts:36).
-  `@mtcute/core` is an optional peer dependency.
-- Rejected: a separate `@opentele2/mtcute` package. Two packages for one small
-  helper module is premature structure (YAGNI); the optional peer keeps
-  non-mtcute users free of it.
-- Rejected: routing tdata through `@mtcute/convert`, which refuses tdata
-  versions above 5008003 without `ignoreVersion`
-  (refs/mtcute-master/packages/convert/src/tdesktop/tdata.ts:18,178) while 1.5.0
-  writes 7003001 (src/utils.py:10).
-- Node-API level: 4, the @napi-rs/cli 3.10.8 default; `engines.node >=18`.
-  Raising the level needs a feature that requires it.
-- Initial targets: win32 x64/arm64, darwin x64/arm64, linux gnu and musl
-  x64/arm64. ia32, armv7, android, freebsd and wasm32-wasip1-threads from the
-  napi-rs template are deferred until a user asks (YAGNI).
+### M2. Deterministic web fingerprints (maintainer decision, recorded)
+- `crates/opentele2-core/data/devices/web.json` lists browser, version, OS,
+  UA template and weights; `devices::generate(Platform::Web, unique_id)` seeds
+  like the other platforms (sha1 mod 10^12, JSON-order weight expansion).
+- browserforge (src/devices.py:490-520) and the Chrome/Firefox version probes
+  (src/devices.py:399-438,530-538) are dropped. The catalog has a top-level
+  `"schema": 1`; the parser rejects unknown schema numbers.
 
-### D5. grammers integration
-- Chosen: `crates/opentele2-grammers` depends on core and
-  `grammers-session`/`grammers-client` 0.11.0, and offers
-  `session_data(&Account) -> SessionData` (home_dc plus
-  `dc_options[id].auth_key`) and `connection_params(&Device) -> ConnectionParams`
-  (device_model, system_version, app_version, system_lang_code, lang_code).
-  Core itself keeps a plain grammers-shaped struct so it never depends on
-  grammers.
-- lang_pack and params: grammers hardcodes `lang_pack: ""` and `params: None`
-  (refs/grammers mtsender sender_pool.rs:432-446, 0.10 source). Chosen: a
-  documented fingerprint gap in the crate docs plus an upstream pull request
-  that adds both fields to ConnectionParams. Rejected: a vendored or forked
-  grammers, which makes us the maintainer of a network stack (KISS).
+### D10. Network version fetching is a separate crate
+- Chosen: `crates/opentele2-versions` ports the 7 sources of
+  src/version_fetcher.py:86-204 (tdesktop, Android, Telegram X, iOS, macOS,
+  WebK, WebA) and returns a patch applied to core `api::Versions`. Blocking
+  HTTP with rustls (`ureq`), parallel per source, per-call timeout; parsers are
+  pure functions tested on stored HTML fixtures, live fetches are `#[ignore]`.
+- Rejected: fetching in the core (breaks the no-network rule,
+  crates/opentele2-core/src/lib.rs:11-12) and `reqwest` (pulls tokio into a
+  sync stack). Bindings call it under `py.detach` / as an `AsyncTask` (v1 D6).
+- Python keeps the 1.x import-time fetch (src/fingerprint.py:122-147) and the
+  `OPENTELE_NO_FETCH` switch (src/version_fetcher.py:209); npm and Rust fetch
+  only on an explicit call, since they have no 1.x behaviour to keep.
 
-### D6. Parallelism
-- Chosen: rayon 1.12 behind a core feature `parallel`, enabled by both
-  bindings. It is used only for batch entry points (`load_many`,
-  `convert_many`) that iterate independent tdata folders.
-- Not parallel: accounts inside one folder. The expensive step is the one
-  passcode KDF per folder (Argon2id m=65536 t=8 p=1, PBKDF2 100000); per-account
-  MTP blobs are cheap AES. Argon2 runs with p=1, so there is nothing to split.
-  The batch pool is capped so that threads x 64 MiB Argon2 memory stays bounded.
-- Rule: Python calls run under `py.detach`; Node calls that do KDF or file IO
-  are `AsyncTask`s on the libuv pool and return Promises. Per-packet IGE for
-  mtcute stays synchronous because `IEncryptionScheme` is synchronous and the
-  work is microseconds.
+### D11. Client flows per ecosystem on its native client
+- Python over Telethon, npm over mtcute, Rust over grammers in
+  `opentele2-grammers` (feature `client`). Each flow lives once, on the client
+  its users already run; no binding drives another ecosystem's network stack.
+- Shared pure pieces in core `auth`: QR URL `tg://login?token=<base64url>`
+  (same string as Telethon qrlogin.py:57 and
+  refs/mtcute-master/packages/core/src/highlevel/methods/auth/sign-in-qr.ts:133);
+  2FA SRP over `grammers_crypto::two_factor_auth::calculate_2fa` (pub in
+  grammers-crypto 0.11.0, src/lib.rs:22); session-admin row formatting (the
+  PrintSessions table); consistency expectations (lang_pack per profile,
+  layer tolerance). Telethon and mtcute keep their own SRP (`compute_check`,
+  mtcute `checkPassword`) because they consume live TL objects; core SRP is
+  used by Rust and cross-checked against Telethon in a core test.
+- grammers 0.11 hardcodes `lang_pack: ""`, `proxy: None`, `params: None`
+  (grammers-mtsender 0.11.0 src/sender_pool.rs:440-443). Kept as a documented
+  gap (crates/opentele2-grammers/src/lib.rs:16-32) plus the upstream change;
+  rejected: a grammers fork (v1 D5).
 
-### D7. Errors
-- Chosen: one `#[non_exhaustive] enum opentele2_core::Error` with a stable
-  `code() -> &'static str` (for example `TDATA_WRONG_PASSCODE`). Variants map
-  1:1 to the tdata exceptions in src/exception.py:96-196 (TFileNotFound,
-  TDataInvalidMagic, TDataInvalidCheckSum, TDataBadDecryptKey,
-  TDataWrongPasscode, TDataBadEncrypted/DecryptedDataSize, TDataBadConfigData,
-  QDataStreamFailed, TDataReadMapDataFailed, TDataReadMapDataIncorrectPasscode,
-  TDataAuthKeyNotFound, MaxAccountLimit, TDataSaveFailed).
-- Python: the binding raises one `opentele2_core.CoreError(code, message)`;
-  `opentele2` maps `code` to its `OpenTeleException` subclass in one table.
-  Rejected: `create_exception!` classes in Rust, which would duplicate the
-  hierarchy rooted at src/exception.py:43 (DRY).
-- Node: `Error` objects with `code = "OT_" + code()`, typed as a string union
-  in the `.d.ts`.
+### D12. Persistent formats stay owned by the core
+- MTP config, DcOptions and legacy dbi blocks are parsed in core `tdata`,
+  and `session` takes endpoints from the stored config when performance mode
+  is off, closing crates/opentele2-core/src/session/mod.rs:9-13.
+- Saving a folder with a legacy key file migrates it in the core, as 1.5.0
+  does (src/td/tdesktop.py:199-202), instead of `Error::SaveFailed`
+  (crates/opentele2-core/src/tdata/mod.rs:252-278).
+- Telethon `.session` sqlite v8 (src/tl/session_io.py:69-104) stays a Python
+  write over stdlib `sqlite3` from core rows; rejected: SQLite in the core
+  (C dependency for one ecosystem's file format).
 
-### D8. Tooling
-- Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
-  `cargo test --workspace`. MSRV is 1.89 (required by aes 0.9.3), declared as
-  `rust-version` in the workspace and tested by a 1.89 CI job; it moves only when
-  a dependency demands it, and only in a minor release.
-- Python: `ruff check`, `ruff format --check`, `ty check`, `pytest`.
-- Node: `tsc --noEmit` and `biome check`. Rejected: eslint plus prettier, two
-  tools and configs for the job of one (KISS).
+## Parity
 
-### D9. CI and release
-- `test.yml` on push and pull_request: Rust gates on ubuntu, windows, macos;
-  `maturin develop` plus pytest; `napi build` plus node tests; the 1.5.0
-  compatibility job from the Compatibility section.
-- `release-python.yml` and `release-node.yml` run only on version tags in the
-  repository's existing bare form (`1.5.0`, so `[0-9]+.[0-9]+.[0-9]+*`). Build jobs
-  use the `maturin generate-ci` matrix (manylinux x86_64/x86/aarch64/armv7/
-  s390x/ppc64le, musllinux_1_2, windows x64/x86/arm64, macos-15-intel and
-  macos-latest, plus cp314t) and the napi matrix of D4. Windows arm64 builds set
-  `RUSTFLAGS=-Ctarget-feature=+aes` so `aes` uses hardware AES.
-- Publish jobs are separate, `needs` all build jobs, run in protected
-  environments `pypi` and `npm` with required reviewers, and use OIDC trusted
-  publishing / npm provenance. No workflow publishes from a branch.
+Already shared by core, Rust, Python and npm today: tdata read/write, KDFs,
+AES-IGE, Telethon and mtcute string sessions, grammers SessionData, non-web
+device generation, API profiles, batch load. Rows below are the Python-only
+matrix; every row has a target.
+
+| Capability (1.x source) | Core | Rust API | Python | npm |
+|---|---|---|---|---|
+| Web fingerprints (src/devices.py:468-639) | `devices` + web.json (M2) | core | facade `WebBrowserDevice` | `generate('TelegramWeb*')` |
+| Version fetchers, 7 sources (src/version_fetcher.py:86-204) | no (pure patch type only) | opentele2-versions | `_native` + import-time fetch | `fetchVersions()` Promise |
+| PlatformVersions extra fields, LAYER (src/fingerprint.py:53-112) | `api::Versions` gains 5 fields; recommended layer const | core | facade `PlatformVersions` | `Versions` type |
+| Advertised layer (src/fingerprint.py:37-64) | no (client property) | `grammers_tl_types::LAYER` | Telethon layer | mtcute TL layer |
+| tdesktop_tz_offset (src/fingerprint.py:154-206) | `fingerprint::tz_offset(offset_secs)` | core | facade (local offset) | wrapper (local offset) |
+| validate_init_connection_params (src/fingerprint.py:208-261) | `fingerprint::validate` | core | facade | `validateInitConnection` |
+| Version consistency (src/fingerprint.py:263-315) | `fingerprint::check_versions` | core | facade | export |
+| StrictMode, FingerprintConfig (src/fingerprint.py:317-386) | data types in `fingerprint` | core | facades keep fields | options object |
+| TransportRecommendation (src/fingerprint.py:388-426) | no (Telethon classes) | n/a | Python only | n/a |
+| msg_id offset/validity (src/fingerprint.py:428-441) | `fingerprint::{msg_id_offset, is_valid_msg_id(now)}` | core | facade | export |
+| APIData from_json/to_json, 19 extra fields, eq/hash (src/api.py:109-254) | `api::ApiProfile` serde, extras kept in order, `Eq + Hash` | core | `APIData` facade | `profileFromJson/ToJson` |
+| Telethon .session v8 + .json pair (src/tl/session_io.py:69-242) | rows + JSON companion | feature `telethon-sqlite` (Q6) | Python sqlite3 writer | `node:sqlite` writer (Q6) |
+| Legacy dbi, MTP.Config/DcOptions, endpoints from config (src/td/storage.py:392-463, src/td/mtp.py:47-387) | `tdata` parse, `session` endpoint choice (D12) | core | facade | via core |
+| Legacy key file migration on save (src/td/tdesktop.py:199-202) | `TData::save` migrates (D12) | core | facade | via core |
+| QR login + 2FA, CreateNewSession (src/tl/telethon.py:344-523) | `auth` URL + SRP | opentele2-grammers `client` | Telethon | mtcute `signInQr` + check password |
+| Client session -> tdata needing get_me (src/tl/telethon.py:525-534, src/td/tdesktop.py:425-445) | `TData::new` from user id + key | grammers `get_me` | Telethon | mtcute `getMe` |
+| Session admin, PrintSessions, is_official_app (src/tl/telethon.py:276-335) | `auth` formatting + official api_id set | grammers `invoke` | Telethon | mtcute `client.call` (client.types.ts:101) |
+| ConsistencyChecker (src/consistency.py:50-267) | `auth` expectations | grammers | Telethon | mtcute |
+| initConnection lang_pack/params/proxy | profile carries values | gap in grammers 0.11 (D11) | Telethon sends them | mtcute `initConnectionOptions` |
+
+## Removal
+
+Nothing is deleted before its replacement passes its gate (Phases P4 after P3).
+
+| Legacy path | Fate | Replacement / how 1.x behaviour is kept |
+|---|---|---|
+| pyproject.toml (root, hatchling) | delete | bindings/python/pyproject.toml, name `opentele2` (M1) |
+| bindings/python/opentele2_core.pyi | delete | python/opentele2/_native.pyi |
+| PyPI `opentele2-core` | no further releases | `opentele2._native`; only a pre-release ever shipped (Q4) |
+| src/__init__.py | port | python/opentele2/__init__.py, same cryptg rule |
+| src/api.py | facade | `API`, `APIData`, `LoginFlag`, `UseCurrentSession`, `CreateNewSession` keep names and signatures over core profiles |
+| src/exception.py | move | python/opentele2/exception.py, same hierarchy (`OpenTeleException(BaseException)`, :43) + code table |
+| src/devices.py, src/devices/*.json | facade; json deleted | `SystemInfo` and `*Device` classes over core `generate`; catalogs only in crates/opentele2-core/data/devices |
+| src/fingerprint.py | facade | names kept over core `fingerprint`; Telethon transport helper stays Python |
+| src/version_fetcher.py | delete | opentele2-versions via `_native` (D10) |
+| src/consistency.py | port | Telethon `ConsistencyChecker` over core expectations |
+| src/td/tdesktop.py, account.py, auth.py | facade | `TDesktop`, `Account`, `AuthKey`, `AuthKeyType` over `_native.TData` |
+| src/td/storage.py, storage_account.py, map_data.py, mtp.py, key_data.py, configs.py, shared.py, __init__.py | delete | core `tdata`, `kdf`, `crypto`; `td/__init__.py` re-exports the facades only |
+| src/qt_compat.py | delete | core `qt` |
+| src/utils.py | delete | `APP_VERSION` from core; `BaseObject`/`sharemethod` move to a private `_compat.py`; PrettyTable to core `auth` formatting |
+| src/debug.py | delete | none (internal instrumentation, `OPENTELE_DEBUG`) |
+| src/tl/telethon.py, session_io.py, client_kwargs.py, configs.py, shared.py, __init__.py | port | python/opentele2/tl/, `TelegramClient` keeps names and signatures |
+| tests/test_tdata_{keydata,localkey,mapdata,mtp,readfile,storage}.py, test_core_bridge.py | delete | core tests + frozen vectors |
+| tests/test_api_typing, client_kwargs, init_connection, session_io, version_layer, desktop_version, {android,ios,mac,desktop}_devices.py | port | bindings/python/tests/, against the facades |
+| tests/test_fingerprints.py, test_web_devices.py, test_device_catalog_currency.py | split | pure cases to core tests, facade cases to Python |
+| tests/test_version_fetcher.py | port | crates/opentele2-versions/tests (fixtures) |
+| tests/test_full.py, tdata_test.py (live) | port | public-API subset to bindings/python/tests, `live` marker kept |
+| tests/test_no_suppressions.py, test_platform_versions.py | retarget | scan bindings/python/python instead of src/ |
+| tests/__init__.py, tests/pytest.ini | delete | `[tool.pytest.ini_options]` with the `live` marker |
+| tests/test_profile3.8/ (4 files, used by tdata_test.py:46) | move or delete | core legacy-key fixture if Q2 confirms the layout, else delete |
+| scripts/gen_core_vectors.py | move | crates/opentele2-core/tests/vectors/, `--source` (Layout) |
+| MANIFEST.in | delete | includes an absent requirements.txt; maturin `include` |
+| mypy.ini | delete | `ty` (v1 D8); names tgcrypto, which is gone |
+| .coveragerc | delete | omits an absent setup.py; config in bindings/python/pyproject.toml if kept |
+
+Deliberately not kept as public names: `td.MTP`, `td.MapData`, `td.Serialize`,
+`td.Storage`, `td.StorageAccount` (src/td/__init__.py:3-11) and the modules
+`qt_compat`, `utils`, `debug`, `version_fetcher`. README.md:69-70 documents
+only `opentele2.api` and `opentele2.td.TDesktop`.
 
 ## Compatibility
 
-Contract for 2.0.0 against 1.5.0:
-
-1. Python public API unchanged: `TDesktop`, `TelegramClient`, `API`, `APIData`
-   and every exception class in src/exception.py keep names, signatures and
-   class hierarchy (`OpenTeleException` stays a `BaseException`, :43).
-2. `Generate(unique_id)` is byte-identical to 1.5.0. The hash is
-   `int(sha1(str(uid)).hexdigest(), 16) % 10**12` (src/devices.py:105-108), so
-   the core reduces the full 160-bit digest modulo 10^12; truncating to u64
-   first is a silent break. Weighted lists are expanded in JSON order
-   (src/devices.py:131-146), so catalogs are parsed with order preserved.
-   `unique_id=None` keeps using OS randomness (src/devices.py:107).
-3. The core generates device_model and system_version only. app_version and
-   other fields from fetched versions stay host-side: fingerprint.py:147 fetches
-   at import and rewrites API fields (src/api.py:454-476). Golden vectors are
-   therefore generated with `OPENTELE_NO_FETCH=1` (src/version_fetcher.py:209).
-   Web fingerprints (browserforge, src/devices.py:500) stay in Python and are
-   out of the determinism contract.
-4. tdata written by 2.0 is read by 1.5.0 (CI job installs `opentele2==1.5.0`
-   from PyPI and reads 2.0 output) and by tdesktop 7.3.1: version 7003001
-   (src/utils.py:10), key_data format 2, Argon2id write defaults unchanged
-   (src/td/key_data.py:64-66). tdesktop readability is a manual release check.
-5. Dropped dependencies: `TgCrypto-pyrofork` (src/td/storage.py:60,511-522 move
-   to core IGE), `argon2-cffi` (src/td/key_data.py:18 moves to core Argon2id),
-   `selectolax` (listed in pyproject.toml but imported nowhere under src/).
-   `browserforge` stays the optional `web` extra; `telethon>=1.45.0` stays.
+1. Python public API: `TDesktop`, `Account`, `AuthKey`, `AuthKeyType`,
+   `TelegramClient`, `API`, `APIData`, `LoginFlag`, `UseCurrentSession`,
+   `CreateNewSession` and every class in src/exception.py keep import paths,
+   names, signatures and hierarchy. Import-time version fetch is kept (D10).
+2. Golden vectors: Generate, crypto, TDF, sessions and tdata outputs stay
+   byte-identical to the frozen 1.5.0 vectors in crates/opentele2-core/tests/
+   vectors; the Python facades are tested against the same files.
+3. tdata: written folders stay readable by 1.5.0 and tdesktop 7.3.1 (version
+   7003001, key_data format 2); legacy key files are migrated on save (D12).
+   Any slice that changes a written format ships its version handling,
+   migration path and a backward-compatibility test together, or is blocked.
+4. Sessions: Telethon string, Telethon sqlite v8 and its .json pair, mtcute
+   v3 and grammers SessionData unchanged; with performance mode off endpoints
+   again come from the stored config, as in 1.5.0.
+5. Deliberate breaks: web fingerprints are deterministic per `unique_id` and
+   no longer browserforge-random; `browserforge`, `selectolax`, `tgcrypto` and
+   `argon2-cffi` are gone (none is a dependency of the 2.0.0 package); the
+   pre-release module `opentele2_core` becomes `opentele2._native`; the
+   internal names listed under Removal disappear.
 
 ## Phases
 
-Each slice touches at most five paths in at most two areas and has one gate.
-Slice ids and outcomes are those recorded in docs/state/LEDGER.md.
+Rules: each slice touches at most 5 paths in at most 2 top-level areas (a
+directory is one path; root files form one area) and has one gate from the
+allowlist (cargo, python, node, pnpm, npm), run under Windows cmd. Python gates
+use `.venv38\Scripts\python.exe` (the 3.8 floor). Build steps before a gate
+(`maturin develop`, `pnpm run build`) are not gates. Slice ids are
+placeholders until registered in the backlog. CI changes go only to
+refs/github-workflows/; the maintainer copies them to .github/workflows/.
 
-| Slice | Content | Status | Gate |
-|-------|---------|--------|------|
-| OT-141 | Golden vectors from 1.5.0: Generate cases, crypto, TDF, sessions, 4 synthetic tdata folders | done | `python scripts/gen_core_vectors.py --check` |
-| OT-142 | Workspace scaffold and the stable-coded `Error` enum | done | `cargo clippy --workspace --all-targets -- -D warnings` |
-| OT-143 | `qt` stream and `tdf` container | done | `cargo test -p opentele2-core --test primitives` |
-| OT-144 | `crypto` (grammers-crypto IGE, prepareAES_oldmtp, local envelope) and `kdf` | done | `cargo test -p opentele2-core --test crypto` |
-| OT-145 | key_data, first attempt | blocked, redone as OT-147 | `cargo test -p opentele2-core --test key_data` |
-| OT-146 | `TData::load`: accounts, MtpAuthorization, map, configs | done | `cargo test -p opentele2-core --test tdata_read` |
-| OT-147 | key_data: legacy and 7.3 v2 trailer, open_local_key, wraps | done | `cargo test -p opentele2-core --test key_data` |
-| OT-148 | `TData::new`/`save`, byte-identical to 1.5.0 | done | `cargo test -p opentele2-core --test tdata_write` |
-| OT-149 | Session codecs: Telethon string, mtcute v3, grammers-shaped, 1.5.0 DC table | done | `cargo test -p opentele2-core --test session` |
-| OT-150 | `devices`: embedded catalogs, deterministic Generate | done | `cargo test -p opentele2-core --test devices` |
-| OT-151 | `api`: official client profiles, offline versions | done | `cargo test -p opentele2-core --test api` |
-| OT-152 | `batch` on a dedicated rayon pool (`parallel` feature) | done | `cargo test -p opentele2-core --test batch` |
-| OT-153 | Dev profile optimises the hashing crates | done | `cargo test --workspace` |
-| OT-154 | Python binding `opentele2-core`: crypto, cryptg, TData, load_many, sessions, fingerprints | done | `python -m pytest bindings/python/tests -q` |
-| OT-155 | `opentele2` uses the core for IGE and KDFs; cryptg registration | done | library suite (`pytest tests -m "not live"`) |
-| OT-156 | Catalog currency test narrowing | done | `python -m pytest tests/test_device_catalog_currency.py -q` |
-| OT-157 | Library tests 3.8-safe | done | library suite |
-| OT-158 | Pure package floor 3.8, dependency on opentele2-core | partial, settled by OT-160 | library suite on Python 3.8 |
-| OT-159 | Remaining 3.8 test failures | partial (gate defect), settled by OT-160 | library suite on Python 3.8 |
-| OT-160 | Library suite green on Python 3.8.20 | done | library suite on Python 3.8 |
-| OT-161 | Node binding, npm `opentele2`, `opentele2/mtcute` helpers | done | `node --test bindings/node/__test__` |
-| OT-162 | `opentele2-grammers` | done | `cargo test -p opentele2-grammers` |
-| OT-163 | test.yml with every Rust, Python and Node gate | open: blocked on the maintainer, the kernel protects .github | workflow file check |
-| OT-164 | Release workflows with protected environments | open: blocked, after OT-163 | workflow file check |
-| none | Python tdata parsing moves from src/td onto the core `TData` | open | none yet |
-| none | src/devices/ removed, Python reads the core catalogs | open | none yet |
+Phase 1, pure features into the core (nothing removed; src/ frozen from here):
 
-## Known gaps
+| Id | Title | Paths | Gate |
+|---|---|---|---|
+| P1-01 | Web catalog, schema 1, seeded Web generate | crates/opentele2-core/data/devices/web.json, crates/opentele2-core/src/devices.rs, crates/opentele2-core/tests/devices.rs | `cargo test -p opentele2-core --test devices` |
+| P1-02 | Versions extra fields, recommended layer | crates/opentele2-core/src/api.rs, crates/opentele2-core/tests/api.rs | `cargo test -p opentele2-core --test api` |
+| P1-03 | APIData JSON with extras, Eq/Hash | crates/opentele2-core/src/api.rs, crates/opentele2-core/tests/api.rs | `cargo test -p opentele2-core --test api` |
+| P1-04 | `fingerprint` module | crates/opentele2-core/src/fingerprint.rs, crates/opentele2-core/src/lib.rs, crates/opentele2-core/tests/fingerprint.rs | `cargo test -p opentele2-core --test fingerprint` |
+| P1-05 | MTP config, DcOptions, legacy dbi; endpoints from config | crates/opentele2-core/src/tdata/, crates/opentele2-core/src/session/, crates/opentele2-core/tests/tdata_read.rs, crates/opentele2-core/tests/session.rs | `cargo test -p opentele2-core` |
+| P1-06 | Legacy key migration on save, with 1.5.0 vector | crates/opentele2-core/src/tdata/, crates/opentele2-core/tests/tdata_write.rs, crates/opentele2-core/tests/vectors/, scripts/gen_core_vectors.py | `cargo test -p opentele2-core --test tdata_write` |
+| P1-07 | `auth`: QR URL, SRP, session rows, expectations | crates/opentele2-core/src/auth.rs, crates/opentele2-core/src/lib.rs, crates/opentele2-core/tests/auth.rs | `cargo test -p opentele2-core --test auth` |
+| P1-08 | opentele2-versions crate with fixtures | crates/opentele2-versions/, Cargo.lock | `cargo test -p opentele2-versions` |
+| P1-09 | Telethon v8 rows + .json companion; feature `telethon-sqlite` writer/reader | crates/opentele2-core/Cargo.toml, crates/opentele2-core/src/session/, crates/opentele2-core/tests/session.rs, Cargo.lock | `cargo test -p opentele2-core --all-features --test session` |
 
-- Device catalogs exist twice: crates/opentele2-core/data/devices/ (embedded
-  in the core) and src/devices/ (read by src/devices.py:30).
-  crates/opentele2-core/tests/devices.rs:188-196 asserts the two are identical
-  until src/devices/ goes away.
-- Python tdata parsing still runs in Python (src/td) above the core
-  primitives: src/td/storage.py:48-49,471,480 and src/td/key_data.py:168 call
-  `opentele2_core` for AES-IGE, local keys and Argon2id only.
-- Session endpoints always come from the built-in DC table. With performance
-  mode off, 1.5.0 reads them from the account's stored MTP config, which the
-  core does not parse (crates/opentele2-core/src/session/mod.rs:9-13).
-- grammers builds `initConnection` with `lang_pack: ""`, `proxy: None` and
-  `params: None` (refs/grammers grammers-mtsender/src/sender_pool.rs:440-443,
-  0.10 source); crates/opentele2-grammers/src/lib.rs:16-32 records the
-  lang_pack and params gap for 0.11 and the upstream change that closes it.
-- .github/workflows/ is not written: D9 is designed, not implemented
-  (OT-163, OT-164).
+Phase 2, Rust API and npm parity:
+
+| Id | Title | Paths | Gate |
+|---|---|---|---|
+| P2-01 | grammers client flows (feature `client`) | crates/opentele2-grammers/, Cargo.lock | `cargo test -p opentele2-grammers --all-features` |
+| P2-02 | Node exports of P1-01..P1-07 | bindings/node/src/, bindings/node/index.d.ts, bindings/node/index.js, bindings/node/__test__/ | `node --test bindings/node/__test__` |
+| P2-03 | Node `fetchVersions` | bindings/node/Cargo.toml, bindings/node/src/, bindings/node/index.d.ts, bindings/node/__test__/, Cargo.lock | `node --test bindings/node/__test__` |
+| P2-04 | mtcute flows: QR + 2FA, sessions admin, consistency | bindings/node/mtcute.mjs, bindings/node/mtcute.d.ts, bindings/node/__test__/ | `node --test bindings/node/__test__` |
+| P2-05 | Telethon .session + .json via `node:sqlite` | bindings/node/telethon.mjs, bindings/node/telethon.d.ts, bindings/node/package.json, bindings/node/__test__/ | `node --test bindings/node/__test__` |
+
+Phase 3, the single Python package beside the old one:
+
+| Id | Title | Paths | Gate |
+|---|---|---|---|
+| P3-01 | Mixed layout: `opentele2._native`, name `opentele2`, cryptg rule | bindings/python/pyproject.toml, bindings/python/Cargo.toml, bindings/python/src/, bindings/python/python/, bindings/python/tests/ | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q` |
+| P3-02 | `_native` exports of P1 and versions | bindings/python/Cargo.toml, bindings/python/src/, bindings/python/python/, bindings/python/tests/, Cargo.lock | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q` |
+| P3-03 | Facades: exception, api, devices, fingerprint | bindings/python/python/, bindings/python/tests/ | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q` |
+| P3-04 | Facades: TDesktop, Account, AuthKey; vector byte identity | bindings/python/python/, bindings/python/tests/ | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q` |
+| P3-05 | Telethon: TelegramClient, session_io, consistency; ported tests | bindings/python/python/, bindings/python/tests/ | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q -m "not live"` |
+
+Phase 4, removal and the stable version (only after P3-05 passes):
+
+| Id | Title | Paths | Gate |
+|---|---|---|---|
+| P4-01 | Move gen_core_vectors.py, add `--source`, exclude from crate | scripts/, crates/opentele2-core/tests/vectors/, crates/opentele2-core/Cargo.toml | `python crates/opentele2-core/tests/vectors/gen_core_vectors.py --check --source .` |
+| P4-02 | Delete src/ and tracked tests/ files (kernel tests untouched) | src/, tests/ | `.venv38\Scripts\python.exe -m pytest bindings/python/tests -q -m "not live"` |
+| P4-03 | Delete root packaging leftovers | pyproject.toml, MANIFEST.in, mypy.ini, .coveragerc, bindings/python/opentele2_core.pyi | `cargo test --workspace` |
+| P4-04 | Version 2.0.0 in Cargo manifests | Cargo.toml, crates/opentele2-grammers/Cargo.toml, crates/opentele2-versions/Cargo.toml, Cargo.lock | `cargo test --workspace` |
+| P4-05 | Version 2.0.0 in npm manifests | bindings/node/package.json, bindings/node/npm/ | `node --test bindings/node/__test__` |
+| P4-06 | README for one package per ecosystem | README.md | `python -c "import pathlib,sys; t=pathlib.Path('README.md').read_text(encoding='utf-8'); sys.exit(1 if 'opentele2_core' in t or '2.0.0a1' in t else 0)"` |
+| P4-07 | Staged workflows: one maturin package, versions crate, 1.5.0 vector job | refs/github-workflows/ | `python -c "import pathlib,sys; t=''.join(p.read_text(encoding='utf-8') for p in pathlib.Path('refs/github-workflows').glob('*.yml')); sys.exit(1 if 'hatch' in t or 'scripts/gen_core_vectors' in t else 0)"` |
+
+P4-01 runs while src/ still exists, so the moved script is proven against the
+current tree before P4-02 deletes it; CI then runs it with `--source` pointing
+at a checkout of tag 1.5.0 (P4-07).
+
+## Resolved questions (orchestrator, 2026-10-19)
+
+- Q1. web.json is a curated list of real stable Chrome, Edge, Firefox and
+  Safari releases current in October 2026 per OS, weighted by market share
+  from a cited public source; P1-01 researches and records the sources in the
+  catalog's `"sources"` field. browserforge is not used as a source.
+- Q2. P1-06 uses a synthetic legacy (pre-7.3, no trailer) folder written by
+  the vector generator from 1.5.0 primitives; tests/test_profile3.8 (a v1.0.0
+  demo profile holding a third party's authorization) is deleted in P4-02.
+- Q3. The untracked agent-kernel tests stay where they are; tests/ may keep
+  untracked files only.
+- Q4. Nothing was ever published to PyPI or npm from 2.0.0; nothing to yank.
+- Q6. Yes, full conversion parity: the core builds the Telethon v8 rows and
+  the .json companion; Python writes the file with stdlib `sqlite3`, npm with
+  the built-in `node:sqlite` (Node >= 22.5, a clear error below), Rust with an
+  optional, default-off core feature `telethon-sqlite` (rusqlite, bundled), so
+  the default core stays FFI-free. This amends D12.
+- Q9. The guard refuses `python -m maturin`; Python packages are built with
+  `python -m pip install ./bindings/python` (PEP 517, maturin as backend).
+  Gates spell the 3.8 interpreter `".venv38\Scripts\python.exe"` (quoted, so
+  agentctl's POSIX tokenizer keeps the backslashes).
 
 ## Open questions
-
-- Q1 (resolved): the pure package floor is 3.8, see D2.
-- Q2 (resolved): PyO3 0.29 `abi3t-py315` covers only CPython 3.15+, so cp314t
-  wheels stay; see D2.
-- Q3 (resolved in OT-162): grammers 0.11 still hardcodes `lang_pack`/`params`;
-  see Known gaps and crates/opentele2-grammers/src/lib.rs:16-32.
-- Q4. Does grammers-session 0.11.0 pull async dependencies? Irrelevant to core
-  (D5 keeps it out), relevant to the optional crate's footprint.
-- Q5. Minimum Node version supported by mtcute 0.32.5; `engines >=18` may need
-  to rise to match it.
-- Q6. Measured gain of the native `createAesIge` over mtcute's default
-  provider; if none, the override is dropped (YAGNI). Benchmark in OT-156.
-- Q7. Exact RustCrypto versions for pbkdf2, sha1, sha2, md-5, argon2, scrypt
-  are pinned in OT-142, not here.
+- Q5. The exact `ureq` version and its MSRV against rust-version 1.89.
+- Q6. Whether npm and Rust need the Telethon sqlite file (D12 says no).
+- Q7. grammers-client 0.11 API for P2-01 (invoke, password check): only the
+  0.10 source is in refs/grammers, and grammers-client 0.11 is not yet in the
+  local registry.
+- Q8. Whether every name gen_core_vectors.py imports exists at tag 1.5.0 (the
+  module tree matches; the per-name check was refused by the tool guard).
