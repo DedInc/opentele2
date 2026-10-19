@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .. import tl
+from .. import _native, tl
 from .._compat import BaseObject
 from .._native import CoreError, TData
 from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
@@ -53,25 +53,25 @@ def _ensure_base_path(basePath: str | None) -> str:
     return basePath
 
 
-def _wrap_draws(passcode: str) -> int:
-    """The draws of a 7.3 key wrap in 1.5.0: the open salt, a passcode wrap
-    salt when there is a passcode, and the wrap padding."""
-    return 3 if passcode else 2
-
-
-def _key_draws(passcode: str, performance_mode: bool) -> int:
-    """The draws of a new local key in 1.5.0: its pass and salt, then its
-    wrap; none for the fixed performance-mode keys."""
-    if performance_mode and not passcode:
-        return 0
-    return 2 + _wrap_draws(passcode)
-
-
 def _split(draws: list[bytes] | None, count: int) -> tuple[list[bytes] | None, list[bytes] | None]:
     """The first ``count`` draws and the rest; no replay stays no replay."""
     if draws is None:
         return None, None
     return draws[:count], draws[count:]
+
+
+def _account_state(
+    account: _native.Account,
+) -> tuple[int, int, int, list[tuple[int, bytes]], bytes | None]:
+    """Everything a save writes for ``account``, to compare two of them."""
+    return (account.index, account.user_id, account.main_dc, account.keys, account.config)
+
+
+def _same_accounts(held: list[_native.Account], wanted: list[_native.Account]) -> bool:
+    """Whether a folder holding ``held`` already writes exactly ``wanted``."""
+    return [_account_state(account) for account in held] == [
+        _account_state(account) for account in wanted
+    ]
 
 
 class TDesktop(BaseObject):
@@ -225,12 +225,25 @@ class TDesktop(BaseObject):
             self.__passcode = passcode
             self.__isLoaded = False
 
+        # 1.5.0 writes the accounts listed in self.accounts, so removing one
+        # from the list or appending one is saved.
+        accounts = [account._core for account in self.accounts]
+        written = [core for core in accounts if core is not None]
+        if len(written) != len(accounts):
+            raise TDataSaveFailed("Could not save tdata, something went wrong")
+
         folder = self.__folder
-        if folder is None or not self.isLoaded():
-            keyDraws, replay = _split(replay, _key_draws(self.passcode, self.kPerformanceMode))
+        if folder is None or not self.isLoaded() or not _same_accounts(folder.accounts, written):
+            # The core keeps a local key only with the accounts it holds, so
+            # another account list is written under a new local key.
+            plan = _native.draw_plan(
+                "new",
+                {"has_passcode": self.passcode != "", "performance_mode": self.kPerformanceMode},
+            )
+            keyDraws, replay = _split(replay, len(plan))
             try:
                 folder = TData.new(
-                    [] if folder is None else folder.accounts,
+                    written,
                     self.passcode,
                     self.kPerformanceMode,
                     _NEW_FOLDER_ACTIVE_INDEX if folder is None else folder.active_index,
@@ -242,7 +255,7 @@ class TDesktop(BaseObject):
         elif folder.legacy_key_file:
             # tdesktop 7.3 migrates a pre-7.3 key file on start; write the
             # migrated shape directly, keeping the local key the accounts use.
-            wrapDraws, replay = _split(replay, _wrap_draws(self.passcode))
+            wrapDraws, replay = _split(replay, len(_native.draw_plan("migrate", folder)))
             try:
                 folder.migrate(draws=wrapDraws)
             except CoreError as error:

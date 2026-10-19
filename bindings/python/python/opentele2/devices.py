@@ -7,15 +7,18 @@ random device without one. The device catalogs live in the core.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from . import _native
 from ._compat import BaseObject
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import Literal
 
     from typing_extensions import TypeAlias
+
+    from ._native import _Platform
 
     _ClientName: TypeAlias = Literal[
         "TelegramDesktop",
@@ -51,6 +54,56 @@ class DeviceInfo:
         return f"{self.model} {self.version}"
 
 
+_T = TypeVar("_T")
+
+
+class _CatalogList(Generic[_T]):
+    """A read-only class attribute listing catalog data: built from the
+    core's catalogs on first read, and a new list on every read, so editing
+    one changes nothing ``RandomDevice`` picks."""
+
+    def __init__(self, build: Callable[[], list[_T]]) -> None:
+        self.__build = build
+        self.__built: tuple[_T, ...] | None = None
+
+    def __get__(self, instance: object, owner: type | None = None) -> list[_T]:
+        if self.__built is None:
+            self.__built = tuple(self.__build())
+        return list(self.__built)
+
+    def __set__(self, instance: object, value: object) -> None:
+        raise AttributeError("catalog attributes are read-only")
+
+
+class _BrowserWeights:
+    """``WebBrowserDevice.BROWSER_WEIGHTS``: a new copy of the core's
+    browser weights on every read."""
+
+    def __get__(self, instance: object, owner: type | None = None) -> dict[str, int]:
+        return dict(_native.WEB_BROWSER_WEIGHTS)
+
+    def __set__(self, instance: object, value: object) -> None:
+        raise AttributeError("catalog attributes are read-only")
+
+
+def _weighted_devices(platform: _Platform) -> list[DeviceInfo]:
+    """1.5.0 ``deviceList``: every catalog pair repeated by its weight, in
+    catalog order."""
+    devices: list[DeviceInfo] = []
+    for entry in _native.catalog_entries(platform):
+        device = DeviceInfo(entry["model"], entry["system_version"])
+        devices.extend([device] * entry["weight"])
+    return devices
+
+
+def _no_devices() -> list[DeviceInfo]:
+    return []
+
+
+def _no_names() -> list[str]:
+    return []
+
+
 def _seed(unique_id: object) -> str | None:
     # 1.5.0 hashed str(unique_id) for anything that is not a str.
     if unique_id is None or isinstance(unique_id, str):
@@ -66,6 +119,12 @@ def _generated_device(
 
 
 class SystemInfo(BaseObject):
+    # 1.5.0's catalog attributes; a class 1.5.0 filled none of leaves them
+    # empty, as AndroidDevice does with device_models and system_versions.
+    deviceList: _CatalogList[DeviceInfo] = _CatalogList(_no_devices)
+    device_models: _CatalogList[str] = _CatalogList(_no_names)
+    system_versions: _CatalogList[str] = _CatalogList(_no_names)
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None) -> DeviceInfo:
         raise NotImplementedError(f"{cls.__name__} device not supported for randomize yet")
@@ -76,6 +135,10 @@ class GeneralDesktopDevice(SystemInfo):
 
 
 class WindowsDevice(GeneralDesktopDevice):
+    deviceList = _CatalogList(lambda: _weighted_devices("windows"))
+    device_models = _CatalogList(lambda: _native.device_models("windows"))
+    system_versions = _CatalogList(lambda: _native.system_versions("windows"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None) -> DeviceInfo:
         # lib_base sends "Windows 11"/"Windows 10", plus " x64" on AMD64.
@@ -83,6 +146,10 @@ class WindowsDevice(GeneralDesktopDevice):
 
 
 class LinuxDevice(GeneralDesktopDevice):
+    deviceList = _CatalogList(lambda: _weighted_devices("linux"))
+    device_models = _CatalogList(lambda: _native.device_models("linux"))
+    system_versions = _CatalogList(lambda: _native.system_versions("linux"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None) -> DeviceInfo:
         # lib_base sends "Linux", the XDG_CURRENT_DESKTOP items, the display
@@ -91,6 +158,11 @@ class LinuxDevice(GeneralDesktopDevice):
 
 
 class macOSDevice(GeneralDesktopDevice):
+    # The bare versions; RandomDevice adds "macOS " for tdesktop, as 1.5.0 did.
+    deviceList = _CatalogList(lambda: _weighted_devices("macos"))
+    device_models = _CatalogList(lambda: _native.device_models("macos"))
+    system_versions = _CatalogList(lambda: _native.system_versions("macos"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None, variant: str = "tdesktop") -> DeviceInfo:
         """A catalog Mac for ``unique_id``.
@@ -105,6 +177,8 @@ class macOSDevice(GeneralDesktopDevice):
 
 
 class AndroidDevice(SystemInfo):
+    deviceList = _CatalogList(lambda: _weighted_devices("android"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None) -> DeviceInfo:
         # Telegram Android sends Build.MANUFACTURER + Build.MODEL verbatim.
@@ -112,6 +186,10 @@ class AndroidDevice(SystemInfo):
 
 
 class IOSDevice(SystemInfo):
+    deviceList = _CatalogList(lambda: _weighted_devices("ios"))
+    device_models = _CatalogList(lambda: _native.device_models("ios"))
+    system_versions = _CatalogList(lambda: _native.system_versions("ios"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None) -> DeviceInfo:
         # Telegram-iOS sends platformString(hw.machine), a marketing name such
@@ -123,6 +201,10 @@ iOSDevice = IOSDevice
 
 
 class WebBrowserDevice(SystemInfo):
+    BROWSER_WEIGHTS = _BrowserWeights()
+    # The Web A browsers (user agent, OS name) that variant "z" picks from.
+    deviceList = _CatalogList(lambda: _weighted_devices("web_a"))
+
     @classmethod
     def RandomDevice(cls, unique_id: str | None = None, variant: str = "z") -> DeviceInfo:
         """A browser for ``unique_id``: its user agent, and the OS name

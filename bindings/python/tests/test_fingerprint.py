@@ -371,3 +371,45 @@ def test_is_valid_msg_id_matches_1_5_0() -> None:
     for msg_id in (0, -1, -2, 1, 2**63 - 1, 2**63, 2**63 + 1, 2**64 + 1, -(2**70)):
         assert not is_valid_msg_id(msg_id)
         assert not is_valid_msg_id(msg_id, from_client=False)
+
+
+# validate_init_connection_params(**params, strict=strict) of 1.5.0 with one
+# value None, on the API.TelegramDesktop values; 1.5.0 tested None as empty.
+DESKTOP: dict[str, Any] = {
+    "api_id": 2040,
+    "device_model": "Desktop",
+    "system_version": "Windows 11 x64",
+    "app_version": "7.3.1 x64",
+    "system_lang_code": "en-US",
+    "lang_pack": "tdesktop",
+    "lang_code": "en",
+}
+LANG_PACK_NONE = (
+    "lang_pack 'None' is not a known official value. "
+    "Expected one of: ['', 'android', 'ios', 'macos', 'tdesktop']"
+)
+NONE_REPORTS: list[tuple[str, bool, list[str]]] = [
+    ("device_model", False, ["device_model is empty"]),
+    ("device_model", True, ["device_model is empty"]),
+    ("system_version", False, ["system_version is empty"]),
+    ("system_version", True, ["system_version is empty"]),
+    ("app_version", False, ["app_version is empty"]),
+    ("system_lang_code", False, []),
+    ("system_lang_code", True, []),
+    ("lang_pack", False, [LANG_PACK_NONE]),
+    ("lang_pack", True, [LANG_PACK_NONE]),
+    ("api_id", False, []),
+]
+
+
+@pytest.mark.parametrize(("field", "strict", "expected"), NONE_REPORTS)
+def test_none_values_are_reported_as_1_5_0(field: str, strict: bool, expected: list[str]) -> None:
+    params = {**DESKTOP, field: None}
+    assert validate_init_connection_params(**params, strict=strict) == expected
+
+
+def test_validate_params_reports_a_none_value_as_1_5_0() -> None:
+    config = FingerprintConfig(strict_mode=StrictMode.STRICT)
+    with pytest.raises(ValueError, match="system_version is empty") as raised:
+        config.validate_params(**{**DESKTOP, "system_version": None})
+    assert str(raised.value) == "initConnection fingerprint issues:\n  - system_version is empty"

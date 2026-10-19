@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import logging
 import platform
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Any, overload
 
 from . import _native
 from ._compat import BaseMetaClass, BaseObject, sharemethod
-from ._native import CoreError
 from .devices import (
     AndroidDevice,
     DeviceInfo,
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
 
     from typing_extensions import Self
 
-    from ._native import ApiProfile
     from .devices import _ClientName, _DesktopSystem
 
 __all__ = [
@@ -43,10 +41,6 @@ logger = logging.getLogger(__name__)
 
 _X64_ARCHES = ("x86_64", "AMD64")
 _X86_ARCHES = ("i386", "i686", "x86")
-
-# Stands in for a field an instance leaves None while the core writes its
-# session JSON, and is written back as the null 1.5.0 wrote for it.
-_UNSET_FIELD = "\x00opentele2-unset-field\x00"
 
 
 def _describe_api(glob: object) -> str:
@@ -111,14 +105,6 @@ def _desktop_system(name: str | None) -> _DesktopSystem | None:
     if name == "linux":
         return "linux"
     return None
-
-
-def _unset_marked(value: str | None) -> str:
-    return _UNSET_FIELD if value is None else value
-
-
-def _holds_null(data: dict, key: str) -> bool:
-    return key in data and data[key] is None
 
 
 class APIData(metaclass=BaseAPIMetaClass):
@@ -211,64 +197,35 @@ class APIData(metaclass=BaseAPIMetaClass):
 
     @staticmethod
     def from_json(data: dict) -> APIData:
-        """The API of session JSON as 1.5.0 read it: ``app_id`` and
-        ``app_hash`` are required, ``app_id`` an integer or a decimal string.
-        A missing ``device`` is the local machine's model, and a missing
-        ``sdk`` or ``app_version`` stays None.
-        ``lang_code`` defaults to ``"en"``, ``lang_pack`` to ``""``, and
-        ``system_lang_code`` falls back to ``system_lang_pack``, then
-        ``"en"``; a language key holding null stays None."""
-        completed = dict(data)
-        # 1.5.0 passed app_id through untouched, so a session JSON storing it
-        # as a decimal string still built an API; the core reads integers only.
-        app_id = completed.get("app_id")
-        if isinstance(app_id, str) and app_id.isascii() and app_id.isdigit():
-            completed["app_id"] = int(app_id)
-        # 1.5.0 read every key with dict.get, so null and absent are alike.
-        if completed.get("device") is None:
-            completed["device"] = _local_device_model()
-        sdk_unset = completed.get("sdk") is None
-        if sdk_unset:
-            completed["sdk"] = ""
-        app_version_unset = completed.get("app_version") is None
-        if app_version_unset:
-            completed["app_version"] = ""
-
-        try:
-            profile = _native.profile_from_session_json(completed)
-        except CoreError as error:
-            raise NoInstanceMatched(error.message) from error
-
-        # The core reads a language key holding null as absent; 1.5.0's
-        # dict.get defaults applied only to absent keys.
-        system_lang_code: str | None = profile["system_lang_code"]
-        if not data.get("system_lang_code") and _holds_null(data, "system_lang_pack"):
-            system_lang_code = None
-
-        return APIData(
-            api_id=profile["api_id"],
-            api_hash=profile["api_hash"],
-            device_model=profile["device_model"],
-            system_version=None if sdk_unset else profile["system_version"],
-            app_version=None if app_version_unset else profile["app_version"],
-            lang_code=None if _holds_null(data, "lang_code") else profile["lang_code"],
-            system_lang_code=system_lang_code,
-            lang_pack=None if _holds_null(data, "lang_pack") else profile["lang_pack"],
-        )
+        """The API of session JSON as 1.5.0 read it: each attribute is its
+        key of ``_native.SESSION_JSON_FIELDS`` read with ``dict.get`` and the
+        key's default, a falsy value falling back to its fallback key; the
+        values are taken as they are. A missing ``app_id`` or ``app_hash``
+        raises NoInstanceMatched, and a missing ``device`` is the local
+        machine's model."""
+        defaults = {key: default for key, _, default, _ in _native.SESSION_JSON_FIELDS}
+        values: dict[str, Any] = {}
+        for key, attribute, default, fallback in _native.SESSION_JSON_FIELDS:
+            if fallback is None:
+                # A key with a fallback owns its attribute, wherever it is listed.
+                values.setdefault(attribute, data.get(key, default))
+            else:
+                values[attribute] = data.get(key, default) or data.get(fallback, defaults[fallback])
+        return APIData(**values)
 
     def to_json(self, extra: dict | None = None) -> dict:
-        profile: ApiProfile = {
-            "api_id": self.api_id,
-            "api_hash": self.api_hash,
-            "device_model": self.device_model,
-            "system_version": _unset_marked(self.system_version),
-            "app_version": _unset_marked(self.app_version),
-            "lang_code": _unset_marked(self.lang_code),
-            "system_lang_code": _unset_marked(self.system_lang_code),
-            "lang_pack": _unset_marked(self.lang_pack),
+        """1.5.0's session JSON of this API: every key of
+        ``_native.SESSION_JSON_FIELDS`` holding its attribute, then
+        ``_native.DEFAULT_EXTRA_FIELDS`` updated with ``extra``; the values
+        are written as they are."""
+        result: dict[str, Any] = {
+            key: getattr(self, attribute) for key, attribute, _, _ in _native.SESSION_JSON_FIELDS
         }
-        written = _native.profile_to_session_json(profile, extra)
-        return {key: None if value == _UNSET_FIELD else value for key, value in written.items()}
+        extras: dict[str, Any] = dict(_native.DEFAULT_EXTRA_FIELDS)
+        if extra:
+            extras.update(extra)
+        result.update(extras)
+        return result
 
     def __eq__(self, other: object, /) -> bool:
         if not isinstance(other, APIData):
@@ -341,8 +298,17 @@ class API(BaseObject):
             if unique_id is None and system is not None and _desktop_system(system) is None:
                 system, unique_id = None, system
 
-            # Without a platform, the core picks one from the unique_id hash.
-            profile = _native.generate("TelegramDesktop", _seed(unique_id), _desktop_system(system))
+            # Imported here as 1.5.0 did: fingerprint fetches versions on import.
+            from .fingerprint import PLATFORM_VERSIONS, _native_versions
+
+            # Without a platform, the core picks one from the unique_id hash;
+            # the app version follows PLATFORM_VERSIONS as it is now.
+            profile = _native.generate(
+                "TelegramDesktop",
+                _seed(unique_id),
+                _desktop_system(system),
+                _native_versions(PLATFORM_VERSIONS),
+            )
             return cls(
                 device_model=profile["device_model"],
                 system_version=profile["system_version"],

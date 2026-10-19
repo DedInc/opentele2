@@ -209,7 +209,7 @@ def test_raise_core_error_maps_native_errors(tmp_path: Path) -> None:
     cause = missing.value.__cause__
     assert isinstance(cause, CoreError)
     assert cause.code == "TFILE_NOT_FOUND"
-    assert missing.value.message == cause.message
+    assert missing.value.message == cause.legacy_message
     assert str(missing.value) == (
         f"TFileNotFound: {missing.value.message} [ Called by Loader.load() ]"
     )
@@ -243,3 +243,29 @@ def test_raise_core_error_maps_native_errors(tmp_path: Path) -> None:
     with pytest.raises(CoreError) as kept:
         raise_core_error(unknown)
     assert kept.value is unknown
+
+
+class Decryptor:
+    def decrypt(self, encrypted: bytes) -> bytes:
+        try:
+            return _native.decrypt_local(encrypted, b"k" * 256)
+        except CoreError as error:
+            raise_core_error(error)
+
+
+def test_raise_core_error_gives_the_1_5_0_message() -> None:
+    # 1.5.0 src/td/storage.py: TDataBadEncryptedDataSize(f"Bad encrypted part size: {size}").
+    with pytest.raises(exception.TDataBadEncryptedDataSize) as bad_size:
+        Decryptor().decrypt(b"\x01" * 20)
+    cause = bad_size.value.__cause__
+    assert isinstance(cause, CoreError)
+    assert cause.message != cause.legacy_message
+    assert bad_size.value.message == "Bad encrypted part size: 20"
+    assert str(bad_size.value) == (
+        "TDataBadEncryptedDataSize: Bad encrypted part size: 20 [ Called by Decryptor.decrypt() ]"
+    )
+    # 1.5.0 TDesktop.LoadTData: TFileNotFound(f"Could not open key_{keyFile}").
+    with pytest.raises(TFileNotFound, match="Could not open key_data"):
+        raise_core_error(
+            CoreError("TFILE_NOT_FOUND", "tdata file not found", "Could not open key_data")
+        )

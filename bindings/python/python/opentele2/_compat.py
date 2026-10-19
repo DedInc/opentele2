@@ -33,21 +33,11 @@ __all__ = [
 # The core exports no version constant of its own; a new TData carries the
 # version every save writes into the TDF$ header (core tdata::APP_VERSION).
 APP_VERSION: int = _native.TData.new([]).app_version
-# The first four bytes of every tdata file (core tdf::MAGIC); the tests check
-# it against a header the core writes.
-TDF_MAGIC = b"TDF$"
-
-
-def format_app_version(version: int) -> str:
-    """Render a packed tdesktop version the way ``AppVersionStr`` spells it.
-
-    Mirrors tdesktop's ``FormatVersionDisplay``: a zero patch is omitted, so
-    7003000 is ``"7.3"`` and 7003001 is ``"7.3.1"``.
-    """
-    major, rest = divmod(version, 1000000)
-    minor, patch = divmod(rest, 1000)
-    return f"{major}.{minor}.{patch}" if patch else f"{major}.{minor}"
-
+# The first four bytes of every tdata file (core tdf::MAGIC).
+TDF_MAGIC: bytes = _native.TDF_MAGIC
+# A packed tdesktop version as ``AppVersionStr`` spells it, a zero patch
+# omitted: 7003000 is "7.3" and 7003001 is "7.3.1".
+format_app_version = _native.format_app_version
 
 APP_VERSION_STR = format_app_version(APP_VERSION)
 
@@ -101,27 +91,9 @@ class sharemethod(Generic[_R]):
 def PrettyTable(table: Sequence[Mapping[str, object]], addSplit: list[int] | None = None) -> str:
     """1.5.0's bordered text table: one column per key of the first row, each
     cell centred in its column, and a splitter line before every row index in
-    ``addSplit``. ``TelegramClient.PrintSessions`` prints the core's own
+    ``addSplit``, rendered by ``_native.format_table`` from the ``str()`` of
+    every cell. ``TelegramClient.PrintSessions`` prints the core's own
     rendering of the same layout (``_native.format_sessions``)."""
-    splits = [] if addSplit is None else addSplit
-    padding = {label: len(label) for label in table[0]}
-    for row in table:
-        for label, value in row.items():
-            padding[label] = max(padding[label], len(str(value)))
-
-    def centre(value: object, width: int) -> str:
-        text = str(value)
-        left = (width - len(text)) // 2
-        return " " * left + text + " " * (width - len(text) - left)
-
-    header = "|".join(centre(label, width + 2) for label, width in padding.items())
-    splitter = "+".join("-" * (width + 2) for width in padding.values())
-    lines = [f"|{splitter}|", f"|{header}|", f"|{splitter}|"]
-    for index, row in enumerate(table):
-        if index in splits:
-            lines.append(f"|{splitter}|")
-        lines.append(
-            "|" + "|".join(centre(row[label], w + 2) for label, w in padding.items()) + "|"
-        )
-    lines.append(f"|{splitter}|")
-    return "\n".join(lines)
+    headers = [str(label) for label in table[0]]
+    rows = [[str(row[label]) for label in table[0]] for row in table]
+    return _native.format_table(headers, rows, addSplit)

@@ -208,26 +208,33 @@ def tdesktop_tz_offset(now: datetime | None = None) -> float:
     return _native.tz_offset(int(offset.total_seconds()) if offset is not None else 0)
 
 
+def _empty_if_none(value: str | None) -> str:
+    return "" if value is None else value
+
+
 def _init_issues(
-    api_id: int,
-    device_model: str,
-    system_version: str,
-    app_version: str,
-    system_lang_code: str,
-    lang_pack: str,
-    lang_code: str,
+    api_id: int | None,
+    device_model: str | None,
+    system_version: str | None,
+    app_version: str | None,
+    system_lang_code: str | None,
+    lang_pack: str | None,
+    lang_code: str | None,
     *,
     strict: bool = False,
 ) -> list[Issue]:
+    # 1.5.0 tested a None value as empty, except lang_pack, which it looked
+    # up as the text "None" among the known packs; an api_id of None matched
+    # no official id.
     profile: ApiProfile = {
-        "api_id": api_id,
+        "api_id": 0 if api_id is None else api_id,
         "api_hash": "",
-        "device_model": device_model,
-        "system_version": system_version,
-        "app_version": app_version,
-        "lang_code": lang_code,
-        "system_lang_code": system_lang_code,
-        "lang_pack": lang_pack,
+        "device_model": _empty_if_none(device_model),
+        "system_version": _empty_if_none(system_version),
+        "app_version": _empty_if_none(app_version),
+        "lang_code": _empty_if_none(lang_code),
+        "system_lang_code": _empty_if_none(system_lang_code),
+        "lang_pack": str(lang_pack),
     }
     # Checked against PLATFORM_VERSIONS as it is now, fetched or edited.
     return _native.validate_init_params(
@@ -236,13 +243,13 @@ def _init_issues(
 
 
 def validate_init_connection_params(
-    api_id: int,
-    device_model: str,
-    system_version: str,
-    app_version: str,
-    system_lang_code: str,
-    lang_pack: str,
-    lang_code: str,
+    api_id: int | None,
+    device_model: str | None,
+    system_version: str | None,
+    app_version: str | None,
+    system_lang_code: str | None,
+    lang_pack: str | None,
+    lang_code: str | None,
     *,
     strict: bool = False,
 ) -> list[str]:

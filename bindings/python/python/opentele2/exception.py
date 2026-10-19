@@ -241,15 +241,16 @@ CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
 
 def raise_core_error(error: CoreError, stack_index: int = 1) -> typing.NoReturn:
     """Raise ``error`` as the exception :data:`CORE_ERROR_TYPES` names for
-    its code, chained to it, with its message. An OpenTeleException reports
-    the caller ``stack_index`` frames up from here; a code the table does not
-    know re-raises ``error`` itself."""
+    its code, chained to it, with the message 1.5.0 gave that exception
+    (``error.legacy_message``). An OpenTeleException reports the caller
+    ``stack_index`` frames up from here; a code the table does not know
+    re-raises ``error`` itself."""
     exception_type = CORE_ERROR_TYPES.get(error.code)
     if exception_type is None:
         raise error
     if issubclass(exception_type, OpenTeleException):
-        raise exception_type(error.message, stack_index + 1) from error
-    raise exception_type(error.message) from error
+        raise exception_type(error.legacy_message, stack_index + 1) from error
+    raise exception_type(error.legacy_message) from error
 
 
 @typing.overload

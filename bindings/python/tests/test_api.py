@@ -5,6 +5,7 @@ every case of crates/opentele2-core/tests/vectors/devices.json through
 
 from __future__ import annotations
 
+import datetime
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -441,25 +442,37 @@ def test_from_json_defaults_and_system_lang_pack_fallback() -> None:
 
 
 def test_from_json_without_credentials_raises_no_instance_matched() -> None:
-    with pytest.raises(NoInstanceMatched, match="session JSON"):
+    # 1.5.0 src/api.py: APIData.__init__'s message, raised from from_json.
+    with pytest.raises(NoInstanceMatched) as missing:
         APIData.from_json({"app_hash": "h", "device": "d", "sdk": "s", "app_version": "v"})
+    assert missing.value.message == "No instace of API matches the arguments"
     # 1.5.0 rejected only a missing app_id or app_hash, null counting as missing.
     for data in ({"app_hash": "h"}, {"app_id": 1}, {"app_id": None, "app_hash": "h"}):
-        with pytest.raises(NoInstanceMatched):
+        with pytest.raises(NoInstanceMatched, match="No instace of API matches the arguments"):
             APIData.from_json(data)
 
 
-def test_from_json_coerces_a_decimal_string_app_id() -> None:
-    data = {"app_id": "2040", "app_hash": "b18441a1ff607e10a989891a5462e627", "device": "d"}
-    loaded = APIData.from_json(data)
-    assert loaded.api_id == 2040
-    assert type(loaded.api_id) is int
-    assert data["app_id"] == "2040", "the given dict is left as it was"
-    # 2040 in fullwidth digits, which str.isdigit accepts.
-    fullwidth = "".join(chr(0xFF10 + digit) for digit in (2, 0, 4, 0))
-    for app_id in ("", "20x", "-1", "1.5", fullwidth):
-        with pytest.raises(NoInstanceMatched):
-            APIData.from_json({"app_id": app_id, "app_hash": "h"})
+def test_from_json_takes_values_as_1_5_0_did() -> None:
+    # vars(APIData.from_json(data)) of 1.5.0: every value passes through untyped.
+    local = api._local_device_model()
+    cases: list[tuple[dict[str, Any], Fields]] = [
+        ({"app_id": "2040", "app_hash": "h"}, ("2040", "h", local, None, None, "en", "en", "")),
+        ({"app_id": "20x", "app_hash": "h"}, ("20x", "h", local, None, None, "en", "en", "")),
+        (
+            {"app_id": 7, "app_hash": "h", "sdk": 33, "device": 5, "lang_code": None},
+            (7, "h", 5, 33, None, None, "en", ""),
+        ),
+        (
+            {"app_id": 7, "app_hash": "h", "app_version": 1.5, "lang_pack": 0},
+            (7, "h", local, None, 1.5, "en", "en", 0),
+        ),
+    ]
+    for data, expected in cases:
+        before = dict(data)
+        loaded = APIData.from_json(data)
+        assert type(loaded) is APIData
+        assert _fields(loaded) == expected, data
+        assert data == before, "from_json must not edit its argument"
 
 
 def test_from_json_is_as_lenient_as_1_5_0() -> None:
@@ -578,3 +591,63 @@ def test_to_json_matches_1_5_0_bytes() -> None:
         '"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,'
         '"session_file":"","x":1}'
     )
+
+
+def test_to_json_writes_values_untyped_as_1_5_0() -> None:
+    # APIData(api_id="12345", api_hash="h").to_json(extra) of 1.5.0: an api_id
+    # read from os.environ and extras json cannot encode pass through as given.
+    registered = datetime.datetime(2024, 1, 2, 3, 4, 5)
+    from_environment: Any = "12345"
+    written = APIData(api_id=from_environment, api_hash="h").to_json(
+        {"register_time": registered, "x": 1}
+    )
+    assert list(written.items()) == [
+        ("app_id", "12345"),
+        ("app_hash", "h"),
+        ("device", api._local_device_model()),
+        ("sdk", None),
+        ("app_version", None),
+        ("system_lang_pack", None),
+        ("system_lang_code", None),
+        ("lang_pack", None),
+        ("lang_code", None),
+        ("twoFA", None),
+        ("role", ""),
+        ("id", None),
+        ("phone", None),
+        ("username", None),
+        ("date_of_birth", None),
+        ("date_of_birth_integrity", None),
+        ("is_premium", False),
+        ("has_profile_pic", False),
+        ("spamblock", None),
+        ("register_time", registered),
+        ("last_check_time", None),
+        ("avatar", None),
+        ("first_name", ""),
+        ("last_name", ""),
+        ("sex", None),
+        ("proxy", None),
+        ("ipv6", False),
+        ("session_file", ""),
+        ("x", 1),
+    ]
+    assert written["register_time"] is registered
+
+
+def test_desktop_generate_follows_edited_platform_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from opentele2.fingerprint import PLATFORM_VERSIONS
+
+    monkeypatch.setattr(PLATFORM_VERSIONS, "desktop_app_version", "9.9.9")
+    monkeypatch.setattr(PLATFORM_VERSIONS, "desktop_app_version_suffix", "beta")
+    # API.TelegramDesktop.Generate(system, "abc") of 1.5.0 after the same edits.
+    expected = {
+        "windows": ("B660M DS3H", "Windows 11 x64", "9.9.9 x64"),
+        "macos": ("MacBook Pro M4 Pro", "macOS 27.0.1", "9.9.9 arm64"),
+        "linux": ("H470M DS3H", "Linux MATE X11 glibc 2.39", "9.9.9"),
+    }
+    for system, want in expected.items():
+        generated = API.TelegramDesktop.Generate(system, "abc")
+        assert (generated.device_model, generated.system_version, generated.app_version) == want

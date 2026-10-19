@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from .. import tl
+from .. import _native, tl
 from .._compat import BaseObject
 from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
 from ..exception import (
@@ -20,11 +20,12 @@ from .auth import AuthKey, AuthKeyType
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from typing import Literal
 
     from telethon.sessions.abstract import Session
     from typing_extensions import Unpack
 
-    from .. import _native
+    from .._native import Endpoint, Endpoints, MtpConfigFields, RsaPublicKey
     from ..tl.client_kwargs import TelethonClientKwargs
     from .tdesktop import TDesktop
 
@@ -39,6 +40,42 @@ def _absolute_path(path: str | None) -> str:
     if path is None or path == "":
         path = os.getcwd()
     return os.path.abspath(path)
+
+
+class MtpConfigView(BaseObject):
+    """1.5.0 ``Account.MtpConfig``, read only: the MTP config of one loaded
+    account as ``_native.account_mtp_config`` parses it. Every read returns
+    a new copy, so editing a result changes nothing that is saved."""
+
+    def __init__(self, account: _native.Account) -> None:
+        self.__account = account
+
+    @property
+    def environment(self) -> Literal["production", "test"]:
+        return _native.account_mtp_config(self.__account)["environment"]
+
+    def isTestMode(self) -> bool:
+        return self.environment != "production"
+
+    @property
+    def dcOptions(self) -> dict[int, list[Endpoint]]:
+        """The endpoints of every DC, by DC id, in the stored order."""
+        dcs = _native.account_mtp_config(self.__account)["dcs"]
+        return {dc["dc_id"]: dc["endpoints"] for dc in dcs}
+
+    @property
+    def cdnPublicKeys(self) -> list[RsaPublicKey]:
+        return _native.account_mtp_config(self.__account)["cdn_public_keys"]
+
+    @property
+    def fields(self) -> MtpConfigFields:
+        return _native.account_mtp_config(self.__account)["fields"]
+
+    def endpoints(self, dcId: int | None = None) -> Endpoints | None:
+        """The endpoints of ``dcId`` (the account's main DC by default) by
+        address family and protocol, as 1.5.0 ``MTP.Config.endpoints``
+        sorted them; None when the config lists no such DC."""
+        return _native.account_endpoints(self.__account, dcId)
 
 
 class Account(BaseObject):
@@ -124,6 +161,16 @@ class Account(BaseObject):
     @property
     def MainDcId(self) -> int:
         return self.__MainDcId
+
+    @property
+    def MtpConfig(self) -> MtpConfigView:
+        """The account's MTP config, as 1.5.0 read it from the folder: the
+        production default when the folder stores none or it does not parse.
+        An account that was never loaded has none to read."""
+        core = self.__core
+        if core is None:
+            raise TDAccountNotLoaded("Account not loaded yet")
+        return MtpConfigView(core)
 
     def isAuthorized(self) -> bool:
         return self.__isAuthorized

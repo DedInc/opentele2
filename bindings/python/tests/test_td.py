@@ -27,6 +27,7 @@ from opentele2._native import CoreError, TData
 from opentele2.api import API, APIData
 from opentele2.exception import (
     OpenTeleException,
+    TDAccountNotLoaded,
     TDataBadDecryptKey,
     TDataSaveFailed,
     TFileNotFound,
@@ -419,6 +420,77 @@ def test_an_empty_key_file_name_fails_the_save(tmp_path: Path) -> None:
     with pytest.raises(TDataSaveFailed, match=SAVE_FAILED):
         tdesk.SaveTData(str(tmp_path), keyFile="")
     assert listed_files(tmp_path) == []
+
+
+def test_saves_write_the_accounts_list_as_1_5_0(tmp_path: Path) -> None:
+    # TDesktop(...).SaveTData after editing tdesk.accounts, reloaded, in 1.5.0.
+    tdesk = load("tdata_plain/performance_on")
+    removed = tdesk.accounts.pop(1)
+    assert removed.index == 1
+    tdesk.SaveTData(str(tmp_path / "removed"))
+    reloaded = TDesktop(str(tmp_path / "removed"))
+    assert [(a.index, a.UserId, a.MainDcId) for a in reloaded.accounts] == [(0, 100000001, 2)]
+    main = reloaded.mainAccount
+    assert main is not None
+    assert main.index == 0
+
+    key = bytes(range(256))
+    TData.new([_native.Account(2, 4242, 4, [(4, key)])]).save(tmp_path / "two")
+    tdesk = load("tdata_plain/performance_on")
+    tdesk.accounts.append(TDesktop(str(tmp_path / "two")).accounts[0])
+    tdesk.SaveTData(str(tmp_path / "added"))
+    reloaded = TDesktop(str(tmp_path / "added"))
+    assert [(a.index, a.UserId, a.MainDcId) for a in reloaded.accounts] == [
+        (0, 100000001, 2),
+        (1, 5000000123, 4),
+        (2, 4242, 4),
+    ]
+    added = reloaded.accounts[2].authKey
+    assert added is not None
+    assert_same(added.key, key, "appended account auth key")
+    for account in tdesk.accounts:
+        assert account.localKey is tdesk.localKey
+
+
+def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
+    # TDesktop(folder).accounts[0].MtpConfig of 1.5.0: the production default,
+    # and endpoints(MainDcId) sorted by address family and protocol.
+    dc2_ipv4 = [
+        {"id": 2, "flags": 16, "ip": "149.154.167.51", "port": 443, "secret": b""},
+        {"id": 2, "flags": 16, "ip": "95.161.76.100", "port": 443, "secret": b""},
+    ]
+    dc2_ipv6 = [
+        {
+            "id": 2,
+            "flags": 17,
+            "ip": "2001:067c:04e8:f002:0000:0000:0000:000a",
+            "port": 443,
+            "secret": b"",
+        }
+    ]
+    for folder in ("tdata_plain/performance_on", "tdata_plain/performance_off"):
+        account = load(folder).accounts[0]
+        config = account.MtpConfig
+        assert config.environment == "production"
+        assert not config.isTestMode()
+        options = config.dcOptions
+        assert sorted(options) == [1, 2, 3, 4, 5]
+        assert options[2] == [*dc2_ipv4, *dc2_ipv6]
+        assert options[1][0]["ip"] == "149.154.175.50"
+        assert config.cdnPublicKeys == []
+        fields = config.fields
+        assert (fields["web_file_dc_id"], fields["txt_domain_string"]) == (4, "apv3.stel.com")
+        assert fields["chat_size_max"] == 200
+        endpoints = config.endpoints(account.MainDcId)
+        assert endpoints is not None
+        assert endpoints["ipv4"] == {"tcp": dc2_ipv4, "http": dc2_ipv4}
+        assert endpoints["ipv6"] == {"tcp": dc2_ipv6, "http": dc2_ipv6}
+        assert config.endpoints() == endpoints
+        options[2].clear()
+        assert len(config.dcOptions[2]) == 3, "a read returns a copy"
+
+    with pytest.raises(TDAccountNotLoaded):
+        _ = Account(TDesktop()).MtpConfig
 
 
 def test_api_reaches_every_account() -> None:

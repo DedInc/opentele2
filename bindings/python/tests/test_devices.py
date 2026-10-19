@@ -10,6 +10,7 @@ crates/opentele2-core/tests/vectors/devices.json is checked byte for byte.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -288,3 +289,72 @@ def test_web_catalog_spans_several_browsers() -> None:
             assert rv, agent
             assert product, agent
             assert rv.group(1) == product.group(1), agent
+
+
+def _digest(lines: list[str]) -> str:
+    return hashlib.sha256("".join(lines).encode()).hexdigest()[:16]
+
+
+# 1.5.0 after cls.__gen__(): len and the digest above of deviceList (one
+# "model\tversion\n" per entry), device_models ("\n"-joined) and
+# system_versions ("\n"-joined).
+CATALOG_ATTRIBUTES: list[tuple[type[SystemInfo], int, str, int, str, int, str]] = [
+    (WindowsDevice, 3050, "91c2da4d084fa446", 116, "14a54035d03301e2", 2, "2ba2f90b5dd04ff1"),
+    (LinuxDevice, 21045, "69af1ab21f27a801", 116, "14a54035d03301e2", 34, "7d7fe6c3a69aff93"),
+    (macOSDevice, 19680, "aa968dc54ea0f982", 36, "6ca7a048d212ffd7", 42, "e3c26e2503f5f986"),
+    (AndroidDevice, 31148, "4ac8cda518351b10", 0, "e3b0c44298fc1c14", 0, "e3b0c44298fc1c14"),
+    (IOSDevice, 18115, "b0e515f3b0880335", 33, "cd8307af8a812531", 46, "6d91cbe1558dc05a"),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "cls",
+        "devices_len",
+        "devices_digest",
+        "models_len",
+        "models_digest",
+        "versions_len",
+        "versions_digest",
+    ),
+    CATALOG_ATTRIBUTES,
+)
+def test_catalog_class_attributes_match_1_5_0(
+    cls: type[SystemInfo],
+    devices_len: int,
+    devices_digest: str,
+    models_len: int,
+    models_digest: str,
+    versions_len: int,
+    versions_digest: str,
+) -> None:
+    device_list = cls.deviceList
+    assert all(isinstance(device, DeviceInfo) for device in device_list)
+    assert len(device_list) == devices_len
+    assert _digest([f"{d.model}\t{d.version}\n" for d in device_list]) == devices_digest
+    assert len(cls.device_models) == models_len
+    assert _digest(["\n".join(cls.device_models)]) == models_digest
+    assert len(cls.system_versions) == versions_len
+    assert _digest(["\n".join(cls.system_versions)]) == versions_digest
+
+
+def test_catalog_class_attributes_are_read_only_copies() -> None:
+    assert (SystemInfo.deviceList, SystemInfo.device_models, SystemInfo.system_versions) == (
+        [],
+        [],
+        [],
+    )
+    # 1.5.0 src/devices.py WebBrowserDevice.BROWSER_WEIGHTS.
+    assert WebBrowserDevice.BROWSER_WEIGHTS == {"chrome": 19, "edge": 2, "firefox": 1}
+    assert WebBrowserDevice.deviceList, "the Web A browsers"
+    picked = WindowsDevice.RandomDevice("seed").model
+    edited = WindowsDevice.deviceList
+    edited.clear()
+    WindowsDevice.device_models.append("edited")
+    WebBrowserDevice.BROWSER_WEIGHTS["chrome"] = 0
+    assert len(WindowsDevice.deviceList) == 3050
+    assert "edited" not in WindowsDevice.device_models
+    assert WebBrowserDevice.BROWSER_WEIGHTS["chrome"] == 19
+    assert WindowsDevice.RandomDevice("seed").model == picked
+    with pytest.raises(AttributeError, match="read-only"):
+        WindowsDevice().deviceList = []
