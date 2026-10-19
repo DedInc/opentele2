@@ -60,6 +60,8 @@ def test_no_unsupported_macos_major_in_catalog(mac_devices: list[DeviceInfo]) ->
 def test_no_unsupported_macos_major_generated(seed: str) -> None:
     tdesktop = API.TelegramDesktop.Generate("macos", seed)
     swift = API.TelegramMacOS.Generate(seed)
+    assert tdesktop.system_version is not None
+    assert swift.system_version is not None
     assert tdesktop.system_version.startswith("macOS ")
     assert _major(tdesktop.system_version) >= _MIN_MACOS_MAJOR, tdesktop.system_version
     assert _major(swift.system_version) >= _MIN_MACOS_MAJOR, swift.system_version
