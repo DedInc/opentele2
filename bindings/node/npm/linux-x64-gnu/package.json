@@ -1,0 +1,35 @@
+{
+  "name": "opentele2-linux-x64-gnu",
+  "version": "2.0.0-alpha.1",
+  "cpu": [
+    "x64"
+  ],
+  "main": "opentele2.linux-x64-gnu.node",
+  "files": [
+    "opentele2.linux-x64-gnu.node"
+  ],
+  "description": "Telegram Desktop tdata formats, crypto, string sessions and API fingerprints from the Rust core of opentele2, with mtcute helpers",
+  "keywords": [
+    "telegram",
+    "tdata",
+    "tdesktop",
+    "opentele",
+    "mtcute",
+    "napi-rs"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DedInc/opentele2.git",
+    "directory": "bindings/node"
+  },
+  "os": [
+    "linux"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}

@@ -22,3 +22,5 @@ docs/
 tests/data/
 /target/
 !/Cargo.lock
+node_modules/
+*.node

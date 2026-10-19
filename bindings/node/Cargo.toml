@@ -1,0 +1,41 @@
+[package]
+name = "opentele2-node"
+description = "Node.js bindings of opentele2-core: Telegram Desktop tdata formats and crypto through Node-API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+# The addon only loads inside Node; its behaviour is tested by
+# bindings/node/__test__ through node:test.
+test = false
+doctest = false
+
+[dependencies]
+opentele2-core = { path = "../../crates/opentele2-core" }
+# Already a dependency of the core; seeds the keys of `newTdata`.
+getrandom = "0.4.3"
+# Node-API 4 is the baseline every call needs. `napi6` adds only the BigInt
+# conversions of `userId` and seeds; with `dyn-symbols` the addon resolves
+# Node-API symbols at load time, so it still loads on a Node-API 4 host.
+napi = { version = "3.14.2", default-features = false, features = ["napi4", "napi6", "dyn-symbols"] }
+napi-derive = "3.6.12"
+
+[build-dependencies]
+napi-build = "2.6.0"
+
+# The workspace lints, except that `unsafe_code` is `deny` rather than
+# `forbid`: napi-derive wraps its generated registration code in
+# `#[allow(unsafe_code)]`, which `forbid` refuses (E0453). `deny` still
+# rejects every hand-written `unsafe` in this crate.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
