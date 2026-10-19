@@ -163,7 +163,8 @@ pub struct TData {
     /// Telegram Desktop version stored in the key file's `TDF$` header;
     /// [`TData::save`] always writes [`APP_VERSION`], as 1.5.0 does.
     pub app_version: u32,
-    /// The data name of the key file, for example [`DEFAULT_KEY_FILE`].
+    /// The data name of the key file, for example [`DEFAULT_KEY_FILE`];
+    /// [`TData::set_key_file`] changes it after checking the name.
     pub key_file: String,
     /// The parsed key file; as in 1.5.0 only the live passcode wraps are
     /// kept, so stale wraps are not written back. [`TData::save`] writes it
@@ -202,6 +203,11 @@ impl fmt::Debug for TData {
 }
 
 impl TData {
+    /// Most accounts one folder holds (1.5.0's `TDesktop.kMaxAccounts`);
+    /// [`TData::add_account`] refuses more. [`TData::load`] reads a folder
+    /// that lists more, as 1.5.0 does.
+    pub const MAX_ACCOUNTS: usize = 6;
+
     /// Creates a folder for `accounts` the way 1.5.0's `SaveTData` does for a
     /// `TDesktop` that was not loaded (`__generateLocalKey`), drawing random
     /// bytes from `rng` in 1.5.0's `os.urandom` order.
@@ -433,6 +439,52 @@ impl TData {
             performance_mode: true,
             passcode: Passcode(passcode.to_vec()),
         })
+    }
+
+    /// Adds an account with `auth_key` as the key of `main_dc`, as 1.5.0's
+    /// `Account.FromTelethon` adds one to an owner: it gets the map of
+    /// [`MapData::new_account`](map::MapData::new_account) and no config,
+    /// and it is appended (`_addSingleAccount`). The active index is not
+    /// changed, so [`TData::main_account`] stays the first account of a
+    /// folder that had none. Returns the new index.
+    ///
+    /// The index is the lowest one in `0..MAX_ACCOUNTS` that no account
+    /// holds, tdesktop's own rule. This deliberately differs from 1.5.0,
+    /// which uses the account count: with loaded indices `[0, 2]` the count
+    /// gives a second account 2, whose files would overwrite the first; here
+    /// the new account gets 1. Without gaps both rules agree.
+    ///
+    /// # Errors
+    /// [`Error::MaxAccountLimit`] when the folder already holds
+    /// [`TData::MAX_ACCOUNTS`] accounts or every index below it is taken
+    /// (1.5.0: `You can't have more than 6 accounts in one TDesktop
+    /// client`); `self` is then unchanged.
+    pub fn add_account(&mut self, user_id: u64, main_dc: i32, auth_key: AuthKey) -> Result<i32> {
+        if self.accounts.len() >= Self::MAX_ACCOUNTS {
+            return Err(Error::MaxAccountLimit);
+        }
+        let index = (0..)
+            .take(Self::MAX_ACCOUNTS)
+            .find(|index| self.accounts.iter().all(|account| account.index != *index))
+            .ok_or(Error::MaxAccountLimit)?;
+        let account = Account::new(index, user_id, main_dc, vec![(main_dc, auth_key)])?;
+        self.accounts.push(account);
+        Ok(index)
+    }
+
+    /// Changes the data name of the key file, as 1.5.0's
+    /// `SaveTData(keyFile=name)` does: [`TData::save`] then writes
+    /// `key_<name>s` and every account under the data name
+    /// [`account::data_name`]`(name, index)`.
+    ///
+    /// # Errors
+    /// [`Error::SaveFailed`] when `name` is empty; `self` is then unchanged.
+    pub fn set_key_file(&mut self, name: &str) -> Result<()> {
+        if name.is_empty() {
+            return Err(Error::SaveFailed);
+        }
+        name.clone_into(&mut self.key_file);
+        Ok(())
     }
 
     /// The main account: the one whose index is the active index, else the

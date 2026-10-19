@@ -672,3 +672,291 @@ fn account_files_land_where_the_reader_looks() {
     assert_eq!(loaded.accounts.len(), 2);
     fs::remove_dir_all(&dir).expect("clean scratch");
 }
+
+/// (user id, main DC, auth key) of every account input of `entry`.
+fn account_inputs(entry: &Value) -> Vec<(u64, i32, AuthKey)> {
+    accounts_of(entry)
+        .iter()
+        .map(|a| {
+            (
+                a.user_id,
+                a.main_dc,
+                a.auth_key().expect("main key").clone(),
+            )
+        })
+        .collect()
+}
+
+/// Builds `folder` with `TData::new` on no account, adds its accounts one
+/// by one with `add_account`, and saves it while the recorded draws are
+/// replayed: the files are the ones 1.5.0 wrote, since without gaps the
+/// lowest free index is 1.5.0's account count.
+fn check_added_to_new_folder(folder: &str) {
+    let entry = folder_entry(folder);
+    let passcode = passcode_of(&entry);
+    let performance = entry["performance_mode"].as_bool().expect("mode");
+    let mut replay = Replay::new(&entry, 0);
+    let mut rng = |buf: &mut [u8]| replay.fill(buf);
+    let mut tdata = TData::new(Vec::new(), passcode, performance, &mut rng).expect("new");
+    assert!(tdata.main_account().is_none(), "{folder} empty folder");
+    for (want, (user_id, main_dc, key)) in (0..).zip(account_inputs(&entry)) {
+        assert_eq!(tdata.add_account(user_id, main_dc, key).expect("add"), want);
+        assert_eq!(tdata.main_account().expect("main").index, 0, "{folder}");
+    }
+    let written = scratch("added_new");
+    tdata.save(&written, &mut rng).expect("save");
+    replay.finish();
+    assert_same_folder(folder, &written);
+    let loaded = TData::load(&written, passcode, None).expect("load added folder");
+    assert_same_accounts(folder, &loaded, &accounts_of(&entry), performance);
+    assert_eq!(loaded.main_account().expect("main").index, 0);
+    fs::remove_dir_all(&written).expect("clean scratch");
+}
+
+#[test]
+fn accounts_added_to_a_new_plain_folder_write_like_1_5_0() {
+    check_added_to_new_folder("tdata_plain/performance_on");
+    check_added_to_new_folder("tdata_plain/performance_off");
+}
+
+#[test]
+fn accounts_added_to_a_new_passcode_folder_write_like_1_5_0() {
+    check_added_to_new_folder("tdata_passcode/performance_on");
+    check_added_to_new_folder("tdata_passcode/performance_off");
+}
+
+/// Loads the vector `folder`, adds one account, and saves it: the recorded
+/// draws are replayed while they fit, then counted bytes are drawn, so the
+/// two loaded accounts are written byte for byte as 1.5.0 wrote them and
+/// the added one follows. The reload holds all three.
+fn check_added_to_loaded_folder(folder: &str) {
+    let entry = folder_entry(folder);
+    let passcode = passcode_of(&entry);
+    let performance = entry["performance_mode"].as_bool().expect("mode");
+    let mut tdata = TData::load(vectors_dir().join(folder), passcode, None).expect("load vector");
+    tdata.performance_mode = performance;
+    let main = tdata.main_account().expect("main").index;
+    let key = AuthKey::new([0x5A; AuthKey::SIZE]);
+    assert_eq!(tdata.add_account(777, 3, key).expect("add"), 2);
+    assert_eq!(tdata.main_account().expect("main").index, main, "{folder}");
+
+    let mut replay = Replay::new(&entry, key_generation_draws(&entry));
+    let mut next = 0u8;
+    let written = scratch("added_loaded");
+    tdata
+        .save(&written, &mut |buf| {
+            let fits = replay
+                .draws
+                .get(replay.next)
+                .is_some_and(|draw| draw.len() == buf.len());
+            if fits {
+                replay.fill(buf);
+            } else {
+                // Past the recorded draws: no draw from now on is replayed.
+                replay.next = replay.draws.len();
+                for byte in buf {
+                    next = next.wrapping_add(1);
+                    *byte = next;
+                }
+            }
+        })
+        .expect("save");
+    let expected = vectors_dir().join(folder);
+    let files = listed_files(&written);
+    for name in manifest_files(&entry) {
+        assert!(files.contains(&name), "{folder}/{name} written");
+        if !name.starts_with("key_") {
+            let ours = fs::read(written.join(&name)).expect("read written file");
+            let theirs = fs::read(expected.join(&name)).expect("read vector file");
+            assert!(ours == theirs, "{folder}/{name} differs from 1.5.0");
+        }
+    }
+    let part = folder_name(&data_name("data", 2));
+    assert!(files.contains(&format!("{part}s")), "{part}s");
+    assert!(files.contains(&format!("{part}/maps")), "{part}/maps");
+
+    let loaded = TData::load(&written, passcode, None).expect("load added folder");
+    assert_same_accounts(folder, &loaded, &tdata.accounts, performance);
+    assert_eq!(loaded.main_account().expect("main").index, main);
+    fs::remove_dir_all(&written).expect("clean scratch");
+}
+
+#[test]
+fn account_added_to_a_loaded_folder_saves_and_reloads() {
+    check_added_to_loaded_folder("tdata_plain/performance_on");
+    check_added_to_loaded_folder("tdata_passcode/performance_off");
+}
+
+#[test]
+fn seventh_account_is_refused_like_1_5_0() {
+    assert_eq!(TData::MAX_ACCOUNTS, 6);
+    let mut no_draw = |_: &mut [u8]| {};
+    let mut tdata = TData::new(Vec::new(), b"", true, &mut no_draw).expect("new");
+    for want in 0..6_i32 {
+        let key = AuthKey::new([want.to_le_bytes()[0] + 1; AuthKey::SIZE]);
+        assert_eq!(tdata.add_account(100, 2, key).expect("add"), want);
+    }
+    let refused = tdata.add_account(100, 2, AuthKey::new([9; AuthKey::SIZE]));
+    let error = refused.expect_err("seventh account");
+    assert!(matches!(error, Error::MaxAccountLimit));
+    assert_eq!(error.code(), "MAX_ACCOUNT_LIMIT");
+    assert_eq!(tdata.accounts.len(), TData::MAX_ACCOUNTS);
+
+    let mut loaded = TData::load(vectors_dir().join("tdata_plain/performance_on"), b"", None)
+        .expect("load vector");
+    for want in 2..6 {
+        let key = AuthKey::new([7; AuthKey::SIZE]);
+        assert_eq!(loaded.add_account(200, 4, key).expect("add"), want);
+    }
+    assert!(matches!(
+        loaded.add_account(200, 4, AuthKey::new([7; AuthKey::SIZE])),
+        Err(Error::MaxAccountLimit)
+    ));
+    let dir = scratch("six");
+    loaded.save_random(&dir).expect("save six");
+    let reloaded = TData::load(&dir, b"", None).expect("load six");
+    let indices: Vec<i32> = reloaded.accounts.iter().map(|a| a.index).collect();
+    assert_eq!(indices, [0, 1, 2, 3, 4, 5]);
+    fs::remove_dir_all(&dir).expect("clean scratch");
+}
+
+/// tdesktop's rule, not 1.5.0's count: a folder holding indices `[0, 2]`
+/// gets 1, never a second 2 that would overwrite the files of account 2.
+#[test]
+fn added_account_takes_the_lowest_free_index() {
+    let entry = folder_entry("tdata_plain/performance_on");
+    let mut accounts = accounts_of(&entry);
+    accounts[1].index = 2;
+    let mut no_draw = |_: &mut [u8]| {};
+    let gapped = TData::new(accounts, b"", true, &mut no_draw).expect("new");
+    let first = scratch("gap_first");
+    gapped.save_random(&first).expect("save gapped");
+
+    let mut tdata = TData::load(&first, b"", None).expect("load gapped");
+    let indices: Vec<i32> = tdata.accounts.iter().map(|a| a.index).collect();
+    assert_eq!(indices, [0, 2]);
+    let key = AuthKey::new([0x3C; AuthKey::SIZE]);
+    assert_eq!(tdata.add_account(888, 1, key).expect("add"), 1);
+    assert_eq!(tdata.active_index, NEW_FOLDER_ACTIVE_INDEX);
+    assert_eq!(tdata.main_account().expect("main").index, 0);
+    assert_eq!(
+        tdata
+            .add_account(889, 1, AuthKey::new([0x3D; AuthKey::SIZE]))
+            .expect("add"),
+        3
+    );
+
+    let second = scratch("gap_second");
+    tdata
+        .save_random(&second)
+        .expect("save with the added accounts");
+    let files = listed_files(&second);
+    for index in [0, 1, 2, 3] {
+        let part = folder_name(&data_name("data", index));
+        assert!(files.contains(&format!("{part}s")), "{part}s");
+        assert!(files.contains(&format!("{part}/maps")), "{part}/maps");
+    }
+    let reloaded = TData::load(&second, b"", None).expect("reload");
+    let indices: Vec<i32> = reloaded.accounts.iter().map(|a| a.index).collect();
+    assert_eq!(indices, [0, 2, 1, 3]);
+    let users: Vec<u64> = reloaded.accounts.iter().map(|a| a.user_id).collect();
+    assert_eq!(users, [100_000_001, 5_000_000_123, 888, 889]);
+    assert_same_accounts("gap", &reloaded, &tdata.accounts, true);
+    fs::remove_dir_all(&first).expect("clean scratch");
+    fs::remove_dir_all(&second).expect("clean scratch");
+}
+
+#[test]
+fn empty_key_file_name_is_refused() {
+    let mut no_draw = |_: &mut [u8]| {};
+    let mut tdata = TData::new(Vec::new(), b"", true, &mut no_draw).expect("new");
+    assert!(matches!(tdata.set_key_file(""), Err(Error::SaveFailed)));
+    assert_eq!(tdata.key_file, "data");
+    tdata.set_key_file("renamed").expect("rename");
+    assert_eq!(tdata.key_file, "renamed");
+}
+
+// What 1.5.0 writes for key file "renamed" from tdata_plain/performance_on,
+// captured with `python -c` (OPENTELE_NO_FETCH=1, output under target/):
+// both accounts given the key file before `SaveTData()`, as
+// `Account.FromTelethon` does with `owner.keyFile`.
+const RENAMED_FILES_1_5_0: [&str; 5] = [
+    "41C3059FCB9A4788/maps",
+    "41C3059FCB9A4788s",
+    "CAAC63A284752796/maps",
+    "CAAC63A284752796s",
+    "key_renameds",
+];
+// `SaveTData(keyFile="renamed")` on the first account alone. On both
+// accounts 1.5.0 hands the raw name to every account, so the second one
+// overwrites the first under `CAAC63A284752796` and the reload holds one
+// account; the composed names above are the loadable layout.
+const RENAMED_SINGLE_FILES_1_5_0: [&str; 3] =
+    ["CAAC63A284752796/maps", "CAAC63A284752796s", "key_renameds"];
+
+/// The files of `count` accounts under key file `name`, from the helpers.
+fn composed_files(name: &str, count: i32) -> Vec<String> {
+    let mut files: Vec<String> = (0..count)
+        .flat_map(|index| {
+            let part = folder_name(&data_name(name, index));
+            [format!("{part}/maps"), format!("{part}s")]
+        })
+        .chain([format!("key_{name}s")])
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn renamed_key_file_writes_the_1_5_0_names() {
+    let folder = "tdata_plain/performance_on";
+    let entry = folder_entry(folder);
+    let mut tdata = TData::load(vectors_dir().join(folder), b"", None).expect("load vector");
+    tdata.set_key_file("renamed").expect("rename");
+    let mut replay = Replay::new(&entry, key_generation_draws(&entry));
+    let written = scratch("renamed");
+    tdata
+        .save(&written, &mut |buf| replay.fill(buf))
+        .expect("save renamed");
+    replay.finish();
+    let files = listed_files(&written);
+    assert_eq!(files, RENAMED_FILES_1_5_0);
+    assert_eq!(files, composed_files("renamed", 2));
+
+    // Only the names change: each file holds the bytes 1.5.0 wrote.
+    let expected = vectors_dir().join(folder);
+    let renamed = |name: &str| {
+        let mut name = name.replace("key_datas", "key_renameds");
+        for index in [0, 1] {
+            let from = folder_name(&data_name("data", index));
+            let to = folder_name(&data_name("renamed", index));
+            name = name.replace(&from, &to);
+        }
+        name
+    };
+    for name in manifest_files(&entry) {
+        let ours = fs::read(written.join(renamed(&name))).expect("read written file");
+        let theirs = fs::read(expected.join(&name)).expect("read vector file");
+        assert!(ours == theirs, "{folder}/{name} differs once renamed");
+    }
+    let loaded = TData::load(&written, b"", Some("renamed")).expect("load renamed");
+    assert_eq!(loaded.key_file, "renamed");
+    assert_same_accounts(folder, &loaded, &tdata.accounts, true);
+    assert!(matches!(
+        TData::load(&written, b"", None),
+        Err(Error::FileNotFound | Error::Io(_))
+    ));
+    fs::remove_dir_all(&written).expect("clean scratch");
+
+    let mut single = TData::load(vectors_dir().join(folder), b"", None).expect("load vector");
+    single.accounts.truncate(1);
+    single.set_key_file("renamed").expect("rename");
+    let written = scratch("renamed_single");
+    single.save_random(&written).expect("save single");
+    let files = listed_files(&written);
+    assert_eq!(files, RENAMED_SINGLE_FILES_1_5_0);
+    assert_eq!(files, composed_files("renamed", 1));
+    let loaded = TData::load(&written, b"", Some("renamed")).expect("load single");
+    assert_same_accounts(folder, &loaded, &single.accounts, true);
+    fs::remove_dir_all(&written).expect("clean scratch");
+}
