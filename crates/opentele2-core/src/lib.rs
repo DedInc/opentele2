@@ -20,6 +20,7 @@ pub mod crypto;
 mod error;
 pub mod kdf;
 pub mod qt;
+pub mod session;
 pub mod tdata;
 pub mod tdf;
 
