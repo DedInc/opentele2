@@ -17,5 +17,7 @@
 //! exception types.
 
 mod error;
+pub mod qt;
+pub mod tdf;
 
 pub use error::{Error, Result};
