@@ -17,14 +17,15 @@ use opentele2_core::Error;
 use opentele2_core::batch::{self, BatchOptions, LoadRequest as CoreLoadRequest};
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::{mtcute, telethon};
-use opentele2_core::tdata::TData as CoreTData;
 use opentele2_core::tdata::account::Account as CoreAccount;
 use opentele2_core::tdata::mtp_config::{
     self, ConfigFields, Endpoint as CoreEndpoint, Endpoints as CoreEndpoints, Environment,
     MtpConfig as CoreMtpConfig, ProtocolEndpoints as CoreProtocolEndpoints,
 };
+use opentele2_core::tdata::{NEW_FOLDER_ACTIVE_INDEX, TData as CoreTData};
 
 use crate::convert::{to_auth_key, to_passcode, to_user_id};
+use crate::draws::{Draws, Failure};
 use crate::error::{CodedError, Result, check, core_error, invalid_arg, rejection};
 
 /// One authorization key of an account.
@@ -132,7 +133,8 @@ fn snapshot(shared: &Shared) -> Arc<CoreTData> {
 }
 
 /// A Telegram Desktop `tdata` folder, loaded from disk or created for
-/// writing. Its keys stay in Rust; only `accounts` copies key bytes out.
+/// writing. Its keys stay in Rust; `accounts`, `localKey` and `passcodeKey`
+/// copy key bytes out into new buffers.
 #[napi]
 pub struct TData {
     inner: Shared,
@@ -150,6 +152,13 @@ impl TData {
     fn folder(&self) -> Arc<CoreTData> {
         snapshot(&self.inner)
     }
+
+    /// Applies `change` to the folder; snapshots taken before, such as a
+    /// save in flight, keep the folder as it was.
+    fn update(&self, change: impl FnOnce(&mut CoreTData)) {
+        let mut folder = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+        change(Arc::make_mut(&mut folder));
+    }
 }
 
 #[napi]
@@ -160,10 +169,50 @@ impl TData {
         self.folder().accounts.iter().map(to_js_account).collect()
     }
 
-    /// The active index stored in the accounts info.
+    /// The active index stored in the accounts info; saving writes it.
     #[napi(getter)]
     pub fn active_index(&self) -> i32 {
         self.folder().active_index
+    }
+
+    /// Sets the active index the next save writes.
+    #[napi(setter)]
+    pub fn set_active_index(&self, value: i32) {
+        self.update(|folder| folder.active_index = value);
+    }
+
+    /// 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
+    /// files. Loading turns it on, the 1.5.0 default.
+    #[napi(getter)]
+    pub fn performance_mode(&self) -> bool {
+        self.folder().performance_mode
+    }
+
+    /// Sets the performance mode of later saves.
+    #[napi(setter)]
+    pub fn set_performance_mode(&self, value: bool) {
+        self.update(|folder| folder.performance_mode = value);
+    }
+
+    /// Telegram Desktop version in the key file's `TDF$` header; saving
+    /// always writes 1.5.0's 7003001.
+    #[napi(getter)]
+    pub fn app_version(&self) -> u32 {
+        self.folder().app_version
+    }
+
+    /// The 256-byte local key every file but the key file is encrypted
+    /// with, copied into a new buffer.
+    #[napi(getter)]
+    pub fn local_key(&self) -> Buffer {
+        Buffer::from(self.folder().local_key.as_bytes().to_vec())
+    }
+
+    /// The 256-byte open or passcode key the local key is wrapped under,
+    /// copied into a new buffer.
+    #[napi(getter)]
+    pub fn passcode_key(&self) -> Buffer {
+        Buffer::from(self.folder().passcode_key.as_bytes().to_vec())
     }
 
     /// The account at the active index, else the first one; `null` for a
@@ -238,63 +287,79 @@ impl Task for LoadTask {
     }
 }
 
+/// Settles a task that may also have failed to replay its draws.
+fn settle<T>(env: Env, output: std::result::Result<T, Failure>) -> napi::Result<T> {
+    output.map_err(|failure| rejection(env, failure.into_error()))
+}
+
+/// The `draws` argument copied into owned bytes.
+fn to_draws(draws: Option<Vec<Uint8Array>>) -> Option<Vec<Vec<u8>>> {
+    draws.map(|draws| draws.iter().map(|draw| draw.to_vec()).collect())
+}
+
 /// `TData::new` off the JavaScript thread, with keys from the OS random
-/// source.
+/// source or the replayed draws.
 pub struct NewTask {
     accounts: Vec<CoreAccount>,
     passcode: Vec<u8>,
     performance_mode: bool,
+    active_index: i32,
+    draws: Option<Vec<Vec<u8>>>,
 }
 
 #[napi]
 impl Task for NewTask {
-    type Output = opentele2_core::Result<CoreTData>;
+    type Output = std::result::Result<CoreTData, Failure>;
     type JsValue = TData;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        let mut failure = None;
+        let mut draws = Draws::new(self.draws.take());
         let created = CoreTData::new(
             std::mem::take(&mut self.accounts),
             &self.passcode,
             self.performance_mode,
-            &mut |buf| {
-                if failure.is_none()
-                    && let Err(error) = getrandom::fill(buf)
-                {
-                    failure = Some(error);
-                }
-            },
+            &mut |buf| draws.fill(buf),
         );
         // A failed draw leaves the buffer unspecified, so the folder is
         // discarded rather than returned with weak keys.
-        Ok(match failure {
-            Some(error) => Err(Error::Io(std::io::Error::other(error))),
-            None => created,
-        })
+        if let Err(failure) = draws.finish() {
+            return Ok(Err(failure));
+        }
+        Ok(created.map_err(Failure::from).map(|mut created| {
+            created.active_index = self.active_index;
+            created
+        }))
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<TData> {
-        settle_folder(env, output)
+        settle(env, output).map(TData::holding)
     }
 }
 
-/// `TData::save_random` off the JavaScript thread.
+/// `TData::save_random`, or `TData::save` with the replayed draws, off the
+/// JavaScript thread.
 pub struct SaveTask {
     tdata: Arc<CoreTData>,
     dir: PathBuf,
+    draws: Option<Vec<Vec<u8>>>,
 }
 
 #[napi]
 impl Task for SaveTask {
-    type Output = opentele2_core::Result<()>;
+    type Output = std::result::Result<(), Failure>;
     type JsValue = ();
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        Ok(self.tdata.save_random(&self.dir))
+        let mut draws = Draws::new(self.draws.take());
+        if !draws.is_replay() {
+            return Ok(self.tdata.save_random(&self.dir).map_err(Failure::from));
+        }
+        let saved = self.tdata.save(&self.dir, &mut |buf| draws.fill(buf));
+        Ok(draws.finish().and(saved.map_err(Failure::from)))
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<()> {
-        output.map_err(|error| rejection(env, core_error(&error)))
+        settle(env, output)
     }
 }
 
@@ -338,50 +403,64 @@ pub fn load_tdata(
 }
 
 /// Writes `tdata` into the folder `path`, with padding from the OS random
-/// source.
+/// source. `performanceMode`, when given, applies to this save only: on, no
+/// `configs` files are written.
+///
+/// `draws`, a testing hook, replays exactly these byte arrays in order
+/// instead (see `newTdata`); on a mismatch the written files are not usable
+/// and the promise rejects with `ERR_INVALID_ARG_VALUE`.
 #[napi]
-pub fn save_tdata(tdata: &TData, path: String) -> AsyncTask<SaveTask> {
+pub fn save_tdata(
+    tdata: &TData,
+    path: String,
+    performance_mode: Option<bool>,
+    draws: Option<Vec<Uint8Array>>,
+) -> AsyncTask<SaveTask> {
+    let mut folder = tdata.folder();
+    if let Some(mode) = performance_mode
+        && mode != folder.performance_mode
+    {
+        Arc::make_mut(&mut folder).performance_mode = mode;
+    }
     AsyncTask::new(SaveTask {
-        tdata: tdata.folder(),
+        tdata: folder,
         dir: PathBuf::from(path),
+        draws: to_draws(draws),
     })
 }
 
 /// `TData::migrate` off the JavaScript thread, with keys from the OS random
-/// source.
+/// source or the replayed draws.
 pub struct MigrateTask {
     tdata: Shared,
+    draws: Option<Vec<Vec<u8>>>,
 }
 
 #[napi]
 impl Task for MigrateTask {
-    type Output = opentele2_core::Result<bool>;
+    type Output = std::result::Result<bool, Failure>;
     type JsValue = bool;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
         let mut folder = CoreTData::clone(&snapshot(&self.tdata));
-        let mut failure = None;
-        let migrated = folder.migrate(&mut |buf| {
-            if failure.is_none()
-                && let Err(error) = getrandom::fill(buf)
-            {
-                failure = Some(error);
-            }
-        });
-        Ok(match (failure, migrated) {
-            // A failed draw leaves the new wrap unspecified, so the folder
-            // stays as it was.
-            (Some(error), _) => Err(Error::Io(std::io::Error::other(error))),
-            (None, Ok(true)) => {
+        let mut draws = Draws::new(self.draws.take());
+        let migrated = folder.migrate(&mut |buf| draws.fill(buf));
+        // A failed draw leaves the new wrap unspecified, so the folder
+        // stays as it was.
+        if let Err(failure) = draws.finish() {
+            return Ok(Err(failure));
+        }
+        Ok(match migrated {
+            Ok(true) => {
                 *self.tdata.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
                 Ok(true)
             }
-            (None, other) => other,
+            other => other.map_err(Failure::from),
         })
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<bool> {
-        output.map_err(|error| rejection(env, core_error(&error)))
+        settle(env, output)
     }
 }
 
@@ -390,21 +469,35 @@ impl Task for MigrateTask {
 /// key data instead of migrating afresh, so the key file keeps one wrap
 /// across saves. A 7.3 key file is left alone (`false`); under a passcode
 /// the new wrap runs Argon2id.
+///
+/// `draws`, a testing hook, replays exactly these byte arrays in order
+/// instead of the OS random source (see `newTdata`); on a mismatch the
+/// folder stays as it was and the promise rejects with
+/// `ERR_INVALID_ARG_VALUE`.
 #[napi]
-pub fn migrate_tdata(tdata: &TData) -> AsyncTask<MigrateTask> {
+pub fn migrate_tdata(tdata: &TData, draws: Option<Vec<Uint8Array>>) -> AsyncTask<MigrateTask> {
     AsyncTask::new(MigrateTask {
         tdata: Arc::clone(&tdata.inner),
+        draws: to_draws(draws),
     })
 }
 
 /// A new folder for `accounts` the way 1.5.0's `SaveTData` creates one, with
 /// keys from the OS random source; `performanceMode` (default `true`) skips
-/// the `configs` files on save. Account errors throw synchronously.
+/// the `configs` files on save, and `activeIndex` (default 1.5.0's `-1`) is
+/// the active index saves write. Account errors throw synchronously.
+///
+/// `draws`, a testing hook, replaces the OS random source with exactly
+/// these byte arrays in order, as 1.5.0's `os.urandom` calls were recorded;
+/// a draw of another size, a missing draw or an unused one rejects with
+/// `ERR_INVALID_ARG_VALUE`.
 #[napi]
 pub fn new_tdata(
     accounts: Vec<AccountInput>,
     passcode: Option<Either<String, Uint8Array>>,
     performance_mode: Option<bool>,
+    active_index: Option<i32>,
+    draws: Option<Vec<Uint8Array>>,
 ) -> Result<AsyncTask<NewTask>> {
     let accounts = accounts
         .into_iter()
@@ -414,6 +507,8 @@ pub fn new_tdata(
         accounts,
         passcode: to_passcode(passcode),
         performance_mode: performance_mode.unwrap_or(true),
+        active_index: active_index.unwrap_or(NEW_FOLDER_ACTIVE_INDEX),
+        draws: to_draws(draws),
     }))
 }
 

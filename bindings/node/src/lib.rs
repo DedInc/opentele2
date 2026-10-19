@@ -23,6 +23,8 @@ mod convert;
 #[cfg(not(test))]
 mod crypto;
 #[cfg(not(test))]
+mod draws;
+#[cfg(not(test))]
 mod error;
 #[cfg(not(test))]
 mod fingerprint;

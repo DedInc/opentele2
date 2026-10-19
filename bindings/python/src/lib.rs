@@ -11,6 +11,7 @@ mod api;
 mod auth;
 mod convert;
 mod crypto;
+mod draws;
 mod error;
 mod fingerprint;
 mod json;

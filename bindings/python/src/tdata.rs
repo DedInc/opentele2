@@ -11,13 +11,14 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyModule, PyTuple};
 use opentele2_core::Error;
 use opentele2_core::batch::{self, BatchOptions, LoadRequest};
 use opentele2_core::crypto::AuthKey;
-use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::mtp_config::{
     self, ConfigFields, Endpoint, Environment, ProtocolEndpoints,
 };
+use opentele2_core::tdata::{NEW_FOLDER_ACTIVE_INDEX, TData};
 
 use crate::convert::{owned_bytes, to_auth_key, to_bytes, to_passcode};
+use crate::draws::{Draws, to_draws};
 use crate::error::{check, core_error_value};
 
 /// One Telegram Desktop account: its index, user id, main DC and
@@ -133,6 +134,13 @@ impl PyTData {
         // holds a whole folder.
         Arc::clone(&self.inner.read().unwrap_or_else(PoisonError::into_inner))
     }
+
+    /// Applies `change` to the folder; snapshots taken before keep the
+    /// folder as it was.
+    fn update(&self, change: impl FnOnce(&mut TData)) {
+        let mut folder = self.inner.write().unwrap_or_else(PoisonError::into_inner);
+        change(Arc::make_mut(&mut folder));
+    }
 }
 
 #[pymethods]
@@ -154,44 +162,79 @@ impl PyTData {
     }
 
     /// A new folder for `accounts` the way 1.5.0's `SaveTData` creates one,
-    /// with keys from the OS random source.
+    /// with keys from the OS random source, storing `active_index` (1.5.0's
+    /// `-1` by default).
+    ///
+    /// `draws`, a testing hook, replaces the OS random source with exactly
+    /// these byte strings in order, as 1.5.0's `os.urandom` calls were
+    /// recorded; a draw of another size, a missing draw or an unused one
+    /// raises `ValueError`.
     #[staticmethod]
-    #[pyo3(signature = (accounts, passcode = None, performance_mode = true))]
+    #[pyo3(signature = (
+        accounts, passcode = None, performance_mode = true, active_index = NEW_FOLDER_ACTIVE_INDEX,
+        draws = None
+    ))]
     fn new(
         py: Python<'_>,
         accounts: Vec<Bound<'_, PyAccount>>,
         passcode: Option<&Bound<'_, PyAny>>,
         performance_mode: bool,
+        active_index: i32,
+        draws: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let passcode = to_passcode(passcode)?;
+        let draws = Draws::new(to_draws(draws)?);
         let accounts: Vec<Account> = accounts
             .into_iter()
             .map(|account| account.get().inner.clone())
             .collect();
-        let created = py.detach(move || {
-            let mut failure = None;
+        let (created, replayed) = py.detach(move || {
+            let mut draws = draws;
             let created = TData::new(accounts, &passcode, performance_mode, &mut |buf| {
-                if failure.is_none()
-                    && let Err(error) = getrandom::fill(buf)
-                {
-                    failure = Some(error);
-                }
+                draws.fill(buf);
             });
-            // A failed draw leaves the buffer unspecified, so the folder is
-            // discarded rather than returned with weak keys.
-            match failure {
-                Some(error) => Err(Error::Io(std::io::Error::other(error))),
-                None => created,
-            }
+            (created, draws.finish())
         });
-        Ok(Self::holding(check(py, created)?))
+        // A failed draw leaves the buffer unspecified, so the folder is
+        // discarded rather than returned with weak keys.
+        replayed.map_err(|failure| failure.into_err(py))?;
+        let mut created = check(py, created)?;
+        created.active_index = active_index;
+        Ok(Self::holding(created))
     }
 
     /// Writes the folder into `path`, with padding from the OS random
-    /// source.
-    fn save(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
-        let folder = self.folder();
-        check(py, py.detach(move || folder.save_random(&path)))
+    /// source. `performance_mode`, when given, applies to this save only:
+    /// on, no `configs` files are written.
+    ///
+    /// `draws`, a testing hook, replays exactly these byte strings in order
+    /// instead (see `new`); on a mismatch the written files are not usable
+    /// and `ValueError` is raised.
+    #[pyo3(signature = (path, performance_mode = None, draws = None))]
+    fn save(
+        &self,
+        py: Python<'_>,
+        path: PathBuf,
+        performance_mode: Option<bool>,
+        draws: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let draws = Draws::new(to_draws(draws)?);
+        let mut folder = self.folder();
+        if let Some(mode) = performance_mode
+            && mode != folder.performance_mode
+        {
+            Arc::make_mut(&mut folder).performance_mode = mode;
+        }
+        if !draws.is_replay() {
+            return check(py, py.detach(move || folder.save_random(&path)));
+        }
+        let (saved, replayed) = py.detach(move || {
+            let mut draws = draws;
+            let saved = folder.save(&path, &mut |buf| draws.fill(buf));
+            (saved, draws.finish())
+        });
+        replayed.map_err(|failure| failure.into_err(py))?;
+        check(py, saved)
     }
 
     /// Installs 7.3 key data in place of a legacy (pre-7.3) key file, as the
@@ -199,30 +242,59 @@ impl PyTData {
     /// whether it did. Later saves write that key data instead of migrating
     /// afresh, so the key file keeps one wrap across saves. A 7.3 key file
     /// is left alone (`False`); under a passcode the new wrap runs Argon2id.
-    fn migrate(&self, py: Python<'_>) -> PyResult<bool> {
+    ///
+    /// `draws`, a testing hook, replays exactly these byte strings in order
+    /// instead (see `new`); on a mismatch the folder stays as it was and
+    /// `ValueError` is raised.
+    #[pyo3(signature = (draws = None))]
+    fn migrate(&self, py: Python<'_>, draws: Option<&Bound<'_, PyAny>>) -> PyResult<bool> {
+        let draws = Draws::new(to_draws(draws)?);
         let mut folder = TData::clone(&self.folder());
-        let (folder, migrated) = py.detach(move || {
-            let mut failure = None;
-            let migrated = folder.migrate(&mut |buf| {
-                if failure.is_none()
-                    && let Err(error) = getrandom::fill(buf)
-                {
-                    failure = Some(error);
-                }
-            });
-            // A failed draw leaves the new wrap unspecified, so the folder
-            // stays as it was.
-            let migrated = match failure {
-                Some(error) => Err(Error::Io(std::io::Error::other(error))),
-                None => migrated,
-            };
-            (folder, migrated)
+        let (folder, migrated, replayed) = py.detach(move || {
+            let mut draws = draws;
+            let migrated = folder.migrate(&mut |buf| draws.fill(buf));
+            (folder, migrated, draws.finish())
         });
+        // A failed draw leaves the new wrap unspecified, so the folder
+        // stays as it was.
+        replayed.map_err(|failure| failure.into_err(py))?;
         let migrated = check(py, migrated)?;
         if migrated {
             *self.inner.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
         }
         Ok(migrated)
+    }
+
+    /// Telegram Desktop version in the key file's `TDF$` header; saving
+    /// always writes 1.5.0's 7003001.
+    #[getter]
+    fn app_version(&self) -> u32 {
+        self.folder().app_version
+    }
+
+    /// The 256-byte local key every file but the key file is encrypted
+    /// with.
+    #[getter]
+    fn local_key<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        to_bytes(py, self.folder().local_key.as_bytes())
+    }
+
+    /// The 256-byte open or passcode key the local key is wrapped under.
+    #[getter]
+    fn passcode_key<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        to_bytes(py, self.folder().passcode_key.as_bytes())
+    }
+
+    /// 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
+    /// files. Loading turns it on, the 1.5.0 default.
+    #[getter]
+    fn performance_mode(&self) -> bool {
+        self.folder().performance_mode
+    }
+
+    #[setter]
+    fn set_performance_mode(&self, value: bool) {
+        self.update(|folder| folder.performance_mode = value);
     }
 
     /// The accounts, in accounts-info order.
@@ -237,10 +309,15 @@ impl PyTData {
             .collect()
     }
 
-    /// The active index stored in the accounts info.
+    /// The active index stored in the accounts info; saving writes it.
     #[getter]
     fn active_index(&self) -> i32 {
         self.folder().active_index
+    }
+
+    #[setter]
+    fn set_active_index(&self, value: i32) {
+        self.update(|folder| folder.active_index = value);
     }
 
     /// The account at the active index, else the first one.

@@ -6,8 +6,8 @@
 // Deno and DOM types that no Node setup provides; the `@ts-expect-error`
 // lines fail the check if a declaration here degrades to `any`.
 
-import { profile, sessionPairPaths, telethonSessionRows } from 'opentele2'
-import type { AccountInput, ApiProfile, SessionPairPaths, TelethonSessionRows } from 'opentele2'
+import { loadTdata, migrateTdata, newTdata, profile, saveTdata, sessionPairPaths, telethonSessionRows } from 'opentele2'
+import type { AccountInput, ApiProfile, SessionPairPaths, TData, TelethonSessionRows } from 'opentele2'
 import { initConnectionOptions, toStringSession } from 'opentele2/mtcute'
 import type { InitConnectionOptions } from 'opentele2/mtcute'
 import { loadSessionPair, readSessionFile, saveSessionPair, writeSessionFile } from 'opentele2/telethon'
@@ -54,4 +54,24 @@ export async function misuse(account: AccountInput, desktop: ApiProfile, rows: R
   // @ts-expect-error the mtcute options carry no API id
   void initConnectionOptions(desktop).apiId
   void [text, dc, json, device]
+}
+
+export async function tdataSurface(account: AccountInput): Promise<void> {
+  const draws: Uint8Array[] = [new Uint8Array(32), new Uint8Array(12)]
+  const created: TData = await newTdata([account], 'passcode', false, -1, draws)
+  created.performanceMode = true
+  created.activeIndex = 0
+  await saveTdata(created, 'out', false, draws)
+  const loaded: TData = await loadTdata('out')
+  const migrated: boolean = await migrateTdata(loaded, draws)
+  const localKey: Uint8Array = loaded.localKey
+  const passcodeKey: Uint8Array = loaded.passcodeKey
+  const appVersion: number = loaded.appVersion
+  // @ts-expect-error the local key is read-only
+  loaded.localKey = localKey
+  // @ts-expect-error the performance mode is a boolean
+  loaded.performanceMode = 'on'
+  // @ts-expect-error draws are byte arrays
+  await saveTdata(loaded, 'out', true, ['00'])
+  void [migrated, passcodeKey, appVersion]
 }

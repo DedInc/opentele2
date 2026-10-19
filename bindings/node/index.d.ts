@@ -11,13 +11,38 @@ export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-was
 
 /**
  * A Telegram Desktop `tdata` folder, loaded from disk or created for
- * writing. Its keys stay in Rust; only `accounts` copies key bytes out.
+ * writing. Its keys stay in Rust; `accounts`, `localKey` and `passcodeKey`
+ * copy key bytes out into new buffers.
  */
 export declare class TData {
   /** The accounts, in accounts-info order. */
   get accounts(): Array<Account>
-  /** The active index stored in the accounts info. */
+  /** The active index stored in the accounts info; saving writes it. */
   get activeIndex(): number
+  /** Sets the active index the next save writes. */
+  set activeIndex(value: number)
+  /**
+   * 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
+   * files. Loading turns it on, the 1.5.0 default.
+   */
+  get performanceMode(): boolean
+  /** Sets the performance mode of later saves. */
+  set performanceMode(value: boolean)
+  /**
+   * Telegram Desktop version in the key file's `TDF$` header; saving
+   * always writes 1.5.0's 7003001.
+   */
+  get appVersion(): number
+  /**
+   * The 256-byte local key every file but the key file is encrypted
+   * with, copied into a new buffer.
+   */
+  get localKey(): Buffer
+  /**
+   * The 256-byte open or passcode key the local key is wrapped under,
+   * copied into a new buffer.
+   */
+  get passcodeKey(): Buffer
   /**
    * The account at the active index, else the first one; `null` for a
    * folder without accounts.
@@ -491,8 +516,13 @@ export declare function loadTdata(path: string, passcode?: string | Uint8Array |
  * key data instead of migrating afresh, so the key file keeps one wrap
  * across saves. A 7.3 key file is left alone (`false`); under a passcode
  * the new wrap runs Argon2id.
+ *
+ * `draws`, a testing hook, replays exactly these byte arrays in order
+ * instead of the OS random source (see `newTdata`); on a mismatch the
+ * folder stays as it was and the promise rejects with
+ * `ERR_INVALID_ARG_VALUE`.
  */
-export declare function migrateTdata(tdata: TData): Promise<boolean>
+export declare function migrateTdata(tdata: TData, draws?: Array<Uint8Array> | undefined | null): Promise<boolean>
 
 /**
  * A random msg id offset in `0..=0xFFFF` from the operating system's
@@ -622,9 +652,15 @@ export declare function nearestDcError(error: string): string
 /**
  * A new folder for `accounts` the way 1.5.0's `SaveTData` creates one, with
  * keys from the OS random source; `performanceMode` (default `true`) skips
- * the `configs` files on save. Account errors throw synchronously.
+ * the `configs` files on save, and `activeIndex` (default 1.5.0's `-1`) is
+ * the active index saves write. Account errors throw synchronously.
+ *
+ * `draws`, a testing hook, replaces the OS random source with exactly
+ * these byte arrays in order, as 1.5.0's `os.urandom` calls were recorded;
+ * a draw of another size, a missing draw or an unused one rejects with
+ * `ERR_INVALID_ARG_VALUE`.
  */
-export declare function newTdata(accounts: Array<AccountInput>, passcode?: string | Uint8Array | undefined | null, performanceMode?: boolean | undefined | null): Promise<TData>
+export declare function newTdata(accounts: Array<AccountInput>, passcode?: string | Uint8Array | undefined | null, performanceMode?: boolean | undefined | null, activeIndex?: number | undefined | null, draws?: Array<Uint8Array> | undefined | null): Promise<TData>
 
 /** The `app_update` detail for `help.noAppUpdate`. */
 export declare const NO_APP_UPDATE: string
@@ -751,9 +787,14 @@ export interface RsaPublicKey {
 
 /**
  * Writes `tdata` into the folder `path`, with padding from the OS random
- * source.
+ * source. `performanceMode`, when given, applies to this save only: on, no
+ * `configs` files are written.
+ *
+ * `draws`, a testing hook, replays exactly these byte arrays in order
+ * instead (see `newTdata`); on a mismatch the written files are not usable
+ * and the promise rejects with `ERR_INVALID_ARG_VALUE`.
  */
-export declare function saveTdata(tdata: TData, path: string): Promise<void>
+export declare function saveTdata(tdata: TData, path: string, performanceMode?: boolean | undefined | null, draws?: Array<Uint8Array> | undefined | null): Promise<void>
 
 /** The column labels of the 1.5.0 `PrintSessions` table, in order. */
 export declare const SESSION_COLUMNS: string[]
