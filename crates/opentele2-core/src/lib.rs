@@ -15,8 +15,13 @@
 //! Every fallible operation returns [`Result`], whose error type [`Error`]
 //! carries a stable [`Error::code`] that bindings map onto their own
 //! exception types.
+//!
+//! The default feature `parallel` runs the [`batch`] entry points over
+//! independent folders on a dedicated rayon pool; without it they run
+//! sequentially with identical results.
 
 pub mod api;
+pub mod batch;
 pub mod crypto;
 pub mod devices;
 mod error;
