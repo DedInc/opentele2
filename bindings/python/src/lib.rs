@@ -1,16 +1,22 @@
 //! Python bindings of opentele2-core, built as the abi3 extension module
 //! `opentele2._native` of the `opentele2` package.
 //!
-//! Every function that does crypto, KDF, file IO or batch work copies its
-//! inputs into owned Rust values and runs with the thread detached from the
-//! interpreter. Core failures raise one `opentele2._native.CoreError(code,
-//! message)`; the cryptg-compatible submodule raises `ValueError` instead.
+//! Every function that does crypto, KDF, file IO, batch, SRP or network
+//! work copies its inputs into owned Rust values and runs with the thread
+//! detached from the interpreter. Core failures raise one
+//! `opentele2._native.CoreError(code, message)`; the cryptg-compatible
+//! submodule raises `ValueError` instead.
 
 mod api;
+mod auth;
 mod convert;
 mod crypto;
 mod error;
+mod fingerprint;
+mod json;
+mod session;
 mod tdata;
+mod versions;
 
 use pyo3::prelude::*;
 
@@ -39,6 +45,10 @@ fn native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     crypto::register(module)?;
     crypto::register_cryptg(module)?;
     tdata::register(module)?;
+    session::register(module)?;
     api::register(module)?;
+    versions::register(module)?;
+    fingerprint::register(module)?;
+    auth::register(module)?;
     Ok(())
 }

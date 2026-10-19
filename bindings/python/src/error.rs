@@ -58,6 +58,15 @@ pub(crate) fn core_error(py: Python<'_>, error: &Error) -> PyErr {
     }
 }
 
+/// A raisable `CoreError` with `code` and `message`, for the errors of the
+/// core that are not [`Error`]s, such as the SRP refusals.
+pub(crate) fn coded_error(py: Python<'_>, code: &str, message: &str) -> PyErr {
+    match core_error_type(py).and_then(|class| class.call1((code, message))) {
+        Ok(value) => PyErr::from_value(value),
+        Err(failure) => failure,
+    }
+}
+
 /// Maps a core result onto a Python result raising `CoreError`.
 pub(crate) fn check<T>(py: Python<'_>, result: opentele2_core::Result<T>) -> PyResult<T> {
     result.map_err(|error| core_error(py, &error))

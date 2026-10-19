@@ -1,10 +1,11 @@
 //! Conversions of Python arguments into owned Rust values.
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 
-use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyInt, PyString};
+use pyo3::types::{PyBytes, PyDict, PyInt, PyString};
 
 use opentele2_core::Error;
 use opentele2_core::crypto::AuthKey;
@@ -76,4 +77,59 @@ pub(crate) fn seed(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<String>>
 /// Copies `bytes` into a new Python `bytes` object.
 pub(crate) fn to_bytes<'py>(py: Python<'py>, bytes: &[u8]) -> Bound<'py, PyBytes> {
     PyBytes::new(py, bytes)
+}
+
+/// The value of `key` in `dict`; a missing key raises `TypeError` naming
+/// `what`, the dict's role.
+pub(crate) fn required<'py, T>(dict: &Bound<'py, PyDict>, key: &str, what: &str) -> PyResult<T>
+where
+    T: FromPyObjectOwned<'py>,
+{
+    let value = dict
+        .get_item(key)?
+        .ok_or_else(|| PyTypeError::new_err(format!("{what} is missing {key:?}")))?;
+    value.extract::<T>().map_err(Into::into)
+}
+
+/// The value of `key` in `dict`; `None` when the key is missing or `None`.
+pub(crate) fn optional<'py, T>(dict: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<T>>
+where
+    T: FromPyObjectOwned<'py>,
+{
+    match dict.get_item(key)? {
+        Some(value) if !value.is_none() => Ok(Some(value.extract::<T>().map_err(Into::into)?)),
+        _ => Ok(None),
+    }
+}
+
+/// The bytes of `key` in `dict`, `bytes` or `bytearray`; a missing key
+/// raises `TypeError` naming `what`.
+pub(crate) fn required_bytes(dict: &Bound<'_, PyDict>, key: &str, what: &str) -> PyResult<Vec<u8>> {
+    let value = dict
+        .get_item(key)?
+        .ok_or_else(|| PyTypeError::new_err(format!("{what} is missing {key:?}")))?;
+    owned_bytes(&value)
+}
+
+/// Every item of the iterable `items` as a dict; another item raises
+/// `TypeError` naming `what`.
+pub(crate) fn dicts<'py>(
+    items: &Bound<'py, PyAny>,
+    what: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    items
+        .try_iter()?
+        .map(|item| {
+            item?
+                .cast_into::<PyDict>()
+                .map_err(|_| PyTypeError::new_err(format!("every {what} must be a dict")))
+        })
+        .collect()
+}
+
+/// A path built from text, as text; every path built from a `str` is one.
+pub(crate) fn path_text(path: PathBuf) -> PyResult<String> {
+    path.into_os_string()
+        .into_string()
+        .map_err(|_| PyValueError::new_err("the path is not valid Unicode"))
 }

@@ -1146,7 +1146,9 @@ version = "2.0.0-alpha.1"
 dependencies = [
  "getrandom 0.4.3",
  "opentele2-core",
+ "opentele2-versions",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]
