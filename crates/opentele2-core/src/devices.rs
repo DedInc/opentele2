@@ -8,6 +8,10 @@
 //!
 //! The catalogs in `data/devices/` are embedded at build time and parsed once,
 //! on first use.
+//!
+//! The web catalog (`web.json`) replaces 1.5.0's browserforge fingerprints
+//! with a curated list of browser releases; its devices are picked with the
+//! same seed hash and cumulative weights as every other catalog.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -21,6 +25,13 @@ const ANDROID_JSON: &str = include_str!("../data/devices/android.json");
 const DESKTOP_JSON: &str = include_str!("../data/devices/desktop.json");
 const IOS_JSON: &str = include_str!("../data/devices/ios.json");
 const MAC_JSON: &str = include_str!("../data/devices/mac.json");
+const WEB_JSON: &str = include_str!("../data/devices/web.json");
+
+/// The only `web.json` schema this parser understands.
+const WEB_SCHEMA: u64 = 1;
+
+/// The placeholder a `web.json` user agent template carries for the version.
+const WEB_VERSION_PLACEHOLDER: &str = "{version}";
 
 /// Seed hashes are reduced modulo 10^12, as in 1.5.0 `_strtohashid`.
 const HASH_MODULUS: u64 = 1_000_000_000_000;
@@ -48,6 +59,24 @@ pub enum Platform {
     Android,
     /// Telegram iOS.
     Ios,
+    /// A Telegram web client in a desktop browser: the model is the browser
+    /// user agent and the system version the platform string `client` sends.
+    Web {
+        /// The web client, which decides the platform string.
+        client: WebClient,
+    },
+}
+
+/// A Telegram web client. Both share one browser catalog, so a seed picks the
+/// same user agent for either; they differ in the platform string they send.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WebClient {
+    /// Telegram Web A, which sends a platform name: `Windows`, `macOS` or
+    /// `Linux` (1.5.0 variant `z`).
+    A,
+    /// Telegram Web K and Webogram, which send `navigator.platform`: `Win32`,
+    /// `MacIntel` or `Linux x86_64` (1.5.0 variant `k`).
+    K,
 }
 
 /// A picked device: the `device_model` and `system_version` a client sends.
@@ -241,7 +270,8 @@ pub fn pick(platform: Platform, seed: Option<&str>) -> Result<Device> {
 }
 
 /// The weighted catalog of `platform`. Both [`Platform::MacOS`] variants
-/// share one catalog.
+/// share one catalog; the [`Platform::Web`] catalogs hold the same user
+/// agents in the same order and weights, with each client's platform string.
 ///
 /// # Errors
 ///
@@ -252,6 +282,7 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
     static MAC: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
     static ANDROID: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
     static IOS: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
+    static WEB: OnceLock<std::result::Result<WebCatalogs, String>> = OnceLock::new();
 
     let built = match platform {
         Platform::Windows | Platform::Linux => {
@@ -268,10 +299,33 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
         Platform::MacOS { .. } => MAC.get_or_init(build_mac),
         Platform::Android => ANDROID.get_or_init(build_android),
         Platform::Ios => IOS.get_or_init(build_ios),
+        Platform::Web { client } => {
+            let web = WEB
+                .get_or_init(|| build_web(WEB_JSON))
+                .as_ref()
+                .map_err(|message| catalog_error(message.clone()))?;
+            return Ok(web.get(client));
+        }
     };
     built
         .as_ref()
         .map_err(|message| catalog_error(message.clone()))
+}
+
+/// The web catalog of `client` built from the text of a `web.json`; the
+/// embedded one is what [`catalog`] returns for [`Platform::Web`].
+///
+/// # Errors
+///
+/// [`Error::Io`] with [`std::io::ErrorKind::InvalidData`] when `text` is not
+/// a `web.json` of schema 1, cites no sources, references an unknown OS, has
+/// a template without `{version}`, or yields no weighted entry.
+pub fn web_catalog(text: &str, client: WebClient) -> Result<Catalog> {
+    let built = build_web(text).map_err(catalog_error)?;
+    Ok(match client {
+        WebClient::A => built.a,
+        WebClient::K => built.k,
+    })
 }
 
 fn catalog_error(message: String) -> Error {
@@ -547,4 +601,143 @@ fn build_android() -> std::result::Result<Catalog, String> {
         }
     }
     catalog.finish("android")
+}
+
+#[derive(Deserialize)]
+struct WebSchema {
+    schema: u64,
+}
+
+#[derive(Deserialize)]
+struct WebSource {
+    url: String,
+    accessed: String,
+}
+
+#[derive(Deserialize)]
+struct WebPlatform {
+    os: String,
+    share_bp: u64,
+    web_a: String,
+    web_k: String,
+}
+
+#[derive(Deserialize)]
+struct WebUserAgent {
+    os: String,
+    template: String,
+}
+
+#[derive(Deserialize)]
+struct WebBrowser {
+    browser: String,
+    version: String,
+    share_bp: u64,
+    user_agents: Vec<WebUserAgent>,
+}
+
+#[derive(Deserialize)]
+struct WebFile {
+    sources: Vec<WebSource>,
+    platforms: Vec<WebPlatform>,
+    browsers: Vec<WebBrowser>,
+}
+
+struct WebCatalogs {
+    a: Catalog,
+    k: Catalog,
+}
+
+impl WebCatalogs {
+    fn get(&self, client: WebClient) -> &Catalog {
+        match client {
+            WebClient::A => &self.a,
+            WebClient::K => &self.k,
+        }
+    }
+}
+
+/// `round(share * os_share / os_total)`, halves rounded up: a browser's
+/// cited share split by the desktop share of the OSes it lists.
+fn web_weight(share: u64, os_share: u64, os_total: u64) -> std::result::Result<u64, String> {
+    if os_total == 0 {
+        return Err("web browser lists only OSes with a zero share".to_owned());
+    }
+    let total = u128::from(os_total);
+    let weight = (u128::from(share) * u128::from(os_share) + total / 2) / total;
+    u64::try_from(weight).map_err(|_| "web device weight overflows u64".to_owned())
+}
+
+fn build_web(text: &str) -> std::result::Result<WebCatalogs, String> {
+    // The schema is read on its own first, so a future schema with other
+    // fields is reported as unknown rather than as malformed.
+    let WebSchema { schema } = parse("web.json", text)?;
+    if schema != WEB_SCHEMA {
+        return Err(format!(
+            "device catalog web.json has unknown schema {schema}"
+        ));
+    }
+    let file: WebFile = parse("web.json", text)?;
+    let cited = !file.sources.is_empty()
+        && file
+            .sources
+            .iter()
+            .all(|source| source.url.starts_with("https://") && !source.accessed.is_empty());
+    if !cited {
+        return Err("device catalog web.json must cite https sources with access dates".to_owned());
+    }
+    let mut models = Vec::new();
+    let mut slots = Vec::new();
+    for browser in &file.browsers {
+        let mut platforms = Vec::with_capacity(browser.user_agents.len());
+        for agent in &browser.user_agents {
+            let index = file
+                .platforms
+                .iter()
+                .position(|platform| platform.os == agent.os)
+                .ok_or_else(|| {
+                    format!(
+                        "web browser {} lists unknown OS {:?}",
+                        browser.browser, agent.os
+                    )
+                })?;
+            if !agent.template.contains(WEB_VERSION_PLACEHOLDER) {
+                return Err(format!(
+                    "web browser {} template for {} has no {WEB_VERSION_PLACEHOLDER}",
+                    browser.browser, agent.os
+                ));
+            }
+            platforms.push(index);
+        }
+        let os_total = platforms.iter().try_fold(0u64, |sum, &index| {
+            file.platforms
+                .get(index)
+                .and_then(|platform| sum.checked_add(platform.share_bp))
+                .ok_or_else(|| "web OS shares overflow u64".to_owned())
+        })?;
+        for (agent, &index) in browser.user_agents.iter().zip(&platforms) {
+            let os_share = file.platforms.get(index).map_or(0, |p| p.share_bp);
+            let weight = web_weight(browser.share_bp, os_share, os_total)?;
+            slots.push((models.len(), index, weight));
+            models.push(
+                agent
+                    .template
+                    .replace(WEB_VERSION_PLACEHOLDER, &browser.version),
+            );
+        }
+    }
+    let build = |name: &str, version: fn(&WebPlatform) -> &String| {
+        let mut catalog = Catalog::new(
+            models.clone(),
+            file.platforms.iter().map(|p| version(p).clone()).collect(),
+        );
+        for &(model, platform, weight) in &slots {
+            catalog.push(model, platform, weight)?;
+        }
+        catalog.finish(name)
+    };
+    Ok(WebCatalogs {
+        a: build("web A", |platform| &platform.web_a)?,
+        k: build("web K", |platform| &platform.web_k)?,
+    })
 }

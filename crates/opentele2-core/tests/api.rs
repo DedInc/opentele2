@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use opentele2_core::Result;
 use opentele2_core::api::{self, ApiProfile, Client, Versions};
+use opentele2_core::devices::{self, Platform, WebClient};
 use serde_json::Value;
 
 const WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
@@ -299,21 +300,49 @@ fn unknown_system_with_a_seed_is_chosen_by_hash() -> Result<()> {
 }
 
 #[test]
-fn web_clients_are_not_generated() {
+fn web_generate_returns_the_profile_with_the_picked_device() -> Result<()> {
     let versions = Versions::offline();
-    for client in Client::ALL {
-        let result = api::generate(client, Some("seed"), &versions);
-        assert_eq!(result.is_err(), client.is_web(), "{client:?}");
-        if let Err(error) = result {
-            assert_eq!(error.code(), "IO");
+    let clients = [
+        (Client::WebA, WebClient::A),
+        (Client::WebK, WebClient::K),
+        (Client::Webogram, WebClient::K),
+    ];
+    for seed in ["", "user1@example.org", "ключ-2", "seed"] {
+        for (client, web) in clients {
+            assert!(client.is_web());
+            let generated = api::generate(client, Some(seed), &versions)?;
+            let device = devices::pick(Platform::Web { client: web }, Some(seed))?;
+            let want = ApiProfile {
+                device_model: device.model,
+                system_version: device.system_version,
+                ..api::profile(client, &versions)
+            };
+            assert_eq!(generated, want, "{client:?} {seed:?}");
+            // Deterministic per seed, and one user agent for every web client.
+            assert_eq!(api::generate(client, Some(seed), &versions)?, generated);
+            assert_eq!(
+                generated.device_model,
+                api::generate(Client::WebA, Some(seed), &versions)?.device_model
+            );
         }
     }
+    // The web profiles keep following the given versions.
+    let mut changed = versions.clone();
+    changed.web_a_version = "13.0 A".to_owned();
+    changed.web_k_version = "3.0 K".to_owned();
+    let app_version = |client| -> Result<String> {
+        Ok(api::generate(client, Some("seed"), &changed)?.app_version)
+    };
+    assert_eq!(app_version(Client::WebA)?, "13.0 A");
+    assert_eq!(app_version(Client::WebK)?, "3.0 K");
+    assert_eq!(app_version(Client::Webogram)?, "0.7.0");
+    Ok(())
 }
 
 #[test]
 fn unseeded_generate_keeps_the_profile_fields() -> Result<()> {
     let versions = Versions::offline();
-    for client in Client::ALL.into_iter().filter(|client| !client.is_web()) {
+    for client in Client::ALL {
         let generated = api::generate(client, None, &versions)?;
         let default = api::profile(client, &versions);
         assert_eq!(generated.api_id, default.api_id);

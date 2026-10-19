@@ -1,14 +1,24 @@
 //! Tests for `devices`: every case of `tests/vectors/devices.json` (1.5.0
 //! `Generate` per entry point), seed hashes computed by 1.5.0's
 //! `_strtohashid`, catalog sizes equal to 1.5.0's expanded list lengths, and
-//! the embedded catalogs against the Python package's copies.
+//! the embedded catalogs against the Python package's copies. The web catalog
+//! has no 1.5.0 vectors (1.5.0 drew it from browserforge), so its tests check
+//! determinism, reachability, the cited weights and the user agent formats.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use opentele2_core::Result;
-use opentele2_core::devices::{self, Platform};
+use opentele2_core::devices::{self, Platform, WebClient};
 use serde_json::Value;
+
+const WEB_A: Platform = Platform::Web {
+    client: WebClient::A,
+};
+const WEB_K: Platform = Platform::Web {
+    client: WebClient::K,
+};
 
 fn crate_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -164,6 +174,8 @@ fn unseeded_pick_comes_from_the_catalog() -> Result<()> {
         Platform::MacOS { swift: true },
         Platform::Android,
         Platform::Ios,
+        WEB_A,
+        WEB_K,
     ] {
         let device = devices::pick(platform, None)?;
         let catalog = devices::catalog(platform)?;
@@ -195,5 +207,266 @@ fn embedded_catalogs_equal_python_package_copies() {
             let python = fs::read(&python).expect("read Python catalog");
             assert!(core == python, "{name} differs from src/devices/{name}");
         }
+    }
+}
+
+fn web_json_text() -> String {
+    fs::read_to_string(crate_dir().join("data/devices/web.json")).expect("read web.json")
+}
+
+/// The slot of 1.5.0's expanded list that `hash` lands on.
+fn expected_web_pick(platform: Platform, seed: &str) -> Result<(String, String)> {
+    let catalog = devices::catalog(platform)?;
+    let mut index = devices::seed_hash(seed) % catalog.total_weight();
+    for entry in catalog.entries() {
+        if index < entry.weight {
+            return Ok((entry.model.to_owned(), entry.system_version.to_owned()));
+        }
+        index -= entry.weight;
+    }
+    panic!("hash beyond the catalog's total weight");
+}
+
+#[test]
+fn web_pick_is_deterministic_per_seed() -> Result<()> {
+    for seed in ["", "user1@example.org", "ключ-2", "☃ snow 🔑 3", "0", "-1"] {
+        let a = devices::pick(WEB_A, Some(seed))?;
+        let k = devices::pick(WEB_K, Some(seed))?;
+        for _ in 0..3 {
+            assert_eq!(devices::pick(WEB_A, Some(seed))?, a, "{seed:?}");
+            assert_eq!(devices::pick(WEB_K, Some(seed))?, k, "{seed:?}");
+        }
+        // One browser catalog: both clients see the same user agent.
+        assert_eq!(a.model, k.model, "{seed:?}");
+        assert_eq!(
+            (a.model.clone(), a.system_version.clone()),
+            expected_web_pick(WEB_A, seed)?
+        );
+        assert_eq!(
+            (k.model.clone(), k.system_version.clone()),
+            expected_web_pick(WEB_K, seed)?
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn every_web_entry_is_reachable() -> Result<()> {
+    for platform in [WEB_A, WEB_K] {
+        let catalog = devices::catalog(platform)?;
+        let mut seen = HashSet::new();
+        for i in 0..200_000 {
+            let device = devices::pick(platform, Some(&format!("web-{i}")))?;
+            seen.insert((device.model, device.system_version));
+            if seen.len() == catalog.len() {
+                break;
+            }
+        }
+        let all: HashSet<_> = catalog
+            .entries()
+            .map(|e| (e.model.to_owned(), e.system_version.to_owned()))
+            .collect();
+        assert_eq!(
+            all.len(),
+            catalog.len(),
+            "{platform:?} has duplicate entries"
+        );
+        assert_eq!(seen, all, "{platform:?}");
+    }
+    Ok(())
+}
+
+#[test]
+fn web_weights_follow_the_cited_shares() -> Result<()> {
+    let file: Value = serde_json::from_str(&web_json_text()).expect("parse web.json");
+    assert_eq!(file["schema"], 1);
+    let sources = file["sources"].as_array().expect("sources array");
+    assert_ne!(sources.len(), 0);
+    for source in sources {
+        let url = source["url"].as_str().expect("source url");
+        assert!(url.starts_with("https://"), "{url}");
+        assert_eq!(source["accessed"], "2026-10-19", "{url}");
+    }
+    let platforms = file["platforms"].as_array().expect("platforms array");
+    let share_of = |os: &str| -> u64 {
+        platforms
+            .iter()
+            .find(|p| p["os"] == os)
+            .and_then(|p| p["share_bp"].as_u64())
+            .expect("OS share")
+    };
+    // round(browser share * OS share / sum of the browser's OS shares).
+    let mut expected = Vec::new();
+    for browser in file["browsers"].as_array().expect("browsers array") {
+        let share = browser["share_bp"].as_u64().expect("browser share");
+        let version = browser["version"].as_str().expect("version");
+        let agents = browser["user_agents"].as_array().expect("user_agents");
+        let total: u64 = agents
+            .iter()
+            .map(|a| share_of(a["os"].as_str().expect("os")))
+            .sum();
+        for agent in agents {
+            let os_share = share_of(agent["os"].as_str().expect("os"));
+            let template = agent["template"].as_str().expect("template");
+            let weight = (share * os_share * 2 + total) / (total * 2);
+            expected.push((template.replace("{version}", version), weight));
+        }
+    }
+    for platform in [WEB_A, WEB_K] {
+        let got: Vec<_> = devices::catalog(platform)?
+            .entries()
+            .map(|e| (e.model.to_owned(), e.weight))
+            .collect();
+        assert_eq!(got, expected, "{platform:?}");
+    }
+    // Chrome 5088+1118+303, Edge 1200+264, Firefox 478+105+28, Safari 806.
+    assert_eq!(devices::catalog(WEB_A)?.total_weight(), 9390);
+    assert_eq!(devices::catalog(WEB_A)?.len(), 9);
+    Ok(())
+}
+
+fn is_dotted_number(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The browser and OS of a catalog user agent, asserting the exact format
+/// each browser sends today, including Chromium's UA reduction.
+fn classify(ua: &str) -> (&'static str, &'static str) {
+    let rest = ua
+        .strip_prefix("Mozilla/5.0 (")
+        .unwrap_or_else(|| panic!("{ua}: no Mozilla/5.0 prefix"));
+    let (system, tail) = rest
+        .split_once(')')
+        .unwrap_or_else(|| panic!("{ua}: no platform token"));
+    if let Some((system, rv)) = system.split_once("; rv:") {
+        let os = match system {
+            "Windows NT 10.0; Win64; x64" => "windows",
+            "Macintosh; Intel Mac OS X 10.15" => "macos",
+            "X11; Linux x86_64" => "linux",
+            other => panic!("{ua}: unexpected Firefox platform {other:?}"),
+        };
+        assert!(is_dotted_number(rv) && rv.contains('.'), "{ua}");
+        assert_eq!(tail, format!(" Gecko/20100101 Firefox/{rv}"), "{ua}");
+        return ("firefox", os);
+    }
+    let os = match system {
+        "Windows NT 10.0; Win64; x64" => "windows",
+        "Macintosh; Intel Mac OS X 10_15_7" => "macos",
+        "X11; Linux x86_64" => "linux",
+        other => panic!("{ua}: platform {other:?} is not a frozen one"),
+    };
+    if let Some(version) = tail
+        .strip_prefix(" AppleWebKit/605.1.15 (KHTML, like Gecko) Version/")
+        .and_then(|t| t.strip_suffix(" Safari/605.1.15"))
+    {
+        assert_eq!(os, "macos", "{ua}");
+        assert!(is_dotted_number(version), "{ua}");
+        return ("safari", os);
+    }
+    let chromium = tail
+        .strip_prefix(" AppleWebKit/537.36 (KHTML, like Gecko) Chrome/")
+        .unwrap_or_else(|| panic!("{ua}: unknown browser"));
+    let (major, after) = chromium
+        .split_once(".0.0.0 Safari/537.36")
+        .unwrap_or_else(|| panic!("{ua}: Chrome version is not reduced to major.0.0.0"));
+    assert!(is_dotted_number(major) && !major.contains('.'), "{ua}");
+    if after.is_empty() {
+        ("chrome", os)
+    } else {
+        assert_eq!(after, format!(" Edg/{major}.0.0.0"), "{ua}");
+        ("edge", os)
+    }
+}
+
+#[test]
+fn web_user_agents_have_each_browsers_format() -> Result<()> {
+    let a: Vec<_> = devices::catalog(WEB_A)?.entries().collect();
+    let k: Vec<_> = devices::catalog(WEB_K)?.entries().collect();
+    assert_eq!(a.len(), k.len());
+    let mut browsers = HashSet::new();
+    for (a, k) in a.iter().zip(&k) {
+        assert_eq!(a.model, k.model);
+        assert_eq!(a.weight, k.weight);
+        let (browser, os) = classify(a.model);
+        browsers.insert((browser, os));
+        let (web_a, web_k) = match os {
+            "windows" => ("Windows", "Win32"),
+            "macos" => ("macOS", "MacIntel"),
+            _ => ("Linux", "Linux x86_64"),
+        };
+        assert_eq!(a.system_version, web_a, "{}", a.model);
+        assert_eq!(k.system_version, web_k, "{}", k.model);
+    }
+    let expected: HashSet<_> = [
+        ("chrome", "windows"),
+        ("chrome", "macos"),
+        ("chrome", "linux"),
+        ("edge", "windows"),
+        ("edge", "macos"),
+        ("firefox", "windows"),
+        ("firefox", "macos"),
+        ("firefox", "linux"),
+        ("safari", "macos"),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(browsers, expected);
+    Ok(())
+}
+
+#[test]
+fn web_catalog_parses_the_embedded_text() -> Result<()> {
+    let text = web_json_text();
+    for (client, platform) in [(WebClient::A, WEB_A), (WebClient::K, WEB_K)] {
+        let parsed: Vec<_> = devices::web_catalog(&text, client)?
+            .entries()
+            .map(|e| (e.model.to_owned(), e.system_version.to_owned(), e.weight))
+            .collect();
+        let embedded: Vec<_> = devices::catalog(platform)?
+            .entries()
+            .map(|e| (e.model.to_owned(), e.system_version.to_owned(), e.weight))
+            .collect();
+        assert_eq!(parsed, embedded, "{client:?}");
+    }
+    Ok(())
+}
+
+#[test]
+fn web_catalog_rejects_an_unknown_schema() {
+    let text = web_json_text();
+    assert!(text.contains("\"schema\": 1,"));
+    for schema in ["0", "2", "100"] {
+        let changed = text.replacen("\"schema\": 1,", &format!("\"schema\": {schema},"), 1);
+        for client in [WebClient::A, WebClient::K] {
+            let error = devices::web_catalog(&changed, client).expect_err("unknown schema");
+            assert_eq!(error.code(), "IO");
+            assert!(
+                error
+                    .to_string()
+                    .contains(&format!("unknown schema {schema}")),
+                "{error}"
+            );
+        }
+    }
+    let missing = text.replacen("\"schema\": 1,", "", 1);
+    assert!(devices::web_catalog(&missing, WebClient::A).is_err());
+}
+
+#[test]
+fn web_catalog_rejects_uncited_or_broken_entries() {
+    let text = web_json_text();
+    let cases = [
+        ("\"url\": \"https://", "\"url\": \"http://"),
+        ("\"os\": \"linux\",", "\"os\": \"bsd\","),
+        ("Version/{version} Safari", "Version/27.0 Safari"),
+    ];
+    for (from, to) in cases {
+        assert!(text.contains(from), "{from}");
+        let changed = text.replacen(from, to, 1);
+        let error = devices::web_catalog(&changed, WebClient::K).expect_err(to);
+        assert_eq!(error.code(), "IO", "{to}");
     }
 }
