@@ -1,14 +1,19 @@
-//! API profiles, device fingerprints, `PlatformVersions` and the session
-//! JSON of 1.5.0 `APIData`.
+//! API profiles, device fingerprints and their catalogs, `PlatformVersions`
+//! and the session JSON of 1.5.0 `APIData`.
 
-use napi::bindgen_prelude::{BigInt, Either3};
+use std::convert::identity;
+
+use napi::JsString;
+use napi::bindgen_prelude::{BigInt, Either3, Env};
 use napi_derive::napi;
 use serde_json::{Map, Value};
 
+use opentele2_core::api::session_json;
 use opentele2_core::api::{self, ApiProfile as CoreProfile, Client, Versions as CoreVersions};
+use opentele2_core::devices::{self, Platform, WebClient};
 
-use crate::convert::to_seed;
-use crate::error::{Result, check, invalid_arg};
+use crate::convert::{to_seed, with_text};
+use crate::error::{Result, check, core_error, invalid_arg, thrown};
 
 /// The TL schema layer opentele2 advertises (1.5.0 `LAYER`): the layer of
 /// the `api.tl` shipped by Telegram Desktop 7.3.1.
@@ -278,12 +283,23 @@ pub fn profile(
 /// Web clients get a browser user agent picked from the web catalog.
 #[napi]
 pub fn generate(
+    env: Env,
     #[napi(
         ts_arg_type = "'TelegramDesktop' | 'TelegramAndroid' | 'TelegramAndroidX' | 'TelegramIOS' | 'TelegramMacOS' | 'TelegramWeb_A' | 'TelegramWeb_K' | 'Webogram'"
     )]
     client: String,
     seed: Option<Either3<String, f64, BigInt>>,
     #[napi(ts_arg_type = "'windows' | 'macos' | 'linux' | null")] system: Option<String>,
+    versions: Option<Versions>,
+) -> napi::Result<ApiProfile> {
+    thrown(env, generated(client, seed, system, versions))
+}
+
+/// The profile of [`generate`].
+fn generated(
+    client: String,
+    seed: Option<Either3<String, f64, BigInt>>,
+    system: Option<String>,
     versions: Option<Versions>,
 ) -> Result<ApiProfile> {
     let client = self::client(client)?;
@@ -306,8 +322,14 @@ pub fn generate(
 /// `"en"`. Malformed JSON or fields throw `OT_IO`.
 #[napi]
 pub fn profile_from_session_json(
+    env: Env,
     #[napi(ts_arg_type = "string | Record<string, unknown>")] json: Value,
-) -> Result<ApiProfile> {
+) -> napi::Result<ApiProfile> {
+    thrown(env, read_profile(json))
+}
+
+/// The profile of [`profile_from_session_json`].
+fn read_profile(json: Value) -> Result<ApiProfile> {
     // Session JSON is an object, so a string can only be its text.
     let data = match json {
         Value::String(text) => check(serde_json::from_str::<Value>(&text).map_err(|error| {
@@ -341,4 +363,179 @@ pub fn profile_to_session_json(
 #[napi]
 pub fn profiles_equal(a: ApiProfile, b: ApiProfile) -> bool {
     CoreProfile::from(a) == CoreProfile::from(b)
+}
+
+/// 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+/// `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
+/// `7003000` is `"7.3"`.
+#[napi]
+pub fn format_app_version(version: u32) -> String {
+    api::format_app_version(version)
+}
+
+/// One profile key of the session JSON.
+#[napi(object, object_from_js = false, use_nullable = true)]
+pub struct SessionJsonField {
+    /// The JSON key.
+    pub key: String,
+    /// The 1.5.0 `APIData` attribute the key reads into and writes from.
+    pub attribute: String,
+    /// The value 1.5.0 `APIData.from_json` takes when the key is absent.
+    #[napi(js_name = "default", ts_type = "string | null")]
+    pub default_value: Value,
+    /// The key read instead when this key's value is falsy in Python's
+    /// sense; `null` for none.
+    pub fallback: Option<String>,
+}
+
+/// The profile keys of the session JSON, in the order 1.5.0
+/// `APIData.to_json` writes them.
+#[napi]
+pub fn session_json_fields() -> Vec<SessionJsonField> {
+    session_json::FIELDS
+        .iter()
+        .map(|field| SessionJsonField {
+            key: field.key.to_owned(),
+            attribute: field.attribute.to_owned(),
+            default_value: field.default.to_value(),
+            fallback: field.fallback.map(str::to_owned),
+        })
+        .collect()
+}
+
+/// 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+/// `APIData.to_json` writes after the profile keys, with their defaults, as
+/// `[key, default]` pairs in order.
+#[napi(ts_return_type = "Array<[string, string | boolean | null]>")]
+pub fn default_extra_fields() -> Value {
+    session_json::DEFAULT_EXTRA_FIELDS
+        .iter()
+        .map(|(key, default)| Value::Array(vec![Value::from(*key), default.to_value()]))
+        .collect()
+}
+
+/// One weighted device pair of a catalog.
+#[napi(object, object_from_js = false)]
+pub struct CatalogEntry {
+    /// The device model.
+    pub model: String,
+    /// The system version as stored in the catalog; Mac versions are bare,
+    /// as in 1.5.0 `macOSDevice.deviceList`.
+    pub system_version: String,
+    /// How many times 1.5.0 repeats the pair in its expanded list.
+    pub weight: u32,
+}
+
+/// The catalog names `catalogEntries`, `deviceModels` and `systemVersions`
+/// accept, with the core platform of each.
+const PLATFORM_NAMES: [(&str, Platform); 7] = [
+    ("windows", Platform::Windows),
+    ("linux", Platform::Linux),
+    ("macos", Platform::MacOS { swift: false }),
+    ("android", Platform::Android),
+    ("ios", Platform::Ios),
+    (
+        "web_a",
+        Platform::Web {
+            client: WebClient::A,
+        },
+    ),
+    (
+        "web_k",
+        Platform::Web {
+            client: WebClient::K,
+        },
+    ),
+];
+
+/// The catalog of the platform named `name`, built on first use; an unknown
+/// name throws `ERR_INVALID_ARG_VALUE`, a malformed embedded catalog
+/// `OT_IO`.
+fn catalog(name: &str) -> Result<&'static devices::Catalog> {
+    let platform = PLATFORM_NAMES
+        .iter()
+        .find(|(known, _)| *known == name)
+        .map(|(_, platform)| *platform)
+        .ok_or_else(|| {
+            let known: Vec<&str> = PLATFORM_NAMES.iter().map(|(known, _)| *known).collect();
+            invalid_arg(format!(
+                "unknown platform {name:?}; expected one of {}",
+                known.join(", ")
+            ))
+        })?;
+    check(devices::catalog(platform))
+}
+
+/// The entries of the catalog named `platform`.
+fn entries(platform: &str) -> Result<Vec<CatalogEntry>> {
+    catalog(platform)?
+        .entries()
+        .map(|entry| {
+            let weight = u32::try_from(entry.weight).map_err(|_| {
+                core_error(&opentele2_core::Error::Io(std::io::Error::other(
+                    "a catalog weight does not fit 32 bits",
+                )))
+            })?;
+            Ok(CatalogEntry {
+                model: entry.model.to_owned(),
+                system_version: entry.system_version.to_owned(),
+                weight,
+            })
+        })
+        .collect()
+}
+
+/// The models of the catalog named `platform`.
+fn device_list(platform: &str) -> Result<Vec<String>> {
+    Ok(catalog(platform)?.device_models().to_vec())
+}
+
+/// The system versions of the catalog named `platform`.
+fn version_list(platform: &str) -> Result<Vec<String>> {
+    Ok(catalog(platform)?.system_versions().to_vec())
+}
+
+/// The weighted device pairs of the `platform` catalog in 1.5.0's
+/// `deviceList` order; the weight is how many times 1.5.0 repeats the pair.
+#[napi]
+pub fn catalog_entries(
+    env: Env,
+    #[napi(ts_arg_type = "'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'")]
+    platform: JsString<'_>,
+) -> napi::Result<Vec<CatalogEntry>> {
+    thrown(env, with_text(platform, entries).and_then(identity))
+}
+
+/// The models of the `platform` catalog in file order: 1.5.0
+/// `device_models` of the desktop, Mac and iOS classes (empty for Android).
+#[napi]
+pub fn device_models(
+    env: Env,
+    #[napi(ts_arg_type = "'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'")]
+    platform: JsString<'_>,
+) -> napi::Result<Vec<String>> {
+    thrown(env, with_text(platform, device_list).and_then(identity))
+}
+
+/// The system versions of the `platform` catalog in file order: 1.5.0
+/// `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
+/// `SDK 37` for Android, and the client's platform strings for the web.
+#[napi]
+pub fn system_versions(
+    env: Env,
+    #[napi(ts_arg_type = "'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'")]
+    platform: JsString<'_>,
+) -> napi::Result<Vec<String>> {
+    thrown(env, with_text(platform, version_list).and_then(identity))
+}
+
+/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order.
+#[napi(ts_return_type = "Record<string, number>")]
+pub fn web_browser_weights() -> Value {
+    Value::Object(
+        devices::WEB_BROWSER_WEIGHTS
+            .iter()
+            .map(|(browser, weight)| ((*browser).to_owned(), Value::from(*weight)))
+            .collect(),
+    )
 }

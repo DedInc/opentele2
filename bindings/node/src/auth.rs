@@ -307,6 +307,36 @@ pub fn format_sessions(rows: Vec<SessionRow>) -> String {
     auth::format_sessions(&rows)
 }
 
+/// The text of every string in `values`, read as UTF-8.
+fn texts(values: Vec<JsString<'_>>) -> Result<Vec<String>> {
+    values
+        .into_iter()
+        .map(|value| with_text(value, str::to_owned))
+        .collect()
+}
+
+/// 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+/// `headers`, in order, and the cells of `rows`, already strings; a splitter
+/// line goes before every row whose index is in `addSplit`. Columns are as
+/// wide as their longest cell plus two, text centred with the odd space on
+/// the right; the last line has no newline. A short row gets empty cells
+/// and cells past the last header are ignored.
+#[napi]
+pub fn format_table(
+    headers: Vec<JsString<'_>>,
+    rows: Vec<Vec<JsString<'_>>>,
+    add_split: Option<Vec<u32>>,
+) -> Result<String> {
+    let headers = texts(headers)?;
+    let rows = rows.into_iter().map(texts).collect::<Result<Vec<_>>>()?;
+    let add_split = add_split
+        .unwrap_or_default()
+        .into_iter()
+        .map(|index| usize::try_from(index).map_err(|_| invalid_arg("addSplit index too large")))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(auth::format_table(&headers, &rows, &add_split))
+}
+
 /// What the seven 1.5.0 `ConsistencyChecker` checks expect from a session
 /// that uses a profile.
 #[napi(object, object_from_js = false)]

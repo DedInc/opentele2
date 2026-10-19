@@ -142,7 +142,10 @@ test('srpCheck matches Telethon compute_check, redraws and refuses alike', async
     assert.equal(error.code, code, JSON.stringify(Object.keys(edits)))
     return error
   }
-  assert.equal((await refused({ g: 9 }, 'OT_SRP_BAD_PRIME_OR_GENERATOR')).message, 'bad p/g in password')
+  const badG = await refused({ g: 9 }, 'OT_SRP_BAD_PRIME_OR_GENERATOR')
+  assert.equal(badG.message, 'bad p/g in password')
+  // A refusal that is not a core error repeats its message as the 1.5.0 one.
+  assert.equal(badG.legacyMessage, 'bad p/g in password')
   await refused({ p: p.subarray(1) }, 'OT_SRP_BAD_PRIME_OR_GENERATOR')
   assert.equal((await refused({ srpB: Buffer.alloc(0) }, 'OT_SRP_BAD_B')).message, 'bad b in check')
   await refused({ srpB: Buffer.alloc(256) }, 'OT_SRP_BAD_B')

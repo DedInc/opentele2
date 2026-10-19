@@ -1,6 +1,6 @@
 //! The `initConnection` fingerprint helpers of 1.5.0 `src/fingerprint.py`.
 
-use napi::bindgen_prelude::{BigInt, Either};
+use napi::bindgen_prelude::{BigInt, Either, Env};
 use napi_derive::napi;
 
 use opentele2_core::Error;
@@ -10,7 +10,7 @@ use opentele2_core::fingerprint::{
 
 use crate::api::{ApiProfile, Versions, versions};
 use crate::convert::to_i64;
-use crate::error::{Result, check, core_error, invalid_arg};
+use crate::error::{Result, check, core_error, invalid_arg, rejection, thrown};
 
 /// The TypeScript type of a strict mode.
 const STRICT_MODE_TS: &str = "'off' | 'warn' | 'strict'";
@@ -164,11 +164,14 @@ fn fill_os(buf: &mut [u8], failure: &mut Option<getrandom::Error>) {
 /// A random msg id offset in `0..=0xFFFF` from the operating system's
 /// CSPRNG (1.5.0 `generate_msg_id_offset`).
 #[napi]
-pub fn msg_id_offset() -> Result<u32> {
+pub fn msg_id_offset(env: Env) -> napi::Result<u32> {
     let mut failure = None;
     let offset = fingerprint::msg_id_offset(&mut |buf| fill_os(buf, &mut failure));
     match failure {
-        Some(error) => Err(core_error(&Error::Io(std::io::Error::other(error)))),
+        Some(error) => Err(rejection(
+            env,
+            core_error(&Error::Io(std::io::Error::other(error))),
+        )),
         None => Ok(u32::from(offset)),
     }
 }
@@ -268,7 +271,15 @@ fn to_core_config(config: FingerprintConfig) -> Result<CoreConfig> {
 /// a randomized offset), each replaced by the option given. Without
 /// `msgIdOffset` the offset is drawn from the OS random source.
 #[napi]
-pub fn fingerprint_config(options: Option<FingerprintConfigOptions>) -> Result<FingerprintConfig> {
+pub fn fingerprint_config(
+    env: Env,
+    options: Option<FingerprintConfigOptions>,
+) -> napi::Result<FingerprintConfig> {
+    thrown(env, configured(options))
+}
+
+/// The config of [`fingerprint_config`].
+fn configured(options: Option<FingerprintConfigOptions>) -> Result<FingerprintConfig> {
     let options = options.unwrap_or(FingerprintConfigOptions {
         strict_mode: None,
         auto_validate: None,

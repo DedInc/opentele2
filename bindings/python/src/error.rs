@@ -8,21 +8,30 @@ use pyo3::types::{PyDict, PyType};
 use opentele2_core::Error;
 
 /// `CoreError` is a plain Python class: abi3 below 3.12 cannot subclass a
-/// native exception from Rust, and a Python class keeps `code` and `message`
-/// as ordinary attributes that survive pickling through `args`.
+/// native exception from Rust, and a Python class keeps `code`, `message`
+/// and `legacy_message` as ordinary attributes that survive pickling
+/// through `args`.
 const CORE_ERROR_SOURCE: &std::ffi::CStr = cr#"
 class CoreError(Exception):
     """An error raised by the opentele2 core.
 
     ``code`` is a stable SCREAMING_SNAKE identifier such as
     ``"TDATA_WRONG_PASSCODE"``; ``message`` is human-readable text that may
-    change between releases.
+    change between releases. ``legacy_message`` is the message opentele2
+    1.5.0 gave the matching exception, such as
+    ``"Invalid magic b'ABCD' in file maps"``; it is ``message`` when none is
+    given.
     """
 
-    def __init__(self, code, message):
-        super().__init__(code, message)
+    def __init__(self, code, message, legacy_message=None):
+        if legacy_message is None:
+            super().__init__(code, message)
+            legacy_message = message
+        else:
+            super().__init__(code, message, legacy_message)
         self.code = code
         self.message = message
+        self.legacy_message = legacy_message
 
     def __str__(self):
         return "%s: %s" % (self.code, self.message)
@@ -45,9 +54,10 @@ pub(crate) fn core_error_type(py: Python<'_>) -> PyResult<&Bound<'_, PyType>> {
         .map(|class| class.bind(py))
 }
 
-/// A `CoreError` instance for `error`, not raised.
+/// A `CoreError` instance for `error`, not raised, with the 1.5.0 message
+/// of [`Error::legacy_message`].
 pub(crate) fn core_error_value<'py>(py: Python<'py>, error: &Error) -> PyResult<Bound<'py, PyAny>> {
-    core_error_type(py)?.call1((error.code(), error.to_string()))
+    core_error_type(py)?.call1((error.code(), error.to_string(), error.legacy_message()))
 }
 
 /// `error` as a raisable `CoreError`.
@@ -59,7 +69,8 @@ pub(crate) fn core_error(py: Python<'_>, error: &Error) -> PyErr {
 }
 
 /// A raisable `CoreError` with `code` and `message`, for the errors of the
-/// core that are not [`Error`]s, such as the SRP refusals.
+/// core that are not [`Error`]s, such as the SRP refusals; its
+/// `legacy_message` is `message`.
 pub(crate) fn coded_error(py: Python<'_>, code: &str, message: &str) -> PyErr {
     match core_error_type(py).and_then(|class| class.call1((code, message))) {
         Ok(value) => PyErr::from_value(value),

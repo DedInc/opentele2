@@ -1,12 +1,14 @@
-//! API profiles, device fingerprints, `PlatformVersions` and the session
-//! JSON of 1.5.0 `APIData`.
+//! API profiles, device fingerprints and their catalogs, `PlatformVersions`
+//! and the session JSON of 1.5.0 `APIData`.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyModule, PyString};
+use pyo3::types::{PyDict, PyList, PyModule, PyString, PyTuple};
 
 use opentele2_core::Error;
+use opentele2_core::api::session_json::{self, JsonDefault};
 use opentele2_core::api::{self, ApiProfile, Client, Versions};
+use opentele2_core::devices::{self, Platform, WebClient};
 
 use crate::convert::{required, seed};
 use crate::error::check;
@@ -267,9 +269,168 @@ fn profiles_equal(a: &Bound<'_, PyDict>, b: &Bound<'_, PyDict>) -> PyResult<bool
     Ok(to_profile(a)? == to_profile(b)?)
 }
 
+/// 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+/// `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
+/// `7003000` is `"7.3"`.
+#[pyfunction]
+fn format_app_version(version: u32) -> String {
+    api::format_app_version(version)
+}
+
+/// A session JSON default as its Python value: `None`, a `bool` or a `str`.
+fn json_default(py: Python<'_>, default: JsonDefault) -> PyResult<Bound<'_, PyAny>> {
+    from_json(py, &default.to_value())
+}
+
+/// The profile keys of the session JSON, in the order 1.5.0
+/// `APIData.to_json` writes them, as `(key, attribute, default, fallback)`
+/// tuples: the `APIData` attribute the key reads into and writes from, the
+/// value `from_json` takes when the key is absent, and the key read instead
+/// when this key's value is falsy (`None` for none).
+fn session_json_fields(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
+    let fields = session_json::FIELDS
+        .iter()
+        .map(|field| {
+            PyTuple::new(
+                py,
+                [
+                    PyString::new(py, field.key).into_any(),
+                    PyString::new(py, field.attribute).into_any(),
+                    json_default(py, field.default)?,
+                    field.fallback.into_pyobject(py)?.into_any(),
+                ],
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    PyList::new(py, fields)
+}
+
+/// 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+/// `APIData.to_json` writes after the profile keys, with their defaults, as
+/// `(key, default)` tuples in order.
+fn default_extra_fields(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
+    let fields = session_json::DEFAULT_EXTRA_FIELDS
+        .iter()
+        .map(|(key, default)| {
+            PyTuple::new(
+                py,
+                [
+                    PyString::new(py, key).into_any(),
+                    json_default(py, *default)?,
+                ],
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    PyList::new(py, fields)
+}
+
+/// The catalog names `catalog_entries`, `device_models` and
+/// `system_versions` accept, with the core platform of each.
+const PLATFORM_NAMES: [(&str, Platform); 7] = [
+    ("windows", Platform::Windows),
+    ("linux", Platform::Linux),
+    ("macos", Platform::MacOS { swift: false }),
+    ("android", Platform::Android),
+    ("ios", Platform::Ios),
+    (
+        "web_a",
+        Platform::Web {
+            client: WebClient::A,
+        },
+    ),
+    (
+        "web_k",
+        Platform::Web {
+            client: WebClient::K,
+        },
+    ),
+];
+
+/// The platform named `name`; an unknown name raises `ValueError`.
+fn platform(name: &str) -> PyResult<Platform> {
+    PLATFORM_NAMES
+        .iter()
+        .find(|(known, _)| *known == name)
+        .map(|(_, platform)| *platform)
+        .ok_or_else(|| {
+            let known: Vec<&str> = PLATFORM_NAMES.iter().map(|(known, _)| *known).collect();
+            PyValueError::new_err(format!(
+                "unknown platform {name:?}; expected one of {}",
+                known.join(", ")
+            ))
+        })
+}
+
+/// The catalog of `name`, built on first use; a malformed embedded catalog
+/// raises `CoreError` `IO`.
+fn catalog(py: Python<'_>, name: &str) -> PyResult<&'static devices::Catalog> {
+    let platform = self::platform(name)?;
+    check(py, py.detach(move || devices::catalog(platform)))
+}
+
+/// The weighted device pairs of the `platform` catalog (`"windows"`,
+/// `"linux"`, `"macos"`, `"android"`, `"ios"`, `"web_a"` or `"web_k"`) in
+/// 1.5.0's `deviceList` order, as `model`, `system_version` and `weight`
+/// dicts: the weight is how many times 1.5.0 repeats the pair. Mac versions
+/// are bare, as in 1.5.0 `macOSDevice.deviceList`.
+#[pyfunction]
+fn catalog_entries<'py>(py: Python<'py>, platform: &str) -> PyResult<Bound<'py, PyList>> {
+    let entries = catalog(py, platform)?
+        .entries()
+        .map(|entry| {
+            let dict = PyDict::new(py);
+            dict.set_item("model", entry.model)?;
+            dict.set_item("system_version", entry.system_version)?;
+            dict.set_item("weight", entry.weight)?;
+            Ok(dict)
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    PyList::new(py, entries)
+}
+
+/// The models of the `platform` catalog in file order: 1.5.0
+/// `device_models` of the desktop, Mac and iOS classes (empty for Android).
+#[pyfunction]
+fn device_models(py: Python<'_>, platform: &str) -> PyResult<Vec<&'static str>> {
+    Ok(catalog(py, platform)?
+        .device_models()
+        .iter()
+        .map(String::as_str)
+        .collect())
+}
+
+/// The system versions of the `platform` catalog in file order: 1.5.0
+/// `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
+/// `SDK 37` for Android, and the client's platform strings for the web.
+#[pyfunction]
+fn system_versions(py: Python<'_>, platform: &str) -> PyResult<Vec<&'static str>> {
+    Ok(catalog(py, platform)?
+        .system_versions()
+        .iter()
+        .map(String::as_str)
+        .collect())
+}
+
+/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order.
+fn web_browser_weights(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
+    let dict = PyDict::new(py);
+    for (browser, weight) in devices::WEB_BROWSER_WEIGHTS {
+        dict.set_item(browser, weight)?;
+    }
+    Ok(dict)
+}
+
 /// Adds the fingerprint functions to `module`.
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = module.py();
     module.add("LAYER", api::LAYER)?;
+    module.add("SESSION_JSON_FIELDS", session_json_fields(py)?)?;
+    module.add("DEFAULT_EXTRA_FIELDS", default_extra_fields(py)?)?;
+    module.add("WEB_BROWSER_WEIGHTS", web_browser_weights(py)?)?;
+    module.add_function(wrap_pyfunction!(format_app_version, module)?)?;
+    module.add_function(wrap_pyfunction!(catalog_entries, module)?)?;
+    module.add_function(wrap_pyfunction!(device_models, module)?)?;
+    module.add_function(wrap_pyfunction!(system_versions, module)?)?;
     module.add_function(wrap_pyfunction!(platform_versions, module)?)?;
     module.add_function(wrap_pyfunction!(profile, module)?)?;
     module.add_function(wrap_pyfunction!(generate, module)?)?;

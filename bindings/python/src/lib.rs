@@ -4,8 +4,8 @@
 //! Every function that does crypto, KDF, file IO, batch, SRP or network
 //! work copies its inputs into owned Rust values and runs with the thread
 //! detached from the interpreter. Core failures raise one
-//! `opentele2._native.CoreError(code, message)`; the cryptg-compatible
-//! submodule raises `ValueError` instead.
+//! `opentele2._native.CoreError(code, message, legacy_message)`; the
+//! cryptg-compatible submodule raises `ValueError` instead.
 
 mod api;
 mod auth;

@@ -10,7 +10,7 @@ use napi_derive::napi;
 use opentele2_core::{crypto, kdf};
 
 use crate::convert::to_passcode;
-use crate::error::{Result, check, core_error, rejection};
+use crate::error::{Result, check, core_error, rejection, thrown};
 
 /// Runs AES-256-IGE over a copy of `data`.
 fn ige(data: &[u8], key: &[u8], iv: &[u8], encrypt: bool) -> Result<Buffer> {
@@ -26,14 +26,14 @@ fn ige(data: &[u8], key: &[u8], iv: &[u8], encrypt: bool) -> Result<Buffer> {
 /// Encrypts `data` with AES-256-IGE. `data` must be whole 16-byte blocks and
 /// `key` and `iv` 32 bytes each; otherwise throws `OT_BAD_LENGTH`.
 #[napi]
-pub fn aes_ige_encrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Result<Buffer> {
-    ige(data, key, iv, true)
+pub fn aes_ige_encrypt(env: Env, data: &[u8], key: &[u8], iv: &[u8]) -> napi::Result<Buffer> {
+    thrown(env, ige(data, key, iv, true))
 }
 
 /// Decrypts `data` with AES-256-IGE; lengths as `aesIgeEncrypt`.
 #[napi]
-pub fn aes_ige_decrypt(data: &[u8], key: &[u8], iv: &[u8]) -> Result<Buffer> {
-    ige(data, key, iv, false)
+pub fn aes_ige_decrypt(env: Env, data: &[u8], key: &[u8], iv: &[u8]) -> napi::Result<Buffer> {
+    thrown(env, ige(data, key, iv, false))
 }
 
 /// Which passcode KDF a [`KdfTask`] runs.

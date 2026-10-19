@@ -186,6 +186,25 @@ export declare function appUpdateError(error: string): string
 export declare function argon2id(passcode: string | Uint8Array, salt: Uint8Array, memoryKib: number, time: number, lanes: number): Promise<Buffer>
 
 /**
+ * The weighted device pairs of the `platform` catalog in 1.5.0's
+ * `deviceList` order; the weight is how many times 1.5.0 repeats the pair.
+ */
+export declare function catalogEntries(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<CatalogEntry>
+
+/** One weighted device pair of a catalog. */
+export interface CatalogEntry {
+  /** The device model. */
+  model: string
+  /**
+   * The system version as stored in the catalog; Mac versions are bare,
+   * as in 1.5.0 `macOSDevice.deviceList`.
+   */
+  systemVersion: string
+  /** How many times 1.5.0 repeats the pair in its expanded list. */
+  weight: number
+}
+
+/**
  * The `current_session` and `terms_of_service` detail when the request
  * fails with `error`.
  */
@@ -309,6 +328,31 @@ export interface DcKeyInput {
 }
 
 /**
+ * 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+ * `APIData.to_json` writes after the profile keys, with their defaults, as
+ * `[key, default]` pairs in order.
+ */
+export declare function defaultExtraFields(): Array<[string, string | boolean | null]>
+
+/**
+ * The models of the `platform` catalog in file order: 1.5.0
+ * `device_models` of the desktop, Mac and iOS classes (empty for Android).
+ */
+export declare function deviceModels(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<string>
+
+/**
+ * The sizes, in bytes and in order, of the random draws an operation will
+ * make, so recorded `os.urandom` draws can be replayed through `draws`
+ * without hand-coded counts; nothing is drawn and no file is touched.
+ *
+ * `operation` is `'new'` with the `newTdata` options the draws depend on,
+ * or `'migrate'` or `'save'` with the `TData` in its current state. A save
+ * the folder would refuse throws its error, such as `OT_TDATA_SAVE_FAILED`
+ * for a folder without accounts.
+ */
+export declare function drawPlan(operation: 'new' | 'migrate' | 'save', target: TData | NewDrawPlan): Array<number>
+
+/**
  * The layer to invoke with (1.5.0 `get_effective_layer`): `layerOverride`
  * when set, otherwise `LAYER`. Pass the `MTProto` library's layer as the
  * override to follow 1.5.0, which answers with Telethon's layer.
@@ -410,10 +454,27 @@ export interface FingerprintConfigOptions {
 }
 
 /**
+ * 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+ * `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
+ * `7003000` is `"7.3"`.
+ */
+export declare function formatAppVersion(version: number): string
+
+/**
  * The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
  * newline; with no rows, the header alone.
  */
 export declare function formatSessions(rows: Array<SessionRow>): string
+
+/**
+ * 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+ * `headers`, in order, and the cells of `rows`, already strings; a splitter
+ * line goes before every row whose index is in `addSplit`. Columns are as
+ * wide as their longest cell plus two, text centred with the odd space on
+ * the right; the last line has no newline. A short row gets empty cells
+ * and cells past the last header are ignored.
+ */
+export declare function formatTable(headers: Array<string>, rows: Array<Array<string>>, addSplit?: Array<number> | undefined | null): string
 
 /**
  * The 1.5.0 `FreshResetAuthorisationForbiddenError` message of
@@ -664,6 +725,14 @@ export declare function nearestDcDetail(country: string, thisDc: number, nearest
 /** The `nearest_dc` detail when the request fails with `error`. */
 export declare function nearestDcError(error: string): string
 
+/** The `newTdata` arguments the draws of a new folder depend on. */
+export interface NewDrawPlan {
+  /** Whether the passcode is non-empty; `false` by default. */
+  hasPasscode?: boolean
+  /** The `performanceMode` argument; `true` by default. */
+  performanceMode?: boolean
+}
+
 /**
  * A new folder for `accounts` the way 1.5.0's `SaveTData` creates one, with
  * keys from the OS random source; `performanceMode` (default `true`) skips
@@ -822,6 +891,27 @@ export declare const SESSION_COLUMNS: string[]
  */
 export declare function sessionCompanionJson(profile: ApiProfile, extra?: Record<string, unknown> | null): Record<string, unknown>
 
+/** One profile key of the session JSON. */
+export interface SessionJsonField {
+  /** The JSON key. */
+  key: string
+  /** The 1.5.0 `APIData` attribute the key reads into and writes from. */
+  attribute: string
+  /** The value 1.5.0 `APIData.from_json` takes when the key is absent. */
+  default: string | null
+  /**
+   * The key read instead when this key's value is falsy in Python's
+   * sense; `null` for none.
+   */
+  fallback: string | null
+}
+
+/**
+ * The profile keys of the session JSON, in the order 1.5.0
+ * `APIData.to_json` writes them.
+ */
+export declare function sessionJsonFields(): Array<SessionJsonField>
+
 /**
  * The pair paths of `base` (1.5.0 `_normalize_base_path`): one trailing
  * `.session` is removed, then one trailing `.json`, and each suffix is
@@ -916,10 +1006,23 @@ export interface SrpParams {
 }
 
 /**
+ * The system versions of the `platform` catalog in file order: 1.5.0
+ * `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
+ * `SDK 37` for Android, and the client's platform strings for the web.
+ */
+export declare function systemVersions(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<string>
+
+/**
  * Most accounts one folder holds (1.5.0's `kMaxAccounts`);
  * `addTdataAccount` refuses more.
  */
 export declare const TDATA_MAX_ACCOUNTS: number
+
+/**
+ * The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), as the
+ * text of its four ASCII bytes.
+ */
+export declare const TDF_MAGIC: string
 
 /** Clears the sessions row before `TELETHON_INSERT_SESSION`. */
 export declare const TELETHON_DELETE_SESSIONS: string
@@ -1094,3 +1197,6 @@ export interface VersionsPatch {
   /** Telegram Web A version, with its ` A` suffix. */
   webAVersion?: string
 }
+
+/** 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order. */
+export declare function webBrowserWeights(): Record<string, number>

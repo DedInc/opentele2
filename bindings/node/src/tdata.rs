@@ -5,12 +5,13 @@
 //! the libuv pool; `loadMany` runs its folders on the core's dedicated
 //! thread pool from one such task.
 
+use std::convert::identity;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock};
 
-use napi::Task;
-use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, Either, Env, Uint8Array};
+use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, ClassInstance, Either, Env, Uint8Array};
+use napi::{JsString, Task};
 use napi_derive::napi;
 
 use opentele2_core::Error;
@@ -22,11 +23,11 @@ use opentele2_core::tdata::mtp_config::{
     self, ConfigFields, Endpoint as CoreEndpoint, Endpoints as CoreEndpoints, Environment,
     MtpConfig as CoreMtpConfig, ProtocolEndpoints as CoreProtocolEndpoints,
 };
-use opentele2_core::tdata::{NEW_FOLDER_ACTIVE_INDEX, TData as CoreTData};
+use opentele2_core::tdata::{self, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData as CoreTData};
 
-use crate::convert::{to_auth_key, to_passcode, to_user_id};
+use crate::convert::{to_auth_key, to_passcode, to_user_id, with_text};
 use crate::draws::{Draws, Failure};
-use crate::error::{CodedError, Result, check, core_error, invalid_arg, rejection};
+use crate::error::{CodedError, Result, check, core_error, invalid_arg, rejection, thrown};
 
 /// One authorization key of an account.
 #[napi(object, object_from_js = false)]
@@ -165,8 +166,11 @@ impl TData {
 impl TData {
     /// The accounts, in accounts-info order.
     #[napi(getter)]
-    pub fn accounts(&self) -> Result<Vec<Account>> {
-        self.folder().accounts.iter().map(to_js_account).collect()
+    pub fn accounts(&self, env: Env) -> napi::Result<Vec<Account>> {
+        thrown(
+            env,
+            self.folder().accounts.iter().map(to_js_account).collect(),
+        )
     }
 
     /// The active index stored in the accounts info; saving writes it.
@@ -218,8 +222,11 @@ impl TData {
     /// The account at the active index, else the first one; `null` for a
     /// folder without accounts.
     #[napi(getter)]
-    pub fn main_account(&self) -> Result<Option<Account>> {
-        self.folder().main_account().map(to_js_account).transpose()
+    pub fn main_account(&self, env: Env) -> napi::Result<Option<Account>> {
+        thrown(
+            env,
+            self.folder().main_account().map(to_js_account).transpose(),
+        )
     }
 
     /// The data name of the key file, `"data"` unless loaded otherwise.
@@ -232,8 +239,11 @@ impl TData {
     /// 1.5.0's `SaveTData(keyFile=...)` does; an empty name throws
     /// `OT_TDATA_SAVE_FAILED` and keeps the old one.
     #[napi(setter)]
-    pub fn set_key_file(&self, value: String) -> Result<()> {
-        check(self.update(move |folder| folder.set_key_file(&value)))
+    pub fn set_key_file(&self, env: Env, value: String) -> napi::Result<()> {
+        thrown(
+            env,
+            check(self.update(move |folder| folder.set_key_file(&value))),
+        )
     }
 
     /// Whether the key file has the pre-7.3 layout, which every save
@@ -380,14 +390,20 @@ pub struct LoadManyTask {
 #[napi]
 impl Task for LoadManyTask {
     type Output = Vec<opentele2_core::Result<CoreTData>>;
-    type JsValue = Vec<Either<TData, napi::Error<String>>>;
+    type JsValue = Vec<Either<TData, napi::Error>>;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
         Ok(batch::load_many(&self.requests, &self.options))
     }
 
-    fn resolve(&mut self, _env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
-        Ok(output.into_iter().map(folder_or_error).collect())
+    fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<Self::JsValue> {
+        Ok(output
+            .into_iter()
+            .map(|result| match folder_or_error(result) {
+                Either::A(tdata) => Either::A(tdata),
+                Either::B(error) => Either::B(rejection(env, error)),
+            })
+            .collect())
     }
 }
 
@@ -501,16 +517,20 @@ pub fn migrate_tdata(tdata: &TData, draws: Option<Vec<Uint8Array>>) -> AsyncTask
 /// `ERR_INVALID_ARG_VALUE`.
 #[napi]
 pub fn new_tdata(
+    env: Env,
     accounts: Vec<AccountInput>,
     passcode: Option<Either<String, Uint8Array>>,
     performance_mode: Option<bool>,
     active_index: Option<i32>,
     draws: Option<Vec<Uint8Array>>,
-) -> Result<AsyncTask<NewTask>> {
-    let accounts = accounts
-        .into_iter()
-        .map(to_account)
-        .collect::<Result<Vec<_>>>()?;
+) -> napi::Result<AsyncTask<NewTask>> {
+    let accounts = thrown(
+        env,
+        accounts
+            .into_iter()
+            .map(to_account)
+            .collect::<Result<Vec<_>>>(),
+    )?;
     Ok(AsyncTask::new(NewTask {
         accounts,
         passcode: to_passcode(passcode),
@@ -527,6 +547,75 @@ pub const TDATA_MAX_ACCOUNTS: u32 = 6;
 
 const _: () = assert!(TDATA_MAX_ACCOUNTS as usize == CoreTData::MAX_ACCOUNTS);
 
+/// The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), as the
+/// text of its four ASCII bytes.
+#[napi]
+pub const TDF_MAGIC: &str = match std::str::from_utf8(&tdata::TDF_MAGIC) {
+    Ok(text) => text,
+    Err(_) => panic!("the TDF$ magic is ASCII"),
+};
+
+/// The `newTdata` arguments the draws of a new folder depend on.
+#[napi(object, object_to_js = false)]
+pub struct NewDrawPlan {
+    /// Whether the passcode is non-empty; `false` by default.
+    pub has_passcode: Option<bool>,
+    /// The `performanceMode` argument; `true` by default.
+    pub performance_mode: Option<bool>,
+}
+
+/// The draw plan of [`draw_plan`].
+fn planned(
+    operation: &str,
+    target: Either<ClassInstance<'_, TData>, NewDrawPlan>,
+) -> Result<Vec<u32>> {
+    let plan = match (operation, target) {
+        ("new", Either::B(params)) => tdata::draw_plan(DrawOperation::New {
+            has_passcode: params.has_passcode.unwrap_or(false),
+            performance_mode: params.performance_mode.unwrap_or(true),
+        }),
+        ("migrate", Either::A(tdata)) => tdata::draw_plan(DrawOperation::Migrate(&tdata.folder())),
+        ("save", Either::A(tdata)) => tdata::draw_plan(DrawOperation::Save(&tdata.folder())),
+        ("new", Either::A(_)) => {
+            return Err(invalid_arg(
+                "the 'new' plan takes the hasPasscode and performanceMode options",
+            ));
+        }
+        ("migrate" | "save", Either::B(_)) => {
+            return Err(invalid_arg(format!("the {operation:?} plan takes a TData")));
+        }
+        (other, _) => {
+            return Err(invalid_arg(format!(
+                "unknown operation {other:?}; expected one of new, migrate, save"
+            )));
+        }
+    };
+    check(plan)?
+        .into_iter()
+        .map(|size| {
+            u32::try_from(size).map_err(|_| core_error(&Error::QDataStreamFailed { context: None }))
+        })
+        .collect()
+}
+
+/// The sizes, in bytes and in order, of the random draws an operation will
+/// make, so recorded `os.urandom` draws can be replayed through `draws`
+/// without hand-coded counts; nothing is drawn and no file is touched.
+///
+/// `operation` is `'new'` with the `newTdata` options the draws depend on,
+/// or `'migrate'` or `'save'` with the `TData` in its current state. A save
+/// the folder would refuse throws its error, such as `OT_TDATA_SAVE_FAILED`
+/// for a folder without accounts.
+#[napi]
+pub fn draw_plan(
+    env: Env,
+    #[napi(ts_arg_type = "'new' | 'migrate' | 'save'")] operation: JsString<'_>,
+    target: Either<ClassInstance<'_, TData>, NewDrawPlan>,
+) -> napi::Result<Vec<u32>> {
+    let plan = with_text(operation, |operation| planned(operation, target));
+    thrown(env, plan.and_then(identity))
+}
+
 /// Adds an account to `tdata` with `authKey` as the key of `mainDc`, as
 /// 1.5.0's `Account.FromTelethon` does, and returns its index: the lowest
 /// one below `TDATA_MAX_ACCOUNTS` no account holds. The active index is not
@@ -534,16 +623,19 @@ const _: () = assert!(TDATA_MAX_ACCOUNTS as usize == CoreTData::MAX_ACCOUNTS);
 /// 256 bytes `OT_BAD_LENGTH`; `tdata` is then left as it was.
 #[napi]
 pub fn add_tdata_account(
+    env: Env,
     tdata: &TData,
     user_id: BigInt,
     main_dc: i32,
     auth_key: &[u8],
-) -> Result<i32> {
+) -> napi::Result<i32> {
     // napi has no borrowed `BigInt` argument, so the owned one is moved
     // into the conversion and dropped there.
-    let user_id = to_user_id(&{ user_id })?;
-    let auth_key = to_auth_key(auth_key)?;
-    check(tdata.update(|folder| folder.add_account(user_id, main_dc, auth_key)))
+    let added = to_user_id(&{ user_id }).and_then(|user_id| {
+        let auth_key = to_auth_key(auth_key)?;
+        check(tdata.update(|folder| folder.add_account(user_id, main_dc, auth_key)))
+    });
+    thrown(env, added)
 }
 
 /// One `loadMany` request given as an object.
@@ -598,19 +690,27 @@ pub fn load_many(
 /// The Telethon string session of `account`: the first production endpoint
 /// of its main DC, IPv6 when `ipv6` is set, and its main DC key.
 #[napi]
-pub fn telethon_string_session(account: AccountInput, ipv6: Option<bool>) -> Result<String> {
-    let account = to_account(account)?;
-    let session = telethon::StringSession::from_account(&account, ipv6.unwrap_or(false));
-    Ok(check(session)?.encode())
+pub fn telethon_string_session(
+    env: Env,
+    account: AccountInput,
+    ipv6: Option<bool>,
+) -> napi::Result<String> {
+    let encoded = to_account(account).and_then(|account| {
+        let session = telethon::StringSession::from_account(&account, ipv6.unwrap_or(false));
+        Ok(check(session)?.encode())
+    });
+    thrown(env, encoded)
 }
 
 /// The mtcute v3 string session of `account`: the first production IPv4
 /// endpoint of its main DC, its user id, and its main DC key.
 #[napi]
-pub fn mtcute_string_session(account: AccountInput) -> Result<String> {
-    let account = to_account(account)?;
-    let session = mtcute::StringSession::from_account(&account, false);
-    Ok(check(session)?.encode())
+pub fn mtcute_string_session(env: Env, account: AccountInput) -> napi::Result<String> {
+    let encoded = to_account(account).and_then(|account| {
+        let session = mtcute::StringSession::from_account(&account, false);
+        Ok(check(session)?.encode())
+    });
+    thrown(env, encoded)
 }
 
 /// Endpoint flag: an IPv6 address.
@@ -898,20 +998,29 @@ impl From<CoreMtpConfig> for MtpConfig {
 /// `config` parsed, or the production default when there is none or it
 /// does not parse.
 #[napi]
-pub fn account_mtp_config(account: AccountInput) -> Result<MtpConfig> {
-    Ok(to_account(account)?.mtp_config().into())
+pub fn account_mtp_config(env: Env, account: AccountInput) -> napi::Result<MtpConfig> {
+    thrown(
+        env,
+        to_account(account).map(|account| account.mtp_config().into()),
+    )
 }
 
 /// The endpoints of DC `dcId` (default the main DC) in the MTP config of
 /// `account`, by address family and protocol (1.5.0
 /// `MTP.Config.endpoints`); `null` when the config has no such DC.
 #[napi]
-pub fn account_endpoints(account: AccountInput, dc_id: Option<i32>) -> Result<Option<Endpoints>> {
-    let account = to_account(account)?;
-    let dc_id = dc_id.unwrap_or(account.main_dc);
-    Ok(account
-        .mtp_config()
-        .endpoints(dc_id)
-        .as_ref()
-        .map(Endpoints::from))
+pub fn account_endpoints(
+    env: Env,
+    account: AccountInput,
+    dc_id: Option<i32>,
+) -> napi::Result<Option<Endpoints>> {
+    let endpoints = to_account(account).map(|account| {
+        let dc_id = dc_id.unwrap_or(account.main_dc);
+        account
+            .mtp_config()
+            .endpoints(dc_id)
+            .as_ref()
+            .map(Endpoints::from)
+    });
+    thrown(env, endpoints)
 }

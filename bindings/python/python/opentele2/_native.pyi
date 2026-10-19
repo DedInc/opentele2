@@ -3,7 +3,7 @@
 
 import os
 from collections.abc import Iterable, Sequence
-from typing import Any, Literal, Protocol, TypedDict, final
+from typing import Any, Literal, Protocol, TypedDict, final, overload
 
 from typing_extensions import NotRequired, TypeAlias
 
@@ -46,7 +46,10 @@ class CoreError(Exception):
     code: str
     # Human-readable text; may change between releases.
     message: str
-    def __init__(self, code: str, message: str) -> None: ...
+    # The message 1.5.0 gave the matching exception; `message` when none
+    # was given.
+    legacy_message: str
+    def __init__(self, code: str, message: str, legacy_message: str | None = None) -> None: ...
 
 # The values a client sends in initConnection.
 class ApiProfile(TypedDict):
@@ -219,6 +222,17 @@ def load_many(
     requests: Iterable[_LoadRequest], threads: int | None = None
 ) -> list[TData | CoreError]: ...
 
+TDF_MAGIC: bytes
+
+class DrawPlanParams(TypedDict, total=False):
+    has_passcode: bool
+    performance_mode: bool
+
+@overload
+def draw_plan(operation: Literal["new"], target: DrawPlanParams) -> list[int]: ...
+@overload
+def draw_plan(operation: Literal["migrate", "save"], target: TData) -> list[int]: ...
+
 # MTP configs: endpoint flags, as tdesktop stores them.
 
 MTP_FLAG_IPV6: int
@@ -351,6 +365,28 @@ def profile_to_session_json(
     profile: ApiProfile, extra: dict[str, Any] | None = None
 ) -> dict[str, Any]: ...
 def profiles_equal(a: ApiProfile, b: ApiProfile) -> bool: ...
+def format_app_version(version: int) -> str: ...
+
+# (key, attribute, default, fallback) of each session JSON profile key, in
+# the order APIData.to_json writes them.
+SESSION_JSON_FIELDS: list[tuple[str, str, str | None, str | None]]
+# 1.5.0 _DEFAULT_EXTRA_FIELDS as (key, default) items, in order.
+DEFAULT_EXTRA_FIELDS: list[tuple[str, str | bool | None]]
+
+# device catalogs
+
+_Platform: TypeAlias = Literal["windows", "linux", "macos", "android", "ios", "web_a", "web_k"]
+
+class CatalogEntry(TypedDict):
+    model: str
+    system_version: str
+    weight: int
+
+def catalog_entries(platform: _Platform) -> list[CatalogEntry]: ...
+def device_models(platform: _Platform) -> list[str]: ...
+def system_versions(platform: _Platform) -> list[str]: ...
+
+WEB_BROWSER_WEIGHTS: dict[str, int]
 
 # Current versions from the release feeds; never raises for the network.
 def fetch_versions(timeout: float = 10.0) -> VersionsPatch: ...
@@ -466,6 +502,9 @@ def srp_check(
 ) -> SrpCheck: ...
 def is_official_api_id(api_id: int) -> bool: ...
 def format_sessions(rows: Iterable[SessionRow]) -> str: ...
+def format_table(
+    headers: Sequence[str], rows: Sequence[Sequence[str]], add_split: Sequence[int] | None = None
+) -> str: ...
 def consistency_expectations(
     profile: ApiProfile, versions: _VersionsArg | None = None
 ) -> ConsistencyExpectations: ...

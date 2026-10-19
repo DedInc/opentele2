@@ -5,14 +5,14 @@
 
 use std::path::PathBuf;
 
-use napi::bindgen_prelude::Buffer;
+use napi::bindgen_prelude::{Buffer, Env};
 use napi_derive::napi;
 use serde_json::{Map, Value};
 
 use opentele2_core::session::telethon_file::{self, SessionRows};
 
 use crate::api::ApiProfile;
-use crate::error::{Result, check, invalid_arg};
+use crate::error::{Result, check, invalid_arg, thrown};
 use crate::tdata::{AccountInput, to_account};
 
 /// The database version 1.5.0 stamps (Telethon's `CURRENT_VERSION`).
@@ -97,9 +97,15 @@ pub struct TelethonSessionRows {
 /// has no endpoint.
 #[napi]
 pub fn telethon_session_rows(
+    env: Env,
     account: AccountInput,
     ipv6: Option<bool>,
-) -> Result<TelethonSessionRows> {
+) -> napi::Result<TelethonSessionRows> {
+    thrown(env, session_rows(account, ipv6))
+}
+
+/// The rows of [`telethon_session_rows`].
+fn session_rows(account: AccountInput, ipv6: Option<bool>) -> Result<TelethonSessionRows> {
     let account = to_account(account)?;
     let rows = check(SessionRows::from_account(&account, ipv6.unwrap_or(false)))?;
     Ok(TelethonSessionRows {

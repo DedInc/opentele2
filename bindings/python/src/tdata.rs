@@ -1,4 +1,5 @@
-//! `TData`, `Account`, `load_many` and the accounts' MTP configs.
+//! `TData`, `Account`, `load_many`, the draw plans of the folder writers
+//! and the accounts' MTP configs.
 
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
@@ -15,9 +16,9 @@ use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::mtp_config::{
     self, ConfigFields, Endpoint, Environment, ProtocolEndpoints,
 };
-use opentele2_core::tdata::{NEW_FOLDER_ACTIVE_INDEX, TData};
+use opentele2_core::tdata::{self, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData};
 
-use crate::convert::{owned_bytes, to_auth_key, to_bytes, to_passcode};
+use crate::convert::{optional, owned_bytes, to_auth_key, to_bytes, to_passcode};
 use crate::draws::{Draws, to_draws};
 use crate::error::{check, core_error_value};
 
@@ -449,6 +450,51 @@ fn load_many<'py>(
     Ok(out)
 }
 
+/// The sizes, in bytes and in order, of the random draws an operation will
+/// make, so recorded `os.urandom` draws can be replayed through `draws`
+/// without hand-coded counts; nothing is drawn and no file is touched.
+///
+/// `operation` is `"new"` with a dict of `has_passcode` (default `False`)
+/// and `performance_mode` (default `True`), the arguments of `TData.new`;
+/// or `"migrate"` or `"save"` with the `TData` in its current state. A save
+/// the folder would refuse raises its `CoreError`, such as
+/// `TDATA_SAVE_FAILED` for a folder without accounts.
+#[pyfunction]
+fn draw_plan(py: Python<'_>, operation: &str, target: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
+    if operation == "new" {
+        let params = target.cast::<PyDict>().map_err(|_| {
+            PyTypeError::new_err(
+                "the \"new\" plan takes a dict of has_passcode and performance_mode",
+            )
+        })?;
+        let has_passcode = optional(params, "has_passcode")?.unwrap_or(false);
+        let performance_mode = optional(params, "performance_mode")?.unwrap_or(true);
+        return check(
+            py,
+            tdata::draw_plan(DrawOperation::New {
+                has_passcode,
+                performance_mode,
+            }),
+        );
+    }
+    if operation != "migrate" && operation != "save" {
+        return Err(PyValueError::new_err(format!(
+            "unknown operation {operation:?}; expected one of new, migrate, save"
+        )));
+    }
+    let folder = target
+        .cast::<PyTData>()
+        .map_err(|_| PyTypeError::new_err(format!("the {operation:?} plan takes a TData")))?
+        .get()
+        .folder();
+    let plan = if operation == "migrate" {
+        tdata::draw_plan(DrawOperation::Migrate(&folder))
+    } else {
+        tdata::draw_plan(DrawOperation::Save(&folder))
+    };
+    check(py, plan)
+}
+
 /// The Telethon string session of `account`: the first production endpoint
 /// of its main DC, IPv6 when `ipv6` is set, and its main DC key.
 #[pyfunction]
@@ -632,6 +678,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyAccount>()?;
     module.add_class::<PyTData>()?;
     module.add_function(wrap_pyfunction!(load_many, module)?)?;
+    module.add("TDF_MAGIC", PyBytes::new(module.py(), &tdata::TDF_MAGIC))?;
+    module.add_function(wrap_pyfunction!(draw_plan, module)?)?;
     module.add_function(wrap_pyfunction!(telethon_string_session, module)?)?;
     module.add_function(wrap_pyfunction!(mtcute_string_session, module)?)?;
     module.add("MTP_FLAG_IPV6", mtp_config::FLAG_IPV6)?;

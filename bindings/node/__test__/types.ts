@@ -8,16 +8,33 @@
 
 import {
   TDATA_MAX_ACCOUNTS,
+  TDF_MAGIC,
   addTdataAccount,
+  catalogEntries,
+  defaultExtraFields,
+  deviceModels,
+  drawPlan,
+  formatAppVersion,
+  formatTable,
   loadTdata,
   migrateTdata,
   newTdata,
   profile,
   saveTdata,
+  sessionJsonFields,
   sessionPairPaths,
   telethonSessionRows,
+  webBrowserWeights,
 } from 'opentele2'
-import type { AccountInput, ApiProfile, SessionPairPaths, TData, TelethonSessionRows } from 'opentele2'
+import type {
+  AccountInput,
+  ApiProfile,
+  CatalogEntry,
+  SessionJsonField,
+  SessionPairPaths,
+  TData,
+  TelethonSessionRows,
+} from 'opentele2'
 import { initConnectionOptions, toStringSession } from 'opentele2/mtcute'
 import type { InitConnectionOptions } from 'opentele2/mtcute'
 import { loadSessionPair, readSessionFile, saveSessionPair, writeSessionFile } from 'opentele2/telethon'
@@ -91,4 +108,25 @@ export async function tdataSurface(account: AccountInput): Promise<void> {
   // @ts-expect-error the key file is a string
   loaded.keyFile = 1
   void [migrated, passcodeKey, appVersion, index, limit]
+}
+
+export function compatData(tdata: TData): void {
+  const newPlan: number[] = drawPlan('new', { hasPasscode: true, performanceMode: false })
+  const savePlan: number[] = drawPlan('save', tdata)
+  const entries: CatalogEntry[] = catalogEntries('macos')
+  const models: string[] = deviceModels('web_a')
+  const fields: SessionJsonField[] = sessionJsonFields()
+  const fallback: string | null = fields[0].fallback
+  const extra: Array<[string, string | boolean | null]> = defaultExtraFields()
+  const weights: Record<string, number> = webBrowserWeights()
+  const table: string = formatTable(['a'], [['1']], [0])
+  const version: string = formatAppVersion(7003001)
+  const magic: string = TDF_MAGIC
+  // @ts-expect-error the platform is one of the catalog names
+  catalogEntries('symbian')
+  // @ts-expect-error the operation is new, migrate or save
+  drawPlan('delete', tdata)
+  // @ts-expect-error a table cell is a string
+  formatTable(['a'], [[1]])
+  void [newPlan, savePlan, entries, models, fallback, extra, weights, table, version, magic]
 }

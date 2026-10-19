@@ -201,6 +201,28 @@ fn format_sessions(rows: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(auth::format_sessions(&rows))
 }
 
+/// 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+/// `headers`, in order, and the cells of `rows`, already strings; a splitter
+/// line goes before every row whose index is in `add_split`. Columns are
+/// as wide as their longest cell plus two, text centred with the odd space
+/// on the right; the last line has no newline. A short row gets empty cells
+/// and cells past the last header are ignored.
+#[pyfunction]
+#[pyo3(signature = (headers, rows, add_split = None))]
+fn format_table(
+    headers: &Bound<'_, PyAny>,
+    rows: &Bound<'_, PyAny>,
+    add_split: Option<&Bound<'_, PyAny>>,
+) -> PyResult<String> {
+    let headers: Vec<String> = headers.extract()?;
+    let rows: Vec<Vec<String>> = rows.extract()?;
+    let add_split: Vec<usize> = match add_split {
+        Some(indices) => indices.extract()?,
+        None => Vec::new(),
+    };
+    Ok(auth::format_table(&headers, &rows, &add_split))
+}
+
 /// What the seven 1.5.0 `ConsistencyChecker` checks expect from a session
 /// with `profile`, compared against `versions` (default the offline
 /// `PlatformVersions`).
@@ -380,6 +402,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(srp_check, module)?)?;
     module.add_function(wrap_pyfunction!(is_official_api_id, module)?)?;
     module.add_function(wrap_pyfunction!(format_sessions, module)?)?;
+    module.add_function(wrap_pyfunction!(format_table, module)?)?;
     module.add_function(wrap_pyfunction!(consistency_expectations, module)?)?;
     module.add_function(wrap_pyfunction!(consistency_checks, module)?)?;
     module.add_function(wrap_pyfunction!(layer_result, module)?)?;
