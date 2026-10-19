@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import os
 from ctypes import c_uint32 as uint32
 from ctypes import sizeof
-from typing import ClassVar, Protocol, runtime_checkable
+from typing import ClassVar
+
+import opentele2_core
 
 from ..exception import (
     Expects,
@@ -33,31 +34,21 @@ from .configs import DcId, FileKey, ShiftedDcId, dbi
 
 _AES_BLOCK_SIZE = 0x10
 _AES_BLOCK_MASK = 0x0F
-_PBKDF2_ITERATIONS = 100000
-_PBKDF2_ITERATIONS_EMPTY = 1
-_LEGACY_PBKDF2_ITERATIONS = 4000
-_LEGACY_PBKDF2_ITERATIONS_EMPTY = 4
 _TDF_FILE_SUFFIXES = ("s", "1", "0")
 
 
-@runtime_checkable
-class _TgCrypto(Protocol):
-    """The part of the compiled, stub-less tgcrypto module this file calls."""
-
-    def ige256_encrypt(self, data: bytes, key: bytes, iv: bytes, /) -> bytes: ...
-
-    def ige256_decrypt(self, data: bytes, key: bytes, iv: bytes, /) -> bytes: ...
-
-
-def _load_tgcrypto() -> _TgCrypto:
-    module = importlib.import_module("tgcrypto")
-    if isinstance(module, _TgCrypto):
-        return module
-    # A tgcrypto without these is a broken install, reported like a missing one.
-    raise ImportError("tgcrypto does not provide ige256_encrypt and ige256_decrypt")
-
-
-tgcrypto = _load_tgcrypto()
+def _aes_ige(src: QByteArray, aesKey: bytes, aesIv: bytes, encrypt: bool) -> bytes:
+    data = bytes(src)
+    # The 1.5.0 IGE backend refused empty data and bad lengths with
+    # ValueError; the core reports them as CoreError BAD_LENGTH.
+    if not data:
+        raise ValueError("Data must not be empty")
+    try:
+        if encrypt:
+            return opentele2_core.aes_ige_encrypt(data, aesKey, aesIv)
+        return opentele2_core.aes_ige_decrypt(data, aesKey, aesIv)
+    except opentele2_core.CoreError as e:
+        raise ValueError(e.message) from e
 
 
 class Serialize(BaseObject):
@@ -477,18 +468,7 @@ class Storage(BaseObject):
     ) -> td.AuthKey:
         if passcode is None:
             passcode = QByteArray()
-        hashKey = hashlib.sha512(bytes(salt))
-        hashKey.update(bytes(passcode))
-        hashKey.update(bytes(salt))
-
-        iterationsCount = (
-            _PBKDF2_ITERATIONS_EMPTY if passcode.isEmpty() else _PBKDF2_ITERATIONS
-        )
-        return td.AuthKey(
-            hashlib.pbkdf2_hmac(
-                "sha512", hashKey.digest(), bytes(salt), iterationsCount, 256
-            )
-        )
+        return td.AuthKey(opentele2_core.create_local_key(bytes(passcode), bytes(salt)))
 
     @staticmethod
     def CreateLegacyLocalKey(
@@ -496,15 +476,8 @@ class Storage(BaseObject):
     ) -> td.AuthKey:
         if passcode is None:
             passcode = QByteArray()
-        iterationsCount = (
-            _LEGACY_PBKDF2_ITERATIONS_EMPTY
-            if passcode.isEmpty()
-            else _LEGACY_PBKDF2_ITERATIONS
-        )
         return td.AuthKey(
-            hashlib.pbkdf2_hmac(
-                "sha1", passcode.data(), salt.data(), iterationsCount, 256
-            )
+            opentele2_core.create_legacy_local_key(bytes(passcode), bytes(salt))
         )
 
     @staticmethod
@@ -512,14 +485,14 @@ class Storage(BaseObject):
         src: QByteArray, authKey: td.AuthKey, key128: QByteArray
     ) -> QByteArray:
         aesKey, aesIv = authKey.prepareAES_oldmtp(bytes(key128), False)
-        return QByteArray(tgcrypto.ige256_encrypt(bytes(src), aesKey, aesIv))
+        return QByteArray(_aes_ige(src, aesKey, aesIv, encrypt=True))
 
     @staticmethod
     def aesDecryptLocal(
         src: QByteArray, authKey: td.AuthKey, key128: QByteArray
     ) -> QByteArray:
         aesKey, aesIv = authKey.prepareAES_oldmtp(bytes(key128), False)
-        return QByteArray(tgcrypto.ige256_decrypt(bytes(src), aesKey, aesIv))
+        return QByteArray(_aes_ige(src, aesKey, aesIv, encrypt=False))
 
     @staticmethod
     def DecryptLocal(encrypted: QByteArray, authKey: td.AuthKey) -> EncryptedDescriptor:

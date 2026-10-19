@@ -15,8 +15,7 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 
-from argon2.exceptions import Argon2Error
-from argon2.low_level import Type, hash_secret_raw
+import opentele2_core
 
 from ..exception import (
     Expects,
@@ -143,7 +142,7 @@ def default_passcode_kdf() -> PasscodeKdf:
     """Argon2id, as ``DefaultPasscodeKdf`` picks wherever OpenSSL has it.
 
     tdesktop falls back to scrypt only on OpenSSL builds without Argon2id;
-    argon2-cffi is a hard dependency here, so that case never applies.
+    opentele2_core always provides Argon2id, so that case never applies.
     """
     return PasscodeKdf(KDF_ARGON2ID, _ARGON2_MEMORY_KIB, _ARGON2_TIME, _ARGON2_LANES)
 
@@ -164,19 +163,13 @@ def create_passcode_key(
     # returns null and startModern reports IncorrectPasscode.
     try:
         if kdf.kind == KDF_ARGON2ID:
-            # OpenSSL's ARGON2ID is version 0x13; lanes, not threads, shape
-            # the output, so argon2-cffi's threading does not change it.
-            raw = hash_secret_raw(
-                secret=passcode,
-                salt=bytes(salt),
-                time_cost=kdf.time,
-                memory_cost=kdf.memory,
-                parallelism=kdf.parallel,
-                hash_len=td.AuthKey.kSize,
-                type=Type.ID,
-                version=0x13,
+            # OpenSSL's ARGON2ID is version 0x13, as the core derives it;
+            # lanes, not threads, shape the output.
+            raw = opentele2_core.argon2id(
+                passcode, bytes(salt), kdf.memory, kdf.time, kdf.parallel
             )
         else:
+            # The core does not expose scrypt to Python.
             raw = hashlib.scrypt(
                 passcode,
                 salt=bytes(salt),
@@ -186,7 +179,12 @@ def create_passcode_key(
                 maxmem=_SCRYPT_MAX_MEM,
                 dklen=td.AuthKey.kSize,
             )
-    except (ValueError, MemoryError, OverflowError, Argon2Error) as e:
+    except (
+        ValueError,
+        MemoryError,
+        OverflowError,
+        opentele2_core.CoreError,
+    ) as e:
         raise TDataBadDecryptKey(f"Could not derive the passcode key: {e}") from e
     return td.AuthKey(raw)
 

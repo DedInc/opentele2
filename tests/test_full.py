@@ -6,12 +6,12 @@ import os
 import pathlib
 import sqlite3
 import sys
-from types import ModuleType
 from typing import Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
 
+import opentele2_core
 import pytest
 from telethon.errors import RPCError
 from telethon.sessions.memory import MemorySession
@@ -51,8 +51,10 @@ from src.fingerprint import (
     is_valid_msg_id,
     validate_init_connection_params,
 )
+from src.qt_compat import QByteArray
 from src.td import TDesktop, storage
 from src.td.account import Account
+from src.td.auth import AuthKey
 from src.tl.telethon import TelegramClient
 
 TESTS_DIR = pathlib.Path(__file__).parent
@@ -1115,14 +1117,51 @@ class TestTelegramClientConstructor:
         with pytest.raises(ValueError, match="cannot be empty"):
             TelegramClient(None, api_id=1234)
 
-    def test_tgcrypto_without_ige256_is_an_import_error(
+
+class TestStorageIgeOnCore:
+    _AUTH_KEY = AuthKey(bytes(range(256)))
+    _MSG_KEY = QByteArray(bytes(range(16)))
+
+    def test_local_aes_ige_goes_through_the_core(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            storage.importlib, "import_module", lambda _name: ModuleType("x")
+        calls: list[str] = []
+        core_encrypt = opentele2_core.aes_ige_encrypt
+        core_decrypt = opentele2_core.aes_ige_decrypt
+
+        def spy_encrypt(data: bytes, key: bytes, iv: bytes) -> bytes:
+            calls.append("encrypt")
+            return core_encrypt(data, key, iv)
+
+        def spy_decrypt(data: bytes, key: bytes, iv: bytes) -> bytes:
+            calls.append("decrypt")
+            return core_decrypt(data, key, iv)
+
+        monkeypatch.setattr(storage.opentele2_core, "aes_ige_encrypt", spy_encrypt)
+        monkeypatch.setattr(storage.opentele2_core, "aes_ige_decrypt", spy_decrypt)
+
+        plain = QByteArray(bytes(range(64)))
+        encrypted = storage.Storage.aesEncryptLocal(
+            plain, self._AUTH_KEY, self._MSG_KEY
         )
-        with pytest.raises(ImportError, match="tgcrypto"):
-            storage._load_tgcrypto()
+        aesKey, aesIv = self._AUTH_KEY.prepareAES_oldmtp(bytes(self._MSG_KEY), False)
+        assert bytes(encrypted) == core_encrypt(bytes(plain), aesKey, aesIv)
+        decrypted = storage.Storage.aesDecryptLocal(
+            encrypted, self._AUTH_KEY, self._MSG_KEY
+        )
+        assert bytes(decrypted) == bytes(plain)
+        assert calls == ["encrypt", "decrypt"]
+
+    @pytest.mark.parametrize("size", [0, 15, 17])
+    def test_bad_ige_lengths_stay_value_errors(self, size: int) -> None:
+        with pytest.raises(ValueError):
+            storage.Storage.aesEncryptLocal(
+                QByteArray(bytes(size)), self._AUTH_KEY, self._MSG_KEY
+            )
+        with pytest.raises(ValueError):
+            storage.Storage.aesDecryptLocal(
+                QByteArray(bytes(size)), self._AUTH_KEY, self._MSG_KEY
+            )
 
 
 class TestTelegramClientChecks:
