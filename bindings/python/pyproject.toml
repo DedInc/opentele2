@@ -1,0 +1,40 @@
+[build-system]
+requires = ["maturin>=1.13,<2"]
+build-backend = "maturin"
+
+[project]
+name = "opentele2-core"
+description = "Rust core of opentele2: Telegram Desktop tdata formats, crypto and string sessions"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [{ name = "DedInc.", email = "visitanimation@gmail.com" }]
+keywords = ["tdata", "tdesktop", "telegram", "telethon", "opentele2"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Typing :: Typed",
+]
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/DedInc/opentele2"
+"Bug Tracker" = "https://github.com/DedInc/opentele2/issues"
+
+[tool.maturin]
+# A pure Rust layout: maturin wraps the extension in an `opentele2_core`
+# package and ships `opentele2_core.pyi` as its `__init__.pyi` plus `py.typed`.
+module-name = "opentele2_core"
+manifest-path = "Cargo.toml"
+profile = "release"
+
+[tool.ruff]
+target-version = "py38"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "PYI", "PT", "RUF"]
+
+[tool.ty.environment]
+python-version = "3.8"
