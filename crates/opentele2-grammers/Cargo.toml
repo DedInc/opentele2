@@ -1,0 +1,22 @@
+[package]
+name = "opentele2-grammers"
+description = "grammers 0.11 sessions and connection params from opentele2 tdata accounts and API profiles"
+keywords = ["telegram", "tdata", "grammers", "opentele"]
+categories = ["api-bindings"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+opentele2-core = { version = "2.0.0-alpha.1", path = "../opentele2-core", default-features = false }
+grammers-session = { version = "0.11.0", default-features = false }
+grammers-mtsender = { version = "0.11.0", default-features = false }
+
+[dev-dependencies]
+hex = "0.4.3"
+serde_json = "1.0.154"
+
+[lints]
+workspace = true
