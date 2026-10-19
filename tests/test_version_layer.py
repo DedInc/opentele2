@@ -107,9 +107,14 @@ class TestAdvertisedLayer:
 
 
 def _run_layer_check() -> CheckResult:
-    # A real, never-connected client: construction is offline (MemorySession).
-    checker = ConsistencyChecker(TelegramClient(), auto_warn=False)
-    return asyncio.run(checker.check_layer_match())
+    async def check() -> CheckResult:
+        # A real, never-connected client: construction is offline (MemorySession).
+        # Build it on the running loop: Telethon's asyncio.Lock binds to the
+        # current loop at construction, and on 3.8 there is none outside one.
+        checker = ConsistencyChecker(TelegramClient(), auto_warn=False)
+        return await checker.check_layer_match()
+
+    return asyncio.run(check())
 
 
 class TestLayerCheck:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import contextlib
 import importlib
 import os
@@ -73,9 +75,8 @@ def test_debug_mode_defaults_off_without_env(
 
 
 def test_random_api() -> None:
-    API_TYPE = APIData | type[APIData]
-
-    def cmp(src: API_TYPE, dst: API_TYPE) -> bool:
+    # Annotations are deferred (PEP 563), so the PEP 604 union never runs on 3.8.
+    def cmp(src: APIData | type[APIData], dst: APIData | type[APIData]) -> bool:
         return (
             src.api_id == dst.api_id
             and src.api_hash == dst.api_hash
@@ -235,6 +236,7 @@ async def check_telegramclient() -> None:
     await oldClient.disconnected
 
 
+@pytest.mark.live
 @pytest.mark.asyncio
 async def test_entry_point(monkeypatch: pytest.MonkeyPatch) -> None:
     import asyncio
@@ -242,6 +244,9 @@ async def test_entry_point(monkeypatch: pytest.MonkeyPatch) -> None:
     profile = profile_path()
     if not os.path.isdir(profile):
         raise pytest.skip.Exception(f"Test profile directory not found: {profile}")
+    key_file = os.path.join(profile, f"key_{X2}s")
+    if not os.path.isfile(key_file):
+        raise pytest.skip.Exception(f"Test profile key file not found: {key_file}")
 
     loop = asyncio.get_event_loop()
     ter = TerminalWriter(sys.stdout)
