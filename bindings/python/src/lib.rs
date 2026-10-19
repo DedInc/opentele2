@@ -1,9 +1,9 @@
 //! Python bindings of opentele2-core, built as the abi3 extension module
-//! `opentele2_core`.
+//! `opentele2._native` of the `opentele2` package.
 //!
 //! Every function that does crypto, KDF, file IO or batch work copies its
 //! inputs into owned Rust values and runs with the thread detached from the
-//! interpreter. Core failures raise one `opentele2_core.CoreError(code,
+//! interpreter. Core failures raise one `opentele2._native.CoreError(code,
 //! message)`; the cryptg-compatible submodule raises `ValueError` instead.
 
 mod api;
@@ -32,8 +32,8 @@ fn pep440_version(cargo: &str) -> String {
 
 /// Telegram Desktop tdata formats, crypto, string sessions and API
 /// fingerprints from the Rust core of opentele2.
-#[pymodule]
-fn opentele2_core(module: &Bound<'_, PyModule>) -> PyResult<()> {
+#[pymodule(name = "_native")]
+fn native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", pep440_version(env!("CARGO_PKG_VERSION")))?;
     module.add("CoreError", error::core_error_type(module.py())?)?;
     crypto::register(module)?;

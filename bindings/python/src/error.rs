@@ -35,7 +35,7 @@ pub(crate) fn core_error_type(py: Python<'_>) -> PyResult<&Bound<'_, PyType>> {
     CORE_ERROR
         .get_or_try_init(py, || {
             let namespace = PyDict::new(py);
-            namespace.set_item("__name__", "opentele2_core")?;
+            namespace.set_item("__name__", "opentele2._native")?;
             py.run(CORE_ERROR_SOURCE, Some(&namespace), None)?;
             let class = namespace
                 .get_item("CoreError")?

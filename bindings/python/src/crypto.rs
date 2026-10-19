@@ -207,11 +207,11 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// The `opentele2_core.cryptg` submodule, also registered in `sys.modules`
-/// so `import opentele2_core.cryptg` works.
+/// The `opentele2._native.cryptg` submodule, also registered in
+/// `sys.modules` so `import opentele2._native.cryptg` works.
 pub(crate) fn register_cryptg(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = module.py();
-    let cryptg = PyModule::new(py, "opentele2_core.cryptg")?;
+    let cryptg = PyModule::new(py, "opentele2._native.cryptg")?;
     cryptg.setattr(
         "__doc__",
         "AES-256-IGE with the cryptg 0.6.0 interface, for Telethon.",
@@ -221,6 +221,6 @@ pub(crate) fn register_cryptg(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_submodule(&cryptg)?;
     py.import("sys")?
         .getattr("modules")?
-        .set_item("opentele2_core.cryptg", &cryptg)?;
+        .set_item("opentele2._native.cryptg", &cryptg)?;
     Ok(())
 }

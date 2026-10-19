@@ -18,7 +18,7 @@ use crate::error::{check, core_error_value};
 
 /// One Telegram Desktop account: its index, user id, main DC and
 /// authorization keys. `repr()` never shows key bytes.
-#[pyclass(frozen, module = "opentele2_core", name = "Account")]
+#[pyclass(frozen, module = "opentele2._native", name = "Account")]
 pub(crate) struct PyAccount {
     pub(crate) inner: Account,
 }
@@ -89,7 +89,7 @@ impl PyAccount {
 
 /// A Telegram Desktop `tdata` folder, loaded from disk or created for
 /// writing. `repr()` never shows key bytes.
-#[pyclass(frozen, module = "opentele2_core", name = "TData")]
+#[pyclass(frozen, module = "opentele2._native", name = "TData")]
 pub(crate) struct PyTData {
     inner: TData,
 }

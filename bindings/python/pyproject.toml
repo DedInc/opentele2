@@ -3,18 +3,32 @@ requires = ["maturin>=1.13,<2"]
 build-backend = "maturin"
 
 [project]
-name = "opentele2-core"
-description = "Rust core of opentele2: Telegram Desktop tdata formats, crypto and string sessions"
+name = "opentele2"
+description = "Telegram Desktop tdata, Telethon and mtcute sessions and official API fingerprints, on a Rust core"
 requires-python = ">=3.8"
 license = "MIT"
 authors = [{ name = "DedInc.", email = "visitanimation@gmail.com" }]
 keywords = ["tdata", "tdesktop", "telegram", "telethon", "opentele2"]
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Rust",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Typing :: Typed",
+]
+dependencies = [
+    "telethon>=1.45.0",
+    "typing_extensions>=4.7; python_version < '3.10'",
 ]
 dynamic = ["version"]
 
@@ -23,18 +37,26 @@ Homepage = "https://github.com/DedInc/opentele2"
 "Bug Tracker" = "https://github.com/DedInc/opentele2/issues"
 
 [tool.maturin]
-# A pure Rust layout: maturin wraps the extension in an `opentele2_core`
-# package and ships `opentele2_core.pyi` as its `__init__.pyi` plus `py.typed`.
-module-name = "opentele2_core"
+# Mixed layout: the Python package lives in python/opentele2 and the Rust
+# extension is installed inside it as opentele2._native, next to its stub
+# _native.pyi and py.typed.
+python-source = "python"
+module-name = "opentele2._native"
 manifest-path = "Cargo.toml"
 profile = "release"
 
 [tool.ruff]
 target-version = "py38"
 line-length = 100
+# First-party sources for import sorting: the mixed-layout package.
+src = ["python"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "PYI", "PT", "RUF"]
 
 [tool.ty.environment]
 python-version = "3.8"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: tests that require network access to Telegram servers"]

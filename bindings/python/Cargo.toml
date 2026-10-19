@@ -9,7 +9,9 @@ repository.workspace = true
 publish = false
 
 [lib]
-name = "opentele2_core"
+# maturin installs the cdylib as `opentele2._native`, beside the Python
+# sources of bindings/python/python/opentele2.
+name = "_native"
 crate-type = ["cdylib"]
 # The module only works inside an interpreter; its behaviour is tested by
 # bindings/python/tests through pytest.

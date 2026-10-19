@@ -1,4 +1,4 @@
-# Type stub of the opentele2_core extension module (bindings/python/src).
+# Type stub of the opentele2._native extension module (bindings/python/src).
 # Docstrings live in the extension; this file carries the types only.
 
 import os
@@ -78,7 +78,8 @@ def argon2id(
 ) -> bytes: ...
 
 # cryptg 0.6.0 interface, raising ValueError on bad lengths; the submodule is
-# also importable as opentele2_core.cryptg.
+# also importable as opentele2._native.cryptg, and `import opentele2` registers
+# it as the top-level cryptg when no real cryptg is installed.
 class _Cryptg(Protocol):
     def encrypt_ige(self, data: _Bytes, key: _Bytes, iv: _Bytes) -> bytes: ...
     def decrypt_ige(self, data: _Bytes, key: _Bytes, iv: _Bytes) -> bytes: ...

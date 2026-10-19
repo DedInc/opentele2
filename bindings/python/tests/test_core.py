@@ -1,4 +1,4 @@
-"""Tests of the opentele2_core extension against the golden vectors of
+"""Tests of the opentele2._native extension against the golden vectors of
 crates/opentele2-core/tests/vectors.
 
 Key material is compared with ``assert_same``, which never prints the bytes.
@@ -17,8 +17,9 @@ from typing import Any
 
 import pytest
 
-import opentele2_core
-from opentele2_core import Account, CoreError, TData, cryptg
+import opentele2
+from opentele2 import _native
+from opentele2._native import Account, CoreError, TData, cryptg
 
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 FOLDERS = (
@@ -92,11 +93,12 @@ def manifest() -> Any:
 
 
 def test_module_metadata() -> None:
-    assert opentele2_core.__version__ == metadata.version("opentele2-core")
-    package = Path(opentele2_core.__file__).parent
+    assert _native.__version__ == metadata.version("opentele2")
+    package = Path(opentele2.__file__).parent
+    assert Path(_native.__file__).parent == package
     assert (package / "py.typed").is_file()
-    assert (package / "__init__.pyi").is_file()
-    assert importlib.import_module("opentele2_core.cryptg") is cryptg
+    assert (package / "_native.pyi").is_file()
+    assert importlib.import_module("opentele2._native.cryptg") is cryptg
 
 
 def test_core_error_shape() -> None:
@@ -113,7 +115,7 @@ def test_core_error_shape() -> None:
 
 def test_key_id_vectors(crypto_vectors: Any) -> None:
     for case in crypto_vectors["key_id"]:
-        key_id = opentele2_core.key_id(unhex(case, "auth_key"))
+        key_id = _native.key_id(unhex(case, "auth_key"))
         assert key_id == int(case["key_id"])
         assert key_id.to_bytes(8, "little").hex() == case["key_id_le"]
 
@@ -122,7 +124,7 @@ def test_prepare_aes_oldmtp_vectors(crypto_vectors: Any) -> None:
     cases = crypto_vectors["prepare_aes_oldmtp"]
     assert {case["send"] for case in cases} == {True, False}
     for n, case in enumerate(cases):
-        aes_key, aes_iv = opentele2_core.prepare_aes_oldmtp(
+        aes_key, aes_iv = _native.prepare_aes_oldmtp(
             unhex(case, "auth_key"), unhex(case, "msg_key"), case["send"]
         )
         assert_same(aes_key, unhex(case, "aes_key"), f"aes_key case {n}")
@@ -134,69 +136,67 @@ def test_local_encryption_vectors(crypto_vectors: Any) -> None:
         key = unhex(case, "local_key")
         payload = unhex(case, "payload")
         encrypted = unhex(case, "encrypted")
-        assert_same(opentele2_core.decrypt_local(encrypted, key), payload, f"payload {n}")
+        assert_same(_native.decrypt_local(encrypted, key), payload, f"payload {n}")
         assert_same(
-            opentele2_core.decrypt_local(bytearray(encrypted), bytearray(key)),
+            _native.decrypt_local(bytearray(encrypted), bytearray(key)),
             payload,
             f"bytearray payload {n}",
         )
 
         # Raw IGE of the body reproduces descriptor plus padding, both ways.
-        aes_key, aes_iv = opentele2_core.prepare_aes_oldmtp(key, encrypted[:16])
+        aes_key, aes_iv = _native.prepare_aes_oldmtp(key, encrypted[:16])
         body = encrypted[16:]
         plain = unhex(case, "decrypted") + unhex(case, "padding")
-        assert_same(opentele2_core.aes_ige_decrypt(body, aes_key, aes_iv), plain, f"ige {n}")
-        assert_same(opentele2_core.aes_ige_encrypt(plain, aes_key, aes_iv), body, f"ige {n}")
+        assert_same(_native.aes_ige_decrypt(body, aes_key, aes_iv), plain, f"ige {n}")
+        assert_same(_native.aes_ige_encrypt(plain, aes_key, aes_iv), body, f"ige {n}")
         assert_same(cryptg.decrypt_ige(body, aes_key, aes_iv), plain, f"cryptg {n}")
         assert_same(cryptg.encrypt_ige(plain, aes_key, aes_iv), body, f"cryptg {n}")
 
         # Random padding: a fresh encryption has the 1.5.0 size and round trips.
-        fresh = opentele2_core.encrypt_local(payload, key)
+        fresh = _native.encrypt_local(payload, key)
         assert len(fresh) == len(encrypted)
-        assert_same(opentele2_core.decrypt_local(fresh, key), payload, f"round trip {n}")
+        assert_same(_native.decrypt_local(fresh, key), payload, f"round trip {n}")
 
 
 def test_local_encryption_failures() -> None:
     key = bytes(range(256))
-    encrypted = opentele2_core.encrypt_local(b"opentele2", key)
+    encrypted = _native.encrypt_local(b"opentele2", key)
     with pytest.raises(CoreError) as wrong_key:
-        opentele2_core.decrypt_local(encrypted, b"\x5a" * 256)
+        _native.decrypt_local(encrypted, b"\x5a" * 256)
     assert wrong_key.value.code == "TDATA_BAD_DECRYPT_KEY"
     with pytest.raises(CoreError) as bad_size:
-        opentele2_core.decrypt_local(b"\x00" * 16, key)
+        _native.decrypt_local(b"\x00" * 16, key)
     assert bad_size.value.code == "TDATA_BAD_ENCRYPTED_DATA_SIZE"
     with pytest.raises(CoreError) as short_key:
-        opentele2_core.encrypt_local(b"data", key[:255])
+        _native.encrypt_local(b"data", key[:255])
     assert short_key.value.code == "BAD_LENGTH"
     with pytest.raises(CoreError) as short_msg_key:
-        opentele2_core.prepare_aes_oldmtp(key, b"\x00" * 15)
+        _native.prepare_aes_oldmtp(key, b"\x00" * 15)
     assert short_msg_key.value.code == "BAD_LENGTH"
 
 
 def test_kdf_vectors(crypto_vectors: Any) -> None:
     for n, case in enumerate(crypto_vectors["create_local_key"]):
-        key = opentele2_core.create_local_key(case["passcode"], unhex(case, "salt"))
+        key = _native.create_local_key(case["passcode"], unhex(case, "salt"))
         assert_same(key, unhex(case, "key"), f"local key {n}")
-        encoded = opentele2_core.create_local_key(
-            case["passcode"].encode("utf-8"), unhex(case, "salt")
-        )
+        encoded = _native.create_local_key(case["passcode"].encode("utf-8"), unhex(case, "salt"))
         assert_same(encoded, key, f"local key bytes passcode {n}")
     for n, case in enumerate(crypto_vectors["create_legacy_local_key"]):
-        key = opentele2_core.create_legacy_local_key(case["passcode"], unhex(case, "salt"))
+        key = _native.create_legacy_local_key(case["passcode"], unhex(case, "salt"))
         assert_same(key, unhex(case, "key"), f"legacy local key {n}")
 
 
 def test_argon2id_wrap_vector(crypto_vectors: Any) -> None:
     case = crypto_vectors["argon2id_wrap"]
-    wrap = opentele2_core.argon2id(
+    wrap = _native.argon2id(
         case["passcode"], unhex(case, "salt"), case["memory_kib"], case["time"], case["lanes"]
     )
     assert len(wrap) == 256
     assert_same(wrap, unhex(case, "wrap_key"), "wrap_key")
-    local_key = opentele2_core.decrypt_local(unhex(case, "key_encrypted"), wrap)
+    local_key = _native.decrypt_local(unhex(case, "key_encrypted"), wrap)
     assert_same(local_key, unhex(case, "local_key"), "local_key")
     with pytest.raises(CoreError) as empty:
-        opentele2_core.argon2id(b"", unhex(case, "salt"), 64, 1, 1)
+        _native.argon2id(b"", unhex(case, "salt"), 64, 1, 1)
     assert empty.value.code == "BAD_LENGTH"
 
 
@@ -212,7 +212,7 @@ def test_cryptg_raises_value_error_on_bad_lengths() -> None:
         assert not issubclass(CoreError, ValueError)
         assert function(b"", key, iv) == b""
     with pytest.raises(CoreError) as core:
-        opentele2_core.aes_ige_encrypt(b"\x01" * 15, key, iv)
+        _native.aes_ige_encrypt(b"\x01" * 15, key, iv)
     assert core.value.code == "BAD_LENGTH"
 
 
@@ -247,7 +247,7 @@ def test_telethon_string_session_vectors() -> None:
 
         # The binding writes the same layout for the production endpoint.
         account = Account(0, 1, case["dc_id"], [(case["dc_id"], key)])
-        session = opentele2_core.telethon_string_session(account, ipv6=ipv6)
+        session = _native.telethon_string_session(account, ipv6=ipv6)
         production = PRODUCTION[case["dc_id"]][1 if ipv6 else 0]
         assert session == encode_telethon(case["dc_id"], production, 443, key)
 
@@ -259,12 +259,12 @@ def test_sessions_of_vector_accounts(manifest: Any) -> None:
         key = unhex(want, "auth_key")
         for ipv6 in (False, True):
             dc_id, ip, port, decoded_key = decode_telethon(
-                opentele2_core.telethon_string_session(account, ipv6)
+                _native.telethon_string_session(account, ipv6)
             )
             assert (dc_id, ip, port) == (want["main_dc"], PRODUCTION[dc_id][int(ipv6)], 443)
             assert_same(decoded_key, key, "telethon key")
 
-        mtcute = opentele2_core.mtcute_string_session(account)
+        mtcute = _native.mtcute_string_session(account)
         assert "=" not in mtcute
         raw = base64.urlsafe_b64decode(mtcute + "=" * (-len(mtcute) % 4))
         assert raw[0] == 3
@@ -349,7 +349,7 @@ def test_tdata_errors(tmp_path: Path) -> None:
         Account(0, 1, 2, [(2, bytes(255))])
     assert short.value.code == "BAD_LENGTH"
     with pytest.raises(CoreError) as unknown_dc:
-        opentele2_core.telethon_string_session(Account(0, 1, 7, [(7, bytes(256))]))
+        _native.telethon_string_session(Account(0, 1, 7, [(7, bytes(256))]))
     assert unknown_dc.value.code == "TDATA_BAD_CONFIG_DATA"
     with pytest.raises(CoreError) as empty:
         TData.new([]).save(tmp_path / "empty")
@@ -366,7 +366,7 @@ def test_load_many_keeps_order(manifest: Any, tmp_path: Path) -> None:
         (VECTORS / "tdata_plain/performance_on", "wrong"),
         (VECTORS / "tdata_plain/performance_on", b"", "other"),
     ]
-    results = opentele2_core.load_many(requests, threads=2)
+    results = _native.load_many(requests, threads=2)
     assert len(results) == len(requests)
     first, missing, passcode_folder, plain_off, wrong, other = results
     assert isinstance(first, TData)
@@ -379,9 +379,9 @@ def test_load_many_keeps_order(manifest: Any, tmp_path: Path) -> None:
     assert core_code(wrong) == "TDATA_BAD_DECRYPT_KEY"
     assert core_code(other) == "TFILE_NOT_FOUND"
 
-    assert opentele2_core.load_many([]) == []
+    assert _native.load_many([]) == []
     with pytest.raises(ValueError, match="threads"):
-        opentele2_core.load_many(requests, threads=0)
+        _native.load_many(requests, threads=0)
 
 
 # ---------------------------------------------------------------- fingerprints
@@ -394,9 +394,7 @@ def test_generate_matches_device_vectors() -> None:
     assert len(sample) >= 200
     assert {case["seed_kind"] for case in sample} == {"str", "int"}
     for n, case in enumerate(sample):
-        profile = opentele2_core.generate(
-            case["entry_point"], seed=case["seed"], system=case["system"]
-        )
+        profile = _native.generate(case["entry_point"], seed=case["seed"], system=case["system"])
         assert set(profile) == PROFILE_FIELDS
         for field in ("device_model", "system_version", "app_version", "lang_pack"):
             assert profile[field] == case[field], f"case {n} {field}"
@@ -405,38 +403,36 @@ def test_generate_matches_device_vectors() -> None:
 
 def test_profiles_and_generate_errors() -> None:
     for client in CLIENTS:
-        profile = opentele2_core.profile(client)
+        profile = _native.profile(client)
         assert set(profile) == PROFILE_FIELDS
         assert profile["lang_code"] == "en"
-    desktop = opentele2_core.profile("TelegramDesktop")
+    desktop = _native.profile("TelegramDesktop")
     assert desktop["api_id"] == 2040
     assert desktop["lang_pack"] == "tdesktop"
 
-    android = opentele2_core.profile(
+    android = _native.profile(
         "TelegramAndroid", {"android_app_version": "1.2.3", "android_app_version_code": 9}
     )
     assert android["app_version"] == "1.2.3 (9)"
-    linux = opentele2_core.generate("TelegramDesktop", seed="opentele2", system="linux")
+    linux = _native.generate("TelegramDesktop", seed="opentele2", system="linux")
     assert linux["app_version"] == desktop["app_version"].split(" ")[0]
-    assert opentele2_core.generate("TelegramIOS", seed=7) == opentele2_core.generate(
-        "TelegramIOS", seed="7"
-    )
-    assert set(opentele2_core.generate("TelegramAndroid")) == PROFILE_FIELDS
+    assert _native.generate("TelegramIOS", seed=7) == _native.generate("TelegramIOS", seed="7")
+    assert set(_native.generate("TelegramAndroid")) == PROFILE_FIELDS
 
-    web = opentele2_core.generate("TelegramWeb_A", seed="x")
-    assert opentele2_core.generate("TelegramWeb_A", seed="x") == web
+    web = _native.generate("TelegramWeb_A", seed="x")
+    assert _native.generate("TelegramWeb_A", seed="x") == web
     assert "Mozilla/5.0" in web["device_model"]
-    assert web["app_version"] == opentele2_core.profile("TelegramWeb_A")["app_version"]
+    assert web["app_version"] == _native.profile("TelegramWeb_A")["app_version"]
     web_models = {
-        opentele2_core.generate("TelegramWeb_A", seed=seed)["device_model"] for seed in "abcdefgh"
+        _native.generate("TelegramWeb_A", seed=seed)["device_model"] for seed in "abcdefgh"
     }
     assert len(web_models) > 1
     # Values the stub rejects, typed as Any to reach the runtime checks.
     bad_client: Any = "Telegram"
     bad_versions: Any = {"bogus": "1"}
     with pytest.raises(ValueError, match="unknown client"):
-        opentele2_core.profile(bad_client)
+        _native.profile(bad_client)
     with pytest.raises(ValueError, match="unknown versions field"):
-        opentele2_core.profile("TelegramDesktop", bad_versions)
+        _native.profile("TelegramDesktop", bad_versions)
     with pytest.raises(ValueError, match="TelegramDesktop"):
-        opentele2_core.generate("TelegramIOS", system="linux")
+        _native.generate("TelegramIOS", system="linux")
