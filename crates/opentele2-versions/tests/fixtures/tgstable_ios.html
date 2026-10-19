@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Telegram Stable Releases – Telegram</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta http-equiv="X-UA-Compatible"
+     content="IE=edge" />
+    <meta name="MobileOptimized" content="176" />
+    <meta name="HandheldFriendly" content="True" />
+    
+<meta property="og:title" content="Telegram Stable Releases">
+<meta property="og:image" content="https://cdn4.telesco.pe/file/cE4g_6uRitcxftlbaAm2C9Oi_OwVBnM2QTbKnZ7S-41sFVDQc3AEeaO9_nDRsS70_eRkMGH7KxqZ9Plghabd1t1_fthLrquZ90NCtHxHWfdU_vBbgJHa7PNDeV4r0YKmJZEDDALFAyGZe3NUTCJkLGKUvzbrVAUEKvbYz4r-hqwR-loNtKA2R7qrm7XvC_LoK8UxaVsS9xUGvh_WdptCbAdRRV9EP1MT_pPQhpaHH6IKqMz4KG6bf6UYsF4qrgfXwPmusQxwC4ChvCjGAJj6Cmz58Q34h6i5YIBOK_f-oxr20uhnQRdSkj45kTy6L-KuK-KYoFUi1ZfoHg6Pd-mlmw.jpg">
+<meta property="og:site_name" content="Telegram">
+<meta property="og:description" content="Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.
+
+Hashtags criteria used:
+- #macos
+- #ios
+- #tdesktop
+- #android
+- #androidx">
+
+<meta property="twitter:title" content="Telegram Stable Releases">
+<meta property="twitter:image" content="https://cdn4.telesco.pe/file/cE4g_6uRitcxftlbaAm2C9Oi_OwVBnM2QTbKnZ7S-41sFVDQc3AEeaO9_nDRsS70_eRkMGH7KxqZ9Plghabd1t1_fthLrquZ90NCtHxHWfdU_vBbgJHa7PNDeV4r0YKmJZEDDALFAyGZe3NUTCJkLGKUvzbrVAUEKvbYz4r-hqwR-loNtKA2R7qrm7XvC_LoK8UxaVsS9xUGvh_WdptCbAdRRV9EP1MT_pPQhpaHH6IKqMz4KG6bf6UYsF4qrgfXwPmusQxwC4ChvCjGAJj6Cmz58Q34h6i5YIBOK_f-oxr20uhnQRdSkj45kTy6L-KuK-KYoFUi1ZfoHg6Pd-mlmw.jpg">
+<meta property="twitter:site" content="@Telegram">
+
+<meta property="al:ios:app_store_id" content="686449807">
+<meta property="al:ios:app_name" content="Telegram Messenger">
+<meta property="al:ios:url" content="tg://resolve?domain=tgstable">
+
+<meta property="al:android:url" content="tg://resolve?domain=tgstable">
+<meta property="al:android:app_name" content="Telegram">
+<meta property="al:android:package" content="org.telegram.messenger">
+
+<meta name="twitter:card" content="summary">
+<meta name="twitter:site" content="@Telegram">
+<meta name="twitter:description" content="Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.
+
+Hashtags criteria used:
+- #macos
+- #ios
+- #tdesktop
+- #android
+- #androidx
+">
+
+    <link rel="prev" href="/s/tgstable?q=ios%20versions%3A&before=1549">
+<link rel="canonical" href="/s/tgstable?q=ios%20versions%3A&before=1696">
+
+    <script>window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches&&document.documentElement&&document.documentElement.classList&&document.documentElement.classList.add('theme_dark');</script>
+    <link rel="icon" type="image/svg+xml" href="//telegram.org/img/website_icon.svg?4">
+<link rel="apple-touch-icon" sizes="180x180" href="//telegram.org/img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="//telegram.org/img/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="//telegram.org/img/favicon-16x16.png">
+<link rel="alternate icon" href="//telegram.org/img/favicon.ico" type="image/x-icon" />
+    <link href="//telegram.org/css/font-roboto.css?1" rel="stylesheet" type="text/css">
+    <link href="//telegram.org/css/widget-frame.css?75" rel="stylesheet" media="screen">
+    <link href="//telegram.org/css/telegram-web.css?39" rel="stylesheet" media="screen">
+    <script>TBaseUrl='/';</script>
+    <style>        .user-color-12 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #3391d4 0px, #3391d4 5px, #7dd3f0 5px, #7dd3f0 10px);
+          --user-accent-color: #3391d4;
+          --user-background: #3391d41f;
+        }        .user-color-10 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #27a910 0px, #27a910 5px, #a7dc57 5px, #a7dc57 10px);
+          --user-accent-color: #27a910;
+          --user-background: #27a9101f;
+        }        .user-color-8 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #e0802b 0px, #e0802b 5px, #fac534 5px, #fac534 10px);
+          --user-accent-color: #e0802b;
+          --user-background: #e0802b1f;
+        }        .user-color-7 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #e15052 0px, #e15052 5px, #f9ae63 5px, #f9ae63 10px);
+          --user-accent-color: #e15052;
+          --user-background: #e150521f;
+        }        .user-color-9 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #a05ff3 0px, #a05ff3 5px, #f48fff 5px, #f48fff 10px);
+          --user-accent-color: #a05ff3;
+          --user-background: #a05ff31f;
+        }        .user-color-11 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #27acce 0px, #27acce 5px, #82e8d6 5px, #82e8d6 10px);
+          --user-accent-color: #27acce;
+          --user-background: #27acce1f;
+        }        .user-color-13 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #dd4371 0px, #dd4371 5px, #ffbe9f 5px, #ffbe9f 10px);
+          --user-accent-color: #dd4371;
+          --user-background: #dd43711f;
+        }        .user-color-14 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #247bed 0px, #247bed 5px, #f04856 5px, #f04856 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #247bed;
+          --user-background: #247bed1f;
+        }        .user-color-15 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #d67722 0px, #d67722 5px, #1ea011 5px, #1ea011 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #d67722;
+          --user-background: #d677221f;
+        }        .user-color-16 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #179e42 0px, #179e42 5px, #e84a3f 5px, #e84a3f 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #179e42;
+          --user-background: #179e421f;
+        }        .user-color-17 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #2894af 0px, #2894af 5px, #6fc456 5px, #6fc456 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #2894af;
+          --user-background: #2894af1f;
+        }        .user-color-18 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #0c9ab3 0px, #0c9ab3 5px, #ffad95 5px, #ffad95 10px, #ffe6b5 10px, #ffe6b5 15px);
+          --user-accent-color: #0c9ab3;
+          --user-background: #0c9ab31f;
+        }        .user-color-19 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #7757d6 0px, #7757d6 5px, #f79610 5px, #f79610 10px, #ffde8e 10px, #ffde8e 15px);
+          --user-accent-color: #7757d6;
+          --user-background: #7757d61f;
+        }        .user-color-20 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #1585cf 0px, #1585cf 5px, #f2ab1d 5px, #f2ab1d 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #1585cf;
+          --user-background: #1585cf1f;
+        }        body.dark .user-color-12, html.theme_dark .user-color-12 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #52bfff 0px, #52bfff 5px, #0b5494 5px, #0b5494 10px);
+          --user-accent-color: #52bfff;
+          --user-background: #52bfff1f;
+        }        body.dark .user-color-10, html.theme_dark .user-color-10 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #a7eb6e 0px, #a7eb6e 5px, #167e2d 5px, #167e2d 10px);
+          --user-accent-color: #a7eb6e;
+          --user-background: #a7eb6e1f;
+        }        body.dark .user-color-8, html.theme_dark .user-color-8 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #ecb04e 0px, #ecb04e 5px, #c35714 5px, #c35714 10px);
+          --user-accent-color: #ecb04e;
+          --user-background: #ecb04e1f;
+        }        body.dark .user-color-7, html.theme_dark .user-color-7 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #ff9380 0px, #ff9380 5px, #992f37 5px, #992f37 10px);
+          --user-accent-color: #ff9380;
+          --user-background: #ff93801f;
+        }        body.dark .user-color-9, html.theme_dark .user-color-9 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #c697ff 0px, #c697ff 5px, #5e31c8 5px, #5e31c8 10px);
+          --user-accent-color: #c697ff;
+          --user-background: #c697ff1f;
+        }        body.dark .user-color-11, html.theme_dark .user-color-11 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #40d8d0 0px, #40d8d0 5px, #045c7f 5px, #045c7f 10px);
+          --user-accent-color: #40d8d0;
+          --user-background: #40d8d01f;
+        }        body.dark .user-color-13, html.theme_dark .user-color-13 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #ff86a6 0px, #ff86a6 5px, #8e366e 5px, #8e366e 10px);
+          --user-accent-color: #ff86a6;
+          --user-background: #ff86a61f;
+        }        body.dark .user-color-14, html.theme_dark .user-color-14 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #3fa2fe 0px, #3fa2fe 5px, #e5424f 5px, #e5424f 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #3fa2fe;
+          --user-background: #3fa2fe1f;
+        }        body.dark .user-color-15, html.theme_dark .user-color-15 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #ff905e 0px, #ff905e 5px, #32a527 5px, #32a527 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #ff905e;
+          --user-background: #ff905e1f;
+        }        body.dark .user-color-16, html.theme_dark .user-color-16 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #66d364 0px, #66d364 5px, #d5444f 5px, #d5444f 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #66d364;
+          --user-background: #66d3641f;
+        }        body.dark .user-color-17, html.theme_dark .user-color-17 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #22bce2 0px, #22bce2 5px, #3da240 5px, #3da240 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #22bce2;
+          --user-background: #22bce21f;
+        }        body.dark .user-color-18, html.theme_dark .user-color-18 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #22bce2 0px, #22bce2 5px, #ff9778 5px, #ff9778 10px, #ffda6b 10px, #ffda6b 15px);
+          --user-accent-color: #22bce2;
+          --user-background: #22bce21f;
+        }        body.dark .user-color-19, html.theme_dark .user-color-19 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #9791ff 0px, #9791ff 5px, #f2731d 5px, #f2731d 10px, #ffdb59 10px, #ffdb59 15px);
+          --user-accent-color: #9791ff;
+          --user-background: #9791ff1f;
+        }        body.dark .user-color-20, html.theme_dark .user-color-20 {
+          --user-line-gradient: repeating-linear-gradient(-45deg, #3da6eb 0px, #3da6eb 5px, #eea51d 5px, #eea51d 10px, #ffffff 10px, #ffffff 15px);
+          --user-accent-color: #3da6eb;
+          --user-background: #3da6eb1f;
+        }.user-color-6, .user-color-4, .user-color-2, .user-color-0, .user-color-1, .user-color-3, .user-color-5,   .user-color-default {
+    --user-accent-color: var(--accent-color);
+    --user-accent-background: var(--accent-background);
+    --user-line-gradient: linear-gradient(45deg, var(--accent-color), var(--accent-color));
+  }</style>
+  </head>
+  <body class="widget_frame_base tgme_webpreview emoji_image thin_box_shadow tme_mode no_transitions">
+    <div class="tgme_background_wrap">
+      <canvas id="tgme_background" class="tgme_background" width="50" height="50" data-colors="dbddbb,6ba587,d5d88d,88b884"></canvas>
+      <div class="tgme_background_pattern"></div>
+    </div>
+    <header class="tgme_header search_collapsed">
+  <div class="tgme_container">
+    <div class="tgme_header_search">
+      <form class="tgme_header_search_form has_value" action="/s/tgstable">
+        <svg class="tgme_header_search_form_icon" width="20" height="20" viewBox="0 0 20 20"><g fill="none" stroke="#7D7F81" stroke-width="1.4"><circle cx="9" cy="9" r="6"></circle><path d="M13.5,13.5 L17,17" stroke-linecap="round"></path></g></svg>
+        <input class="tgme_header_search_form_input js-header_search" placeholder="Search" name="q" autocomplete="off" value="ios versions:" />
+        <a href="/s/tgstable" class="tgme_header_search_form_clear"><svg class="tgme_action_button_icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20"><g class="icon_body" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#000000" stroke-width="1.5"><path d="M6 14l8-8m0 8L6 6" stroke-dasharray="0,11.314" stroke-dashoffset="5.657"/><path d="M26 14l8-8m0 8l-8-8" stroke-dasharray="0.371,10.943" stroke-dashoffset="5.842"/><path d="M46 14l8-8m0 8l-8-8" stroke-dasharray="1.982,9.332" stroke-dashoffset="6.647756"/><path d="M66 14l8-8m0 8l-8-8" stroke-dasharray="5.173,6.14" stroke-dashoffset="8.243"/><path d="M86 14l8-8m0 8l-8-8" stroke-dasharray="7.866,3.448" stroke-dashoffset="9.59"/><path d="M106 14l8-8m0 8l-8-8" stroke-dasharray="9.471,1.843" stroke-dashoffset="10.392"/><path d="M126 14l8-8m0 8l-8-8" stroke-dasharray="10.417,0.896" stroke-dashoffset="10.866"/><path d="M146 14l8-8m0 8l-8-8" stroke-dasharray="10.961,0.353" stroke-dashoffset="11.137"/><path d="M166 14l8-8m0 8l-8-8" stroke-dasharray="11.234,0.08" stroke-dashoffset="11.274"/><path d="M186 14l8-8m0 8l-8-8"/></g></svg></a>
+      </form>
+    </div>
+    <div class="tgme_header_right_column">
+      <section class="tgme_right_column">
+        <div class="tgme_channel_info">
+          <div class="tgme_channel_info_header">
+            <i class="tgme_page_photo_image bgcolor2" data-content="TR"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i>
+            <div class="tgme_channel_info_header_title_wrap">
+              <div class="tgme_channel_info_header_title"><span dir="auto">Telegram Stable Releases</span></div>
+              <div class="tgme_channel_info_header_labels"></div>
+            </div>
+            <div class="tgme_channel_info_header_username"><a href="https://t.me/tgstable">@tgstable</a></div>
+          </div>
+          <div class="tgme_channel_info_counters"><div class="tgme_channel_info_counter"><span class="counter_value">5.22K</span> <span class="counter_type">subscribers</span></div><div class="tgme_channel_info_counter"><span class="counter_value">1</span> <span class="counter_type">photo</span></div><div class="tgme_channel_info_counter"><span class="counter_value">8</span> <span class="counter_type">files</span></div><div class="tgme_channel_info_counter"><span class="counter_value">1.33K</span> <span class="counter_type">links</span></div></div>
+          <div class="tgme_channel_info_description">Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.<br/><br/>Hashtags criteria used:<br/>- <a href="?q=%23macos">#macos</a><br/>- <a href="?q=%23ios">#ios</a><br/>- <a href="?q=%23tdesktop">#tdesktop</a><br/>- <a href="?q=%23android">#android</a><br/>- <a href="?q=%23androidx">#androidx</a></div>
+          <a class="tgme_channel_download_telegram" href="//telegram.org/dl?tme=4e28d03eb10c77c8b3_577036594617986000">
+            <svg class="tgme_channel_download_telegram_icon" width="21px" height="18px" viewBox="0 0 21 18"><g fill="none"><path fill="#ffffff" d="M0.554,7.092 L19.117,0.078 C19.737,-0.156 20.429,0.156 20.663,0.776 C20.745,0.994 20.763,1.23 20.713,1.457 L17.513,16.059 C17.351,16.799 16.62,17.268 15.88,17.105 C15.696,17.065 15.523,16.987 15.37,16.877 L8.997,12.271 C8.614,11.994 8.527,11.458 8.805,11.074 C8.835,11.033 8.869,10.994 8.905,10.958 L15.458,4.661 C15.594,4.53 15.598,4.313 15.467,4.176 C15.354,4.059 15.174,4.037 15.036,4.125 L6.104,9.795 C5.575,10.131 4.922,10.207 4.329,10.002 L0.577,8.704 C0.13,8.55 -0.107,8.061 0.047,7.614 C0.131,7.374 0.316,7.182 0.554,7.092 Z"></path></g></svg>Download Telegram
+          </a>
+          <div class="tgme_footer">
+            <div class="tgme_footer_column">
+              <h5><a href="//telegram.org/faq">About</a></h5>
+            </div>
+            <div class="tgme_footer_column">
+              <h5><a href="//telegram.org/blog">Blog</a></h5>
+            </div>
+            <div class="tgme_footer_column">
+              <h5><a href="//telegram.org/apps">Apps</a></h5>
+            </div>
+            <div class="tgme_footer_column">
+              <h5><a href="//core.telegram.org/">Platform</a></h5>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="tgme_header_info">
+      <a class="tgme_channel_join_telegram" href="//telegram.org/dl?tme=4e28d03eb10c77c8b3_577036594617986000">
+        <svg class="tgme_channel_join_telegram_icon" width="19px" height="16px" viewBox="0 0 19 16"><g fill="none"><path fill="#ffffff" d="M0.465,6.638 L17.511,0.073 C18.078,-0.145 18.714,0.137 18.932,0.704 C19.009,0.903 19.026,1.121 18.981,1.33 L16.042,15.001 C15.896,15.679 15.228,16.111 14.549,15.965 C14.375,15.928 14.211,15.854 14.068,15.748 L8.223,11.443 C7.874,11.185 7.799,10.694 8.057,10.345 C8.082,10.311 8.109,10.279 8.139,10.249 L14.191,4.322 C14.315,4.201 14.317,4.002 14.195,3.878 C14.091,3.771 13.926,3.753 13.8,3.834 L5.602,9.138 C5.112,9.456 4.502,9.528 3.952,9.333 L0.486,8.112 C0.077,7.967 -0.138,7.519 0.007,7.11 C0.083,6.893 0.25,6.721 0.465,6.638 Z"></path></g></svg>Join
+      </a>
+      <a class="tgme_header_link" href="https://t.me/tgstable">
+        <i class="tgme_page_photo_image bgcolor2" data-content="TR"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i>
+        <div class="tgme_header_title_wrap">
+          <div class="tgme_header_title"><span dir="auto">Telegram Stable Releases</span></div>
+          <div class="tgme_header_labels"></div>
+        </div>
+        <div class="tgme_header_counter">5.22K subscribers</div>
+      </a>
+    </div>
+  </div>
+</header>
+<main class="tgme_main" data-url="/tgstable">
+  <div class="tgme_container">
+    <section class="tgme_channel_history js-message_history">
+      <div class="tgme_widget_message_centered js-messages_more_wrap"><a href="/s/tgstable?q=ios%20versions%3A&before=1549" class="tme_messages_more js-messages_more" data-before="1549"></a></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1549" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU0OSwidCI6MTc5MjQyMzc5MiwiaCI6IjAzMTQwOTNiNGQyODJlZTQ3YyJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.3.1 (32078)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>07/01/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.9K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1549"><time datetime="2026-01-07T15:25:45+00:00" class="time">15:25</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1554" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU1NCwidCI6MTc5MjQyMzc5MiwiaCI6IjIzYTk1MjAxZTBhNDk2MzNlNiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.3.2 (32081)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>09/01/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>3</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.98K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1554"><time datetime="2026-01-09T15:27:09+00:00" class="time">15:27</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1561" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU2MSwidCI6MTc5MjQyMzc5MiwiaCI6ImJmMzNkYmMzYTNlZTc5OTNlNCJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.4 (32252)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>06/02/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>More info: <a href="https://telegram.org/blog/crafting-android-design-and-more/" target="_blank" rel="noopener">https://telegram.org/blog/crafting-android-design-and-more/</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://telegram.org/blog/crafting-android-design-and-more">
+  
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  <i class="link_preview_image" style="background-image:url('https://cdn4.telesco.pe/file/sGTUDcG0u42X-5JRe7PfUHhlAgi6mmd94kx1IcBgo5Hf9w0HN8IHD-RaRFlB64AKyG93pE-GatClfRu7S73TTxoOjSPjdV3W8Aw9LHM8vH1yeoCE4fZc9wCAfsUs8_I1NBBNxxOYQA4qiV5nKgNHHechJY3Bt7ZxOiPKzEBCwY4jzH26rZZu5QXL_QjnIkR1Ap6IRLZHNDQnyrYULgS1dnNuRndHbv_kqu3degDvX-hIZFG0NjjgOcxDUjy7V2is7HErQpZnQtG-R4wd4R_Dj-3PXvNH8XsjBTXhkLdseSgkLHpg8IXPMflbV6aDkipwpSRIgIOrM6w6JYpLln-aFA.jpg');padding-top:65.875%"></i>
+  <div class="link_preview_title" dir="auto">Android Redesign, Group Ownership Transfer, Gift Crafting, Colored Bot Buttons</div>
+  <div class="link_preview_description" dir="auto">This update adds the biggest interface update in the history of Telegram for Android, a crafting system to generate exclusive new gifts — and much more.</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>7</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>4</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.41K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1561"><time datetime="2026-02-06T17:50:23+00:00" class="time">17:50</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1567" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU2NywidCI6MTc5MjQyMzc5MiwiaCI6IjRiYTQ4ODVhZTc1YjVhY2I1OCJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.4.1 (32360)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>13/02/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>4</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.75K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1567"><time datetime="2026-02-13T22:04:34+00:00" class="time">22:04</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1571" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU3MSwidCI6MTc5MjQyMzc5MiwiaCI6IjkzMDc3OGFiNjczYTk0M2UxYiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.5 (32473)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>01/03/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>More info: <a href="https://telegram.org/blog/member-tags-disable-sharing-and-more/" target="_blank" rel="noopener">https://telegram.org/blog/member-tags-disable-sharing-and-more/</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://telegram.org/blog/member-tags-disable-sharing-and-more">
+  
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  <i class="link_preview_image" style="background-image:url('https://cdn4.telesco.pe/file/ijGZet9e5FIiYxzPzKcbaCbiVz6WCkzrb3uT82iCQsKTm2j777CzmOCeE5Ti6zm0LJhUxGSYTIYc9j5a8IScVK7BN0cHOX4FQ4xborHjVk5hqD3ByBsw9AyXyJchn2q0LZKOV0vZXa0PDVtlBow5pcAOoIL8ReuzhG51YPy0tL8ct2iAENhxRfRsVnqTfwls0eB6sKwZptHrMKPy2fdN8S2mWszR1DYwr0p4d8-5zJzQg3qqu5F5aNZXaq8wqgJWpFvD46t_l9U0OuhwoeR6yuG3LxG9VFY2gwvIYrUvb2imLMlwdpdkg8gH5_gEvHNZ8C8QT-3A0bWuzkMZT5Wyow.jpg');padding-top:66.625%"></i>
+  <div class="link_preview_title" dir="auto">Member Tags, Login with Telegram, Disable Sharing, GIF Editing, Date Formatting, Voting Timestamps</div>
+  <div class="link_preview_description" dir="auto">In today&#39;s update, we add tags to help group members show who they are, a setting to disable sharing messages in specific 1-on-1 chats, GIF editing and captions, new tools for signing up and logging in to apps and websites with Telegram -- and more.</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>6</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">5.9K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1571"><time datetime="2026-03-01T09:30:27+00:00" class="time">09:30</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1582" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU4MiwidCI6MTc5MjQyMzc5MiwiaCI6IjU1N2Y3ZmMxYTAzOTNlY2ZhMCJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.5.1 (32487)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>04/03/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>7</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">4.14K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1582"><time datetime="2026-03-04T13:59:57+00:00" class="time">13:59</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1583" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU4MywidCI6MTc5MjQyMzc5MiwiaCI6IjQ0YWNlM2Q1ZDc5YTgzZTQyMyJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.5.2 (32493)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>10/03/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>6</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">3.7K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1583"><time datetime="2026-03-10T07:49:12+00:00" class="time">07:49</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1586" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU4NiwidCI6MTc5MjQyMzc5MiwiaCI6IjlkM2YzZjcyZTM0NDViZDEyNiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.6 (32673)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>31/03/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>More info: <a href="https://telegram.org/blog/ai-editor-mighty-polls-and-more" target="_blank" rel="noopener">https://telegram.org/blog/ai-editor-mighty-polls-and-more</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://telegram.org/blog/ai-editor-mighty-polls-and-more">
+  
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  <i class="link_preview_image" style="background-image:url('https://cdn4.telesco.pe/file/pFjnyZsoH8pk-T2qOyrRwJzFfcJ_C1519aBSjqrKyPGhDy-ECyb2eQjU6tFiOWw-RCqB6eGgQISW_QnEYd8LJSORL2yDCd8i3efAy9AxsPXMYQA_A2qzHY-_HvCLNDPWtCcAq6hfivW3LsfQNO5q9vwT-89BK0uhAgYjn-90iGB7dnst-7wmPaW0cRbaJ5UXP54OnzQTa8Bsql0P2AR8zcV9K1XAiC8o8l7zXo3Fmgdn9mGJ54_vOPFNtXqJDq_h_7vmgPrh4WZWjSnSlgBmklgH8I4aYlDsUsn1qGtYff4a_ipYTd5HnQTe35YSeH0lLTuoKxJFPLWySvdAh2W0Zg.jpg');padding-top:65.5%"></i>
+  <div class="link_preview_title" dir="auto">AI Editor, Mighty Polls, Live Photos, Bots Managed by Bots, and More</div>
+  <div class="link_preview_description" dir="auto">In today&#39;s update we introduce an&nbsp;AI Editor&nbsp;that can&nbsp;translate,&nbsp;transform, or&nbsp;fix&nbsp;your text in just two taps, new features for Polls like&nbsp;attaching media&nbsp;and&nbsp;suggesting new responses&nbsp;for active polls, support for&nbsp;Live and Motion Photos&nbsp;in all apps, bots that…</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>4</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.64K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1586"><time datetime="2026-03-31T21:39:47+00:00" class="time">21:39</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1594" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTU5NCwidCI6MTc5MjQyMzc5MiwiaCI6ImZjMDNlY2M2NjFiNGE5MDVjZCJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.6.1 (32675)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>02/04/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes, minor improvements, and more.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>2</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.3K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1594"><time datetime="2026-04-02T11:50:07+00:00" class="time">11:50</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1601" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTYwMSwidCI6MTc5MjQyMzc5MiwiaCI6IjFmYjgzMTI0ZDQ4MmI3YTBjNSJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.6.2 (32737)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>08/04/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i>OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>AI text editor<br/>• Correct, transform or translate text in the message bar using AI: 100% private and optional.<br/>• Instantly rewrite your messages in different styles such as Formal, Short, Tribal, Corp, Zen, Biblical and Viking.<br/>• Add relevant emojis to your text using the option &quot;With Emoji&quot;.<br/>• Translate your messages into another language with different styles.<br/>• Check for grammatical errors in your text.<br/><br/>Live photo<br/>• View Live Photos and Photos on the go.<br/>• Send Live Photos in 3 playback styles: Live, Loop and Rebound.<br/><br/>More than 10 functions for surveys<br/>• Attach media or positions to questions and options.<br/>• Allow users to suggest new options in active surveys.<br/>• Show who voted next to each option.<br/>• Allow users to change their vote.<br/>• Mix the options for each user.<br/>• Set a specific duration for the survey.<br/>• Hide the results until the end of the survey.<br/>• View the results without voting as creator.<br/>• Find past and active surveys in the Surveys tab on group and channel profiles.<br/>• Receive notifications about new votes.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>9</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">5.7K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1601"><time datetime="2026-04-08T20:34:33+00:00" class="time">20:34</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1602" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTYwMiwidCI6MTc5MjQyMzc5MiwiaCI6IjE3MGIwMWFkMWVmMDI5ZmJjNCJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.6.3 (32733)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>09/04/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• App crash at launch fix.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction tgme_reaction_paid"><i class="icon icon-telegram-stars"></i>2</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>4</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">4.75K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1602"><time datetime="2026-04-09T17:38:45+00:00" class="time">17:38</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1609" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTYwOSwidCI6MTc5MjQyMzc5MiwiaCI6ImY0MTg5M2JjOGI2MDg2Y2U0YiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.7 (32933)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>06/05/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>More info: <a href="https://telegram.org/blog/ai-bot-revolution-11-new-features" target="_blank" rel="noopener">https://telegram.org/blog/ai-bot-revolution-11-new-features</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>6</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.88K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1609"><time datetime="2026-05-07T05:37:57+00:00" class="time">05:37</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1632" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTYzMiwidCI6MTc5MjQyMzc5MiwiaCI6ImIyZTYxZWY2NjY1NzFkNGJjMSJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.8 (33159)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>09/06/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>More info: <a href="https://telegram.org/blog/watch-apps-and-more" target="_blank" rel="noopener">https://telegram.org/blog/watch-apps-and-more</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://telegram.org/blog/watch-apps-and-more">
+  
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  <i class="link_preview_image" style="background-image:url('https://cdn4.telesco.pe/file/Lp4RP-bdXEMeGfV1PZLDscNB_WX0ygpED1IZSrKgPlltbVGhEGdYmjWd4cr7qmnAQ0mhfCOWb-5mCAlPLIu_eDOUpoiUEuhN_xlNNjcEqtP2XFYqp5wf42PkIeOtfROE5GYW5CwpFuyuLy3ja4rzGqIBJ9Q0nv9bUYWnn5cBVESkB25TbTrL3Y341DZFDbJ1cI2dl3m5eBDgdUOGwJkv2psE6xy9_kYlhUp1MnQ38udTSZgPTJe0L6dxtvjRT6n56Boctj6vvpsQhKQt6-Ru3oi7aJ0mrOwEKY0Pr1r0Jy_zeV5PZj5xL2-_i41ekH8LfBJXzUVZCQk2g-6kg7Hhsw.jpg');padding-top:68.375%"></i>
+  <div class="link_preview_title" dir="auto">Smartwatch Apps, Rich Text for Bots, AI Guardians for Groups, and Much More</div>
+  <div class="link_preview_description" dir="auto">Today’s update brings Telegram to Apple Watch and Android smartwatches, adds filthy rich text for bots, lets AI admins screen new group members, and introduces smarter polls, browser controls, and much more.</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>4</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.04K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1632"><time datetime="2026-06-09T09:27:28+00:00" class="time">09:27</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1643" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY0MywidCI6MTc5MjQyMzc5MiwiaCI6ImJhMjRhN2RkYTY5ZWNhMDQ0MyJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.8.1 (33181)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>22/06/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>5</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">3.4K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1643"><time datetime="2026-06-22T09:26:27+00:00" class="time">09:26</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1646" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY0NiwidCI6MTc5MjQyMzc5MiwiaCI6ImZjMzA5NzVkMzIxZmY5ZjhiYiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.9 (33442)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>14/07/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>More info: <a href="https://telegram.org/blog/communities-editor-invisible-messages" target="_blank" rel="noopener">https://telegram.org/blog/communities-editor-invisible-messages</a><br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://telegram.org/blog/communities-editor-invisible-messages?lhttps://telegram.org/blog/communities-editor-invisible-messages?lhttps://teleinvisible-messages?lhttps://telegram.org/blog/communities-editor-invisible-messages?lhttps://telegram.org/blog/communities-editor-invisible-messages?lhttps://telegram.org/blog/communities-editor-invisible-messages?lhttps://telegram.org/blog/communities-editor-invisible-messages?l">
+  
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  <i class="link_preview_image" style="background-image:url('https://cdn4.telesco.pe/file/Qm6DzPPMUHuQ1KRUxZs-_gsVKDnp3T1S1Cv78LhuZooPoQ_x9NYpZmer1c_bU3N-2bYh1fz_QXTY9Lt4qYxwx3f2OCftvfzrqIExiJvU1Gj6hqmGM69S1qCpOBKJpcOgpPCUPbaYtM9603ZkD-lDmvMnEz8w3pNptxJhbk2B4IY8hmP_yFCbWRP5W0VqPYUdpQ_HHAHiUZvc3VjoEVYbEAIYHDADnx4nn8ks4AqOJ27sszV9oxwk9aIxSQUQeyYj23k_dkZo55qsF1Ih5eY0HFNuJCNnwFSfQpmnpOqFtFwNOSTwyII0uad8oq2iQXVfFY47qPDeNVsM31Xb4p8RYg.jpg');padding-top:68.375%"></i>
+  <div class="link_preview_title" dir="auto">Rich Text Editor, Communities, Ephemeral Messages in Groups, 350 Million GIFs</div>
+  <div class="link_preview_description" dir="auto">Introducing a rich text editor to format and generate text, Telegram Communities linking together several groups, channels and bots, ephemeral bot messages in groups, search for over 350 million GIFs and much more.</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>6</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.7K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1646"><time datetime="2026-07-14T13:23:03+00:00" class="time">13:23</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1649" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY0OSwidCI6MTc5MjQyMzc5MiwiaCI6Ijk2YzdlNTM2ZGYxODMxYWY1MSJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.9.1 (34447)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>15/07/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://t.me/tgstable">
+  <i class="link_preview_right_image" style="background-image:url('https://cdn4.telesco.pe/file/c3kvrGCoPxWhR_wfDPcQt1CcYuI6ZeyRLnju9h772veAVH0657wPgfstybcpxvjs7Uec83-AhjzewrEKG9KYka5O_slPX4OIrFv2Koc20UKmEfSWf7KD3fG7LOSApeQipnQiRYOCUROLn4sNfY0rSApaO_6Uttz1eGT_FTa9jHuQyCGczsulKn9HaLgE4iy6Ybe2kFEcvsB-GhLfUYDVrAabCCEfuHEvWC8CbSaKdz_GyaJ6sBLBB8h_yeOdWAjaIWYUVEX7Jv9rEyRSW2FAuO0GtiQnGiB10zrywEMB8zyV3-uDof5U6QJahFOz-PluWeUAXkBy62wnqGjCTeEQ7w.jpg')"></i>
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  
+  <div class="link_preview_title" dir="auto">Telegram Stable Releases</div>
+  <div class="link_preview_description" dir="auto">Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.<br/><br/>Hashtags criteria used:<br/>- #macos<br/>- #<mark class="highlight">ios</mark><br/>- #tdesktop<br/>- #android<br/>- #androidx</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>3</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>2</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.99K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1649"><time datetime="2026-07-15T18:52:34+00:00" class="time">18:52</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1653" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY1MywidCI6MTc5MjQyMzc5MiwiaCI6IjdhMWRhMTczNGNmNTg4MTAwNyJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.9.2 (34474)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>20/07/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://t.me/tgstable">
+  <i class="link_preview_right_image" style="background-image:url('https://cdn4.telesco.pe/file/GMz5FMuJxDtGzG5K99AD4NpSSYBJ3IQJA9dSeFfyikl0tqAvciwFKAEi6ozJJrBVAYPVuLtI1lTjet6wFE3AUZfxLPPoIOLAu7kx4gUIQWWjGEPu0C4Rlxa3SbyggAVQRR-Se0SyoI1jbaaNzGdVkU-eLAS_RGYOSDNi0mqDucRe2Bqfn-tQeTexCXxB-PK1pItCOZCUmbafra1oYHHW2ZNZi4Dbe4NoKpPNzuyTioO3x7zs7cKVgTNR1MenqwSJDBsGu-3pcelgVo6fnvucKr_VZyZJJj8W18i8MIbsITJYzk54zwhevfin-0Mt4XohIDySmQ5p3NEcE1quAYuU9Q.jpg')"></i>
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  
+  <div class="link_preview_title" dir="auto">Telegram Stable Releases</div>
+  <div class="link_preview_description" dir="auto">Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.<br/><br/>Hashtags criteria used:<br/>- #macos<br/>- #<mark class="highlight">ios</mark><br/>- #tdesktop<br/>- #android<br/>- #androidx</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>6</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.3K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1653"><time datetime="2026-07-21T20:51:44+00:00" class="time">20:51</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1667" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY2NywidCI6MTc5MjQyMzc5MiwiaCI6ImNkNjFkMWExMTAyODFhYmViNiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.9.3 (34622)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>21/08/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div>
+<div class="tgme_widget_message_reactions js-message_reactions"></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.82K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1667"><time datetime="2026-08-22T06:46:00+00:00" class="time">06:46</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1685" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY4NSwidCI6MTc5MjQyMzc5MiwiaCI6ImI0NDYyNjlmMTNjMTE5ZDcwYiJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>12.9.4 (34639)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>12/09/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 13.0 and higher<br/>• iPadOS 13.0 and higher<br/>• visionOS 1.0 and higher<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://t.me/tgstable">
+  <i class="link_preview_right_image" style="background-image:url('https://cdn4.telesco.pe/file/BE5dJY2nT8p5SFxWubSTvW4cXu1Iv3bjjV5mkAm-Ic09CSbwyt_cUZJe2CoLQmk3CWXlAhMTE4zTbwSY_8o5L5kKHxc6cndeR7nygVIjpvjIwcpNzf6X8Jny-nZiTh43Qp4b04UIQ1StrQdUg0rMoAX8Lc53kbJdw8Zhi51zdM4o36AG7Q_kTH64FpXUj2-pZKyhSiqCQAUNGtLpw0ozUvxXW3NM-pijjTpMNPRFYcPxFfkdlW3JEcaV3UwZvVCurei4Sl3uHYygY5KeCVvAjbtOeCw0XYSggiYeKHXEBIspeHQPVKiERtcAycyJbO1JdLNs7fvH0YsW7n8jdMDLtQ.jpg')"></i>
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  
+  <div class="link_preview_title" dir="auto">Telegram Stable Releases</div>
+  <div class="link_preview_description" dir="auto">Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.<br/><br/>Hashtags criteria used:<br/>- #macos<br/>- #<mark class="highlight">ios</mark><br/>- #tdesktop<br/>- #android<br/>- #androidx</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">2.6K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta"><a class="tgme_widget_message_date" href="https://t.me/tgstable/1685"><time datetime="2026-09-12T11:53:53+00:00" class="time">11:53</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div><div class="tgme_widget_message_wrap js-widget_message_wrap"><div class="tgme_widget_message text_not_supported_wrap js-widget_message" data-post="tgstable/1695" data-view="eyJjIjotMTE0NzExODYzMiwicCI6MTY5NSwidCI6MTc5MjQyMzc5MiwiaCI6ImQ1ZjE1YThmZDdmYzk4MzcyNSJ9">
+  <div class="tgme_widget_message_user"><a href="https://t.me/tgstable"><i class="tgme_widget_message_user_photo bgcolor2" data-content="T"><img src="https://cdn4.telesco.pe/file/AHHfvUirqOCB-4gwvGdtc94HSMjN_vWjBN53PtwXvLCZzNRyjNoa-DdCp2akTqZ7JSPo3iqu0gWxiioIxdeq6tYnEHlolCv20cgDWCjrSexdohMasKU6FsdFeDbmgcqo9Us1POvmFZD06dvXZO_tEvJWxXEkn3hmWJNQRPl_gEwE3d-Z8O_BTrrEaeFW52aPoJAGCZXOsqEpfaNT1hi80AtVduFxO-Q4TatTsIHuQQ8H5Zk4iCsV-UZkCNiCazm1FxMCAvjHebf7c-aMeASpgTaElWb5PvBj9zqS7zS-fZLduvMHz5SxqWzzrfl7y6hXdReb_V7rou-6XggG6gxFGw.jpg"></i></a></div>
+  <div class="tgme_widget_message_bubble">
+    
+        <i class="tgme_widget_message_bubble_tail">
+      <svg class="bubble_icon" width="9px" height="20px" viewBox="0 0 9 20">
+        <g fill="none">
+          <path class="background" fill="#ffffff" d="M8,1 L9,1 L9,20 L8,20 L8,18 C7.807,15.161 7.124,12.233 5.950,9.218 C5.046,6.893 3.504,4.733 1.325,2.738 L1.325,2.738 C0.917,2.365 0.89,1.732 1.263,1.325 C1.452,1.118 1.72,1 2,1 L8,1 Z"></path>
+          <path class="border_1x" fill="#d7e3ec" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0 L9,0 L9,20 L7,20 L7,20 L7.002,18.068 C6.816,15.333 6.156,12.504 5.018,9.58 C4.172,7.406 2.72,5.371 0.649,3.475 C-0.165,2.729 -0.221,1.464 0.525,0.649 C0.904,0.236 1.439,0 2,0 Z"></path>
+          <path class="border_2x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.5 L9,0.5 L9,20 L7.5,20 L7.5,20 L7.501,18.034 C7.312,15.247 6.64,12.369 5.484,9.399 C4.609,7.15 3.112,5.052 0.987,3.106 C0.376,2.547 0.334,1.598 0.894,0.987 C1.178,0.677 1.579,0.5 2,0.5 Z"></path>
+          <path class="border_3x" d="M9,1 L2,1 C1.72,1 1.452,1.118 1.263,1.325 C0.89,1.732 0.917,2.365 1.325,2.738 C3.504,4.733 5.046,6.893 5.95,9.218 C7.124,12.233 7.807,15.161 8,18 L8,20 L9,20 L9,1 Z M2,0.667 L9,0.667 L9,20 L7.667,20 L7.667,20 L7.668,18.023 C7.477,15.218 6.802,12.324 5.64,9.338 C4.755,7.064 3.243,4.946 1.1,2.983 C0.557,2.486 0.52,1.643 1.017,1.1 C1.269,0.824 1.626,0.667 2,0.667 Z"></path>
+        </g>
+      </svg>
+    </i>
+    <div class="tgme_widget_message_author accent_color"><a class="tgme_widget_message_owner_name" href="https://t.me/tgstable"><span dir="auto">Telegram Stable Releases</span></a></div>
+
+
+<div class="tgme_widget_message_text js-message_text" dir="auto">Telegram for <mark class="highlight">iOS</mark> has been updated <i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E89.png')"><b>🎉</b></i><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F8E8A.png')"><b>🎊</b></i><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9484.png')"><b>🔄</b></i> New <mark class="highlight">version</mark>:<br/><code>13.0 (35303)</code><br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9386.png')"><b>📆</b></i> Released (DD/MM/YYYY):<br/>08/10/2026<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09FA496.png')"><b>🤖</b></i> OS:<br/>• <mark class="highlight">iOS</mark> 15.0 or later<br/>• iPadOS 15.0 or later<br/>• visionOS 1.0 or later<br/>• watchOS 26.0 or later<br/><br/><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F9384.png')"><b>📄</b></i> Changelog:<br/>• Bug fixes and minor improvements.<br/><br/>Source: <a href="https://t.me/tgstable" target="_blank" rel="noopener" onclick="return confirm('Open this link?\n\n'+this.href);">@tgstable</a><br/><br/><a href="?q=%23ios">#ios@tgstable</a> <a href="?q=%23update">#update@tgstable</a> <a href="?q=%23stable">#stable@tgstable</a></div><a class="tgme_widget_message_link_preview" href="https://t.me/tgstable">
+  <i class="link_preview_right_image" style="background-image:url('https://cdn4.telesco.pe/file/DAFab9A7gb2aj27A26PI80kWbiyFxqYItrj7KBxljCkSVEcltb_pXdr1B-6YvTAysc2HaGz-2biyhsBPzBPEczEFHFeGeGHYSW5KidB2vkvI2LNXQLDqmoxvQnjJdBKVeUv6ZCl6MB-6XAR1D1p7TPpIZwOoqUORqDl_XG6DPHsUm92V1w_4C3Ee2JYkLCSawc-Y_khuUsjdaP4pLM0Uwcpm5pVrYfRcInxH8a_MfIRGkkSEUYz8bRr3k7CKQZTtJzoHi4WbZB6EDB8NKt_f1bEO3V1_wWYj7H3He09TLPFt2Q6R5yg_stDb0lyvNBqOJyk_nAZrzWBmJ_mo17ambg.jpg')"></i>
+  <div class="link_preview_site_name accent_color" dir="auto">Telegram</div>
+  
+  <div class="link_preview_title" dir="auto">Telegram Stable Releases</div>
+  <div class="link_preview_description" dir="auto">Every (official) stable release, of every (official) Telegram client app, in every store, for every supported OS.<br/><br/>Hashtags criteria used:<br/>- #macos<br/>- #<mark class="highlight">ios</mark><br/>- #tdesktop<br/>- #android<br/>- #androidx</div>
+</a>
+<div class="tgme_widget_message_reactions js-message_reactions"><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918E.png')"><b>👎</b></i>3</span><span class="tgme_reaction"><i class="emoji" style="background-image:url('//telegram.org/img/emoji/40/F09F918D.png')"><b>👍</b></i>1</span></div><div class="tgme_widget_message_footer compact js-message_footer">
+  
+  <div class="tgme_widget_message_info short js-message_info">
+    <span class="tgme_widget_message_views">1.53K</span><span class="copyonly"> views</span><span class="tgme_widget_message_meta">edited &nbsp;<a class="tgme_widget_message_date" href="https://t.me/tgstable/1695"><time datetime="2026-10-08T17:11:23+00:00" class="time">17:11</time></a></span>
+  </div>
+</div>
+  </div>
+  
+</div></div>
+    </section>
+  </div>
+</main>
+    <script src="//telegram.org/js/jquery.min.js"></script>
+    <script src="//telegram.org/js/jquery-ui.min.js"></script>
+    <script src="//telegram.org/js/tgwallpaper.min.js?3"></script>
+<script src="//telegram.org/js/tgsticker.js?32"></script>
+
+    <script src="//telegram.org/js/widget-frame.js?68"></script>
+    <script src="//telegram.org/js/telegram-web.js?14"></script>
+    <script>TWeb.init();
+</script>
+    
+  </body>
+</html>
+<!-- page generated in 114.43ms -->
