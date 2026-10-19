@@ -13,10 +13,20 @@ repository.workspace = true
 opentele2-core = { version = "2.0.0-alpha.1", path = "../opentele2-core", default-features = false }
 grammers-session = { version = "0.11.0", default-features = false }
 grammers-mtsender = { version = "0.11.0", default-features = false }
+grammers-client = { version = "0.11.0", default-features = false, optional = true }
+
+[features]
+default = []
+# The 1.5.0 client flows (QR login, session admin, consistency checks) over
+# grammers-client. Off by default so the default crate has no client.
+client = ["dep:grammers-client"]
 
 [dev-dependencies]
 hex = "0.4.3"
 serde_json = "1.0.154"
+# The async test runtime of tests/client.rs; already in the lock file
+# through grammers-client and grammers-mtsender.
+tokio = { version = "1.53.3", default-features = false, features = ["rt", "macros"] }
 
 [lints]
 workspace = true

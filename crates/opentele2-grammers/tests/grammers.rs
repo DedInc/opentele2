@@ -19,6 +19,7 @@ use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::dc;
 use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
+use opentele2_core::tdata::mtp_config::{DcOptions, Environment, FLAG_IPV6, MtpConfig};
 use opentele2_core::{Error, Result};
 use opentele2_grammers::{account_from_session, connection_params, session_data};
 use serde_json::Value;
@@ -329,5 +330,78 @@ fn connection_params_copy_a_desktop_profile() {
             100,
             "{seed} capacity"
         );
+    }
+}
+
+/// An account on `main_dc` whose stored config has its own DC table:
+/// DC 2 and 3 with an IPv4 and an IPv6 endpoint, DC 4 with IPv4 only, and
+/// DC 5 with an IPv6 address that does not parse.
+fn account_with_config(main_dc: i32) -> Account {
+    let mut config = MtpConfig::new(Environment::Production);
+    let mut options = DcOptions::default();
+    options.add(2, 0, "198.51.100.2", 443, &[]);
+    options.add(2, 0, "198.51.100.22", 443, &[]);
+    options.add(2, FLAG_IPV6, "2001:db8::2", 443, &[]);
+    options.add(3, 0, "198.51.100.3", 8443, &[]);
+    options.add(3, FLAG_IPV6, "2001:db8::3", 8443, &[]);
+    options.add(4, 0, "198.51.100.4", 443, &[]);
+    options.add(5, 0, "198.51.100.5", 443, &[]);
+    options.add(5, FLAG_IPV6, "not-an-ip", 443, &[]);
+    config.dc_options = options;
+    let mut account =
+        Account::new(0, 777, main_dc, vec![(main_dc, counting_key(5))]).expect("account");
+    account.config = Some(config.serialize().expect("serialize config"));
+    account
+}
+
+#[test]
+fn session_data_uses_the_stored_config_endpoints() {
+    let account = account_with_config(2);
+    let data = session_data(&account);
+    let mut ids: Vec<i32> = data.dc_options.keys().copied().collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [2, 3], "the config's DCs with both families");
+    let two = &data.dc_options[&2];
+    assert_eq!(two.ipv4.to_string(), "198.51.100.2:443");
+    assert_eq!(two.ipv6.to_string(), "[2001:db8::2]:443");
+    let three = &data.dc_options[&3];
+    assert_eq!(three.ipv4.to_string(), "198.51.100.3:8443");
+    assert_eq!(three.ipv6.to_string(), "[2001:db8::3]:8443");
+    assert!(
+        two.auth_key == Some(*counting_key(5).as_bytes()),
+        "main DC key"
+    );
+    assert!(three.auth_key.is_none(), "DC 3 has a key");
+
+    // The same DCs and endpoints as the core's grammers-shaped data.
+    let core =
+        opentele2_core::session::grammers::SessionData::from_account(&account).expect("core data");
+    assert_eq!(core.home_dc, data.home_dc);
+    assert_eq!(core.dc_options.len(), data.dc_options.len());
+    for (id, option) in &core.dc_options {
+        let ours = &data.dc_options[id];
+        assert_eq!(
+            (ours.ipv4, ours.ipv6),
+            (option.ipv4, option.ipv6),
+            "DC {id}"
+        );
+        assert_eq!(
+            ours.auth_key.is_some(),
+            option.auth_key.is_some(),
+            "DC {id} key"
+        );
+    }
+
+    let back = account_from_session(&data, 0).expect("account");
+    assert_eq!((back.user_id, back.main_dc), (777, 2));
+
+    // A main DC the config cannot reach leaves the data without a key.
+    for main_dc in [4, 5, 1] {
+        let data = session_data(&account_with_config(main_dc));
+        assert!(data.dc_options.values().all(|o| o.auth_key.is_none()));
+        assert!(matches!(
+            account_from_session(&data, 0),
+            Err(Error::AuthKeyNotFound)
+        ));
     }
 }

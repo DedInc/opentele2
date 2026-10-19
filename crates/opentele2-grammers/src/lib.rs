@@ -8,6 +8,12 @@
 //!   user of a [`SessionData`] become an [`Account`].
 //! - [`connection_params`] copies the `initConnection` fields of an
 //!   [`ApiProfile`] into a [`grammers_mtsender::ConnectionParams`].
+//! - With the `client` feature (off by default), `client` runs the 1.5.0
+//!   client flows over grammers-client 0.11: QR login with DC migration
+//!   and 2FA, the self user id, session admin, the seven consistency
+//!   checks and tdata from a client session, over an `Invoker` that
+//!   `grammers_client::Client` implements. Its module docs list where
+//!   grammers 0.11 cannot follow 1.5.0 step for step.
 //!
 //! The core crate never depends on grammers; this crate is the optional
 //! bridge. The profile's `api_id` is passed to grammers separately (for
@@ -37,7 +43,7 @@
 //! key; do not log them. opentele2's [`AuthKey`] prints its key id only.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
 use grammers_mtsender::ConnectionParams;
 use grammers_session::SessionData;
@@ -46,7 +52,11 @@ use opentele2_core::api::ApiProfile;
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::dc;
 use opentele2_core::tdata::account::Account;
+use opentele2_core::tdata::mtp_config::Endpoint;
 use opentele2_core::{Error, Result};
+
+#[cfg(feature = "client")]
+pub mod client;
 
 /// The self user of `account` as grammers caches it: a user peer with
 /// `is_self` set and `bot` false (tdata holds user accounts only), and no
@@ -63,12 +73,64 @@ fn self_user(account: &Account) -> Option<PeerInfo> {
     })
 }
 
+/// The address of a config endpoint; `None` when its IP or port does not
+/// parse.
+fn endpoint_addr(endpoint: &Endpoint) -> Option<SocketAddr> {
+    let ip: IpAddr = endpoint.ip.parse().ok()?;
+    let port = u16::try_from(endpoint.port).ok()?;
+    Some(SocketAddr::new(ip, port))
+}
+
+/// An IPv4 and an IPv6 address, or `None` when either is missing or of the
+/// other family.
+fn address_pair(
+    ipv4: Option<SocketAddr>,
+    ipv6: Option<SocketAddr>,
+) -> Option<(SocketAddrV4, SocketAddrV6)> {
+    match (ipv4, ipv6) {
+        (Some(SocketAddr::V4(ipv4)), Some(SocketAddr::V6(ipv6))) => Some((ipv4, ipv6)),
+        _ => None,
+    }
+}
+
+/// The DCs of `account` as (id, IPv4, IPv6): those of its stored config
+/// when it has config bytes, else the built-in production table; see
+/// [`session_data`].
+fn dc_endpoints(account: &Account) -> Vec<(i32, SocketAddrV4, SocketAddrV6)> {
+    if account.config.is_some() {
+        let config = account.mtp_config();
+        config
+            .dc_options
+            .dcs()
+            .filter_map(|(id, _)| {
+                let endpoints = config.endpoints(id)?;
+                let ipv4 = endpoints.select(false).and_then(endpoint_addr);
+                let ipv6 = endpoints.select(true).and_then(endpoint_addr);
+                address_pair(ipv4, ipv6).map(|(ipv4, ipv6)| (id, ipv4, ipv6))
+            })
+            .collect()
+    } else {
+        dc::PRODUCTION_DC_IDS
+            .iter()
+            .filter_map(|&id| {
+                address_pair(dc::production(id, false), dc::production(id, true))
+                    .map(|(ipv4, ipv6)| (id, ipv4, ipv6))
+            })
+            .collect()
+    }
+}
+
 /// grammers session data for `account`.
 ///
 /// - `home_dc` is the account's main DC.
-/// - `dc_options` holds every production DC of the core table
-///   ([`dc::PRODUCTION_DC_IDS`]) with its first IPv4 and IPv6 endpoint, as
-///   [`opentele2_core::session::grammers::SessionData::from_account`] does.
+/// - `dc_options` holds the DCs with an IPv4 and an IPv6 endpoint, chosen
+///   as [`opentele2_core::session::grammers::SessionData::from_account`]
+///   chooses them: with stored config bytes ([`Account::config`], parsed
+///   by [`Account::mtp_config`]) the DCs of that config whose endpoints
+///   ([`Endpoints::select`](opentele2_core::tdata::mtp_config::Endpoints::select)
+///   without and with IPv6) are an IPv4 and an IPv6 address; without them
+///   every production DC of the core table
+///   ([`dc::PRODUCTION_DC_IDS`]) with its first IPv4 and IPv6 endpoint.
 ///   Only the main DC carries a key, the account's main DC key.
 /// - `peer_infos` holds the self user, keyed by its user id as
 ///   `Session::cache_peer` keys it.
@@ -76,28 +138,24 @@ fn self_user(account: &Account) -> Option<PeerInfo> {
 ///
 /// The conversion cannot fail. An account it cannot fully express yields
 /// data that [`account_from_session`] rejects: a main DC outside the
-/// production table or a missing main DC key leaves no key in the data, and
+/// production table (with a stored config, outside its usable DCs) or a
+/// missing main DC key leaves no key in the data, and
 /// a user id outside grammers' range (1 to `0xffffffffff`) leaves no self
 /// user.
 #[must_use]
 pub fn session_data(account: &Account) -> SessionData {
     let key = account.auth_key().map(|key| *key.as_bytes());
-    let dc_options = dc::PRODUCTION_DC_IDS
-        .iter()
-        .filter_map(
-            |&id| match (dc::production(id, false), dc::production(id, true)) {
-                (Some(SocketAddr::V4(ipv4)), Some(SocketAddr::V6(ipv6))) => Some((
-                    id,
-                    DcOption {
-                        id,
-                        ipv4,
-                        ipv6,
-                        auth_key: key.filter(|_| id == account.main_dc),
-                    },
-                )),
-                _ => None,
-            },
-        )
+    let dc_options = dc_endpoints(account)
+        .into_iter()
+        .map(|(id, ipv4, ipv6)| {
+            let option = DcOption {
+                id,
+                ipv4,
+                ipv6,
+                auth_key: key.filter(|_| id == account.main_dc),
+            };
+            (id, option)
+        })
         .collect();
     let peer_infos: HashMap<PeerId, PeerInfo> = self_user(account)
         .map(|info| (info.id(), info))
