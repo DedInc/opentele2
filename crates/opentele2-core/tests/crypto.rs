@@ -216,7 +216,7 @@ fn local_round_trip_and_failures() {
     for size in [0usize, 15, 16, 33] {
         assert!(matches!(
             decrypt_local(&vec![0u8; size], &key),
-            Err(Error::BadEncryptedDataSize)
+            Err(Error::BadEncryptedDataSize { size: found }) if found == size
         ));
     }
 
@@ -232,7 +232,11 @@ fn local_round_trip_and_failures() {
     let forged = [msg_key.as_slice(), plain.as_slice()].concat();
     assert!(matches!(
         decrypt_local(&forged, &key),
-        Err(Error::BadDecryptedDataSize)
+        Err(Error::BadDecryptedDataSize {
+            encrypted_size: 48,
+            full_len: 32,
+            decrypted_size: 32
+        })
     ));
 }
 

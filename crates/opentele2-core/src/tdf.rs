@@ -15,7 +15,7 @@ use std::path::Path;
 
 use md5::{Digest, Md5};
 
-use crate::{Error, Result};
+use crate::{Error, MagicContext, Result};
 
 /// The four bytes every `TDF$` file starts with.
 pub const MAGIC: [u8; 4] = *b"TDF$";
@@ -62,21 +62,34 @@ impl TdfFile {
     ///   magic, the version, and the checksum.
     /// - [`Error::InvalidMagic`] when it does not start with `TDF$`.
     /// - [`Error::InvalidCheckSum`] when the stored MD5 does not match.
+    ///
+    /// The errors name no file; [`read`] fills in the name it read.
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let magic = data.get(..MAGIC.len()).ok_or(Error::QDataStreamFailed)?;
+        let magic = data
+            .get(..MAGIC.len())
+            .ok_or(Error::QDataStreamFailed { context: None })?;
         if magic != MAGIC {
-            return Err(Error::InvalidMagic);
+            return Err(Error::InvalidMagic {
+                context: MagicContext::File {
+                    file: String::new(),
+                    magic: magic.to_vec(),
+                },
+            });
         }
         if data.len() < HEADER_LEN + CHECKSUM_LEN {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         let (header, rest) = data.split_at(HEADER_LEN);
         let (payload, stored) = rest.split_at(rest.len() - CHECKSUM_LEN);
         let mut version = [0; 4];
         version.copy_from_slice(&header[MAGIC.len()..]);
         let version = u32::from_le_bytes(version);
-        if checksum(version, payload) != stored {
-            return Err(Error::InvalidCheckSum);
+        let computed = checksum(version, payload);
+        if computed != stored {
+            return Err(Error::InvalidCheckSum {
+                file: String::new(),
+                computed,
+            });
         }
         Ok(Self {
             version,
@@ -105,7 +118,9 @@ impl TdfFile {
 ///
 /// When no suffix yields a valid file: the error of the last file that exists
 /// but failed to parse ([`Error::InvalidMagic`], [`Error::InvalidCheckSum`],
-/// or [`Error::QDataStreamFailed`]), else [`Error::FileNotFound`].
+/// or [`Error::QDataStreamFailed`]), else [`Error::FileNotFound`]. The
+/// magic, checksum and not-found errors carry `name`, as 1.5.0's messages
+/// do.
 pub fn read(dir: impl AsRef<Path>, name: &str) -> Result<TdfFile> {
     let dir = dir.as_ref();
     let mut failure = None;
@@ -116,10 +131,31 @@ pub fn read(dir: impl AsRef<Path>, name: &str) -> Result<TdfFile> {
         };
         match TdfFile::parse(&data) {
             Ok(file) => return Ok(file),
-            Err(error) => failure = Some(error),
+            Err(error) => failure = Some(named(error, name)),
         }
     }
-    Err(failure.unwrap_or(Error::FileNotFound))
+    Err(failure.unwrap_or_else(|| Error::FileNotFound {
+        file: name.to_owned(),
+    }))
+}
+
+/// `error` with the file name `name` filled in.
+fn named(error: Error, name: &str) -> Error {
+    match error {
+        Error::InvalidMagic {
+            context: MagicContext::File { magic, .. },
+        } => Error::InvalidMagic {
+            context: MagicContext::File {
+                file: name.to_owned(),
+                magic,
+            },
+        },
+        Error::InvalidCheckSum { computed, .. } => Error::InvalidCheckSum {
+            file: name.to_owned(),
+            computed,
+        },
+        other => other,
+    }
 }
 
 /// Writes `file` to `dir` as `name` plus [`WRITE_SUFFIX`], creating `dir`

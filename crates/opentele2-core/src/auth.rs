@@ -9,7 +9,8 @@
 //!   values of Telethon `password.compute_check` over
 //!   [`grammers_crypto::two_factor_auth::calculate_2fa`].
 //! - Session admin: [`format_sessions`] is the table 1.5.0 `PrintSessions`
-//!   prints, [`OFFICIAL_API_IDS`] the api ids of the official profiles, and
+//!   prints, drawn by [`format_table`] (1.5.0 `PrettyTable`),
+//!   [`OFFICIAL_API_IDS`] the api ids of the official profiles, and
 //!   the `TerminateSession` and `_handle2FA` messages are constants.
 //! - Consistency: [`ConsistencyExpectations`] says what each of the seven
 //!   1.5.0 `ConsistencyChecker` checks ([`Check`]) expects for a profile, and
@@ -352,12 +353,10 @@ impl SessionRow {
 }
 
 /// The table 1.5.0 `PrintSessions` prints for `rows`, without the trailing
-/// newline `print` adds (`PrettyTable(table, [1])`).
+/// newline `print` adds: [`format_table`] of [`SESSION_COLUMNS`] and
+/// [`SessionRow::cells`] with a split before row 1 (`PrettyTable(table,
+/// [1])`).
 ///
-/// Each column is as wide as its longest cell or label, counted in Unicode
-/// scalar values as Python `len` does, plus two; text is centred with the
-/// odd space on the right. A splitter line opens and closes the table and
-/// follows the header; another separates the first row from the rest.
 /// With no rows the table is the header alone, where 1.5.0 raises.
 #[must_use]
 pub fn format_sessions(rows: &[SessionRow]) -> String {
@@ -366,12 +365,41 @@ pub fn format_sessions(rows: &[SessionRow]) -> String {
         .enumerate()
         .map(|(index, row)| row.cells(index))
         .collect();
-    let mut widths = SESSION_COLUMNS.map(|label| label.chars().count());
-    for row in &cells {
-        for (width, cell) in widths.iter_mut().zip(row) {
-            *width = (*width).max(cell.chars().count());
-        }
+    format_table(&SESSION_COLUMNS, &cells, &[1])
+}
+
+/// 1.5.0 `PrettyTable(table, addSplit)` (`src/utils.py`) for a table whose
+/// first row has the keys `headers`, in order, and whose rows hold the
+/// cells under them, already converted with `str()`.
+///
+/// Each column is as wide as its longest cell or header, counted in
+/// Unicode scalar values as Python `len` does, plus two; text is centred
+/// with the odd space on the right. A splitter line opens and closes the
+/// table and follows the header, and another goes before every row whose
+/// index is in `add_split`. Lines end in `\n` except the last.
+///
+/// A row shorter than `headers` gets empty cells and cells past the last
+/// header are ignored, where 1.5.0 raises `KeyError`; with no rows the
+/// table is the header alone, where 1.5.0 raises `IndexError`.
+#[must_use]
+pub fn format_table<H, R, C>(headers: &[H], rows: &[R], add_split: &[usize]) -> String
+where
+    H: AsRef<str>,
+    R: AsRef<[C]>,
+    C: AsRef<str>,
+{
+    fn cell<'a, R: AsRef<[C]>, C: AsRef<str> + 'a>(row: &'a R, column: usize) -> &'a str {
+        row.as_ref().get(column).map_or("", AsRef::as_ref)
     }
+    let widths: Vec<usize> = headers
+        .iter()
+        .enumerate()
+        .map(|(column, header)| {
+            rows.iter()
+                .map(|row| cell(row, column).chars().count())
+                .fold(header.as_ref().chars().count(), usize::max)
+        })
+        .collect();
     let splitter = format!(
         "|{}|\n",
         widths
@@ -382,13 +410,14 @@ pub fn format_sessions(rows: &[SessionRow]) -> String {
     );
 
     let mut out = splitter.clone();
-    out.push_str(&table_line(SESSION_COLUMNS, &widths));
+    out.push_str(&table_line(headers.iter().map(AsRef::as_ref), &widths));
     out.push_str(&splitter);
-    for (index, row) in cells.iter().enumerate() {
-        if index == 1 {
+    for (index, row) in rows.iter().enumerate() {
+        if add_split.contains(&index) {
             out.push_str(&splitter);
         }
-        out.push_str(&table_line(row.each_ref().map(String::as_str), &widths));
+        let texts = (0..widths.len()).map(|column| cell(row, column));
+        out.push_str(&table_line(texts, &widths));
     }
     out.push_str(splitter.trim_end_matches('\n'));
     out
@@ -396,9 +425,8 @@ pub fn format_sessions(rows: &[SessionRow]) -> String {
 
 /// One 1.5.0 `PrettyTable` line: each text centred in its width plus two,
 /// the odd space on the right.
-fn table_line(texts: [&str; 7], widths: &[usize; 7]) -> String {
+fn table_line<'a>(texts: impl Iterator<Item = &'a str>, widths: &[usize]) -> String {
     let padded: Vec<String> = texts
-        .iter()
         .zip(widths)
         .map(|(text, width)| {
             let space = width + 2 - text.chars().count();

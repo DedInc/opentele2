@@ -14,7 +14,8 @@
 //!
 //! [`ApiProfile::from_session_json`] and [`ApiProfile::to_session_json`]
 //! read and write the session JSON of 1.5.0 `APIData.from_json` and
-//! `APIData.to_json`.
+//! `APIData.to_json`; [`session_json`] holds the same rules untyped, for
+//! bindings. [`format_app_version`] spells a packed desktop version.
 
 use std::hash::{Hash, Hasher};
 
@@ -148,7 +149,7 @@ impl Versions {
             ios_version_range: ("18.0".to_owned(), "27.0.1".to_owned()),
             ios_system_version: "27.0.1".to_owned(),
             macos_system_version: "27.0.1".to_owned(),
-            desktop_app_version: desktop_version_string(crate::tdata::APP_VERSION),
+            desktop_app_version: format_app_version(crate::tdata::APP_VERSION),
             desktop_app_version_suffix: "x64".to_owned(),
             macos_app_version: "13.0".to_owned(),
             macos_build_number: 283_305,
@@ -161,8 +162,11 @@ impl Versions {
     }
 }
 
-/// 1.5.0 `format_app_version`: `major.minor.patch`, without a zero patch.
-fn desktop_version_string(version: u32) -> String {
+/// 1.5.0 `format_app_version` (`src/utils.py`): a packed Telegram Desktop
+/// version as `major.minor.patch`, without a zero patch, so `7003001` is
+/// `7.3.1` and `7003000` is `7.3`.
+#[must_use]
+pub fn format_app_version(version: u32) -> String {
     let major = version / 1_000_000;
     let minor = version / 1000 % 1000;
     let patch = version % 1000;
@@ -318,31 +322,211 @@ impl Hash for ApiProfile {
 
 /// 1.5.0 `_DEFAULT_EXTRA_FIELDS`, in its order.
 fn default_extra_fields() -> Map<String, Value> {
-    let fields = [
-        ("twoFA", Value::Null),
-        ("role", Value::from("")),
-        ("id", Value::Null),
-        ("phone", Value::Null),
-        ("username", Value::Null),
-        ("date_of_birth", Value::Null),
-        ("date_of_birth_integrity", Value::Null),
-        ("is_premium", Value::Bool(false)),
-        ("has_profile_pic", Value::Bool(false)),
-        ("spamblock", Value::Null),
-        ("register_time", Value::Null),
-        ("last_check_time", Value::Null),
-        ("avatar", Value::Null),
-        ("first_name", Value::from("")),
-        ("last_name", Value::from("")),
-        ("sex", Value::Null),
-        ("proxy", Value::Null),
-        ("ipv6", Value::Bool(false)),
-        ("session_file", Value::from("")),
+    session_json::default_extra_fields()
+}
+
+/// The untyped session JSON rules of 1.5.0 `APIData.from_json` and
+/// `APIData.to_json` (`src/api.py`), for bindings that keep the values as
+/// their own dynamic objects.
+///
+/// [`ApiProfile::from_session_json`] and [`ApiProfile::to_session_json`]
+/// are the typed, strict forms of the same rules. Here values pass through
+/// unchanged, whatever their JSON type, as they do in 1.5.0.
+pub mod session_json {
+    use serde_json::{Map, Value};
+
+    /// A JSON value the session JSON uses as a default.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum JsonDefault {
+        /// `null` (Python `None`).
+        Null,
+        /// A boolean.
+        Bool(bool),
+        /// A string.
+        Str(&'static str),
+    }
+
+    impl JsonDefault {
+        /// The default as a JSON value.
+        #[must_use]
+        pub fn to_value(self) -> Value {
+            match self {
+                Self::Null => Value::Null,
+                Self::Bool(flag) => Value::Bool(flag),
+                Self::Str(text) => Value::from(text),
+            }
+        }
+    }
+
+    /// One key of the profile part of the session JSON.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct Field {
+        /// The JSON key.
+        pub key: &'static str,
+        /// The `APIData` attribute the key reads into and writes from.
+        pub attribute: &'static str,
+        /// The value [`read`] takes when the key is absent; a key that is
+        /// present keeps its value, `null` included.
+        pub default: JsonDefault,
+        /// The key [`read`] takes the attribute from instead when this key's
+        /// value is falsy in Python's sense (`null`, `false`, `0`, `""`,
+        /// `[]`, `{}`). A key named here is read only as that fallback.
+        pub fallback: Option<&'static str>,
+    }
+
+    /// The profile keys, in the order [`write`] puts them first.
+    ///
+    /// `system_lang_pack` and `system_lang_code` both write the
+    /// `system_lang_code` attribute; on read, `system_lang_pack` is only the
+    /// fallback of `system_lang_code`.
+    pub const FIELDS: [Field; 9] = [
+        field("app_id", "api_id", JsonDefault::Null),
+        field("app_hash", "api_hash", JsonDefault::Null),
+        field("device", "device_model", JsonDefault::Null),
+        field("sdk", "system_version", JsonDefault::Null),
+        field("app_version", "app_version", JsonDefault::Null),
+        field(
+            "system_lang_pack",
+            "system_lang_code",
+            JsonDefault::Str("en"),
+        ),
+        Field {
+            fallback: Some("system_lang_pack"),
+            ..field("system_lang_code", "system_lang_code", JsonDefault::Null)
+        },
+        field("lang_pack", "lang_pack", JsonDefault::Str("")),
+        field("lang_code", "lang_code", JsonDefault::Str("en")),
     ];
-    fields
-        .into_iter()
-        .map(|(key, value)| (key.to_owned(), value))
-        .collect()
+
+    /// The `APIData` attributes in 1.5.0's declaration order, the order
+    /// [`read`] returns them in.
+    pub const ATTRIBUTES: [&str; 8] = [
+        "api_id",
+        "api_hash",
+        "device_model",
+        "system_version",
+        "app_version",
+        "lang_code",
+        "system_lang_code",
+        "lang_pack",
+    ];
+
+    /// 1.5.0 `_DEFAULT_EXTRA_FIELDS`: the account keys [`write`] appends
+    /// after the profile keys, with their default values, in order.
+    pub const DEFAULT_EXTRA_FIELDS: [(&str, JsonDefault); 19] = [
+        ("twoFA", JsonDefault::Null),
+        ("role", JsonDefault::Str("")),
+        ("id", JsonDefault::Null),
+        ("phone", JsonDefault::Null),
+        ("username", JsonDefault::Null),
+        ("date_of_birth", JsonDefault::Null),
+        ("date_of_birth_integrity", JsonDefault::Null),
+        ("is_premium", JsonDefault::Bool(false)),
+        ("has_profile_pic", JsonDefault::Bool(false)),
+        ("spamblock", JsonDefault::Null),
+        ("register_time", JsonDefault::Null),
+        ("last_check_time", JsonDefault::Null),
+        ("avatar", JsonDefault::Null),
+        ("first_name", JsonDefault::Str("")),
+        ("last_name", JsonDefault::Str("")),
+        ("sex", JsonDefault::Null),
+        ("proxy", JsonDefault::Null),
+        ("ipv6", JsonDefault::Bool(false)),
+        ("session_file", JsonDefault::Str("")),
+    ];
+
+    const fn field(key: &'static str, attribute: &'static str, default: JsonDefault) -> Field {
+        Field {
+            key,
+            attribute,
+            default,
+            fallback: None,
+        }
+    }
+
+    /// [`DEFAULT_EXTRA_FIELDS`] as a JSON object, keys in order.
+    #[must_use]
+    pub fn default_extra_fields() -> Map<String, Value> {
+        DEFAULT_EXTRA_FIELDS
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), value.to_value()))
+            .collect()
+    }
+
+    /// Python truthiness of a JSON value.
+    fn is_truthy(value: &Value) -> bool {
+        match value {
+            Value::Null => false,
+            Value::Bool(flag) => *flag,
+            Value::Number(number) => number.as_f64().is_some_and(|n| n.abs() > 0.0),
+            Value::String(text) => !text.is_empty(),
+            Value::Array(items) => !items.is_empty(),
+            Value::Object(entries) => !entries.is_empty(),
+        }
+    }
+
+    fn get(data: &Map<String, Value>, field: &Field) -> Value {
+        data.get(field.key)
+            .cloned()
+            .unwrap_or_else(|| field.default.to_value())
+    }
+
+    /// The `APIData` attributes 1.5.0 `APIData.from_json(data)` sets, in
+    /// [`ATTRIBUTES`] order, values passed through untyped.
+    ///
+    /// 1.5.0 then raises `NoInstanceMatched` when `api_id` or `api_hash` is
+    /// `null`, and replaces a `null` `device_model` with the local machine's
+    /// model (`PC 64bit`, `PC 32bit`, or the machine name); both are left
+    /// to the caller, as the core does not inspect the machine.
+    #[must_use]
+    pub fn read(data: &Map<String, Value>) -> Map<String, Value> {
+        let is_fallback = |key: &str| FIELDS.iter().any(|f| f.fallback == Some(key));
+        ATTRIBUTES
+            .iter()
+            .filter_map(|&attribute| {
+                let field = FIELDS
+                    .iter()
+                    .find(|f| f.attribute == attribute && !is_fallback(f.key))?;
+                let mut value = get(data, field);
+                if let Some(fallback) = field.fallback
+                    && !is_truthy(&value)
+                    && let Some(other) = FIELDS.iter().find(|f| f.key == fallback)
+                {
+                    value = get(data, other);
+                }
+                Some((attribute.to_owned(), value))
+            })
+            .collect()
+    }
+
+    /// The session JSON 1.5.0 `APIData.to_json(extra)` writes for an
+    /// object whose attributes are `attributes`, keys in its order.
+    ///
+    /// The [`FIELDS`] keys come first, each with its attribute's value
+    /// (`null` when `attributes` lacks it), then [`DEFAULT_EXTRA_FIELDS`].
+    /// `extra` overrides those defaults in place and appends its other keys
+    /// in its own order; an `extra` key naming a profile key overrides that
+    /// key in place too, as `dict.update` does.
+    #[must_use]
+    pub fn write(
+        attributes: &Map<String, Value>,
+        extra: Option<&Map<String, Value>>,
+    ) -> Map<String, Value> {
+        let mut result: Map<String, Value> = FIELDS
+            .iter()
+            .map(|field| {
+                let value = attributes.get(field.attribute).cloned();
+                (field.key.to_owned(), value.unwrap_or(Value::Null))
+            })
+            .collect();
+        let mut defaults = default_extra_fields();
+        if let Some(extra) = extra {
+            // Inserting an existing key keeps its position, as `dict.update`.
+            defaults.extend(extra.clone());
+        }
+        result.extend(defaults);
+        result
+    }
 }
 
 /// The string at `key`, `None` when the key is absent or `null`.

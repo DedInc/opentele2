@@ -284,16 +284,16 @@ fn bad_salt_and_truncation_fail() {
     ));
     assert!(matches!(
         parse_trailer(&trailer[..trailer.len() - 1]),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
     assert!(matches!(
         parse_trailer(&trailer[..15]),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
     let payload = payload_with(32, None);
     assert!(matches!(
         KeyData::parse(&payload[..payload.len() - 1]),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
 }
 
@@ -462,6 +462,6 @@ fn accounts_info_decoding() {
     ));
     assert!(matches!(
         AccountsInfo::parse(&encode(&[i32::MAX, 1])),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
 }

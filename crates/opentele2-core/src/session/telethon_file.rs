@@ -340,7 +340,9 @@ mod file {
     pub fn read_session_file(path: impl AsRef<Path>) -> Result<SessionRows> {
         let full_path = session_path(path);
         if !full_path.is_file() {
-            return Err(Error::FileNotFound);
+            return Err(Error::FileNotFound {
+                file: full_path.display().to_string(),
+            });
         }
         let conn = Connection::open_with_flags(
             &full_path,
@@ -348,7 +350,7 @@ mod file {
         )
         .map_err(sqlite_error)?;
         if !schema_is_current(&conn)? {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         let version = conn
             .query_row("select version from version", [], |row| {
@@ -357,7 +359,7 @@ mod file {
             .optional()
             .map_err(sqlite_error)?;
         if version != Some(Value::Integer(VERSION)) {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         let row = conn
             .query_row(
@@ -381,27 +383,27 @@ mod file {
             Value::Null => return Err(Error::AuthKeyNotFound),
             Value::Blob(bytes) if bytes.is_empty() => return Err(Error::AuthKeyNotFound),
             Value::Blob(bytes) => AuthKey::from_slice(&bytes)?,
-            _ => return Err(Error::QDataStreamFailed),
+            _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let dc_id = match dc_id {
             Value::Integer(id) => i32::try_from(id).map_err(|_| Error::BadConfigData)?,
             Value::Null => return Err(Error::BadConfigData),
-            _ => return Err(Error::QDataStreamFailed),
+            _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let server_address = match server_address {
             Value::Text(text) => text,
             Value::Null => return Err(Error::BadConfigData),
-            _ => return Err(Error::QDataStreamFailed),
+            _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let port = match port {
             Value::Integer(port) => u16::try_from(port).map_err(|_| Error::BadConfigData)?,
             Value::Null => return Err(Error::BadConfigData),
-            _ => return Err(Error::QDataStreamFailed),
+            _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let takeout_id = match takeout_id {
             Value::Integer(id) => Some(id),
             Value::Null => None,
-            _ => return Err(Error::QDataStreamFailed),
+            _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         Ok(SessionRows {
             dc_id,

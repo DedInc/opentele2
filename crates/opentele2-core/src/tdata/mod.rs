@@ -9,7 +9,7 @@
 //! - [`mtp_config`]: the MTP config and DC options of the per-account
 //!   `configs` file.
 //! - [`TData`]: a whole folder, loaded and saved the way 1.5.0's `TDesktop`
-//!   does.
+//!   does; [`draw_plan`] lists the random draws its writers make.
 
 pub mod account;
 pub mod key_data;
@@ -33,6 +33,11 @@ use crate::{Error, Result, tdf};
 /// file it saves (`APP_VERSION` in `src/utils.py`), whatever version the
 /// folder was read with.
 pub const APP_VERSION: u32 = 7_003_001;
+
+/// The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), re-exported
+/// from [`crate::tdf::MAGIC`] next to [`APP_VERSION`], as 1.5.0 keeps both
+/// in `src/utils.py`.
+pub use crate::tdf::MAGIC as TDF_MAGIC;
 
 /// Index 1.5.0 stores as the active account of a folder it creates
 /// (`TDesktop.__active_index` before any load); loading it falls back to the
@@ -378,10 +383,7 @@ impl TData {
                 rng,
             )?;
         }
-        let info = AccountsInfo {
-            indices: self.accounts.iter().map(|account| account.index).collect(),
-            active_index: self.active_index,
-        };
+        let info = self.accounts_info();
         let key_data = KeyData {
             info_encrypted: encrypt(&info.encode()?, &self.local_key, rng)?,
             ..base.clone()
@@ -495,5 +497,99 @@ impl TData {
             .iter()
             .find(|account| account.index == self.active_index)
             .or_else(|| self.accounts.first())
+    }
+}
+
+/// A call whose random draws [`draw_plan`] lists.
+#[derive(Clone, Copy)]
+pub enum DrawOperation<'a> {
+    /// [`TData::new`] with or without a passcode, and with performance mode
+    /// on or off.
+    New {
+        /// Whether the passcode is non-empty.
+        has_passcode: bool,
+        /// The `performance_mode` argument.
+        performance_mode: bool,
+    },
+    /// [`TData::migrate`] of this folder.
+    Migrate(&'a TData),
+    /// [`TData::save`] of this folder, in its current state.
+    Save(&'a TData),
+}
+
+/// The sizes, in bytes and in order, of the buffers `operation` will hand
+/// its random source; a replay of recorded `os.urandom` draws needs no
+/// hand-coded counts. Nothing is drawn and no file is touched.
+///
+/// - [`DrawOperation::New`]: none in performance mode without a passcode;
+///   otherwise the 256-byte pass, the 32-byte salt, then the key data
+///   install: the 32-byte open salt, a 32-byte wrap salt with a passcode,
+///   and the 12-byte wrap padding.
+/// - [`DrawOperation::Migrate`]: the key data install under the folder's
+///   passcode when its key file has the legacy layout, else none.
+/// - [`DrawOperation::Save`]: the migration draws of a legacy key file,
+///   then per account the padding of its map, of its config unless
+///   performance mode is on, and of its MTP data, then the padding of the
+///   accounts info. A padding of zero bytes is not drawn.
+///
+/// # Errors
+/// [`DrawOperation::Save`] fails as [`TData::save`] would before writing:
+/// [`Error::SaveFailed`] for a folder without accounts or with an account
+/// whose map encodes to nothing, [`Error::QDataStreamFailed`] when a blob
+/// does not fit a `u32` length.
+pub fn draw_plan(operation: DrawOperation<'_>) -> Result<Vec<usize>> {
+    match operation {
+        DrawOperation::New {
+            has_passcode,
+            performance_mode,
+        } => {
+            if performance_mode && !has_passcode {
+                return Ok(Vec::new());
+            }
+            let mut draws = vec![AuthKey::SIZE, LOCAL_ENCRYPT_SALT_SIZE];
+            draws.extend(key_data::install_draws(has_passcode));
+            Ok(draws)
+        }
+        DrawOperation::Migrate(tdata) => Ok(tdata.migration_draws()),
+        DrawOperation::Save(tdata) => {
+            if tdata.accounts.is_empty() {
+                return Err(Error::SaveFailed);
+            }
+            let mut draws = tdata.migration_draws();
+            let mut padding = |len: usize| {
+                let padding = crypto::local_padding_len(len);
+                // `encrypt` draws nothing for a zero padding.
+                if padding > 0 {
+                    draws.push(padding);
+                }
+            };
+            for account in &tdata.accounts {
+                for plaintext in account.write_plaintexts(tdata.performance_mode)? {
+                    padding(plaintext.len());
+                }
+            }
+            padding(tdata.accounts_info().encode()?.len());
+            Ok(draws)
+        }
+    }
+}
+
+impl TData {
+    /// The draws [`TData::migrate`] makes, which [`TData::save`] makes first
+    /// for a legacy key file.
+    fn migration_draws(&self) -> Vec<usize> {
+        if self.key_data.trailer.is_some() {
+            Vec::new()
+        } else {
+            key_data::install_draws(!self.passcode.0.is_empty())
+        }
+    }
+
+    /// The accounts info [`TData::save`] encrypts into the key file.
+    fn accounts_info(&self) -> AccountsInfo {
+        AccountsInfo {
+            indices: self.accounts.iter().map(|account| account.index).collect(),
+            active_index: self.active_index,
+        }
     }
 }

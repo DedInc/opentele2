@@ -405,6 +405,51 @@ fn sessions_table_without_rows_is_the_header() {
     assert_eq!(SESSION_COLUMNS[0], " ");
 }
 
+/// 1.5.0 `PrettyTable(table, addSplit)` (`src/utils.py`) on each table,
+/// captured by running it with `python -c`.
+#[test]
+fn format_table_matches_1_5_0_pretty_table() {
+    assert_eq!(
+        auth::format_table(&["a", "bb"], &[["1", "x"], ["long value", ""]], &[]),
+        "|------------+----|\n|     a      | bb |\n|------------+----|\n\
+         |     1      | x  |\n| long value |    |\n|------------+----|"
+    );
+    assert_eq!(
+        auth::format_table(
+            &["Name", "#"],
+            &[["ok", "✔"], ["Ünïcødé", "12"], ["", "3"]],
+            &[0, 2]
+        ),
+        "|---------+----|\n|  Name   | #  |\n|---------+----|\n|---------+----|\n\
+         |   ok    | ✔  |\n| Ünïcødé | 12 |\n|---------+----|\n|         | 3  |\n\
+         |---------+----|"
+    );
+    assert_eq!(
+        auth::format_table(&["Header longer"], &[["x"]], &[1, 5]),
+        "|---------------|\n| Header longer |\n|---------------|\n|       x       |\n\
+         |---------------|"
+    );
+    let owned = vec![
+        vec!["even".to_owned(), "odd".to_owned()],
+        vec!["ab".to_owned(), "abc".to_owned()],
+    ];
+    assert_eq!(
+        auth::format_table(&["x".to_owned(), "y".to_owned()], &owned, &[1, 1]),
+        "|------+-----|\n|  x   |  y  |\n|------+-----|\n| even | odd |\n\
+         |------+-----|\n|  ab  | abc |\n|------+-----|"
+    );
+}
+
+#[test]
+fn format_table_pads_short_rows_and_drops_extra_cells() {
+    let rows: [&[&str]; 2] = [&["only"], &["a", "b", "ignored"]];
+    assert_eq!(
+        auth::format_table(&["h1", "h2"], &rows, &[]),
+        "|------+----|\n|  h1  | h2 |\n|------+----|\n| only |    |\n\
+         |  a   | b  |\n|------+----|"
+    );
+}
+
 #[test]
 fn session_admin_messages_are_1_5_0s() {
     assert_eq!(

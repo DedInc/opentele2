@@ -203,17 +203,17 @@ impl<'a> Stream<'a> {
     fn qstring(&mut self) -> Result<String> {
         let (units, rest) = self.block().as_chunks::<2>();
         if !rest.is_empty() {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         char::decode_utf16(units.iter().map(|&unit| u16::from_be_bytes(unit)))
             .collect::<std::result::Result<String, _>>()
-            .map_err(|_| Error::QDataStreamFailed)
+            .map_err(|_| Error::QDataStreamFailed { context: None })
     }
 
     /// `ExpectStreamStatus`.
     const fn status(&self) -> Result<()> {
         if self.failed {
-            Err(Error::QDataStreamFailed)
+            Err(Error::QDataStreamFailed { context: None })
         } else {
             Ok(())
         }
@@ -222,7 +222,7 @@ impl<'a> Stream<'a> {
 
 /// `n` as the `i32` length prefix 1.5.0 writes.
 fn len_i32(n: usize) -> Result<i32> {
-    i32::try_from(n).map_err(|_| Error::QDataStreamFailed)
+    i32::try_from(n).map_err(|_| Error::QDataStreamFailed { context: None })
 }
 
 /// One DC endpoint (`MTP.DcOptions.Endpoint`).

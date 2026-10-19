@@ -201,7 +201,7 @@ fn tdf_parse_rejects_corrupt_files() {
     bad_magic[3] = b'#';
     assert!(matches!(
         TdfFile::parse(&bad_magic),
-        Err(Error::InvalidMagic)
+        Err(Error::InvalidMagic { .. })
     ));
     assert_eq!(
         TdfFile::parse(&bad_magic).unwrap_err().code(),
@@ -262,7 +262,10 @@ fn tdf_read_tries_suffixes_in_order() {
         payload: b"fallback".to_vec(),
     };
 
-    assert!(matches!(tdf::read(&dir, "map"), Err(Error::FileNotFound)));
+    assert!(matches!(
+        tdf::read(&dir, "map"),
+        Err(Error::FileNotFound { .. })
+    ));
     assert_eq!(
         tdf::read(&dir, "map").unwrap_err().code(),
         "TFILE_NOT_FOUND"

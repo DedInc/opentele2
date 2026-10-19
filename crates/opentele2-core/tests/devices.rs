@@ -470,3 +470,166 @@ fn web_catalog_rejects_uncited_or_broken_entries() {
         assert_eq!(error.code(), "IO", "{to}");
     }
 }
+
+/// SHA-1 hex of `lines`, each followed by `\n`.
+fn lines_digest<'a>(lines: impl Iterator<Item = String> + 'a) -> String {
+    use sha1::{Digest, Sha1};
+    let mut hasher = Sha1::new();
+    for line in lines {
+        hasher.update(line.as_bytes());
+        hasher.update(b"\n");
+    }
+    hex::encode(hasher.finalize())
+}
+
+/// The owned entries list 1.5.0 `cls.deviceList` pair by pair: the
+/// expected digests are of `itertools.groupby` runs of `(model, version)`
+/// over the expanded list, one `model\tversion\tcount` line per run,
+/// captured by running 1.5.0 after `cls.__gen__()`.
+#[test]
+fn catalog_entries_list_the_1_5_0_device_lists() -> Result<()> {
+    let expected = [
+        (
+            Platform::Windows,
+            232,
+            "ad3775a3cc0e8a0a305aac31af80c3f5be39fb89",
+        ),
+        (
+            Platform::Linux,
+            3944,
+            "d5f46c6619554458fa5b51b4f3a131086f1fbd86",
+        ),
+        (
+            Platform::MacOS { swift: false },
+            1349,
+            "ba1531aa74ba005ed87bd4e69fce7a8bf746a368",
+        ),
+        (
+            Platform::MacOS { swift: true },
+            1349,
+            "ba1531aa74ba005ed87bd4e69fce7a8bf746a368",
+        ),
+        (
+            Platform::Android,
+            6850,
+            "3e20af265f8b392de686676d135c80cfa1fe0570",
+        ),
+        (
+            Platform::Ios,
+            1166,
+            "77c5f221cd8683c02ba0f0a451c427029cab7740",
+        ),
+    ];
+    for (platform, runs, digest) in expected {
+        let entries = devices::catalog_entries(platform)?;
+        let mut merged: Vec<(String, String, u64)> = Vec::new();
+        for entry in entries {
+            match merged.last_mut() {
+                Some((model, version, weight))
+                    if *model == entry.model && *version == entry.system_version =>
+                {
+                    *weight += entry.weight;
+                }
+                _ => merged.push((entry.model, entry.system_version, entry.weight)),
+            }
+        }
+        assert_eq!(merged.len(), runs, "{platform:?}");
+        let lines = merged
+            .iter()
+            .map(|(model, version, weight)| format!("{model}\t{version}\t{weight}"));
+        assert_eq!(lines_digest(lines), digest, "{platform:?}");
+    }
+    Ok(())
+}
+
+/// `device_models` and `system_versions` of 1.5.0's `WindowsDevice`,
+/// `LinuxDevice`, `macOSDevice` and `IOSDevice` after `__gen__()`, as the
+/// SHA-1 of their lines, captured by running 1.5.0.
+#[test]
+fn catalog_lists_match_1_5_0_models_and_versions() -> Result<()> {
+    let expected = [
+        (
+            Platform::Windows,
+            (116, "5c52da02e390eac9e3753d929c3360cfabbc705a"),
+            (2, "e6bb592d547ca159c19720732b2b5cbfd6adb4ba"),
+        ),
+        (
+            Platform::Linux,
+            (116, "5c52da02e390eac9e3753d929c3360cfabbc705a"),
+            (34, "f248aeedf61275d7a4b90fcc3ec72d873d5eaac7"),
+        ),
+        (
+            Platform::MacOS { swift: false },
+            (36, "f4da4ee944ec827dbef2c3a4d60c58d318355fe3"),
+            (42, "da876c68c841a5aaa2e37e32e847122642a3c28f"),
+        ),
+        (
+            Platform::Ios,
+            (33, "4e9dfe139b2110fdaa14f269b0d8a723793885be"),
+            (46, "2c94f86b38782cc48e1d171fe82134039ed3efbd"),
+        ),
+    ];
+    for (platform, (model_count, models), (version_count, versions)) in expected {
+        let catalog = devices::catalog(platform)?;
+        assert_eq!(catalog.device_models().len(), model_count, "{platform:?}");
+        assert_eq!(
+            lines_digest(catalog.device_models().iter().cloned()),
+            models,
+            "{platform:?}"
+        );
+        assert_eq!(
+            catalog.system_versions().len(),
+            version_count,
+            "{platform:?}"
+        );
+        assert_eq!(
+            lines_digest(catalog.system_versions().iter().cloned()),
+            versions,
+            "{platform:?}"
+        );
+    }
+    let android = devices::catalog(Platform::Android)?;
+    let sdks: Vec<String> = (29..=37).map(|sdk| format!("SDK {sdk}")).collect();
+    assert_eq!(android.system_versions(), sdks.as_slice());
+    Ok(())
+}
+
+#[test]
+fn web_catalog_entries_are_listed_for_both_clients() -> Result<()> {
+    for platform in [WEB_A, WEB_K] {
+        let catalog = devices::catalog(platform)?;
+        let entries = devices::catalog_entries(platform)?;
+        assert_eq!(entries.len(), catalog.len());
+        for (owned, borrowed) in entries.iter().zip(catalog.entries()) {
+            assert_eq!(owned.model, borrowed.model);
+            assert_eq!(owned.system_version, borrowed.system_version);
+            assert_eq!(owned.weight, borrowed.weight);
+        }
+        let models: HashSet<&str> = catalog.device_models().iter().map(String::as_str).collect();
+        assert!(
+            entries
+                .iter()
+                .all(|entry| models.contains(entry.model.as_str()))
+        );
+    }
+    let a = devices::catalog_entries(WEB_A)?;
+    let k = devices::catalog_entries(WEB_K)?;
+    let pairs = |entries: &[devices::CatalogEntry]| {
+        entries
+            .iter()
+            .map(|entry| (entry.model.clone(), entry.weight))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(pairs(&a), pairs(&k));
+    Ok(())
+}
+
+/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, captured by running it:
+/// `{'chrome': 19, 'edge': 2, 'firefox': 1}`.
+#[test]
+fn web_browser_weights_are_1_5_0s() {
+    assert_eq!(
+        devices::WEB_BROWSER_WEIGHTS,
+        [("chrome", 19), ("edge", 2), ("firefox", 1)]
+    );
+}

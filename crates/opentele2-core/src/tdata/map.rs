@@ -13,7 +13,10 @@ use std::path::Path;
 use crate::crypto::{self, AuthKey};
 use crate::qt::{QReader, QWriter};
 use crate::tdata::{APP_VERSION, FillRandom, encrypt, write_tdf};
-use crate::{Error, Result, tdf};
+use crate::{Error, MapReadFailure, Result, tdf};
+
+/// The 1.5.0 message of a `maps` file whose three arrays are cut short.
+const MAP_STREAM_FAILED: &str = "Could not stream data from mapData";
 
 /// Name of the map file inside an account folder; on disk `maps`.
 pub const MAP_FILE: &str = "map";
@@ -157,13 +160,24 @@ impl MapData {
     /// - [`Error::QDataStreamFailed`] when the three arrays or an entry are
     ///   cut short.
     pub fn read(dir: impl AsRef<Path>, local_key: &AuthKey) -> Result<Self> {
-        let file = tdf::read(dir, MAP_FILE).map_err(|_| Error::ReadMapDataFailed)?;
+        let file = tdf::read(dir, MAP_FILE).map_err(|_| Error::ReadMapDataFailed {
+            context: MapReadFailure::Open,
+        })?;
         let mut reader = QReader::new(&file.payload);
-        let legacy_salt = reader.read_bytearray()?.map(<[u8]>::to_vec);
-        let legacy_key_encrypted = reader.read_bytearray()?.map(<[u8]>::to_vec);
-        let encrypted = reader.read_bytearray()?.unwrap_or_default();
+        let mut array = || {
+            reader
+                .read_bytearray()
+                .map_err(|_| Error::QDataStreamFailed {
+                    context: Some(MAP_STREAM_FAILED),
+                })
+        };
+        let legacy_salt = array()?.map(<[u8]>::to_vec);
+        let legacy_key_encrypted = array()?.map(<[u8]>::to_vec);
+        let encrypted = array()?.unwrap_or_default();
         let map =
-            crypto::decrypt_local(encrypted, local_key).map_err(|_| Error::ReadMapDataFailed)?;
+            crypto::decrypt_local(encrypted, local_key).map_err(|_| Error::ReadMapDataFailed {
+                context: MapReadFailure::Decrypt,
+            })?;
         let (entries, stopped_at) = Self::parse_entries(&map)?;
         Ok(Self {
             version: file.version,
@@ -228,16 +242,23 @@ impl MapData {
         local_key: &AuthKey,
         rng: &mut FillRandom<'_>,
     ) -> Result<()> {
-        let entries = self.encode_entries()?;
-        if entries.is_empty() {
-            // 1.5.0 builds no buffer for an empty map and fails to encrypt.
-            return Err(Error::SaveFailed);
-        }
+        let entries = self.plaintext()?;
         let mut payload = QWriter::new();
         payload.write_bytearray(None)?;
         payload.write_bytearray(None)?;
         payload.write_bytearray(Some(&encrypt(&entries, local_key, rng)?))?;
         write_tdf(dir, MAP_FILE, payload.into_bytes())
+    }
+
+    /// The bytes [`MapData::write`] encrypts: [`MapData::encode_entries`],
+    /// refused with [`Error::SaveFailed`] when empty.
+    pub(crate) fn plaintext(&self) -> Result<Vec<u8>> {
+        let entries = self.encode_entries()?;
+        if entries.is_empty() {
+            // 1.5.0 builds no buffer for an empty map and fails to encrypt.
+            return Err(Error::SaveFailed);
+        }
+        Ok(entries)
     }
 }
 
@@ -351,7 +372,8 @@ impl PeerMap {
         if self.pairs.is_empty() {
             return Ok(());
         }
-        let count = u32::try_from(self.pairs.len()).map_err(|_| Error::QDataStreamFailed)?;
+        let count = u32::try_from(self.pairs.len())
+            .map_err(|_| Error::QDataStreamFailed { context: None })?;
         writer.write_u32(kind);
         writer.write_u32(count);
         for &(peer, file_key) in &self.pairs {
@@ -464,7 +486,8 @@ impl<'a> MapState<'a> {
             self.encode_keys(&mut writer, kind);
         }
         if !self.wallet.is_empty() {
-            let count = u32::try_from(self.wallet.len()).map_err(|_| Error::QDataStreamFailed)?;
+            let count = u32::try_from(self.wallet.len())
+                .map_err(|_| Error::QDataStreamFailed { context: None })?;
             writer.write_u32(LSK_WALLET_ENGINE_STORAGES);
             writer.write_u32(count);
             for (&name, &file_key) in &self.wallet {

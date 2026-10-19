@@ -105,7 +105,7 @@ impl<'a> Cursor<'a> {
 
     fn take(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.rest.len() < len {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         let (head, tail) = self.rest.split_at(len);
         self.rest = tail;
@@ -126,7 +126,7 @@ impl<'a> Cursor<'a> {
         if self.rest.is_empty() {
             Ok(())
         } else {
-            Err(Error::QDataStreamFailed)
+            Err(Error::QDataStreamFailed { context: None })
         }
     }
 }
@@ -213,10 +213,10 @@ pub mod telethon {
         pub fn decode(string: &str) -> Result<Self> {
             let body = string
                 .strip_prefix(VERSION)
-                .ok_or(Error::QDataStreamFailed)?;
+                .ok_or(Error::QDataStreamFailed { context: None })?;
             let bytes = URL_SAFE_PAD_INDIFFERENT
                 .decode(body)
-                .map_err(|_| Error::QDataStreamFailed)?;
+                .map_err(|_| Error::QDataStreamFailed { context: None })?;
             let ipv6 = match bytes.len() {
                 IPV4_LEN => false,
                 IPV6_LEN => true,
@@ -369,12 +369,12 @@ pub mod mtcute {
             if !matches!(version, 1 | DC_OPTION_VERSION)
                 || flags & !(DC_IPV6 | DC_MEDIA_ONLY | DC_TEST_MODE) != 0
             {
-                return Err(Error::QDataStreamFailed);
+                return Err(Error::QDataStreamFailed { context: None });
             }
             let ip = String::from_utf8(read_bytes(&mut cursor)?.to_vec())
-                .map_err(|_| Error::QDataStreamFailed)?;
+                .map_err(|_| Error::QDataStreamFailed { context: None })?;
             let port = u16::try_from(i32::from_le_bytes(cursor.array()?))
-                .map_err(|_| Error::QDataStreamFailed)?;
+                .map_err(|_| Error::QDataStreamFailed { context: None })?;
             cursor.finish()?;
             let option = Self {
                 id,
@@ -467,14 +467,14 @@ pub mod mtcute {
         pub fn decode(string: &str) -> Result<Self> {
             let bytes = URL_SAFE_NO_PAD_INDIFFERENT
                 .decode(string)
-                .map_err(|_| Error::QDataStreamFailed)?;
+                .map_err(|_| Error::QDataStreamFailed { context: None })?;
             let mut cursor = Cursor::new(&bytes);
             if cursor.u8()? != VERSION {
-                return Err(Error::QDataStreamFailed);
+                return Err(Error::QDataStreamFailed { context: None });
             }
             let flags = i32::from_le_bytes(cursor.array()?);
             if flags & !(FLAG_SELF | FLAG_TEST_MODE_OLD | FLAG_MEDIA_DC) != 0 {
-                return Err(Error::QDataStreamFailed);
+                return Err(Error::QDataStreamFailed { context: None });
             }
             let (primary_dc, primary_test) = DcOption::parse(read_bytes(&mut cursor)?)?;
             let media = if flags & FLAG_MEDIA_DC == 0 {
@@ -487,7 +487,7 @@ pub mod mtcute {
             } else {
                 let media_test = media.as_ref().map_or(primary_test, |(_, test)| *test);
                 if media_test != primary_test {
-                    return Err(Error::QDataStreamFailed);
+                    return Err(Error::QDataStreamFailed { context: None });
                 }
                 primary_test
             };
@@ -496,12 +496,12 @@ pub mod mtcute {
             } else {
                 let user_id = u64::from_le_bytes(cursor.array()?);
                 if user_id > MAX_USER_ID {
-                    return Err(Error::QDataStreamFailed);
+                    return Err(Error::QDataStreamFailed { context: None });
                 }
                 let is_bot = match u32::from_le_bytes(cursor.array()?) {
                     BOOL_TRUE => true,
                     BOOL_FALSE => false,
-                    _ => return Err(Error::QDataStreamFailed),
+                    _ => return Err(Error::QDataStreamFailed { context: None }),
                 };
                 Some((user_id, is_bot))
             };
@@ -547,16 +547,16 @@ pub mod mtcute {
                 let [a, b, c] = cursor.array()?;
                 let len = usize::from(a) | usize::from(b) << 8 | usize::from(c) << 16;
                 if len <= 253 {
-                    return Err(Error::QDataStreamFailed);
+                    return Err(Error::QDataStreamFailed { context: None });
                 }
                 len
             }
-            255 => return Err(Error::QDataStreamFailed),
+            255 => return Err(Error::QDataStreamFailed { context: None }),
             len => usize::from(len),
         };
         let data = cursor.take(len)?;
         if cursor.take(padding(len))?.iter().any(|&b| b != 0) {
-            return Err(Error::QDataStreamFailed);
+            return Err(Error::QDataStreamFailed { context: None });
         }
         Ok(data)
     }

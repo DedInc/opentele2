@@ -249,7 +249,9 @@ pub fn encrypt_local_random(data: &[u8], local_key: &AuthKey) -> Result<Vec<u8>>
 pub fn decrypt_local(encrypted: &[u8], local_key: &AuthKey) -> Result<Vec<u8>> {
     let encrypted_size = encrypted.len();
     if encrypted_size <= AES_BLOCK_SIZE || !encrypted_size.is_multiple_of(AES_BLOCK_SIZE) {
-        return Err(Error::BadEncryptedDataSize);
+        return Err(Error::BadEncryptedDataSize {
+            size: encrypted_size,
+        });
     }
 
     let mut msg_key = [0u8; MSG_KEY_SIZE];
@@ -263,15 +265,21 @@ pub fn decrypt_local(encrypted: &[u8], local_key: &AuthKey) -> Result<Vec<u8>> {
     }
 
     let full_len = encrypted_size - MSG_KEY_SIZE;
+    let bad_size = Error::BadDecryptedDataSize {
+        encrypted_size,
+        full_len,
+        decrypted_size: decrypted.len(),
+    };
     let mut header = [0u8; LENGTH_HEADER_SIZE];
     header.copy_from_slice(&decrypted[..LENGTH_HEADER_SIZE]);
-    let data_len =
-        usize::try_from(u32::from_le_bytes(header)).map_err(|_| Error::BadDecryptedDataSize)?;
+    let Ok(data_len) = usize::try_from(u32::from_le_bytes(header)) else {
+        return Err(bad_size);
+    };
     if data_len > decrypted.len()
         || data_len <= full_len - AES_BLOCK_SIZE
         || data_len < LENGTH_HEADER_SIZE
     {
-        return Err(Error::BadDecryptedDataSize);
+        return Err(bad_size);
     }
 
     decrypted.truncate(data_len);

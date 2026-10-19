@@ -33,4 +33,4 @@ pub mod session;
 pub mod tdata;
 pub mod tdf;
 
-pub use error::{Error, Result};
+pub use error::{Error, MagicContext, MapReadFailure, Result};

@@ -22,7 +22,9 @@ use opentele2_core::tdata::map::{
     LSK_BOT_STORAGES, LSK_DRAFT, LSK_USER_SETTINGS, LSK_WALLET_ENGINE_STORAGES, LSK_WEBVIEW_TOKENS,
     MapData, MapEntry, NEW_ACCOUNT_SETTINGS_KEY,
 };
-use opentele2_core::tdata::{APP_VERSION, NEW_FOLDER_ACTIVE_INDEX, TData};
+use opentele2_core::tdata::{
+    APP_VERSION, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData, draw_plan,
+};
 use serde_json::Value;
 
 fn vectors_dir() -> PathBuf {
@@ -79,6 +81,22 @@ impl Replay {
     fn finish(&self) {
         assert_eq!(self.next, self.draws.len(), "recorded draws left unused");
     }
+}
+
+/// The sizes of the draws 1.5.0 recorded for `entry`, after the first
+/// `skip`.
+fn recorded_sizes(entry: &Value, skip: usize) -> Vec<usize> {
+    entry["rng_draws"]
+        .as_array()
+        .expect("rng_draws")
+        .iter()
+        .skip(skip)
+        .map(|d| d.as_str().expect("draw hex").len() / 2)
+        .collect()
+}
+
+fn plan(operation: DrawOperation<'_>) -> Vec<usize> {
+    draw_plan(operation).expect("draw plan")
 }
 
 /// Every file under `dir`, relative and with `/` separators, sorted.
@@ -206,9 +224,16 @@ fn check_folder(folder: &str) {
 
     let mut replay = Replay::new(&entry, 0);
     let mut rng = |buf: &mut [u8]| replay.fill(buf);
+    let mut planned = plan(DrawOperation::New {
+        has_passcode: !passcode.is_empty(),
+        performance_mode: performance,
+    });
+    assert_eq!(planned.len(), key_generation_draws(&entry), "{folder} new");
     let tdata = TData::new(accounts_of(&entry), passcode, performance, &mut rng).expect("new");
     assert_eq!(tdata.active_index, NEW_FOLDER_ACTIVE_INDEX);
     assert_eq!(tdata.app_version, APP_VERSION);
+    planned.extend(plan(DrawOperation::Save(&tdata)));
+    assert_eq!(planned, recorded_sizes(&entry, 0), "{folder} draw plan");
     let written = scratch("new");
     tdata.save(&written, &mut rng).expect("save");
     replay.finish();
@@ -230,6 +255,12 @@ fn check_folder(folder: &str) {
     // only the padding draws after key generation are made.
     let mut vector = TData::load(vectors_dir().join(folder), passcode, None).expect("load vector");
     vector.performance_mode = performance;
+    assert_eq!(plan(DrawOperation::Migrate(&vector)), Vec::<usize>::new());
+    assert_eq!(
+        plan(DrawOperation::Save(&vector)),
+        recorded_sizes(&entry, key_generation_draws(&entry)),
+        "{folder} re-save draw plan"
+    );
     let mut replay = Replay::new(&entry, key_generation_draws(&entry));
     let resaved = scratch("resave");
     vector
@@ -306,6 +337,10 @@ fn save_refuses_what_1_5_0_cannot_write() {
         empty.save(scratch("empty"), &mut no_draw),
         Err(Error::SaveFailed)
     ));
+    assert!(matches!(
+        draw_plan(DrawOperation::Save(&empty)),
+        Err(Error::SaveFailed)
+    ));
 
     let mut no_map = tdata.clone();
     no_map.accounts[0].map = MapData::default();
@@ -313,6 +348,54 @@ fn save_refuses_what_1_5_0_cannot_write() {
         no_map.save(scratch("nomap"), &mut no_draw),
         Err(Error::SaveFailed)
     ));
+    assert!(matches!(
+        draw_plan(DrawOperation::Save(&no_map)),
+        Err(Error::SaveFailed)
+    ));
+}
+
+/// The plan of a save is what the save draws, also for folders the
+/// vectors do not cover: added accounts and performance mode off.
+#[test]
+fn draw_plan_matches_the_draws_of_a_save() {
+    let entry = folder_entry("tdata_plain/performance_on");
+    let mut no_draw = |_: &mut [u8]| {};
+    let mut tdata = TData::new(accounts_of(&entry), b"", true, &mut no_draw).expect("new");
+    tdata
+        .add_account(7, 4, AuthKey::new([3; AuthKey::SIZE]))
+        .expect("add account");
+    for performance_mode in [true, false] {
+        tdata.performance_mode = performance_mode;
+        let mut sizes = Vec::new();
+        let written = scratch("plan");
+        tdata
+            .save(&written, &mut |buf| sizes.push(buf.len()))
+            .expect("save");
+        fs::remove_dir_all(&written).expect("clean scratch");
+        assert_eq!(plan(DrawOperation::Save(&tdata)), sizes);
+        assert!(sizes.iter().all(|&size| size > 0));
+    }
+    assert_eq!(
+        plan(DrawOperation::New {
+            has_passcode: false,
+            performance_mode: true
+        }),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        plan(DrawOperation::New {
+            has_passcode: true,
+            performance_mode: true
+        }),
+        [256, 32, 32, 32, 12]
+    );
+    assert_eq!(
+        plan(DrawOperation::New {
+            has_passcode: false,
+            performance_mode: false
+        }),
+        [256, 32, 32, 12]
+    );
 }
 
 /// Loads the pre-7.3 vector `tdata_legacy/<name>`, saves it while the draws
@@ -337,6 +420,11 @@ fn check_legacy_migration(name: &str) {
         "{source} main account"
     );
     assert_same_accounts(&source, &legacy, &accounts, false);
+    assert_eq!(
+        plan(DrawOperation::Save(&legacy)),
+        recorded_sizes(&saved_entry, 0),
+        "{source} migrating save draw plan"
+    );
 
     let mut replay = Replay::new(&saved_entry, 0);
     let written = scratch("legacy");
@@ -407,6 +495,7 @@ fn check_migrate_then_save_twice(name: &str) {
     let mut tdata = TData::load(vectors_dir().join(&source), passcode, None).expect("load legacy");
     let local_key = tdata.local_key.as_bytes().to_vec();
 
+    let planned = plan(DrawOperation::Migrate(&tdata));
     let mut replay = Replay::new(&saved_entry, 0);
     assert!(
         tdata.migrate(&mut |buf| replay.fill(buf)).expect("migrate"),
@@ -414,6 +503,17 @@ fn check_migrate_then_save_twice(name: &str) {
     );
     let migration_draws = replay.next;
     assert!(migration_draws > 0, "{source} migration draws");
+    assert_eq!(
+        planned,
+        recorded_sizes(&saved_entry, 0)[..migration_draws],
+        "{source} migration draw plan"
+    );
+    assert_eq!(plan(DrawOperation::Migrate(&tdata)), Vec::<usize>::new());
+    assert_eq!(
+        plan(DrawOperation::Save(&tdata)),
+        recorded_sizes(&saved_entry, migration_draws),
+        "{source} save after migration draw plan"
+    );
     assert!(
         tdata.key_data.trailer.is_some(),
         "{source} has a trailer now"
@@ -944,7 +1044,7 @@ fn renamed_key_file_writes_the_1_5_0_names() {
     assert_same_accounts(folder, &loaded, &tdata.accounts, true);
     assert!(matches!(
         TData::load(&written, b"", None),
-        Err(Error::FileNotFound | Error::Io(_))
+        Err(Error::FileNotFound { .. } | Error::Io(_))
     ));
     fs::remove_dir_all(&written).expect("clean scratch");
 

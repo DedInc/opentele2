@@ -100,6 +100,24 @@ pub struct WeightedDevice<'a> {
     pub weight: u64,
 }
 
+/// An owned [`WeightedDevice`]: one entry of [`catalog_entries`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CatalogEntry {
+    /// The device model.
+    pub model: String,
+    /// The system version as stored in the catalog; Mac versions are bare,
+    /// as in 1.5.0 `macOSDevice.deviceList`.
+    pub system_version: String,
+    /// How many times the pair occurs in 1.5.0's expanded list; never zero.
+    pub weight: u64,
+}
+
+/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`: the share 1.5.0 gave each
+/// browserforge browser, in its order. The web catalog weighs its user
+/// agents by the shares `web.json` cites instead; these are kept for
+/// bindings that expose the 1.5.0 attribute.
+pub const WEB_BROWSER_WEIGHTS: [(&str, u64); 3] = [("chrome", 19), ("edge", 2), ("firefox", 1)];
+
 #[derive(Debug)]
 struct Slot {
     model: usize,
@@ -180,6 +198,35 @@ impl Catalog {
     /// The weighted pairs in 1.5.0's list order.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = WeightedDevice<'_>> + '_ {
         self.slots.iter().map(|slot| self.view(slot))
+    }
+
+    /// The weighted pairs in 1.5.0's list order, owned, for bindings.
+    #[must_use]
+    pub fn to_entries(&self) -> Vec<CatalogEntry> {
+        self.entries()
+            .map(|entry| CatalogEntry {
+                model: entry.model.to_owned(),
+                system_version: entry.system_version.to_owned(),
+                weight: entry.weight,
+            })
+            .collect()
+    }
+
+    /// The catalog's models in file order, before any pair is weighted or
+    /// filtered: 1.5.0 `device_models` of the desktop, Mac and iOS classes
+    /// (1.5.0's `AndroidDevice` keeps that list empty). Desktop models are
+    /// already cleaned, which leaves every embedded one unchanged.
+    #[must_use]
+    pub fn device_models(&self) -> &[String] {
+        &self.models
+    }
+
+    /// The catalog's system versions in file order: 1.5.0 `system_versions`
+    /// of the desktop, Mac and iOS classes; `SDK 29` to `SDK 37` for
+    /// Android, and the client's platform strings for the web.
+    #[must_use]
+    pub fn system_versions(&self) -> &[String] {
+        &self.versions
     }
 
     fn view(&self, slot: &Slot) -> WeightedDevice<'_> {
@@ -310,6 +357,16 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
     built
         .as_ref()
         .map_err(|message| catalog_error(message.clone()))
+}
+
+/// The weighted pairs of `platform`'s [`catalog`], owned, in 1.5.0's list
+/// order; the [`Platform::Web`] catalogs included.
+///
+/// # Errors
+///
+/// As [`catalog`].
+pub fn catalog_entries(platform: Platform) -> Result<Vec<CatalogEntry>> {
+    Ok(catalog(platform)?.to_entries())
 }
 
 /// The web catalog of `client` built from the text of a `web.json`; the

@@ -545,3 +545,157 @@ fn unseeded_generate_keeps_the_profile_fields() -> Result<()> {
     }
     Ok(())
 }
+
+/// 1.5.0 `format_app_version` (`src/utils.py`) of each version, captured by
+/// running it.
+#[test]
+fn format_app_version_matches_1_5_0() {
+    let cases = [
+        (7_003_001, "7.3.1"),
+        (7_003_000, "7.3"),
+        (1_000_000, "1.0"),
+        (0, "0.0"),
+        (12_345_678, "12.345.678"),
+        (u32::MAX, "4294.967.295"),
+        (1_002_003, "1.2.3"),
+    ];
+    for (version, expected) in cases {
+        assert_eq!(api::format_app_version(version), expected, "{version}");
+    }
+    assert_eq!(
+        api::format_app_version(opentele2_core::tdata::APP_VERSION),
+        Versions::offline().desktop_app_version
+    );
+}
+
+/// 1.5.0 `TDF_MAGIC` is `b'TDF$'`.
+#[test]
+fn tdf_magic_is_exported_next_to_the_app_version() {
+    assert_eq!(opentele2_core::tdata::TDF_MAGIC, *b"TDF$");
+    assert_eq!(opentele2_core::tdata::TDF_MAGIC, opentele2_core::tdf::MAGIC);
+}
+
+fn object(text: &str) -> serde_json::Map<String, Value> {
+    match serde_json::from_str(text).expect("JSON object") {
+        Value::Object(map) => map,
+        other => panic!("not an object: {other}"),
+    }
+}
+
+/// The same keys, in the same order, with the same values.
+fn assert_same_object(ours: &serde_json::Map<String, Value>, expected: &str) {
+    let expected = object(expected);
+    let keys = |map: &serde_json::Map<String, Value>| map.keys().cloned().collect::<Vec<_>>();
+    assert_eq!(keys(ours), keys(&expected));
+    assert_eq!(ours, &expected);
+}
+
+/// `{attribute: getattr(APIData.from_json(data), attribute)}` in 1.5.0, for
+/// each `data`, captured by running it.
+#[test]
+fn untyped_session_json_read_matches_1_5_0() {
+    use api::session_json;
+    let cases = [
+        (
+            r#"{"app_id": 1, "app_hash": "h", "device": "D"}"#,
+            r#"{"api_id": 1, "api_hash": "h", "device_model": "D", "system_version": null, "app_version": null, "lang_code": "en", "system_lang_code": "en", "lang_pack": ""}"#,
+        ),
+        (
+            r#"{"app_id": "7", "app_hash": 5, "device": "D", "sdk": null, "lang_code": null, "system_lang_code": "", "system_lang_pack": "ru", "lang_pack": 3}"#,
+            r#"{"api_id": "7", "api_hash": 5, "device_model": "D", "system_version": null, "app_version": null, "lang_code": null, "system_lang_code": "ru", "lang_pack": 3}"#,
+        ),
+        (
+            r#"{"app_id": 1, "app_hash": "h", "device": "D", "system_lang_code": 0, "system_lang_pack": null}"#,
+            r#"{"api_id": 1, "api_hash": "h", "device_model": "D", "system_version": null, "app_version": null, "lang_code": "en", "system_lang_code": null, "lang_pack": ""}"#,
+        ),
+        (
+            r#"{"app_id": 1, "app_hash": "h", "device": "D", "system_lang_code": "de", "system_lang_pack": "ru"}"#,
+            r#"{"api_id": 1, "api_hash": "h", "device_model": "D", "system_version": null, "app_version": null, "lang_code": "en", "system_lang_code": "de", "lang_pack": ""}"#,
+        ),
+        (
+            r#"{"app_id": 1, "app_hash": "h", "device": "D", "system_lang_code": [], "app_version": [1, 2]}"#,
+            r#"{"api_id": 1, "api_hash": "h", "device_model": "D", "system_version": null, "app_version": [1, 2], "lang_code": "en", "system_lang_code": "en", "lang_pack": ""}"#,
+        ),
+    ];
+    for (data, expected) in cases {
+        assert_same_object(&session_json::read(&object(data)), expected);
+    }
+}
+
+/// `APIData(...).to_json(extra)` in 1.5.0, captured by running it.
+#[test]
+fn untyped_session_json_write_matches_1_5_0() {
+    use api::session_json;
+    let attributes = object(
+        r#"{"api_id": 9, "api_hash": "hh", "device_model": "M", "system_version": null, "app_version": "1.0", "lang_code": "en", "system_lang_code": "en-US", "lang_pack": ""}"#,
+    );
+    assert_same_object(
+        &session_json::write(&attributes, None),
+        r#"{"app_id": 9, "app_hash": "hh", "device": "M", "sdk": null, "app_version": "1.0", "system_lang_pack": "en-US", "system_lang_code": "en-US", "lang_pack": "", "lang_code": "en", "twoFA": null, "role": "", "id": null, "phone": null, "username": null, "date_of_birth": null, "date_of_birth_integrity": null, "is_premium": false, "has_profile_pic": false, "spamblock": null, "register_time": null, "last_check_time": null, "avatar": null, "first_name": "", "last_name": "", "sex": null, "proxy": null, "ipv6": false, "session_file": ""}"#,
+    );
+    let extra = object(r#"{"phone": "123", "zzz": 1, "app_id": 5, "role": null}"#);
+    assert_same_object(
+        &session_json::write(&attributes, Some(&extra)),
+        r#"{"app_id": 5, "app_hash": "hh", "device": "M", "sdk": null, "app_version": "1.0", "system_lang_pack": "en-US", "system_lang_code": "en-US", "lang_pack": "", "lang_code": "en", "twoFA": null, "role": null, "id": null, "phone": "123", "username": null, "date_of_birth": null, "date_of_birth_integrity": null, "is_premium": false, "has_profile_pic": false, "spamblock": null, "register_time": null, "last_check_time": null, "avatar": null, "first_name": "", "last_name": "", "sex": null, "proxy": null, "ipv6": false, "session_file": "", "zzz": 1}"#,
+    );
+    // An attribute the object lacks is written as null.
+    let partial = object(r#"{"api_id": 9}"#);
+    let written = session_json::write(&partial, None);
+    assert_eq!(written["app_id"], 9);
+    assert_eq!(written["device"], Value::Null);
+}
+
+/// `list(_DEFAULT_EXTRA_FIELDS.items())` of 1.5.0 `src/api.py`, and the
+/// field table against the keys `APIData.to_json` writes.
+#[test]
+fn session_json_tables_match_1_5_0() {
+    use api::session_json::{self, DEFAULT_EXTRA_FIELDS, FIELDS, JsonDefault};
+    let expected: Value = serde_json::from_str(
+        r#"[["twoFA", null], ["role", ""], ["id", null], ["phone", null], ["username", null], ["date_of_birth", null], ["date_of_birth_integrity", null], ["is_premium", false], ["has_profile_pic", false], ["spamblock", null], ["register_time", null], ["last_check_time", null], ["avatar", null], ["first_name", ""], ["last_name", ""], ["sex", null], ["proxy", null], ["ipv6", false], ["session_file", ""]]"#,
+    )
+    .expect("JSON");
+    let ours: Vec<Value> = DEFAULT_EXTRA_FIELDS
+        .iter()
+        .map(|(key, value)| Value::Array(vec![Value::from(*key), value.to_value()]))
+        .collect();
+    assert_eq!(Value::Array(ours), expected);
+
+    let keys: Vec<&str> = FIELDS.iter().map(|field| field.key).collect();
+    assert_eq!(
+        keys,
+        [
+            "app_id",
+            "app_hash",
+            "device",
+            "sdk",
+            "app_version",
+            "system_lang_pack",
+            "system_lang_code",
+            "lang_pack",
+            "lang_code"
+        ]
+    );
+    let fallbacks: Vec<_> = FIELDS
+        .iter()
+        .filter_map(|field| Some((field.key, field.fallback?)))
+        .collect();
+    assert_eq!(fallbacks, [("system_lang_code", "system_lang_pack")]);
+    assert_eq!(JsonDefault::Str("en").to_value(), Value::from("en"));
+
+    // The typed writer follows the same tables.
+    let profile = api::profile(Client::Desktop, &Versions::offline());
+    let typed = profile.to_session_json(None);
+    let typed_keys: Vec<&str> = typed
+        .as_object()
+        .expect("object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    let mut table_keys = keys.clone();
+    table_keys.extend(DEFAULT_EXTRA_FIELDS.iter().map(|(key, _)| *key));
+    assert_eq!(typed_keys, table_keys);
+    assert_eq!(
+        session_json::default_extra_fields().len(),
+        DEFAULT_EXTRA_FIELDS.len()
+    );
+}

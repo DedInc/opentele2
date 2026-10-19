@@ -258,11 +258,11 @@ fn account_read_reports_the_failing_file() {
     let wrong = AuthKey::new([7; AuthKey::SIZE]);
     assert!(matches!(
         Account::read(&dir, "data", 0, &wrong),
-        Err(Error::ReadMapDataFailed)
+        Err(Error::ReadMapDataFailed { .. })
     ));
     assert!(matches!(
         MapData::read(dir.join(&first), &wrong),
-        Err(Error::ReadMapDataFailed)
+        Err(Error::ReadMapDataFailed { .. })
     ));
     assert!(matches!(
         Account::read_mtp_authorization(&dir, "data", &wrong),
@@ -271,7 +271,7 @@ fn account_read_reports_the_failing_file() {
     fs::remove_file(dir.join(format!("{first}s"))).expect("remove mtp data");
     assert!(matches!(
         Account::read(&dir, "data", 0, key),
-        Err(Error::FileNotFound)
+        Err(Error::FileNotFound { .. })
     ));
     fs::remove_dir_all(&dir).expect("clean scratch");
 }
@@ -349,7 +349,7 @@ fn mtp_authorization_errors() {
         assert!(
             matches!(
                 Account::parse_mtp_authorization(0, &full[..cut]),
-                Err(Error::QDataStreamFailed)
+                Err(Error::QDataStreamFailed { .. })
             ),
             "cut at {cut}"
         );
@@ -360,7 +360,7 @@ fn mtp_authorization_errors() {
     forged.extend_from_slice(&i32::MAX.to_be_bytes());
     assert!(matches!(
         Account::parse_mtp_authorization(0, &forged),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
     // Negative counts read no key, so the main key is missing.
     let mut negative = forged.clone();
@@ -449,14 +449,14 @@ fn map_entries_accept_the_1_5_0_shapes() {
     // A known entry cut short fails the map.
     assert!(matches!(
         MapData::parse_entries(&known[..known.len() - 1]),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
     let mut forged = Vec::new();
     forged.extend_from_slice(&map::LSK_BOT_STORAGES.to_be_bytes());
     forged.extend_from_slice(&u32::MAX.to_be_bytes());
     assert!(matches!(
         MapData::parse_entries(&forged),
-        Err(Error::QDataStreamFailed)
+        Err(Error::QDataStreamFailed { .. })
     ));
     assert_eq!(map::file_key_count(0x00), None);
     assert_eq!(map::file_key_count(0x14), Some(2));

@@ -28,7 +28,14 @@ use crate::qt::{QReader, QWriter};
 use crate::tdata::map::MapData;
 use crate::tdata::mtp_config::{DcOptions, Environment, MtpConfig};
 use crate::tdata::{FillRandom, encrypt, hex_bytes, write_tdf};
-use crate::{Error, Result, tdf};
+use crate::{Error, MagicContext, Result, tdf};
+
+/// The 1.5.0 message of an `MtpAuthorization` blob cut short in its user id
+/// and main DC.
+const MTP_MAIN_FIELDS_FAILED: &str = "Could not read main fields from mtp authorization.";
+
+/// The 1.5.0 message of an `MtpAuthorization` blob cut short in a key count.
+const MTP_KEY_COUNT_FAILED: &str = "Could not read keys count from mtp authorization.";
 
 /// dbi block id of the `MtpAuthorization` blob in the MTP data.
 pub const DBI_MTP_AUTHORIZATION: u32 = 0x4B;
@@ -192,15 +199,33 @@ impl<'a> RawReader<'a> {
         let bytes = self
             .rest
             .get(..AuthKey::SIZE)
-            .ok_or(Error::QDataStreamFailed)?;
+            .ok_or(Error::QDataStreamFailed { context: None })?;
         self.rest = &self.rest[AuthKey::SIZE..];
         AuthKey::from_slice(bytes)
+    }
+
+    /// The user id and main DC of an `MtpAuthorization` blob.
+    ///
+    /// Without the wide-ids tag the first two `i32` are the user id and the
+    /// main DC; the tag test is tdesktop's
+    /// `(uint64(userId) << 32) | uint64(mainDc) == kWideIdsTag`, sign
+    /// extension included.
+    fn main_fields(&mut self) -> Result<(u64, i32)> {
+        let legacy_user = self.i32()?;
+        let legacy_dc = self.i32()?;
+        if (i64::from(legacy_user) << 32) | i64::from(legacy_dc) == WIDE_IDS_TAG {
+            Ok((self.with(QReader::read_u64)?, self.i32()?))
+        } else {
+            Ok((i64::from(legacy_user).cast_unsigned(), legacy_dc))
+        }
     }
 
     fn keys(&mut self) -> Result<Vec<(i32, AuthKey)>> {
         // A negative count reads no key, as in 1.5.0; the count is never
         // preallocated, so a forged one fails at the first short key.
-        let count = self.i32()?;
+        let count = self.i32().map_err(|_| Error::QDataStreamFailed {
+            context: Some(MTP_KEY_COUNT_FAILED),
+        })?;
         let mut keys = Vec::new();
         for _ in 0..count {
             let dc = self.i32()?;
@@ -231,7 +256,13 @@ impl<'a> MtpData<'a> {
         let mut reader = RawReader { rest: data };
         let mut out = Self::default();
         while !reader.rest.is_empty() {
-            match reader.with(QReader::read_u32)? {
+            let block_id =
+                reader
+                    .with(QReader::read_u32)
+                    .map_err(|_| Error::QDataStreamFailed {
+                        context: Some("Could not read a block id from MtpData"),
+                    })?;
+            match block_id {
                 DBI_MTP_AUTHORIZATION => {
                     out.authorization = reader.with(QReader::read_bytearray)?.unwrap_or_default();
                 }
@@ -275,7 +306,11 @@ impl<'a> MtpData<'a> {
                 | DBI_MEGAGROUP_SIZE_MAX_OLD => {
                     reader.i32()?;
                 }
-                _ => return Err(Error::InvalidMagic),
+                _ => {
+                    return Err(Error::InvalidMagic {
+                        context: MagicContext::MtpDataBlock { block_id },
+                    });
+                }
             }
         }
         Ok(out)
@@ -283,7 +318,8 @@ impl<'a> MtpData<'a> {
 }
 
 fn write_keys(out: &mut Vec<u8>, keys: &[(i32, AuthKey)]) -> Result<()> {
-    let count = i32::try_from(keys.len()).map_err(|_| Error::QDataStreamFailed)?;
+    let count =
+        i32::try_from(keys.len()).map_err(|_| Error::QDataStreamFailed { context: None })?;
     out.extend_from_slice(&count.to_be_bytes());
     for (dc, key) in keys {
         out.extend_from_slice(&dc.to_be_bytes());
@@ -351,14 +387,9 @@ impl Account {
     /// - [`Error::AuthKeyNotFound`] when no key belongs to the main DC.
     pub fn parse_mtp_authorization(index: i32, serialized: &[u8]) -> Result<Self> {
         let mut reader = RawReader { rest: serialized };
-        let legacy_user = reader.i32()?;
-        let legacy_dc = reader.i32()?;
-        let (user_id, main_dc) =
-            if (i64::from(legacy_user) << 32) | i64::from(legacy_dc) == WIDE_IDS_TAG {
-                (reader.with(QReader::read_u64)?, reader.i32()?)
-            } else {
-                (i64::from(legacy_user).cast_unsigned(), legacy_dc)
-            };
+        let (user_id, main_dc) = reader.main_fields().map_err(|_| Error::QDataStreamFailed {
+            context: Some(MTP_MAIN_FIELDS_FAILED),
+        })?;
         let keys = reader.keys()?;
         let keys_to_destroy = reader.keys()?;
         let account = Self {
@@ -419,12 +450,29 @@ impl Account {
         let folder = dir.join(&part);
         self.map.write(&folder, local_key, rng)?;
         if !performance_mode {
-            let config = self.config.as_deref().unwrap_or(&MTP_CONFIG_PRODUCTION);
-            let mut data = QWriter::new();
-            data.write_bytearray(Some(config))?;
-            write_encrypted(&folder, CONFIG_FILE, &data.into_bytes(), local_key, rng)?;
+            write_encrypted(&folder, CONFIG_FILE, &self.config_data()?, local_key, rng)?;
         }
         write_encrypted(dir, &part, &self.encode_mtp_data()?, local_key, rng)
+    }
+
+    /// The plaintexts [`Account::write`] encrypts, in its order: the map,
+    /// the config unless `performance_mode` is on, and the MTP data.
+    pub(crate) fn write_plaintexts(&self, performance_mode: bool) -> Result<Vec<Vec<u8>>> {
+        let mut out = vec![self.map.plaintext()?];
+        if !performance_mode {
+            out.push(self.config_data()?);
+        }
+        out.push(self.encode_mtp_data()?);
+        Ok(out)
+    }
+
+    /// The `configs` plaintext: the loaded config, or
+    /// [`MTP_CONFIG_PRODUCTION`], as one `QByteArray`.
+    fn config_data(&self) -> Result<Vec<u8>> {
+        let config = self.config.as_deref().unwrap_or(&MTP_CONFIG_PRODUCTION);
+        let mut data = QWriter::new();
+        data.write_bytearray(Some(config))?;
+        Ok(data.into_bytes())
     }
 
     /// The first key of the main DC (`_findMainAuthKey`).

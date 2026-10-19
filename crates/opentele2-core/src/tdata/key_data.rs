@@ -212,7 +212,8 @@ impl KeyDataTrailer {
     /// # Errors
     /// [`Error::QDataStreamFailed`] when a count or blob does not fit a `u32`.
     pub fn encode(&self) -> Result<Vec<u8>> {
-        let count = u32::try_from(self.wraps.len()).map_err(|_| Error::QDataStreamFailed)?;
+        let count = u32::try_from(self.wraps.len())
+            .map_err(|_| Error::QDataStreamFailed { context: None })?;
         let mut writer = QWriter::new();
         writer.write_u32(KEY_DATA_MAGIC);
         writer.write_u32(KEY_DATA_FORMAT_VERSION);
@@ -410,6 +411,17 @@ pub fn open_local_key(data: &KeyData, passcode: &[u8]) -> Result<OpenedKey> {
     opened(&wrap.key_encrypted, wrap_key)
 }
 
+/// The sizes [`install`] draws, in order: the open salt, the wrap salt when
+/// there is a passcode, and the wrap padding.
+pub(crate) fn install_draws(has_passcode: bool) -> Vec<usize> {
+    let padding = crypto::local_padding_len(AuthKey::SIZE);
+    if has_passcode {
+        vec![LOCAL_ENCRYPT_SALT_SIZE, LOCAL_ENCRYPT_SALT_SIZE, padding]
+    } else {
+        vec![LOCAL_ENCRYPT_SALT_SIZE, padding]
+    }
+}
+
 /// Wraps `local_key` in a fresh 7.3 key file (`TDesktop.__installKeyData`,
 /// `Domain::generateLocalKey`) and returns it with the wrap key.
 ///
@@ -510,7 +522,8 @@ impl AccountsInfo {
     /// # Errors
     /// [`Error::QDataStreamFailed`] when the count does not fit an `i32`.
     pub fn encode(&self) -> Result<Vec<u8>> {
-        let count = i32::try_from(self.indices.len()).map_err(|_| Error::QDataStreamFailed)?;
+        let count = i32::try_from(self.indices.len())
+            .map_err(|_| Error::QDataStreamFailed { context: None })?;
         let mut writer = QWriter::new();
         writer.write_i32(count);
         for &index in &self.indices {

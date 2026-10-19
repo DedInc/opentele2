@@ -46,7 +46,7 @@ impl<'a> QReader<'a> {
             .pos
             .checked_add(len)
             .filter(|&end| end <= self.data.len())
-            .ok_or(Error::QDataStreamFailed)?;
+            .ok_or(Error::QDataStreamFailed { context: None })?;
         let bytes = &self.data[self.pos..end];
         self.pos = end;
         Ok(bytes)
@@ -55,7 +55,9 @@ impl<'a> QReader<'a> {
     fn take_array<const N: usize>(&mut self) -> Result<[u8; N]> {
         let bytes = self.take(N)?;
         // `take` returned exactly N bytes, so the conversion cannot fail.
-        bytes.try_into().map_err(|_| Error::QDataStreamFailed)
+        bytes
+            .try_into()
+            .map_err(|_| Error::QDataStreamFailed { context: None })
     }
 
     /// Reads a big-endian `qint32`.
@@ -102,7 +104,7 @@ impl<'a> QReader<'a> {
             return Ok(None);
         }
         let block = usize::try_from(len)
-            .map_err(|_| Error::QDataStreamFailed)
+            .map_err(|_| Error::QDataStreamFailed { context: None })
             .and_then(|len| self.take(len));
         if block.is_err() {
             self.pos = start;
@@ -146,11 +148,11 @@ impl<'a> QReader<'a> {
 fn decode_utf16be(bytes: &[u8]) -> Result<String> {
     let (units, rest) = bytes.as_chunks::<2>();
     if !rest.is_empty() {
-        return Err(Error::QDataStreamFailed);
+        return Err(Error::QDataStreamFailed { context: None });
     }
     char::decode_utf16(units.iter().map(|&unit| u16::from_be_bytes(unit)))
         .collect::<std::result::Result<String, _>>()
-        .map_err(|_| Error::QDataStreamFailed)
+        .map_err(|_| Error::QDataStreamFailed { context: None })
 }
 
 /// Builder of a big-endian `QDataStream` byte buffer.
@@ -205,7 +207,7 @@ impl QWriter {
         let len = u32::try_from(len)
             .ok()
             .filter(|&len| len != NULL_LENGTH)
-            .ok_or(Error::QDataStreamFailed)?;
+            .ok_or(Error::QDataStreamFailed { context: None })?;
         self.write_u32(len);
         Ok(())
     }
@@ -242,7 +244,7 @@ impl QWriter {
             .encode_utf16()
             .count()
             .checked_mul(2)
-            .ok_or(Error::QDataStreamFailed)?;
+            .ok_or(Error::QDataStreamFailed { context: None })?;
         self.write_len(byte_len)?;
         self.buf.reserve(byte_len);
         for unit in text.encode_utf16() {
