@@ -1,5 +1,6 @@
-"""1.5.0 ``src/tl/configs.py``: the Telethon, API and exception names the
-Telethon integration works with, in one namespace."""
+"""1.5.0 ``src/tl/configs.py``: the Telethon, API, exception and 1.5.0
+``src/utils.py`` names the Telethon integration works with, in one
+namespace."""
 
 import asyncio
 from collections.abc import Callable
@@ -17,7 +18,16 @@ from telethon.sessions.memory import MemorySession
 from telethon.sessions.sqlite import SQLiteSession
 
 from .. import td
-from .._compat import BaseMetaClass, BaseObject, sharemethod
+from .._compat import (
+    APP_VERSION,
+    APP_VERSION_STR,
+    TDF_MAGIC,
+    BaseMetaClass,
+    BaseObject,
+    PrettyTable,
+    format_app_version,
+    sharemethod,
+)
 from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
 from ..exception import (
     AccountAuthKeyNotFound,
@@ -57,6 +67,9 @@ Type = type
 
 __all__ = [
     "API",
+    "APP_VERSION",
+    "APP_VERSION_STR",
+    "TDF_MAGIC",
     "TYPE_CHECKING",
     "APIData",
     "AccountAuthKeyNotFound",
@@ -80,6 +93,7 @@ __all__ = [
     "NoPasswordProvided",
     "OpenTeleException",
     "PasswordIncorrect",
+    "PrettyTable",
     "QDataStreamFailed",
     "SQLiteSession",
     "Session",
@@ -108,6 +122,7 @@ __all__ = [
     "Union",
     "UseCurrentSession",
     "asyncio",
+    "format_app_version",
     "functions",
     "sharemethod",
     "sizeof",

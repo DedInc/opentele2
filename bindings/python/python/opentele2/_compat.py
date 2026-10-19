@@ -1,4 +1,6 @@
-"""Class helpers the 1.5.0 public classes are built on (1.5.0 ``src/utils.py``)."""
+"""What 1.5.0 ``src/utils.py`` held: the class helpers the public classes are
+built on, the tdata version constants and the ``PrettyTable`` text table.
+``opentele2.tl.configs`` re-exports all of it, as 1.5.0 did."""
 
 from __future__ import annotations
 
@@ -7,15 +9,47 @@ import functools
 import sys
 from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
 
+from . import _native
+
 if sys.version_info < (3, 10):
     from typing_extensions import ParamSpec
 else:
     from typing import ParamSpec
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping, Sequence
 
-__all__ = ["BaseMetaClass", "BaseObject", "sharemethod"]
+__all__ = [
+    "APP_VERSION",
+    "APP_VERSION_STR",
+    "TDF_MAGIC",
+    "BaseMetaClass",
+    "BaseObject",
+    "PrettyTable",
+    "format_app_version",
+    "sharemethod",
+]
+
+# The core exports no version constant of its own; a new TData carries the
+# version every save writes into the TDF$ header (core tdata::APP_VERSION).
+APP_VERSION: int = _native.TData.new([]).app_version
+# The first four bytes of every tdata file (core tdf::MAGIC); the tests check
+# it against a header the core writes.
+TDF_MAGIC = b"TDF$"
+
+
+def format_app_version(version: int) -> str:
+    """Render a packed tdesktop version the way ``AppVersionStr`` spells it.
+
+    Mirrors tdesktop's ``FormatVersionDisplay``: a zero patch is omitted, so
+    7003000 is ``"7.3"`` and 7003001 is ``"7.3.1"``.
+    """
+    major, rest = divmod(version, 1000000)
+    minor, patch = divmod(rest, 1000)
+    return f"{major}.{minor}.{patch}" if patch else f"{major}.{minor}"
+
+
+APP_VERSION_STR = format_app_version(APP_VERSION)
 
 _R = TypeVar("_R")
 _R_co = TypeVar("_R_co", covariant=True)
@@ -62,3 +96,32 @@ class sharemethod(Generic[_R]):
 
     def __get__(self, obj: object | None, cls: type | None = None) -> Callable[..., _R]:
         return functools.partial(self.__fget__, cls if obj is None else obj)
+
+
+def PrettyTable(table: Sequence[Mapping[str, object]], addSplit: list[int] | None = None) -> str:
+    """1.5.0's bordered text table: one column per key of the first row, each
+    cell centred in its column, and a splitter line before every row index in
+    ``addSplit``. ``TelegramClient.PrintSessions`` prints the core's own
+    rendering of the same layout (``_native.format_sessions``)."""
+    splits = [] if addSplit is None else addSplit
+    padding = {label: len(label) for label in table[0]}
+    for row in table:
+        for label, value in row.items():
+            padding[label] = max(padding[label], len(str(value)))
+
+    def centre(value: object, width: int) -> str:
+        text = str(value)
+        left = (width - len(text)) // 2
+        return " " * left + text + " " * (width - len(text) - left)
+
+    header = "|".join(centre(label, width + 2) for label, width in padding.items())
+    splitter = "+".join("-" * (width + 2) for width in padding.values())
+    lines = [f"|{splitter}|", f"|{header}|", f"|{splitter}|"]
+    for index, row in enumerate(table):
+        if index in splits:
+            lines.append(f"|{splitter}|")
+        lines.append(
+            "|" + "|".join(centre(row[label], w + 2) for label, w in padding.items()) + "|"
+        )
+    lines.append(f"|{splitter}|")
+    return "\n".join(lines)
