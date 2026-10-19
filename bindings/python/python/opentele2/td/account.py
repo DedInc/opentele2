@@ -17,6 +17,7 @@ from ..exception import (
     TelethonUnauthorized,
 )
 from .auth import AuthKey, AuthKeyType
+from .mtp import TDataDcIdNotFound
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -72,11 +73,18 @@ class MtpConfigView(BaseObject):
     def fields(self) -> MtpConfigFields:
         return _native.account_mtp_config(self.__account)["fields"]
 
-    def endpoints(self, dcId: int | None = None) -> Endpoints | None:
-        """The endpoints of ``dcId`` (the account's main DC by default) by
-        address family and protocol, as 1.5.0 ``MTP.Config.endpoints``
-        sorted them; None when the config lists no such DC."""
-        return _native.account_endpoints(self.__account, dcId)
+    def endpoints(self, dcId: int = 0) -> Endpoints:
+        """The endpoints of ``dcId`` by address family and protocol, as
+        1.5.0 ``MTP.Config.endpoints`` sorted them.
+
+        Raises:
+            TDataDcIdNotFound: If the config lists no such DC; 1.5.0's
+                default ``DcId._0`` is never listed.
+        """
+        endpoints = _native.account_endpoints(self.__account, dcId)
+        if endpoints is None:
+            raise TDataDcIdNotFound(dcId)
+        return endpoints
 
 
 class Account(BaseObject):

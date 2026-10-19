@@ -142,6 +142,13 @@ class TDesktop(BaseObject):
                 raise TFileNotFound(f"Could not open key_{self.__keyFile}") from error
             if error.code == "TDATA_AUTH_KEY_NOT_FOUND":
                 raise OpenTeleException("No account has been loaded") from error
+            # 1.5.0 checked the accounts count with a bare Expects, so a
+            # count below one is a plain OpenTeleException, not
+            # TDataKeyDataInvalid like the other key data failures.
+            if error.code == "TDATA_KEY_DATA_INVALID" and error.legacy_message.startswith(
+                "Bad accounts count "
+            ):
+                raise OpenTeleException(error.legacy_message) from error
             raise_core_error(error)
 
         if len(folder.accounts) > TDesktop.kMaxAccounts:

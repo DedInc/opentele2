@@ -32,6 +32,7 @@ from opentele2.exception import (
     TFileNotFound,
 )
 from opentele2.td import Account, AuthKey, AuthKeyType, TDesktop
+from opentele2.td.mtp import TDataDcIdNotFound
 
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 APP_VERSION = 7_003_001
@@ -244,6 +245,41 @@ def test_a_key_file_without_account_files_loads_no_account(tmp_path: Path) -> No
     shutil.copy(VECTORS / "tdata_plain/performance_on" / "key_datas", tmp_path / "key_datas")
     with pytest.raises(OpenTeleException, match="No account has been loaded"):
         TDesktop(str(tmp_path))
+
+
+def key_file_with_accounts_count(folder: str, count: int, target: Path) -> None:
+    """Writes to ``target`` the legacy key file of ``folder`` with its
+    accounts info replaced by one listing ``count`` accounts and no index,
+    encrypted under the folder's local key."""
+    raw = (VECTORS / folder / "key_datas").read_bytes()
+    magic, version, payload = raw[:4], raw[4:8], raw[8:-16]
+    parts: list[bytes] = []
+    position = 0
+    while position < len(payload):
+        size = int.from_bytes(payload[position : position + 4], "big")
+        parts.append(payload[position + 4 : position + 4 + size])
+        position += 4 + size
+    local_key = load(folder).localKey
+    assert local_key is not None
+    parts[-1] = _native.encrypt_local(count.to_bytes(4, "big", signed=True), local_key.key)
+    payload = b"".join(len(part).to_bytes(4, "big") + part for part in parts)
+    checksum = hashlib.md5(payload + len(payload).to_bytes(4, "little") + version + magic)
+    target.mkdir()
+    (target / "key_datas").write_bytes(magic + version + payload + checksum.digest())
+
+
+@pytest.mark.parametrize("count", [0, -1])
+def test_a_bad_accounts_count_raises_a_plain_open_tele_exception_as_1_5_0(
+    count: int, tmp_path: Path
+) -> None:
+    # 1.5.0 src/td/tdesktop.py: Expects(count > 0, f"Bad accounts count
+    # {count}, the data might have been corrupted"), a bare OpenTeleException.
+    key_file_with_accounts_count("tdata_legacy/plain", count, tmp_path / "tdata")
+    with pytest.raises(OpenTeleException) as raised:
+        TDesktop(str(tmp_path / "tdata"))
+    assert type(raised.value) is OpenTeleException
+    assert raised.value.message == f"Bad accounts count {count}, the data might have been corrupted"
+    assert isinstance(raised.value.__cause__, CoreError)
 
 
 def test_more_accounts_than_7_3_1_allows_are_loaded_with_a_warning(
@@ -543,7 +579,6 @@ def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
         assert endpoints is not None
         assert endpoints["ipv4"] == {"tcp": dc2_ipv4, "http": dc2_ipv4}
         assert endpoints["ipv6"] == {"tcp": dc2_ipv6, "http": dc2_ipv6}
-        assert config.endpoints() == endpoints
         options[2].clear()
         assert len(config.dcOptions[2]) == 3, "a read returns a copy"
 
@@ -567,7 +602,24 @@ def test_an_unloaded_account_has_the_production_default_mtp_config_as_1_5_0() ->
     assert endpoints is not None
     assert [len(endpoints["ipv4"][p]) for p in ("tcp", "http")] == [2, 2]
     assert [len(endpoints["ipv6"][p]) for p in ("tcp", "http")] == [1, 1]
-    assert config.endpoints() is None, "an unloaded account has main DC 0"
+    with pytest.raises(TDataDcIdNotFound):
+        config.endpoints()
+
+
+def test_endpoints_of_an_unlisted_dc_raise_tdata_dc_id_not_found_as_1_5_0() -> None:
+    # 1.5.0 MTP.Config.endpoints(dcId=DcId._0): Expects(dcId in _dcOptions._data,
+    # TDataDcIdNotFound(dcId)), so the default DC 0 is never found either.
+    assert TDataDcIdNotFound.__bases__ == (OpenTeleException,)
+    config = load("tdata_plain/performance_on").accounts[0].MtpConfig
+    for dcId in (0, 6, -1):
+        with pytest.raises(TDataDcIdNotFound) as raised:
+            config.endpoints(dcId)
+        assert raised.value.dcId == dcId
+        assert raised.value.message == f"No endpoints for dc id {dcId}"
+    with pytest.raises(TDataDcIdNotFound) as default:
+        config.endpoints()
+    assert default.value.dcId == 0
+    assert default.value.message == "No endpoints for dc id 0"
 
 
 def test_an_account_added_after_a_removal_takes_the_freed_place_as_1_5_0(
