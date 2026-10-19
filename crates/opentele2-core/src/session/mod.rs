@@ -6,11 +6,12 @@
 //! - [`grammers`]: plain structs shaped like grammers 0.11 `SessionData`,
 //!   with no grammers dependency.
 //!
-//! Every `from_account` uses the built-in production table of [`dc`]. That
-//! is what 1.5.0 does in performance mode (its default). Known gap: with
-//! performance mode off 1.5.0 reads the endpoints from the account's stored
-//! MTP config instead; the core does not parse that config and always uses
-//! the built-in table.
+//! Every `from_account` takes the endpoints of the account's stored MTP
+//! config ([`crate::tdata::account::Account::mtp_config`]) when the account
+//! has config bytes, as 1.5.0 does with performance mode off, and the
+//! built-in production table of [`dc`] otherwise, as 1.5.0 does in
+//! performance mode (its default, where the stored config is never read).
+//! The production default config holds the same endpoints as the table.
 //!
 //! Every type holds its key as a [`crate::crypto::AuthKey`], whose `Debug`
 //! prints the key id only, never key material.

@@ -16,6 +16,7 @@ use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::{dc, grammers, mtcute, telethon};
 use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
+use opentele2_core::tdata::mtp_config::{Environment, MtpConfig};
 use opentele2_core::{Error, Result};
 use serde_json::Value;
 
@@ -742,6 +743,93 @@ fn from_account_errors() {
         code_of(grammers::SessionData::from_account(&keyless)),
         "TDATA_AUTH_KEY_NOT_FOUND"
     );
+}
+
+/// 1.5.0's `Serialize()` of a production config whose DC options were
+/// cleared and rebuilt (the `CUSTOM_CONFIG` of `tests/tdata_read.rs`): DC 2
+/// has IPv4 TCP `203.0.113.2:443` first and IPv6 TCP `2001:db8::2` first,
+/// DC 1 `198.51.100.1` and `2001:db8::1`, DC 3 only IPv4 `198.51.100.3`.
+const CUSTOM_CONFIG: &str = "000000010000000000000149fffffffe000000080000000200000005000001bb0000000b323030313a6462383a3a32000000000000000200000000000001bb0000000b3230332e302e3131332e32000000000000000200000400000020fb0000000b3230332e302e3131332e33000000100102030405060708090a0b0c0d0e0f100000000200000002000000500000000b3230332e302e3131332e34000000000000000200000011000001bb0000000c323030313a6462383a3a3232000000000000000100000010000001bb0000000c3139382e35312e3130302e31000000000000000100000401000001bb0000000b323030313a6462383a3a3100000020abababababababababababababababababababababababababababababababab0000000300000008000001bb0000000c3139382e35312e3130302e330000000000000001000000cb00000003010203000000030100010000014100002710000000640001d4c00000138800007530000003e8000493e000007530000005dc000000c80002a3000002a3000002a300000000010000001e0000000500000005000000640000001a00680074007400700073003a002f002f0074002e006d0065002f00093a8000004e2000015f90000075300000271000000004000000000000000100000000000004000000000227648000000000000005fffffff90000000800670069006600730000000c00760065006e007500650073";
+
+fn account_with_config(main_dc: i32, config: Option<Vec<u8>>) -> Account {
+    let mut account =
+        Account::new(0, 77, main_dc, vec![(main_dc, counting_key(9))]).expect("account");
+    account.config = config;
+    account
+}
+
+#[test]
+fn from_account_prefers_the_stored_config() {
+    let config = hex::decode(CUSTOM_CONFIG).expect("hex");
+    let account = account_with_config(2, Some(config.clone()));
+    // Endpoints chosen by 1.5.0 (`endpoints(MainDcId)`, then
+    // `_select_endpoint_address`, then the first TCP endpoint).
+    for (ipv6, expected) in [
+        (false, addr("203.0.113.2:443")),
+        (true, addr("[2001:db8::2]:443")),
+    ] {
+        assert_ne!(
+            dc::production(2, ipv6),
+            Some(expected),
+            "differs from table"
+        );
+        let session = telethon::StringSession::from_account(&account, ipv6).expect("telethon");
+        assert_eq!((session.dc_id, session.addr), (2, expected), "telethon");
+        assert!(same_key(&session.auth_key, &counting_key(9)));
+        let session = mtcute::StringSession::from_account(&account, ipv6).expect("mtcute");
+        assert_eq!(session.primary_dc, mtcute::DcOption::new(2, expected));
+        assert!(!session.test_mode);
+    }
+
+    let data = grammers::SessionData::from_account(&account).expect("grammers");
+    let mut ids: Vec<i32> = data.dc_options.keys().copied().collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [1, 2], "DC 3 has no IPv6 endpoint");
+    let home = &data.dc_options[&2];
+    assert_eq!(SocketAddr::V4(home.ipv4), addr("203.0.113.2:443"));
+    assert_eq!(SocketAddr::V6(home.ipv6), addr("[2001:db8::2]:443"));
+    assert!(home.auth_key.is_some() && data.dc_options[&1].auth_key.is_none());
+
+    // DC 3 falls back to its IPv4 endpoint when IPv6 is asked for.
+    let dc3 = account_with_config(3, Some(config.clone()));
+    let session = telethon::StringSession::from_account(&dc3, true).expect("DC 3");
+    assert_eq!(session.addr, addr("198.51.100.3:443"));
+    assert_eq!(
+        code_of(grammers::SessionData::from_account(&dc3)),
+        "TDATA_BAD_CONFIG_DATA"
+    );
+    // DC 5 is in the built-in table but not in the stored config.
+    let dc5 = account_with_config(5, Some(config));
+    assert_eq!(
+        code_of(telethon::StringSession::from_account(&dc5, false)),
+        "TDATA_BAD_CONFIG_DATA"
+    );
+    assert_eq!(
+        code_of(mtcute::StringSession::from_account(&dc5, false)),
+        "TDATA_BAD_CONFIG_DATA"
+    );
+
+    // No config bytes, or bytes that do not parse: the production endpoints.
+    for config in [None, Some(vec![0, 0, 0, 1])] {
+        let account = account_with_config(2, config);
+        let session = telethon::StringSession::from_account(&account, false).expect("table");
+        assert_eq!(session.addr, addr("149.154.167.51:443"));
+    }
+}
+
+#[test]
+fn from_account_with_a_stored_test_config() {
+    let test = MtpConfig::new(Environment::Test)
+        .serialize()
+        .expect("serialize");
+    let account = account_with_config(2, Some(test));
+    let session = telethon::StringSession::from_account(&account, false).expect("telethon");
+    assert_eq!(session.addr, addr("149.154.167.40:443"));
+    let session = mtcute::StringSession::from_account(&account, true).expect("mtcute");
+    assert_eq!(session.primary_dc.ip, "2001:67c:4e8:f002::e");
+    assert!(session.test_mode);
+    let decoded = mtcute::StringSession::decode(&session.encode()).expect("decode");
+    assert!(decoded.test_mode);
 }
 
 #[test]

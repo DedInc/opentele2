@@ -3,11 +3,13 @@
 //! Malformed input maps onto existing [`Error`] variants:
 //! [`Error::BadLength`] when a decoded buffer or key has the wrong size, and
 //! [`Error::QDataStreamFailed`] for every other undecodable input (bad
-//! base64, wrong version, cut-short or trailing data, bad flags). A DC id
-//! outside the built-in table is [`Error::BadConfigData`], and an account
-//! without a key for its main DC is [`Error::AuthKeyNotFound`].
+//! base64, wrong version, cut-short or trailing data, bad flags). A main DC
+//! without a usable endpoint (outside the built-in table, or missing from
+//! the stored config or without a TCP endpoint there, or with an endpoint
+//! whose IP or port does not parse) is [`Error::BadConfigData`], and an
+//! account without a key for its main DC is [`Error::AuthKeyNotFound`].
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use base64::Engine;
 use base64::engine::general_purpose::{
@@ -17,14 +19,49 @@ use base64::engine::general_purpose::{
 use crate::crypto::AuthKey;
 use crate::session::dc;
 use crate::tdata::account::Account;
+use crate::tdata::mtp_config::{Endpoint, Environment, MtpConfig};
 use crate::{Error, Result};
 
-/// The first production endpoint of the account's main DC and its key, in
-/// the order 1.5.0 checks them (endpoints first, then the key).
-fn account_endpoint(account: &Account, ipv6: bool) -> Result<(SocketAddr, &AuthKey)> {
-    let addr = dc::production(account.main_dc, ipv6).ok_or(Error::BadConfigData)?;
+/// The account's stored config ([`Account::mtp_config`]); `None` when it has
+/// no config bytes, and the built-in table applies.
+fn stored_config(account: &Account) -> Option<MtpConfig> {
+    account.config.as_ref().map(|_| account.mtp_config())
+}
+
+/// The address of a config endpoint, as Telethon packs it
+/// (`ipaddress.ip_address(ip)` and a `u16` port).
+fn endpoint_addr(endpoint: &Endpoint) -> Result<SocketAddr> {
+    let ip: IpAddr = endpoint.ip.parse().map_err(|_| Error::BadConfigData)?;
+    let port = u16::try_from(endpoint.port).map_err(|_| Error::BadConfigData)?;
+    Ok(SocketAddr::new(ip, port))
+}
+
+/// The endpoint 1.5.0 connects an account to (`src/tl/telethon.py`,
+/// `FromTDesktop`), whether it is a test server, and the main DC key, in the
+/// order 1.5.0 checks them (endpoints first, then the key).
+///
+/// With a stored config the endpoint is
+/// [`crate::tdata::mtp_config::Endpoints::select`] of the main DC's
+/// endpoints; without one it is [`dc::production`].
+fn account_endpoint(account: &Account, ipv6: bool) -> Result<(SocketAddr, bool, &AuthKey)> {
+    let (addr, test) = match stored_config(account) {
+        Some(config) => {
+            let endpoints = config
+                .endpoints(account.main_dc)
+                .ok_or(Error::BadConfigData)?;
+            let endpoint = endpoints.select(ipv6).ok_or(Error::BadConfigData)?;
+            (
+                endpoint_addr(endpoint)?,
+                config.environment == Environment::Test,
+            )
+        }
+        None => (
+            dc::production(account.main_dc, ipv6).ok_or(Error::BadConfigData)?,
+            false,
+        ),
+    };
     let key = account.auth_key().ok_or(Error::AuthKeyNotFound)?;
-    Ok((addr, key))
+    Ok((addr, test, key))
 }
 
 /// The main DC id as one byte; every id of the built-in table fits.
@@ -106,14 +143,18 @@ pub mod telethon {
 
     impl StringSession {
         /// The session 1.5.0 builds for `account` (`TelegramClient.FromTDesktop`):
-        /// the first TCP endpoint of the main DC from [`crate::session::dc`],
-        /// IPv6 when `ipv6` is set (`use_ipv6`), and the main DC key.
+        /// the first TCP endpoint of the main DC, IPv6 when `ipv6` is set
+        /// (`use_ipv6`) and the DC has one, and the main DC key. The
+        /// endpoints come from the account's stored config
+        /// ([`Account::mtp_config`], `config.endpoints(MainDcId)`) when it
+        /// has config bytes, else from [`crate::session::dc`].
         ///
         /// # Errors
-        /// - [`Error::BadConfigData`] when the main DC is not in the table.
+        /// - [`Error::BadConfigData`] when the main DC has no usable
+        ///   endpoint (see the [module docs](super)).
         /// - [`Error::AuthKeyNotFound`] when the account has no main DC key.
         pub fn from_account(account: &Account, ipv6: bool) -> Result<Self> {
-            let (addr, key) = account_endpoint(account, ipv6)?;
+            let (addr, _, key) = account_endpoint(account, ipv6)?;
             Ok(Self {
                 dc_id: dc_byte(account.main_dc)?,
                 addr,
@@ -342,21 +383,23 @@ pub mod mtcute {
     }
 
     impl StringSession {
-        /// The session for `account`: the first production endpoint of the
-        /// main DC as in [`super::telethon::StringSession::from_account`], no
-        /// separate media DC, the account's user id with `is_bot` false, and
-        /// the main DC key.
+        /// The session for `account`: the endpoint of the main DC chosen as
+        /// in [`super::telethon::StringSession::from_account`] (IP in its
+        /// canonical text), no separate media DC, the account's user id with
+        /// `is_bot` false, test mode when the stored config is a test one,
+        /// and the main DC key.
         ///
         /// # Errors
-        /// - [`Error::BadConfigData`] when the main DC is not in the table.
+        /// - [`Error::BadConfigData`] when the main DC has no usable
+        ///   endpoint (see the [module docs](super)).
         /// - [`Error::AuthKeyNotFound`] when the account has no main DC key.
         pub fn from_account(account: &Account, ipv6: bool) -> Result<Self> {
-            let (addr, key) = account_endpoint(account, ipv6)?;
+            let (addr, test_mode, key) = account_endpoint(account, ipv6)?;
             Ok(Self {
                 primary_dc: DcOption::new(dc_byte(account.main_dc)?, addr),
                 media_dc: None,
                 self_user: Some((account.user_id, false)),
-                test_mode: false,
+                test_mode,
                 auth_key: key.clone(),
             })
         }
@@ -502,10 +545,45 @@ pub mod grammers {
     use std::collections::HashMap;
     use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
 
+    use super::{endpoint_addr, stored_config};
     use crate::crypto::AuthKey;
     use crate::session::dc;
     use crate::tdata::account::Account;
+    use crate::tdata::mtp_config::MtpConfig;
     use crate::{Error, Result};
+
+    /// The first IPv4 and IPv6 endpoint of every production DC of [`dc`].
+    fn built_in_options() -> Result<HashMap<i32, (SocketAddrV4, SocketAddrV6)>> {
+        dc::PRODUCTION_DC_IDS
+            .iter()
+            .map(
+                |&id| match (dc::production(id, false), dc::production(id, true)) {
+                    (Some(SocketAddr::V4(ipv4)), Some(SocketAddr::V6(ipv6))) => {
+                        Ok((id, (ipv4, ipv6)))
+                    }
+                    _ => Err(Error::BadConfigData),
+                },
+            )
+            .collect()
+    }
+
+    /// Every DC of `config` whose endpoints, chosen as 1.5.0 chooses them
+    /// with and without IPv6, are an IPv4 and an IPv6 address.
+    fn config_options(config: &MtpConfig) -> HashMap<i32, (SocketAddrV4, SocketAddrV6)> {
+        config
+            .dc_options
+            .dcs()
+            .filter_map(|(id, _)| {
+                let endpoints = config.endpoints(id)?;
+                let ipv4 = endpoint_addr(endpoints.select(false)?).ok()?;
+                let ipv6 = endpoint_addr(endpoints.select(true)?).ok()?;
+                match (ipv4, ipv6) {
+                    (SocketAddr::V4(ipv4), SocketAddr::V6(ipv6)) => Some((id, (ipv4, ipv6))),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
 
     /// One DC (`grammers_session::DcOption`).
     #[derive(Debug, Clone)]
@@ -531,36 +609,38 @@ pub mod grammers {
 
     impl SessionData {
         /// Session data for `account`: `home_dc` is the main DC, and
-        /// `dc_options` holds every production DC of [`dc`] with its first
-        /// IPv4 and IPv6 endpoint. Only the main DC carries a key, the
-        /// account's main DC key.
+        /// `dc_options` holds DCs with an IPv4 and an IPv6 endpoint. With
+        /// stored config bytes ([`Account::mtp_config`]) those are the DCs
+        /// of the config whose endpoints, chosen as in
+        /// [`super::telethon::StringSession::from_account`] without and with
+        /// IPv6, are an IPv4 and an IPv6 address; without them, every
+        /// production DC of [`dc`] with its first IPv4 and IPv6 endpoint.
+        /// Only the main DC carries a key, the account's main DC key.
         ///
         /// # Errors
-        /// - [`Error::BadConfigData`] when the main DC is not in the table.
+        /// - [`Error::BadConfigData`] when the main DC is not among the DCs.
         /// - [`Error::AuthKeyNotFound`] when the account has no main DC key.
         pub fn from_account(account: &Account) -> Result<Self> {
-            if dc::production(account.main_dc, false).is_none() {
+            let options = match stored_config(account) {
+                Some(config) => config_options(&config),
+                None => built_in_options()?,
+            };
+            if !options.contains_key(&account.main_dc) {
                 return Err(Error::BadConfigData);
             }
             let key = account.auth_key().ok_or(Error::AuthKeyNotFound)?;
-            let mut dc_options = HashMap::new();
-            for id in dc::PRODUCTION_DC_IDS {
-                let (Some(SocketAddr::V4(ipv4)), Some(SocketAddr::V6(ipv6))) =
-                    (dc::production(id, false), dc::production(id, true))
-                else {
-                    return Err(Error::BadConfigData);
-                };
-                let auth_key = (id == account.main_dc).then(|| key.clone());
-                dc_options.insert(
-                    id,
-                    DcOption {
+            let dc_options = options
+                .into_iter()
+                .map(|(id, (ipv4, ipv6))| {
+                    let option = DcOption {
                         id,
                         ipv4,
                         ipv6,
-                        auth_key,
-                    },
-                );
-            }
+                        auth_key: (id == account.main_dc).then(|| key.clone()),
+                    };
+                    (id, option)
+                })
+                .collect();
             Ok(Self {
                 home_dc: account.main_dc,
                 dc_options,

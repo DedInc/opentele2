@@ -6,12 +6,15 @@
 //!   list of accounts.
 //! - [`account`]: the per-account files and the `MtpAuthorization` blob.
 //! - [`map`]: the per-account `maps` file.
+//! - [`mtp_config`]: the MTP config and DC options of the per-account
+//!   `configs` file.
 //! - [`TData`]: a whole folder, loaded and saved the way 1.5.0's `TDesktop`
 //!   does.
 
 pub mod account;
 pub mod key_data;
 pub mod map;
+pub mod mtp_config;
 
 use std::collections::HashSet;
 use std::path::Path;

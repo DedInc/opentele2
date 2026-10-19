@@ -6,10 +6,13 @@
 //!
 //! - `<folder>s`: the MTP data, a `TDF$` file whose payload is one
 //!   `QByteArray` encrypted under the local key. The decrypted stream is a
-//!   list of `u32` dbi blocks; only [`DBI_MTP_AUTHORIZATION`] is handled.
+//!   list of `u32` dbi blocks: [`DBI_MTP_AUTHORIZATION`] and the legacy
+//!   blocks 1.5.0's `Storage.ReadSetting` reads (see
+//!   [`Account::parse_mtp_data`]).
 //! - `<folder>/maps`: the account map (see [`crate::tdata::map`]).
 //! - `<folder>/configs`: the serialized MTP config, written only when
-//!   performance mode is off; kept as raw bytes.
+//!   performance mode is off; kept as raw bytes and parsed by
+//!   [`Account::mtp_config`].
 //!
 //! The `MtpAuthorization` blob (`src/td/account.py`) is the wide-ids tag
 //! `i64 -1`, `i64` user id, `i32` main DC, then the keys and the keys to
@@ -23,16 +26,45 @@ use md5::{Digest, Md5};
 use crate::crypto::{self, AuthKey};
 use crate::qt::{QReader, QWriter};
 use crate::tdata::map::MapData;
+use crate::tdata::mtp_config::{DcOptions, Environment, MtpConfig};
 use crate::tdata::{FillRandom, encrypt, hex_bytes, write_tdf};
 use crate::{Error, Result, tdf};
 
 /// dbi block id of the `MtpAuthorization` blob in the MTP data.
 pub const DBI_MTP_AUTHORIZATION: u32 = 0x4B;
 
+/// Legacy dbi block `dbiKey`: `i32` DC id and 256 raw key bytes.
+pub const DBI_KEY: u32 = 0x00;
+/// Legacy dbi block `dbiUser`: `i32` user id and `u32` main DC id.
+pub const DBI_USER: u32 = 0x01;
+/// Legacy dbi block `dbiDcOptionOldOld`: `u32` DC id, an unused `QString`,
+/// the IP as `QString`, and a `u32` port.
+pub const DBI_DC_OPTION_OLD_OLD: u32 = 0x02;
+/// Legacy dbi block `dbiChatSizeMaxOld`: one `i32`.
+pub const DBI_CHAT_SIZE_MAX_OLD: u32 = 0x03;
+/// Legacy dbi block `dbiDcOptionOld`: `u32` shifted DC id, `i32` flags, the
+/// IP as `QString`, and a `u32` port.
+pub const DBI_DC_OPTION_OLD: u32 = 0x27;
+/// Legacy dbi block `dbiMegagroupSizeMaxOld`: one `i32`.
+pub const DBI_MEGAGROUP_SIZE_MAX_OLD: u32 = 0x32;
+/// Legacy dbi block `dbiSavedGifsLimitOld`: one `i32`.
+pub const DBI_SAVED_GIFS_LIMIT_OLD: u32 = 0x35;
+/// Legacy dbi block `dbiStickersRecentLimitOld`: one `i32`.
+pub const DBI_STICKERS_RECENT_LIMIT_OLD: u32 = 0x43;
+/// Legacy dbi block `dbiDcOptionsOld`: serialized DC options as
+/// `QByteArray`.
+pub const DBI_DC_OPTIONS_OLD: u32 = 0x4A;
+/// Legacy dbi block `dbiStickersFavedLimitOld`: one `i32`.
+pub const DBI_STICKERS_FAVED_LIMIT_OLD: u32 = 0x50;
+/// dbi block `dbiApplicationSettings`: a `QByteArray`.
+pub const DBI_APPLICATION_SETTINGS: u32 = 0x5E;
+
 /// The serialized default MTP config: the exact bytes of 1.5.0's
 /// `td.MTP.Config(td.MTP.Environment.Production).Serialize()` (production DC
-/// options and the default config fields). [`crate::tdata::TData::save`]
-/// writes it into `configs` for an account without loaded config bytes.
+/// options and the default config fields), which
+/// [`MtpConfig::new`] for [`Environment::Production`] serializes to.
+/// [`crate::tdata::TData::save`] writes it into `configs` for an account
+/// without loaded config bytes.
 pub const MTP_CONFIG_PRODUCTION: [u8; 748] = hex_bytes(concat!(
     "0000000100000000000001fefffffffe0000000b0000000100000010000001bb",
     "0000000e3134392e3135342e3137352e35300000000000000001000000110000",
@@ -175,6 +207,78 @@ impl<'a> RawReader<'a> {
             keys.push((dc, self.key()?));
         }
         Ok(keys)
+    }
+}
+
+/// What 1.5.0 keeps from the dbi blocks of the MTP data
+/// (`Storage.ReadSettingsContext`); the legacy DC options and limits are
+/// read and dropped, as `_applyReadContext` never uses them.
+#[derive(Default)]
+struct MtpData<'a> {
+    /// The last `MtpAuthorization` blob; empty for none.
+    authorization: &'a [u8],
+    /// `mtpLegacyUserId`.
+    legacy_user_id: i32,
+    /// `mtpLegacyMainDcId`.
+    legacy_main_dc: u32,
+    /// `mtpLegacyKeys`, in block order.
+    legacy_keys: Vec<(i32, AuthKey)>,
+}
+
+impl<'a> MtpData<'a> {
+    /// Reads every dbi block (`_readMtpData` with `Storage.ReadSetting`).
+    fn parse(data: &'a [u8]) -> Result<Self> {
+        let mut reader = RawReader { rest: data };
+        let mut out = Self::default();
+        while !reader.rest.is_empty() {
+            match reader.with(QReader::read_u32)? {
+                DBI_MTP_AUTHORIZATION => {
+                    out.authorization = reader.with(QReader::read_bytearray)?.unwrap_or_default();
+                }
+                DBI_KEY => {
+                    let dc = reader.i32()?;
+                    out.legacy_keys.push((dc, reader.key()?));
+                }
+                DBI_USER => {
+                    out.legacy_user_id = reader.i32()?;
+                    out.legacy_main_dc = reader.with(QReader::read_u32)?;
+                }
+                DBI_DC_OPTION_OLD_OLD => {
+                    reader.with(|r| {
+                        r.read_u32()?;
+                        r.read_qstring()?;
+                        r.read_qstring()?;
+                        r.read_u32()
+                    })?;
+                }
+                DBI_DC_OPTION_OLD => {
+                    reader.with(|r| {
+                        r.read_u32()?;
+                        r.read_i32()?;
+                        r.read_qstring()?;
+                        r.read_u32()
+                    })?;
+                }
+                DBI_DC_OPTIONS_OLD => {
+                    // 1.5.0 parses the blob into a throwaway DcOptions, so a
+                    // malformed one fails the read.
+                    let blob = reader.with(QReader::read_bytearray)?.unwrap_or_default();
+                    DcOptions::parse(blob)?;
+                }
+                DBI_APPLICATION_SETTINGS => {
+                    reader.with(QReader::read_bytearray)?;
+                }
+                DBI_CHAT_SIZE_MAX_OLD
+                | DBI_SAVED_GIFS_LIMIT_OLD
+                | DBI_STICKERS_RECENT_LIMIT_OLD
+                | DBI_STICKERS_FAVED_LIMIT_OLD
+                | DBI_MEGAGROUP_SIZE_MAX_OLD => {
+                    reader.i32()?;
+                }
+                _ => return Err(Error::InvalidMagic),
+            }
+        }
+        Ok(out)
     }
 }
 
@@ -332,36 +436,95 @@ impl Account {
             .map(|(_, key)| key)
     }
 
+    /// Decodes the decrypted MTP data (`_readMtpData` and
+    /// `_applyReadContext`) for account `index`, with an empty map and no
+    /// config.
+    ///
+    /// Besides [`DBI_MTP_AUTHORIZATION`] the stream may hold the legacy
+    /// blocks 1.5.0 reads: [`DBI_KEY`] and [`DBI_USER`], whose keys, user id
+    /// and main DC make the account when no `MtpAuthorization` blob is
+    /// present (the last blob wins; an empty or null one counts as none),
+    /// and [`DBI_DC_OPTION_OLD_OLD`], [`DBI_DC_OPTION_OLD`],
+    /// [`DBI_DC_OPTIONS_OLD`], [`DBI_APPLICATION_SETTINGS`] and the five
+    /// legacy limits, which are read and have no effect on the account. A
+    /// legacy user id is read as `i32` and sign-extended, as in
+    /// [`Account::parse_mtp_authorization`].
+    ///
+    /// # Errors
+    /// - [`Error::QDataStreamFailed`] when a block is cut short.
+    /// - [`Error::InvalidMagic`] for any other block id, the error 1.5.0
+    ///   names for an unsupported block.
+    /// - As [`DcOptions::parse`] for a [`DBI_DC_OPTIONS_OLD`] blob.
+    /// - As [`Account::parse_mtp_authorization`] for the blob.
+    /// - [`Error::AuthKeyNotFound`] when there is neither a blob nor a legacy
+    ///   key or main DC, or no legacy key belongs to the legacy main DC.
+    pub fn parse_mtp_data(index: i32, data: &[u8]) -> Result<Self> {
+        let mtp = MtpData::parse(data)?;
+        if !mtp.authorization.is_empty() {
+            return Self::parse_mtp_authorization(index, mtp.authorization);
+        }
+        if mtp.legacy_keys.is_empty() && mtp.legacy_main_dc == 0 {
+            return Err(Error::AuthKeyNotFound);
+        }
+        let account = Self {
+            index,
+            user_id: i64::from(mtp.legacy_user_id).cast_unsigned(),
+            main_dc: mtp.legacy_main_dc.cast_signed(),
+            keys: mtp.legacy_keys,
+            keys_to_destroy: Vec::new(),
+            map: MapData::default(),
+            config: None,
+        };
+        if account.auth_key().is_none() {
+            return Err(Error::AuthKeyNotFound);
+        }
+        Ok(account)
+    }
+
+    /// Reads and decrypts the MTP data of the account whose data name is
+    /// `data_name` from its `<folder>s` file in `dir`.
+    fn read_mtp_data(dir: &Path, data_name: &str, local_key: &AuthKey) -> Result<Vec<u8>> {
+        read_encrypted(dir, &folder_name(data_name), local_key)
+    }
+
     /// Reads the `MtpAuthorization` blob of the account whose data name is
-    /// `data_name` from the MTP data file in `dir` (`_readMtpData`). The last
-    /// block wins; an empty or null blob counts as none.
+    /// `data_name` from the MTP data file in `dir`. The blocks are read as
+    /// in [`Account::parse_mtp_data`]; the last blob wins, and an empty or
+    /// null one counts as none.
     ///
     /// # Errors
     /// - As [`tdf::read`] for the `<folder>s` file.
     /// - As [`crypto::decrypt_local`] when the data does not decrypt.
-    /// - [`Error::QDataStreamFailed`] when a block is cut short.
-    /// - [`Error::InvalidMagic`] for a block id other than
-    ///   [`DBI_MTP_AUTHORIZATION`], the error 1.5.0 names for an unsupported
-    ///   block.
-    /// - [`Error::AuthKeyNotFound`] when no blob is present.
+    /// - As [`Account::parse_mtp_data`] for a block that cannot be read.
+    /// - [`Error::AuthKeyNotFound`] when no blob is present, even when
+    ///   legacy key blocks are.
     pub fn read_mtp_authorization(
         dir: impl AsRef<Path>,
         data_name: &str,
         local_key: &AuthKey,
     ) -> Result<Vec<u8>> {
-        let data = read_encrypted(dir.as_ref(), &folder_name(data_name), local_key)?;
-        let mut reader = QReader::new(&data);
-        let mut serialized: &[u8] = &[];
-        while !reader.is_empty() {
-            if reader.read_u32()? != DBI_MTP_AUTHORIZATION {
-                return Err(Error::InvalidMagic);
-            }
-            serialized = reader.read_bytearray()?.unwrap_or_default();
-        }
-        if serialized.is_empty() {
+        let data = Self::read_mtp_data(dir.as_ref(), data_name, local_key)?;
+        let mtp = MtpData::parse(&data)?;
+        if mtp.authorization.is_empty() {
             return Err(Error::AuthKeyNotFound);
         }
-        Ok(serialized.to_vec())
+        Ok(mtp.authorization.to_vec())
+    }
+
+    /// The account's MTP config: [`Account::config`] parsed with
+    /// [`MtpConfig::parse`], or the production default
+    /// ([`MtpConfig::new`]) when there is none or it does not parse, as
+    /// 1.5.0's `_readMtpConfig` falls back to it.
+    ///
+    /// 1.5.0 catches only its own exceptions there, so a config whose IP is
+    /// not ASCII or whose environment is unknown fails its whole load; here
+    /// it falls back like any other bad config.
+    #[must_use]
+    pub fn mtp_config(&self) -> MtpConfig {
+        self.config
+            .as_deref()
+            .and_then(|serialized| MtpConfig::parse(serialized).ok())
+            .unwrap_or_else(|| MtpConfig::new(Environment::Production))
     }
 
     /// Loads account `index` of the folder `dir` whose key file is
@@ -370,8 +533,8 @@ impl Account {
     ///
     /// # Errors
     /// - As [`MapData::read`] for the `<folder>/maps` file.
-    /// - As [`Account::read_mtp_authorization`] and
-    ///   [`Account::parse_mtp_authorization`].
+    /// - As [`tdf::read`] and [`crypto::decrypt_local`] for the `<folder>s`
+    ///   file, and as [`Account::parse_mtp_data`] for its contents.
     ///
     /// A config that cannot be read is `None`, never an error.
     pub fn read(
@@ -384,8 +547,8 @@ impl Account {
         let name = data_name(key_file, index);
         let folder = dir.join(folder_name(&name));
         let map = MapData::read(&folder, local_key)?;
-        let serialized = Self::read_mtp_authorization(dir, &name, local_key)?;
-        let mut account = Self::parse_mtp_authorization(index, &serialized)?;
+        let data = Self::read_mtp_data(dir, &name, local_key)?;
+        let mut account = Self::parse_mtp_data(index, &data)?;
         account.map = map;
         account.config = read_encrypted(&folder, CONFIG_FILE, local_key)
             .ok()
