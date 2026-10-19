@@ -401,11 +401,23 @@ def test_mismatched_draws_raise_value_error(tmp_path: Path) -> None:
         tdesk.SaveTData(str(tmp_path), draws=[*draws_of("tdata_plain/performance_on"), b"\x00"])
 
 
-def test_saving_under_another_key_file_is_refused(tmp_path: Path) -> None:
+def test_saving_under_another_key_file_renames_it(tmp_path: Path) -> None:
     tdesk = load("tdata_plain/performance_on")
-    with pytest.raises(NotImplementedError, match="cannot write it as 'other'"):
-        tdesk.SaveTData(str(tmp_path), keyFile="other")
+    assert tdesk.SaveTData(str(tmp_path), keyFile="other") is True
     assert tdesk.keyFile == "other"
+    files = listed_files(tmp_path)
+    assert "key_others" in files
+    assert "key_datas" not in files
+    renamed = TDesktop(str(tmp_path), keyFile="other")
+    assert [(a.index, a.UserId) for a in renamed.accounts] == [
+        (a.index, a.UserId) for a in tdesk.accounts
+    ]
+
+
+def test_an_empty_key_file_name_fails_the_save(tmp_path: Path) -> None:
+    tdesk = load("tdata_plain/performance_on")
+    with pytest.raises(TDataSaveFailed, match=SAVE_FAILED):
+        tdesk.SaveTData(str(tmp_path), keyFile="")
     assert listed_files(tmp_path) == []
 
 

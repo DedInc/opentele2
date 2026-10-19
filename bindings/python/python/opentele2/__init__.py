@@ -16,4 +16,7 @@ except ImportError:
 # platform versions (unless OPENTELE_NO_FETCH is set), and then syncs the
 # API class attributes to them.
 from . import api as api
+from . import consistency as consistency
 from . import fingerprint as fingerprint
+from . import td as td
+from . import tl as tl

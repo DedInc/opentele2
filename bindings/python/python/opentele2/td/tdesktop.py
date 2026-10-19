@@ -12,14 +12,19 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from .. import tl
 from .._compat import BaseObject
 from .._native import CoreError, TData
-from ..api import API, APIData
+from ..api import API, APIData, CreateNewSession, LoginFlag, UseCurrentSession
 from ..exception import (
     Expects,
+    LoginFlagInvalid,
+    MaxAccountLimit,
     OpenTeleException,
     TDataBadDecryptKey,
     TDataSaveFailed,
+    TDesktopHasNoAccount,
+    TDesktopNotLoaded,
     TFileNotFound,
     raise_core_error,
 )
@@ -28,6 +33,11 @@ from .auth import AuthKey
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from telethon.sessions.abstract import Session
+    from typing_extensions import Unpack
+
+    from ..tl.client_kwargs import TelethonClientKwargs
 
 __all__ = ["TDesktop"]
 
@@ -246,12 +256,11 @@ class TDesktop(BaseObject):
                 self.__basePath = basePath
 
             Expects(len(self.accounts) > 0)
-            if folder.key_file != self.keyFile:
-                raise NotImplementedError(
-                    f"opentele2._native writes the key file {folder.key_file!r} of this "
-                    f"folder and cannot write it as {self.keyFile!r}"
-                )
             try:
+                if folder.key_file != self.keyFile:
+                    # 1.5.0 names the key file and the account files after
+                    # keyFile on every save.
+                    folder.key_file = self.keyFile
                 folder.save(basePath, self.kPerformanceMode, draws=replay)
             except CoreError as error:
                 raise_core_error(error)
@@ -268,6 +277,193 @@ class TDesktop(BaseObject):
         for account in self.__accounts:
             account.localKey = self.__localKey
         self.__isLoaded = True
+
+    def __newFolder(self) -> TData:
+        """A folder holding this instance's accounts under a new local key."""
+        folder = self.__folder
+        try:
+            return TData.new(
+                [] if folder is None else folder.accounts,
+                self.passcode,
+                self.kPerformanceMode,
+                _NEW_FOLDER_ACTIVE_INDEX if folder is None else folder.active_index,
+            )
+        except CoreError as error:
+            raise_core_error(error)
+
+    def __generateLocalKey(self) -> None:
+        """1.5.0 ``__generateLocalKey``: a new local key for an instance that
+        was never loaded."""
+        Expects(not self.isLoaded())
+        self.__useFolder(self.__newFolder())
+
+    def _addAccount(
+        self, userId: int, authKey: AuthKey, api: type[APIData] | APIData = API.TelegramDesktop
+    ) -> Account:
+        """1.5.0 ``Account.FromTelethon`` on this owner: an account of ``userId``
+        holding ``authKey`` as the key of its main DC, at the next index."""
+        Expects(
+            self.accountsCount < TDesktop.kMaxAccounts,
+            exception=MaxAccountLimit("You can't have more than 6 accounts in one TDesktop client"),
+        )
+        folder = self.__folder
+        if folder is None:
+            # 1.5.0 holds the accounts of an instance that was never loaded
+            # without a local key until it is saved, which generates one; the
+            # core holds them in a folder, which a save then replaces.
+            folder = self.__newFolder()
+            self.__folder = folder
+        try:
+            index = folder.add_account(userId, authKey.dcId, authKey.key)
+        except CoreError as error:
+            if error.code == "MAX_ACCOUNT_LIMIT":
+                raise MaxAccountLimit(
+                    "You can't have more than 6 accounts in one TDesktop client"
+                ) from error
+            raise_core_error(error)
+
+        account = Account(
+            owner=self,
+            basePath=self.basePath,
+            api=api,
+            keyFile=self.keyFile,
+            index=index,
+        )
+        for loaded in folder.accounts:
+            if loaded.index == index:
+                account._load(loaded)
+        self._addSingleAccount(account)
+        return account
+
+    def _addSingleAccount(self, account: Account) -> None:
+        Expects(
+            account.isLoaded(),
+            "Could not add account because the account hasn't been loaded",
+        )
+
+        account.localKey = self.localKey
+
+        self.__accounts.append(account)
+
+        if self.mainAccount is None:
+            self.__mainAccount = self.__accounts[0]
+
+    async def ToTelethon(
+        self,
+        session: str | Session | None = None,
+        flag: type[LoginFlag] = CreateNewSession,
+        api: type[APIData] | APIData = API.TelegramDesktop,
+        password: str | None = None,
+        **kwargs: Unpack[TelethonClientKwargs],
+    ) -> tl.TelegramClient:
+        """Convert this TDesktop to a TelegramClient."""
+        Expects(
+            self.isLoaded(),
+            TDesktopNotLoaded("You need to load accounts from a tdata folder first"),
+        )
+        Expects(
+            self.accountsCount > 0,
+            TDesktopHasNoAccount("There is no account in this instance of TDesktop"),
+        )
+        mainAccount = self.mainAccount
+        if mainAccount is None:
+            raise TDesktopHasNoAccount("There is no main account in this instance of TDesktop")
+
+        return await tl.TelegramClient.FromTDesktop(
+            mainAccount,
+            session=session,
+            flag=flag,
+            api=api,
+            password=password,
+            **kwargs,
+        )
+
+    @staticmethod
+    async def FromTelethon(
+        telethonClient: tl.TelegramClient,
+        flag: type[LoginFlag] = CreateNewSession,
+        api: type[APIData] | APIData = API.TelegramDesktop,
+        password: str | None = None,
+    ) -> TDesktop:
+        """Create a TDesktop instance from a TelegramClient."""
+        Expects(
+            (flag == CreateNewSession) or (flag == UseCurrentSession),
+            LoginFlagInvalid("LoginFlag invalid"),
+        )
+
+        _self = TDesktop()
+        _self.__generateLocalKey()
+
+        await Account.FromTelethon(
+            telethonClient, flag=flag, api=api, password=password, owner=_self
+        )
+
+        return _self
+
+    @staticmethod
+    async def FromSessionJson(
+        session_path: str,
+        json_path: str | None = None,
+        flag: type[LoginFlag] = UseCurrentSession,
+        api: type[APIData] | APIData | None = None,
+        password: str | None = None,
+    ) -> TDesktop:
+        """Create a TDesktop instance from .session + .json files.
+
+        Args:
+            session_path: Path to the .session file.
+            json_path: Path to the .json metadata file. If None, derived
+                       from session_path.
+            flag: UseCurrentSession or CreateNewSession.
+            api: API to use for the TDesktop. If None, uses the API
+                 from the JSON file.
+            password: 2FA password for CreateNewSession.
+
+        Returns:
+            A loaded TDesktop instance.
+        """
+        client = await tl.TelegramClient.FromSessionJson(
+            session_path,
+            json_path,
+            flag=UseCurrentSession,
+            password=password,
+        )
+        use_api = api if api is not None else (client._api_data or API.TelegramDesktop)
+        try:
+            return await TDesktop.FromTelethon(client, flag=flag, api=use_api, password=password)
+        finally:
+            await tl.TelegramClient._disconnect_client(client, close_session=True)
+
+    async def SaveSessionJson(
+        self,
+        session_path: str,
+        api: type[APIData] | APIData | None = None,
+        fetch_user_info: bool = False,
+    ) -> tuple[str, str]:
+        """Save this TDesktop's session to .session + .json files.
+
+        Args:
+            session_path: Output path for the .session file.
+            api: APIData for the JSON metadata. Defaults to self.api.
+            fetch_user_info: If True and connected, fetch user info.
+
+        Returns:
+            Tuple of (session_file_path, json_file_path).
+        """
+        Expects(
+            self.isLoaded(),
+            TDesktopNotLoaded("You need to load accounts from a tdata folder first"),
+        )
+        Expects(
+            self.accountsCount > 0,
+            TDesktopHasNoAccount("There is no account in this instance of TDesktop"),
+        )
+
+        use_api = api if api is not None else self.api
+        client = await self.ToTelethon(flag=UseCurrentSession, api=use_api)
+        return await client.SaveSessionJson(
+            session_path, api=use_api, fetch_user_info=fetch_user_info
+        )
 
     @classmethod
     def PerformanceMode(cls, enabled: bool = True) -> None:
