@@ -72,6 +72,11 @@ pub enum Error {
     #[error("failed to save tdata")]
     SaveFailed,
 
+    /// The `key_<dataName>` file is malformed or uses parameters that cannot
+    /// make a passcode key (`TDataKeyDataInvalid`).
+    #[error("tdata key data is invalid")]
+    KeyDataInvalid,
+
     /// A buffer, key, or IV has the wrong length.
     #[error("{what} has a bad length: expected {expected}, got {actual}")]
     BadLength {
@@ -109,6 +114,7 @@ impl Error {
             Self::AuthKeyNotFound => "TDATA_AUTH_KEY_NOT_FOUND",
             Self::MaxAccountLimit => "MAX_ACCOUNT_LIMIT",
             Self::SaveFailed => "TDATA_SAVE_FAILED",
+            Self::KeyDataInvalid => "TDATA_KEY_DATA_INVALID",
             Self::BadLength { .. } => "BAD_LENGTH",
             Self::Io(_) => "IO",
         }
@@ -138,6 +144,7 @@ mod tests {
             Error::AuthKeyNotFound,
             Error::MaxAccountLimit,
             Error::SaveFailed,
+            Error::KeyDataInvalid,
             Error::BadLength {
                 what: "key",
                 expected: 32,
@@ -161,6 +168,7 @@ mod tests {
                 | Error::AuthKeyNotFound
                 | Error::MaxAccountLimit
                 | Error::SaveFailed
+                | Error::KeyDataInvalid
                 | Error::BadLength { .. }
                 | Error::Io(_) => {}
             }

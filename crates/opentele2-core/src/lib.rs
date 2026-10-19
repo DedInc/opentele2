@@ -20,6 +20,7 @@ pub mod crypto;
 mod error;
 pub mod kdf;
 pub mod qt;
+pub mod tdata;
 pub mod tdf;
 
 pub use error::{Error, Result};
