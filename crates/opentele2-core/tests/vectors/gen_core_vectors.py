@@ -1,13 +1,15 @@
 """Golden vectors from the opentele2 1.5.0 Python code for the Rust core port.
 
-    python scripts/gen_core_vectors.py           write the vectors
-    python scripts/gen_core_vectors.py --check   regenerate in memory and compare
+    python gen_core_vectors.py --source DIR           write the vectors
+    python gen_core_vectors.py --source DIR --check   regenerate and compare
 
-Every input is synthetic: byte strings come from SHA-256 in counter mode over a
-fixed label (see ``PatternBytes``), and wherever 1.5.0 draws randomness
-(``os.urandom`` for padding, salts and generated local keys) the draw is served
-from the same construction while the vector is produced. The output lands in
-``crates/opentele2-core/tests/vectors/`` and is byte-for-byte reproducible.
+DIR is a checkout of opentele2 1.5.0 (it must contain ``src/td``); it defaults
+to the repository root and is only read, never written. Every input is
+synthetic: byte strings come from SHA-256 in counter mode over a fixed label
+(see ``PatternBytes``), and wherever 1.5.0 draws randomness (``os.urandom`` for
+padding, salts and generated local keys) the draw is served from the same
+construction while the vector is produced. The output lands in the directory
+holding this script and is byte-for-byte reproducible.
 """
 
 from __future__ import annotations
@@ -24,8 +26,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-VECTORS_DIR = REPO_ROOT / "crates" / "opentele2-core" / "tests" / "vectors"
+SCRIPT_PATH = Path(__file__).resolve()
+VECTORS_DIR = SCRIPT_PATH.parent
+# crates/opentele2-core/tests/vectors -> repository root.
+REPO_ROOT = VECTORS_DIR.parents[3]
+# The committed vectors record the generator's original path; keep it so they
+# stay byte-identical after the move.
+GENERATOR_NAME = "scripts/gen_core_vectors.py"
+# Files in VECTORS_DIR that belong to the generator, not to the vectors.
+GENERATOR_FILES = frozenset({SCRIPT_PATH.name})
 SOURCE_VERSION = "1.5.0"
 MAX_TOTAL_SIZE = 2 * 1024 * 1024
 PASSCODE = "opentele2"
@@ -80,19 +89,31 @@ def fixed_urandom(label: str) -> Iterator[list[bytes]]:
         os.urandom = original
 
 
-def bootstrap() -> None:
-    """Make ``import src`` work offline, exactly as the test suite imports it."""
+class SourceError(Exception):
+    """``--source`` does not point at a 1.5.0 checkout."""
+
+
+def bootstrap(source: Path) -> None:
+    """Make ``import src`` from ``source`` work offline, as its test suite does."""
+    if not (source / "src" / "td").is_dir():
+        raise SourceError(
+            f"--source {source}: no src/td directory; pass a checkout of "
+            f"opentele2 {SOURCE_VERSION}"
+        )
     # Without this, importing src fetches live client versions over the network
     # and the generated app_version strings would drift.
     os.environ["OPENTELE_NO_FETCH"] = "1"
-    root = str(REPO_ROOT)
-    if root not in sys.path:
-        sys.path.insert(0, root)
+    # Never leave .pyc files inside the source checkout.
+    sys.dont_write_bytecode = True
+    root = str(source)
+    if root in sys.path:
+        sys.path.remove(root)
+    sys.path.insert(0, root)
 
 
 def meta(**extra: Any) -> dict[str, Any]:
     result: dict[str, Any] = {
-        "generator": "scripts/gen_core_vectors.py",
+        "generator": GENERATOR_NAME,
         "source_version": SOURCE_VERSION,
         "pattern": PATTERN_DOC,
     }
@@ -746,8 +767,8 @@ def tdata_vectors(workdir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
 # ------------------------------------------------------------------------ main
 
 
-def build_vectors() -> dict[str, bytes]:
-    bootstrap()
+def build_vectors(source: Path) -> dict[str, bytes]:
+    bootstrap(source)
     files: dict[str, bytes] = {
         # Keep git from rewriting line endings in byte-exact fixtures.
         ".gitattributes": b"* -text\n",
@@ -771,11 +792,12 @@ def build_vectors() -> dict[str, bytes]:
 def existing_files() -> dict[str, Path]:
     if not VECTORS_DIR.is_dir():
         return {}
-    return {
-        p.relative_to(VECTORS_DIR).as_posix(): p
-        for p in VECTORS_DIR.rglob("*")
-        if p.is_file()
-    }
+    files = {}
+    for path in VECTORS_DIR.rglob("*"):
+        name = path.relative_to(VECTORS_DIR).as_posix()
+        if path.is_file() and name not in GENERATOR_FILES:
+            files[name] = path
+    return files
 
 
 def check(expected: dict[str, bytes]) -> int:
@@ -793,7 +815,7 @@ def check(expected: dict[str, bytes]) -> int:
     if problems:
         print(f"check failed: {len(problems)} file(s) out of date", file=sys.stderr)
         return 1
-    print(f"check ok: {len(expected)} files match {VECTORS_DIR.relative_to(REPO_ROOT)}")
+    print(f"check ok: {len(expected)} files match {VECTORS_DIR}")
     return 0
 
 
@@ -820,8 +842,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="regenerate in memory and exit non-zero if the committed files differ",
     )
+    parser.add_argument(
+        "--source",
+        type=Path,
+        default=REPO_ROOT,
+        metavar="DIR",
+        help=(
+            f"checkout of opentele2 {SOURCE_VERSION} to import src from "
+            "(default: the repository root)"
+        ),
+    )
     args = parser.parse_args(argv)
-    expected = build_vectors()
+    try:
+        expected = build_vectors(args.source.resolve())
+    except SourceError as error:
+        parser.error(str(error))
     return check(expected) if args.check else write(expected)
 
 
