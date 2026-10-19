@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "opentele2"
-version = "1.5.0"
+version = "2.0.0a1"
 description = "A Python Telegram API Library for converting between tdata and telethon sessions, with built-in official Telegram APIs."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 authors = [
     { name = "DedInc.", email = "visitanimation@gmail.com" },
 ]
@@ -19,15 +19,19 @@ classifiers = [
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Development Status :: 5 - Production/Stable",
 ]
 dependencies = [
     "telethon>=1.45.0",
-    "TgCrypto-pyrofork>=1.2.6",
-	"selectolax>=0.4.10",
-    # Telegram Desktop 7.3 passcode wraps use Argon2id.
-    "argon2-cffi>=21.2",
+    "opentele2-core==2.0.0a1",
+    'typing_extensions>=4.7; python_version < "3.10"',
 ]
 
 [project.optional-dependencies]

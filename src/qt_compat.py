@@ -10,7 +10,7 @@ import typing
 if typing.TYPE_CHECKING:
     from typing_extensions import Self
 
-BufferInput = bytes | bytearray | memoryview | typing.Iterable[int]
+BufferInput = typing.Union[bytes, bytearray, memoryview, typing.Iterable[int]]
 
 
 class QIODevice:

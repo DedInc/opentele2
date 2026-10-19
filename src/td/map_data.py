@@ -4,7 +4,7 @@ import logging
 from ctypes import c_uint32 as uint32
 from ctypes import c_uint64 as uint64
 from ctypes import sizeof
-from typing import ClassVar
+from typing import ClassVar, Dict
 
 from ..exception import (
     Expects,
@@ -20,9 +20,9 @@ from .configs import FileKey, PeerId, lskType
 
 logger = logging.getLogger(__name__)
 
-DraftMap = dict[PeerId, FileKey]
-DraftReadMap = dict[PeerId, bool]
-ParsedKeys = dict[str, int]
+DraftMap = Dict[PeerId, FileKey]
+DraftReadMap = Dict[PeerId, bool]
+ParsedKeys = Dict[str, int]
 
 
 class MapData(BaseObject):

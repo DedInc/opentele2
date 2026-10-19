@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
+import functools
 import json
 import logging
 import os
@@ -28,10 +30,27 @@ from telethon.tl.types import User
 logger = logging.getLogger(__name__)
 
 
+_T = typing.TypeVar("_T")
+
+
+def _remove_suffix(text: str, suffix: str) -> str:
+    """``str.removesuffix`` (3.9+), spelled out for Python 3.8."""
+    if suffix and text.endswith(suffix):
+        return text[: -len(suffix)]
+    return text
+
+
+async def _to_thread(func: typing.Callable[..., _T], *args: typing.Any) -> _T:
+    """``asyncio.to_thread`` (3.9+): the default executor, current context."""
+    loop = asyncio.get_running_loop()
+    ctx = contextvars.copy_context()
+    return await loop.run_in_executor(None, functools.partial(ctx.run, func, *args))
+
+
 def _normalize_base_path(path: str) -> str:
     base = path
-    base = base.removesuffix(".session")
-    base = base.removesuffix(".json")
+    base = _remove_suffix(base, ".session")
+    base = _remove_suffix(base, ".json")
     return base
 
 
@@ -166,7 +185,7 @@ async def from_session_json(
     )
 
     try:
-        data = await asyncio.to_thread(_read_json, json_file)
+        data = await _to_thread(_read_json, json_file)
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise SessionFileInvalid(f"Invalid JSON file: {e}")
 
@@ -237,7 +256,7 @@ async def save_session_json(
         extra["id"] = client.UserId
 
     json_data = api_data.to_json(extra)
-    await asyncio.to_thread(_write_json, json_file, json_data)
+    await _to_thread(_write_json, json_file, json_data)
 
     return (session_file, json_file)
 

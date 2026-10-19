@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import abc
 import functools
+import sys
 from collections.abc import Callable, Mapping, Sequence
-from typing import Generic, ParamSpec, Protocol, TypeVar
+from typing import Generic, Protocol, TypeVar
+
+if sys.version_info < (3, 10):
+    from typing_extensions import ParamSpec
+else:
+    from typing import ParamSpec
 
 from . import debug
 
