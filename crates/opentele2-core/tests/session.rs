@@ -1,7 +1,10 @@
 //! Tests for `session`: the 1.5.0 DC table, Telethon string sessions against
 //! `tests/vectors/sessions.json`, mtcute v3 string sessions against byte
 //! layouts written by hand from the TypeScript source, grammers-shaped
-//! session data, and `from_account` on the vector tdata accounts.
+//! session data, `from_account` on the vector tdata accounts, and Telethon
+//! version 8 session files against `sqlite3` dumps of files 1.5.0 wrote
+//! (with the `telethon-sqlite` feature, also written and read back, and a
+//! Telethon-written fixture under `tests/fixtures`).
 //!
 //! Key bytes are never printed: key comparisons use `assert!` without the
 //! values.
@@ -12,7 +15,9 @@ use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use base64::engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD};
+use opentele2_core::api::{self, Client, Versions};
 use opentele2_core::crypto::AuthKey;
+use opentele2_core::session::telethon_file::{self, SessionRows};
 use opentele2_core::session::{dc, grammers, mtcute, telethon};
 use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
@@ -844,4 +849,510 @@ fn debug_output_never_shows_key_bytes() {
     let hex_key = hex::encode(key.as_bytes());
     assert!(!text.contains(&hex_key[..16]), "Debug leaks key bytes");
     assert!(!text.contains("65, 66, 67"), "Debug leaks key bytes");
+}
+
+// ---------------------------------------------------------------- telethon file
+
+/// Python `sqlite3` `iterdump()` of the file 1.5.0 writes with
+/// `write_session_file(base, 2, "149.154.167.51", 443, bytes(range(256)))`
+/// into an empty directory (`OPENTELE_NO_FETCH=1`, SQLite 3.45.3). The key
+/// blob, `counting_key(0)`, is masked as `<KEY>`.
+const V150_DUMP: [&str; 10] = [
+    "BEGIN TRANSACTION;",
+    "CREATE TABLE entities (id integer primary key, hash integer not null, username text, phone integer, name text, date integer);",
+    "CREATE TABLE sent_files (md5_digest blob, file_size integer, type integer, id integer, hash integer, primary key(md5_digest, file_size, type));",
+    "CREATE TABLE sessions (dc_id integer primary key, server_address text, port integer, auth_key blob, takeout_id integer, tmp_auth_key blob);",
+    "INSERT INTO \"sessions\" VALUES(2,'149.154.167.51',443,X'<KEY>',NULL,NULL);",
+    "CREATE TABLE update_state (id integer primary key, pts integer, qts integer, date integer, seq integer);",
+    "CREATE TABLE version (version integer primary key);",
+    "INSERT INTO \"version\" VALUES(8);",
+    "COMMIT;",
+    "",
+];
+
+/// The dump lines without the trailing empty entry kept for formatting.
+fn v150_dump() -> Vec<String> {
+    V150_DUMP
+        .iter()
+        .filter(|line| !line.is_empty())
+        .map(|line| (*line).to_owned())
+        .collect()
+}
+
+/// The text 1.5.0's built-in table gives each production DC
+/// (`src/td/configs.py`), as (IPv4, IPv6).
+fn table_text_1_5_0(dc_id: i32) -> (&'static str, &'static str) {
+    match dc_id {
+        1 => ("149.154.175.50", "2001:0b28:f23d:f001:0000:0000:0000:000a"),
+        2 => ("149.154.167.51", "2001:067c:04e8:f002:0000:0000:0000:000a"),
+        3 => ("149.154.175.100", "2001:0b28:f23d:f003:0000:0000:0000:000a"),
+        4 => ("149.154.167.91", "2001:067c:04e8:f004:0000:0000:0000:000a"),
+        5 => ("149.154.171.5", "2001:0b28:f23f:f005:0000:0000:0000:000a"),
+        other => panic!("no production DC {other}"),
+    }
+}
+
+#[test]
+fn telethon_file_schema_matches_1_5_0() {
+    let dump = v150_dump();
+    let names: Vec<&str> = telethon_file::SCHEMA.iter().map(|t| t.name).collect();
+    assert_eq!(
+        names,
+        [
+            "version",
+            "sessions",
+            "entities",
+            "sent_files",
+            "update_state"
+        ]
+    );
+    for table in &telethon_file::SCHEMA {
+        // SQLite stores `create table` as `CREATE TABLE` in sqlite_master.
+        let body = table.ddl.strip_prefix("create table ").expect("ddl prefix");
+        let line = format!("CREATE TABLE {body};");
+        assert!(dump.contains(&line), "{} DDL differs: {line}", table.name);
+        let open = body.find('(').expect("column list");
+        assert_eq!(&body[..open - 1], table.name);
+        // Every declared column, in order, before any table constraint.
+        let list = &body[open + 1..body.len() - 1];
+        let list = list.split(", primary key(").next().expect("columns");
+        let declared: Vec<&str> = list
+            .split(", ")
+            .map(|column| column.split(' ').next().expect("column name"))
+            .collect();
+        assert_eq!(declared, table.columns, "{} columns", table.name);
+    }
+    assert_eq!(telethon_file::VERSION, 8);
+    assert!(dump.contains(&"INSERT INTO \"version\" VALUES(8);".to_owned()));
+    assert_eq!(telethon_file::DELETE_VERSION, "delete from version");
+    assert_eq!(
+        telethon_file::INSERT_VERSION,
+        "insert into version values (?)"
+    );
+    assert_eq!(telethon_file::DELETE_SESSIONS, "delete from sessions");
+    assert_eq!(
+        telethon_file::INSERT_SESSION,
+        "insert into sessions values (?, ?, ?, ?, ?, ?)"
+    );
+    assert_eq!(
+        telethon_file::INSERT_SESSION.matches('?').count(),
+        telethon_file::SCHEMA[1].columns.len()
+    );
+}
+
+#[test]
+fn telethon_file_rows_from_vector_accounts() {
+    for folder in ["tdata_plain/performance_on", "tdata_plain/performance_off"] {
+        for (account, want) in &vector_accounts(folder) {
+            let key_hex = want["auth_key"].as_str().expect("auth_key");
+            let (v4, v6) = table_text_1_5_0(account.main_dc);
+            for (ipv6, text) in [(false, v4), (true, v6)] {
+                let rows = SessionRows::from_account(account, ipv6).expect("rows");
+                let string = telethon::StringSession::from_account(account, ipv6).expect("string");
+                assert_eq!(rows.dc_id, account.main_dc, "{folder} dc");
+                assert_eq!(rows.server_address, text, "{folder} address text");
+                assert_eq!(rows.port, 443);
+                assert_eq!(
+                    rows.server_address.parse::<std::net::IpAddr>().ok(),
+                    Some(string.addr.ip()),
+                    "{folder} same endpoint as StringSession"
+                );
+                assert!(rows.takeout_id.is_none());
+                assert!(
+                    hex::encode(rows.auth_key.as_bytes()) == key_hex,
+                    "{folder} rows key differs"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn telethon_file_rows_from_stored_config_keep_its_text() {
+    let config = hex::decode(CUSTOM_CONFIG).expect("hex");
+    let account = account_with_config(2, Some(config.clone()));
+    for (ipv6, text) in [(false, "203.0.113.2"), (true, "2001:db8::2")] {
+        let rows = SessionRows::from_account(&account, ipv6).expect("rows");
+        assert_eq!((rows.dc_id, rows.server_address.as_str()), (2, text));
+        assert_eq!(rows.port, 443);
+        assert!(same_key(&rows.auth_key, &counting_key(9)));
+    }
+    let dc3 = account_with_config(3, Some(config.clone()));
+    let rows = SessionRows::from_account(&dc3, true).expect("DC 3");
+    assert_eq!(rows.server_address, "198.51.100.3");
+    let dc5 = account_with_config(5, Some(config));
+    assert_eq!(
+        code_of(SessionRows::from_account(&dc5, false)),
+        "TDATA_BAD_CONFIG_DATA"
+    );
+
+    let test = MtpConfig::new(Environment::Test)
+        .serialize()
+        .expect("serialize");
+    let rows = SessionRows::from_account(&account_with_config(2, Some(test)), false).expect("test");
+    assert_eq!(rows.server_address, "149.154.167.40");
+
+    let unknown_dc = Account::new(0, 1, 7, vec![(7, counting_key(0))]).expect("account");
+    assert_eq!(
+        code_of(SessionRows::from_account(&unknown_dc, false)),
+        "TDATA_BAD_CONFIG_DATA"
+    );
+    let mut keyless = Account::new(0, 1, 2, vec![(2, counting_key(0))]).expect("account");
+    keyless.keys[0].0 = 4;
+    assert_eq!(
+        code_of(SessionRows::from_account(&keyless, false)),
+        "TDATA_AUTH_KEY_NOT_FOUND"
+    );
+}
+
+#[test]
+fn telethon_file_pair_paths_match_1_5_0() {
+    // 1.5.0 `_normalize_base_path(p) + ".session"` and `+ ".json"`.
+    let cases = [
+        ("acc", "acc.session", "acc.json"),
+        ("acc.session", "acc.session", "acc.json"),
+        ("acc.json", "acc.session", "acc.json"),
+        (
+            "acc.session.json",
+            "acc.session.session",
+            "acc.session.json",
+        ),
+        ("acc.json.session", "acc.session", "acc.json"),
+        ("dir/acc.session", "dir/acc.session", "dir/acc.json"),
+        ("acc.SESSION", "acc.SESSION.session", "acc.SESSION.json"),
+        (".session", ".session", ".json"),
+        ("acc.sessions", "acc.sessions.session", "acc.sessions.json"),
+        ("a.session.session", "a.session.session", "a.session.json"),
+        ("a.json.json", "a.json.session", "a.json.json"),
+        ("", ".session", ".json"),
+        ("dir/", "dir/.session", "dir/.json"),
+        ("acc.session/", "acc.session/.session", "acc.session/.json"),
+    ];
+    for (base, session, json) in cases {
+        let (got_session, got_json) = telethon_file::pair_paths(base);
+        assert_eq!(got_session, PathBuf::from(session), "{base:?} session");
+        assert_eq!(got_json, PathBuf::from(json), "{base:?} json");
+    }
+    // 1.5.0 `write_session_file`: the suffix is appended unless present.
+    for (path, full) in [
+        ("acc", "acc.session"),
+        ("acc.session", "acc.session"),
+        ("acc.json", "acc.json.session"),
+        ("acc.SESSION", "acc.SESSION.session"),
+    ] {
+        assert_eq!(telethon_file::session_path(path), PathBuf::from(full));
+    }
+}
+
+#[test]
+fn telethon_file_companion_json_is_the_session_json() {
+    let profile = api::profile(Client::Desktop, &Versions::offline());
+    let mut extra = serde_json::Map::new();
+    extra.insert("session_file".to_owned(), "acc".into());
+    extra.insert("id".to_owned(), 77.into());
+    let json = telethon_file::companion_json(&profile, Some(&extra));
+    assert_eq!(json, profile.to_session_json(Some(&extra)));
+    assert_eq!(json["session_file"], "acc");
+    assert_eq!(json["id"], 77);
+    assert_eq!(
+        telethon_file::companion_json(&profile, None),
+        profile.to_session_json(None)
+    );
+}
+
+#[cfg(feature = "telethon-sqlite")]
+mod telethon_sqlite {
+    use super::{Path, PathBuf, SessionRows, code_of, counting_key, fs, same_key, telethon_file};
+    use opentele2_core::crypto::AuthKey;
+    use rusqlite::Connection;
+
+    /// A fresh directory under `CARGO_TARGET_TMPDIR` for one test.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join("telethon_file")
+            .join(name);
+        if dir.exists() {
+            fs::remove_dir_all(&dir).expect("clear scratch dir");
+        }
+        fs::create_dir_all(&dir).expect("create scratch dir");
+        dir
+    }
+
+    fn fixture() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/telethon_v8.session")
+    }
+
+    /// The synthetic key of the fixture: byte `i` is `255 - i`.
+    fn fixture_key() -> AuthKey {
+        let mut bytes = [0u8; AuthKey::SIZE];
+        for (i, byte) in (0u8..=255).zip(bytes.iter_mut()) {
+            *byte = 255 - i;
+        }
+        AuthKey::new(bytes)
+    }
+
+    fn rows(
+        dc_id: i32,
+        server_address: &str,
+        key: AuthKey,
+        takeout_id: Option<i64>,
+    ) -> SessionRows {
+        SessionRows {
+            dc_id,
+            server_address: server_address.to_owned(),
+            port: 443,
+            auth_key: key,
+            takeout_id,
+        }
+    }
+
+    /// Python `sqlite3` `iterdump()` for tables, with `key`'s blob masked as
+    /// `<KEY>` so a failing comparison never prints key bytes; panics when
+    /// the dump holds no blob of `key`.
+    fn dump(path: &Path, key: &AuthKey) -> Vec<String> {
+        let conn = Connection::open(path).expect("open dump");
+        let mut lines = vec!["BEGIN TRANSACTION;".to_owned()];
+        let mut tables = conn
+            .prepare(
+                "SELECT name, sql FROM sqlite_master \
+                 WHERE sql NOT NULL AND type == 'table' ORDER BY name",
+            )
+            .expect("prepare");
+        let tables: Vec<(String, String)> = tables
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .expect("query")
+            .collect::<rusqlite::Result<_>>()
+            .expect("tables");
+        for (name, sql) in tables {
+            lines.push(format!("{sql};"));
+            let mut columns = conn
+                .prepare(&format!("pragma table_info(\"{name}\")"))
+                .expect("pragma");
+            let columns: Vec<String> = columns
+                .query_map([], |row| row.get(1))
+                .expect("columns")
+                .collect::<rusqlite::Result<_>>()
+                .expect("columns");
+            let values = columns
+                .iter()
+                .map(|column| format!("'||quote(\"{column}\")||'"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let query = format!("SELECT 'INSERT INTO \"{name}\" VALUES({values})' FROM \"{name}\"");
+            let mut statement = conn.prepare(&query).expect("rows");
+            let inserts: Vec<String> = statement
+                .query_map([], |row| row.get(0))
+                .expect("rows")
+                .collect::<rusqlite::Result<_>>()
+                .expect("rows");
+            lines.extend(inserts.into_iter().map(|line| format!("{line};")));
+        }
+        lines.push("COMMIT;".to_owned());
+        let blob = format!("X'{}'", hex::encode_upper(key.as_bytes()));
+        assert!(
+            lines.iter().any(|line| line.contains(&blob)),
+            "dump holds no blob of the key"
+        );
+        lines
+            .into_iter()
+            .map(|line| line.replace(&blob, "X'<KEY>'"))
+            .collect()
+    }
+
+    fn inserts(lines: &[String]) -> Vec<&str> {
+        lines
+            .iter()
+            .map(String::as_str)
+            .filter(|line| line.starts_with("INSERT"))
+            .collect()
+    }
+
+    fn check_rows(got: &SessionRows, want: &SessionRows) {
+        assert_eq!(got.dc_id, want.dc_id);
+        assert_eq!(got.server_address, want.server_address);
+        assert_eq!(got.port, want.port);
+        assert_eq!(got.takeout_id, want.takeout_id);
+        assert!(same_key(&got.auth_key, &want.auth_key), "auth key differs");
+    }
+
+    #[test]
+    fn written_file_dumps_as_1_5_0_writes_it() {
+        let dir = scratch("dump");
+        let written = rows(2, "149.154.167.51", counting_key(0), None);
+        let path = telethon_file::write_session_file(dir.join("v150"), &written).expect("write");
+        assert_eq!(path, dir.join("v150.session"));
+        assert_eq!(dump(&path, &counting_key(0)), super::v150_dump());
+    }
+
+    #[test]
+    fn pre_v8_file_is_rebuilt_as_1_5_0_does() {
+        let dir = scratch("rebuild");
+        let path = dir.join("old.session");
+        let conn = Connection::open(&path).expect("open");
+        conn.execute_batch(
+            "create table version (version integer primary key);
+             insert into version values (7);
+             create table sessions (dc_id integer primary key, server_address text,
+                 port integer, auth_key blob, takeout_id integer);
+             insert into sessions values (1, 'x', 1, x'00', 5);",
+        )
+        .expect("v7 schema");
+        conn.close().expect("close");
+        let written = rows(2, "149.154.167.51", counting_key(0), None);
+        telethon_file::write_session_file(&path, &written).expect("write");
+        assert_eq!(dump(&path, &counting_key(0)), super::v150_dump());
+    }
+
+    #[test]
+    fn write_then_read_round_trips() {
+        let dir = scratch("round_trip");
+        let first = rows(2, "149.154.167.51", counting_key(0), None);
+        let path =
+            telethon_file::write_session_file(dir.join("acc.session"), &first).expect("write");
+        check_rows(
+            &telethon_file::read_session_file(&path).expect("read"),
+            &first,
+        );
+        // Without the suffix the reader finds the same file.
+        check_rows(
+            &telethon_file::read_session_file(dir.join("acc")).expect("read"),
+            &first,
+        );
+
+        // Rewriting a current file replaces its one sessions row.
+        let second = rows(
+            5,
+            "2001:0b28:f23f:f005:0000:0000:0000:000a",
+            counting_key(3),
+            Some(-42),
+        );
+        telethon_file::write_session_file(&path, &second).expect("rewrite");
+        check_rows(
+            &telethon_file::read_session_file(&path).expect("read"),
+            &second,
+        );
+        let lines = dump(&path, &counting_key(3));
+        assert_eq!(
+            inserts(&lines),
+            [
+                "INSERT INTO \"sessions\" VALUES(5,'2001:0b28:f23f:f005:0000:0000:0000:000a',443,X'<KEY>',-42,NULL);",
+                "INSERT INTO \"version\" VALUES(8);",
+            ]
+        );
+    }
+
+    #[test]
+    fn reads_the_telethon_v8_fixture() {
+        let path = fixture();
+        let before = fs::read(&path).expect("read fixture");
+        let got = telethon_file::read_session_file(&path).expect("read");
+        check_rows(
+            &got,
+            &rows(4, "149.154.167.91", fixture_key(), Some(1_234_567)),
+        );
+        assert_eq!(fs::read(&path).expect("reread"), before, "fixture modified");
+    }
+
+    #[test]
+    fn writing_over_the_fixture_keeps_its_schema_as_1_5_0_does() {
+        let dir = scratch("over_fixture");
+        let path = dir.join("over.session");
+        fs::copy(fixture(), &path).expect("copy fixture");
+        let creates = |lines: &[String]| -> Vec<String> {
+            lines
+                .iter()
+                .filter(|line| line.starts_with("CREATE"))
+                .cloned()
+                .collect()
+        };
+        let telethon_schema = creates(&dump(&path, &fixture_key()));
+        assert!(
+            telethon_schema.iter().any(|line| line.contains('\n')),
+            "Telethon writes multi-line DDL"
+        );
+        let written = rows(
+            2,
+            "2001:067c:04e8:f002:0000:0000:0000:000a",
+            counting_key(0),
+            None,
+        );
+        telethon_file::write_session_file(&path, &written).expect("write");
+        let lines = dump(&path, &counting_key(0));
+        assert_eq!(creates(&lines), telethon_schema, "schema kept");
+        // 1.5.0 `write_session_file` on a copy of the fixture, same values.
+        assert_eq!(
+            inserts(&lines),
+            [
+                "INSERT INTO \"sessions\" VALUES(2,'2001:067c:04e8:f002:0000:0000:0000:000a',443,X'<KEY>',NULL,NULL);",
+                "INSERT INTO \"version\" VALUES(8);",
+            ]
+        );
+        check_rows(
+            &telethon_file::read_session_file(&path).expect("read"),
+            &written,
+        );
+    }
+
+    #[test]
+    fn read_errors() {
+        let dir = scratch("errors");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(dir.join("missing"))),
+            "TFILE_NOT_FOUND"
+        );
+
+        let text = dir.join("text.session");
+        fs::write(&text, b"not a database, just text that is long enough").expect("write");
+        assert_eq!(code_of(telethon_file::read_session_file(&text)), "IO");
+
+        let empty_rows = dir.join("empty.session");
+        let written = rows(2, "149.154.167.51", counting_key(0), None);
+        telethon_file::write_session_file(&empty_rows, &written).expect("write");
+        let conn = Connection::open(&empty_rows).expect("open");
+        conn.execute("delete from sessions", []).expect("delete");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "TDATA_AUTH_KEY_NOT_FOUND"
+        );
+        conn.execute(
+            "insert into sessions values (2, '149.154.167.51', 443, x'', null, x'')",
+            [],
+        )
+        .expect("keyless row");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "TDATA_AUTH_KEY_NOT_FOUND"
+        );
+        conn.execute("update sessions set auth_key = x'0102'", [])
+            .expect("short key");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "BAD_LENGTH"
+        );
+        conn.execute(
+            "update sessions set auth_key = ?1, port = 70000",
+            [counting_key(0).as_bytes().as_slice()],
+        )
+        .expect("bad port");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "TDATA_BAD_CONFIG_DATA"
+        );
+        conn.execute("update sessions set port = 443", [])
+            .expect("port");
+        conn.execute("update version set version = 7", [])
+            .expect("version");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "QDATASTREAM_FAILED"
+        );
+        conn.execute("update version set version = 8", [])
+            .expect("version");
+        conn.execute("alter table sessions drop column tmp_auth_key", [])
+            .expect("drop column");
+        assert_eq!(
+            code_of(telethon_file::read_session_file(&empty_rows)),
+            "QDATASTREAM_FAILED"
+        );
+    }
 }

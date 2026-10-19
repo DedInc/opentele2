@@ -44,24 +44,48 @@ fn endpoint_addr(endpoint: &Endpoint) -> Result<SocketAddr> {
 /// [`crate::tdata::mtp_config::Endpoints::select`] of the main DC's
 /// endpoints; without one it is [`dc::production`].
 fn account_endpoint(account: &Account, ipv6: bool) -> Result<(SocketAddr, bool, &AuthKey)> {
-    let (addr, test) = match stored_config(account) {
-        Some(config) => {
-            let endpoints = config
-                .endpoints(account.main_dc)
-                .ok_or(Error::BadConfigData)?;
-            let endpoint = endpoints.select(ipv6).ok_or(Error::BadConfigData)?;
-            (
-                endpoint_addr(endpoint)?,
-                config.environment == Environment::Test,
-            )
-        }
-        None => (
-            dc::production(account.main_dc, ipv6).ok_or(Error::BadConfigData)?,
-            false,
-        ),
+    let (addr, _, test, key) = account_target(account, ipv6)?;
+    Ok((addr, test, key))
+}
+
+/// [`account_endpoint`] with the address text 1.5.0 hands Telethon's
+/// `set_dc` (`auth_session.set_dc(endpoint.id, endpoint.ip, endpoint.port)`):
+/// the stored config's IP text verbatim, or the text of the built-in table
+/// (`src/td/configs.py`: dotted IPv4, IPv6 with all eight groups as four
+/// lowercase hex digits).
+pub(super) fn account_target(
+    account: &Account,
+    ipv6: bool,
+) -> Result<(SocketAddr, String, bool, &AuthKey)> {
+    let (addr, ip_text, test) = if let Some(config) = stored_config(account) {
+        let endpoints = config
+            .endpoints(account.main_dc)
+            .ok_or(Error::BadConfigData)?;
+        let endpoint = endpoints.select(ipv6).ok_or(Error::BadConfigData)?;
+        (
+            endpoint_addr(endpoint)?,
+            endpoint.ip.clone(),
+            config.environment == Environment::Test,
+        )
+    } else {
+        let addr = dc::production(account.main_dc, ipv6).ok_or(Error::BadConfigData)?;
+        (addr, table_text(addr.ip()), false)
     };
     let key = account.auth_key().ok_or(Error::AuthKeyNotFound)?;
-    Ok((addr, test, key))
+    Ok((addr, ip_text, test, key))
+}
+
+/// An address of the built-in table as 1.5.0 spells it.
+fn table_text(ip: IpAddr) -> String {
+    match ip {
+        IpAddr::V4(ip) => ip.to_string(),
+        IpAddr::V6(ip) => ip
+            .segments()
+            .iter()
+            .map(|group| format!("{group:04x}"))
+            .collect::<Vec<_>>()
+            .join(":"),
+    }
 }
 
 /// The main DC id as one byte; every id of the built-in table fits.

@@ -5,6 +5,9 @@
 //! - [`mtcute`]: mtcute string session version 3.
 //! - [`grammers`]: plain structs shaped like grammers 0.11 `SessionData`,
 //!   with no grammers dependency.
+//! - [`telethon_file`]: Telethon `SQLiteSession` (version 8) rows and the
+//!   `.session` + `.json` pair of 1.5.0; the file itself is written and read
+//!   only with the optional feature `telethon-sqlite`.
 //!
 //! Every `from_account` takes the endpoints of the account's stored MTP
 //! config ([`crate::tdata::account::Account::mtp_config`]) when the account
@@ -17,6 +20,7 @@
 //! prints the key id only, never key material.
 
 mod codecs;
+pub mod telethon_file;
 
 pub use codecs::{grammers, mtcute, telethon};
 
