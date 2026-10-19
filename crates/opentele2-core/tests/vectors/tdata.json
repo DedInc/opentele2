@@ -1,0 +1,165 @@
+{
+ "folders": {
+  "tdata_passcode/performance_off": {
+   "accounts": [
+    {
+     "auth_key": "7abda9d0a79a9fc073b5ea0014e31f41b2e756dcc2fc0fceffcde8f8e8bacf3917cf87fc59fa54902eadd8b2426cc7c36634610d05f0e886c1f2a2bd338c886fb6192dfb047b0eec4cda84eb3327a40e82b1c1163c166ebd39f5145a872248280f536e692592288d40166671553bf9ba25a37b0cfdc2e109b238468487c2baab7e560bb0437642809ba00d42a0e51cc5a79972469bc30e441b4d22a9a8cdac87f88180b01f267c29e7cf59aafa51a487602df4fbfc859f04160e1666cc556e3cda634b31d50b319c2fad1facc0633855b64879564ad982efc7a53f54efd57fd4a7113a3a11c9e1b39ec1fdddccb04cdbd5669f13073fef0193944abf97719cec",
+     "index": 0,
+     "main_dc": 1,
+     "user_id": 200000002
+    },
+    {
+     "auth_key": "b4ab174831a234f706bf60004df206371fe854f26d6fff5a4f04dddf9632a5800be92436202008bab4e71bd780e8b94ed63ef36aa61ae1a1f6fd02fe65a778eebbd11c3da425a5e91e5b1610ac96c5732f5368cb7ccb45f3afeb95bcd69b4369c64a6db69fbd39e3346a1dfa38aa35b72c5bd99d6220b46f29edc3b19187a8b583834ca2c59cb36a8115b21eda1f9e8704e444f42e5dbcc72bbf51b21a825e27e00a24d63cb89bdc776778e28b6171bfd4b458d00605482475a6b3a38360e466f2fb08c1e1f387c64be9a7ca44cb44373e90924e022e62e6ee04c99ab0192925c9139c6109db550622ab85424236234f8e4c5cead6901863b39459b3d2eb9e62",
+     "index": 1,
+     "main_dc": 5,
+     "user_id": 6000000456
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/configs",
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/configs",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "main_account_index": 0,
+   "passcode": "opentele2",
+   "performance_mode": false,
+   "rng_draws": [
+    "9e82751195fbef796cd59d226aa27c7845fd6668d772f85ec2377ae25355ca6aed37a77702ce7d4186356989902ad038c4da7e82af8d5527bd62e3ff3ad721a31c7addc273220be8c0af853ff70a9c5d6b37b468c15cb7542f1b712e5b32d29aa103016c92bebc7eb1844f63d1fe98c2082670d149ba978141bb8f7d77827ac852b1f37ceb5285786bc6e22bb3c4989eae8680a6071b6ffb67fcfc0dacb57cfe25b64f97ec6b78050da871cefe875eda2bee697b076137109dc8b6431cce0d6d930f3a6f862b9bbc935f07e8db9495f62bd82a91a133f4061b7c87136ef9869b1b5984bf3ba1a365c11fe798724cbdd5e7a5008cac922d4d5835fd6bce57cb89",
+    "41c0dfe5fc637f7a0ba08bdc0a53b74edf42fd628cd5c589904b2e87d0312834",
+    "f04288ca4b4110400f98188cfd58ad57ac73db0611140c37f5863c39f8fc74b0",
+    "ddca7626b5457531c1796fae4a3a2b3d568054227138919047ff0013342f1d0c",
+    "e0e5c5c70cbfcf725634bdd8",
+    "5de59640960e77f672159424",
+    "019b4a9b",
+    "b91913be48f38803d50cfe18",
+    "a5f7d07b",
+    "59015146d47f5202b44d6ce9"
+   ],
+   "rng_label": "tdata_passcode/performance_off/rng"
+  },
+  "tdata_passcode/performance_on": {
+   "accounts": [
+    {
+     "auth_key": "7abda9d0a79a9fc073b5ea0014e31f41b2e756dcc2fc0fceffcde8f8e8bacf3917cf87fc59fa54902eadd8b2426cc7c36634610d05f0e886c1f2a2bd338c886fb6192dfb047b0eec4cda84eb3327a40e82b1c1163c166ebd39f5145a872248280f536e692592288d40166671553bf9ba25a37b0cfdc2e109b238468487c2baab7e560bb0437642809ba00d42a0e51cc5a79972469bc30e441b4d22a9a8cdac87f88180b01f267c29e7cf59aafa51a487602df4fbfc859f04160e1666cc556e3cda634b31d50b319c2fad1facc0633855b64879564ad982efc7a53f54efd57fd4a7113a3a11c9e1b39ec1fdddccb04cdbd5669f13073fef0193944abf97719cec",
+     "index": 0,
+     "main_dc": 1,
+     "user_id": 200000002
+    },
+    {
+     "auth_key": "b4ab174831a234f706bf60004df206371fe854f26d6fff5a4f04dddf9632a5800be92436202008bab4e71bd780e8b94ed63ef36aa61ae1a1f6fd02fe65a778eebbd11c3da425a5e91e5b1610ac96c5732f5368cb7ccb45f3afeb95bcd69b4369c64a6db69fbd39e3346a1dfa38aa35b72c5bd99d6220b46f29edc3b19187a8b583834ca2c59cb36a8115b21eda1f9e8704e444f42e5dbcc72bbf51b21a825e27e00a24d63cb89bdc776778e28b6171bfd4b458d00605482475a6b3a38360e466f2fb08c1e1f387c64be9a7ca44cb44373e90924e022e62e6ee04c99ab0192925c9139c6109db550622ab85424236234f8e4c5cead6901863b39459b3d2eb9e62",
+     "index": 1,
+     "main_dc": 5,
+     "user_id": 6000000456
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "main_account_index": 0,
+   "passcode": "opentele2",
+   "performance_mode": true,
+   "rng_draws": [
+    "6abdc98718d7c1dedb971d50b32f4ceec5a9d915feda5642738e280a2a221d5295a25bdcc43c26d718e91c6e57bde8e9b19903c1ec7995207195354eb136bace60c903ac0d9596d16bcd8aeea6fe057e42f23c996061248192d2e2a514e89ca3cf757d34eddb2645cf5b5d2b11f9fd957cba8609c09f8ef404a53fc28a1013a69b992b829cc7036962a2de86a278ded694ad7fb6159b98c128d7b19c2907d61dd8736559049ff1a1e010a2ec447fc396adc2e2699a79eef0f639f8d04db3cad4e3c4c46aaf34a8b51e735c1edffb1b5bf49c799858cc0809ec519e174057a505f3ac0e6418df35a386694b1879a6c0f436c2a0436b823e19ae3d220fe5cc7bb2",
+    "bbe6e385c76977a5288881ab37e3019a82e3555313de5328ea769605016a1bd5",
+    "07b17770a23ab6fa63936df20ff838b1d2c89f44cc7d23b14f049e51d104f80c",
+    "59caf04fb38d49de423354cc20d344f4ba2fbb20665c8392c9a7f112bf09f49f",
+    "e23b131a7a6b1f3a57993fdd",
+    "bd8d1660",
+    "cf7b1f1e",
+    "b03288e0e4e45dff493bb0f8"
+   ],
+   "rng_label": "tdata_passcode/performance_on/rng"
+  },
+  "tdata_plain/performance_off": {
+   "accounts": [
+    {
+     "auth_key": "1e55ed23ddd14c82aa4a29b9508626c4fa99a9e1f0d095ab243776f4faa1f3ab5a2897f904218f550e98d38af4ececed7827ed4d0830bead0a598e8ba3039856ec0e0b791e3c3a70da59c8959a86b8c6a432dd6e5a7b6f2e977b53216ee78ffd7cdc091b1450fe9ba0e915c960ffc947a169f31cd19bd0df81c54116f1e0b1f3b0f70b08da41f60e48f0ce26ed6a64a6a128b7a0aa1c7b0c085b8611b19f15390619afda5e1d369c99fb7628c7c9d796cff924220d694f80943678e0c30247b818f0b4451ac785301ef80078c30facdb0994f99a073daa722d12bd40f280efa0a789701a916be82c40e587aa84aab92b82ff7c29b86ee67b6738ce30091f0381",
+     "index": 0,
+     "main_dc": 2,
+     "user_id": 100000001
+    },
+    {
+     "auth_key": "285a8e3fe4dc1b1fbc9d4a41289ffd6f5888c274ccaa64043766ee7457daaa91ec3dfa60ed60a7e59e5884ca8c8b14bb6ce263e63d282b5d9ae4631dee1cdbfe666d836091e4526fd584f34e52d0b35da578d55c02708da0fc6b2c48dc2f4ed938eb49183d234c59cc05e0d653c9740aa47e24a582823af8a3b34b0ecdcc313a53794e3be65c19dca98313f9f2c584ebdf97a830c2d3412621b8d64e98fd746d6284d45017006cf736d48c21a0128d3e78c548304893bb56525fd72f2315566990e5a124cbe88dc8a38f93eabdd64c2345e91e65c5f92be7a1ef8dffbf40027aa770499268f751ba6c6c6820c7759f86b0e9df18313a2d5e20a4cfb6fb846471",
+     "index": 1,
+     "main_dc": 4,
+     "user_id": 5000000123
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/configs",
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/configs",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "main_account_index": 0,
+   "passcode": "",
+   "performance_mode": false,
+   "rng_draws": [
+    "91cb4bcf314e6eb1506e7ca283c7f19af2a32297061e5b5be293df062a812df180c4149b7019241243b8816a9d618a0de3dbd32712cccf5f5084c1643a0b7c6d86c04ceca2dca258eee2c3f6a625e880dce3c4a2c274d101da4f66aea48059ce8b9f0ecbacd1711255ed52d9e4100ea1d3f428776ebf71ac27f37829168fd085a38d3aff3eab0c2114203fb81191cfd8ad08e1ef0b8b184ce879797c141835cdebcf433e4efac29835d4c04934456e986cf1532e96b881d1b8febfd4a61ef47ed7832645cef49426ec49a28bf91e37a491ffbc9e3ba89379f813a0d48e6511603000686d1dc2e63e50610b34b5ebf8a18fecc0fe80aa9906bf2a30985018b505",
+    "41a155ecc0da8c2f8b90e0d60f52a8cb95c7bb8c13878aff79d1ff7c02bc4da2",
+    "4121dfc8060c17cd47347f23706879b70b2ff6d4531034f042f2e065abfafb22",
+    "2d99c3279f1c429f59e203d1",
+    "4b3be7f14ca59fe596c2416a",
+    "4fbfce32",
+    "eaa5f786819984d35a3e01e5",
+    "54b87583",
+    "7a10bca9138dabe78aa31d9b"
+   ],
+   "rng_label": "tdata_plain/performance_off/rng"
+  },
+  "tdata_plain/performance_on": {
+   "accounts": [
+    {
+     "auth_key": "1e55ed23ddd14c82aa4a29b9508626c4fa99a9e1f0d095ab243776f4faa1f3ab5a2897f904218f550e98d38af4ececed7827ed4d0830bead0a598e8ba3039856ec0e0b791e3c3a70da59c8959a86b8c6a432dd6e5a7b6f2e977b53216ee78ffd7cdc091b1450fe9ba0e915c960ffc947a169f31cd19bd0df81c54116f1e0b1f3b0f70b08da41f60e48f0ce26ed6a64a6a128b7a0aa1c7b0c085b8611b19f15390619afda5e1d369c99fb7628c7c9d796cff924220d694f80943678e0c30247b818f0b4451ac785301ef80078c30facdb0994f99a073daa722d12bd40f280efa0a789701a916be82c40e587aa84aab92b82ff7c29b86ee67b6738ce30091f0381",
+     "index": 0,
+     "main_dc": 2,
+     "user_id": 100000001
+    },
+    {
+     "auth_key": "285a8e3fe4dc1b1fbc9d4a41289ffd6f5888c274ccaa64043766ee7457daaa91ec3dfa60ed60a7e59e5884ca8c8b14bb6ce263e63d282b5d9ae4631dee1cdbfe666d836091e4526fd584f34e52d0b35da578d55c02708da0fc6b2c48dc2f4ed938eb49183d234c59cc05e0d653c9740aa47e24a582823af8a3b34b0ecdcc313a53794e3be65c19dca98313f9f2c584ebdf97a830c2d3412621b8d64e98fd746d6284d45017006cf736d48c21a0128d3e78c548304893bb56525fd72f2315566990e5a124cbe88dc8a38f93eabdd64c2345e91e65c5f92be7a1ef8dffbf40027aa770499268f751ba6c6c6820c7759f86b0e9df18313a2d5e20a4cfb6fb846471",
+     "index": 1,
+     "main_dc": 4,
+     "user_id": 5000000123
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "main_account_index": 0,
+   "passcode": "",
+   "performance_mode": true,
+   "rng_draws": [
+    "d88d5b2b",
+    "c4846200",
+    "d6f0139ff6a1de24f8245241"
+   ],
+   "rng_label": "tdata_plain/performance_on/rng"
+  }
+ },
+ "meta": {
+  "generator": "scripts/gen_core_vectors.py",
+  "loader": "src.td.TDesktop(folder, passcode=passcode) under the same mode",
+  "pattern": "bytes(label, n): SHA-256(utf8(label) || counter as u32 big-endian) for counter = 0, 1, 2, ..., concatenated and cut to n bytes",
+  "rng": "os.urandom is replaced by one bytes(label, ...) stream per vector; each call takes the next len bytes of that stream",
+  "source_version": "1.5.0"
+ }
+}

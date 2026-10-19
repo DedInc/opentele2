@@ -1,0 +1,136 @@
+{
+ "meta": {
+  "byte_order": "big-endian",
+  "generator": "scripts/gen_core_vectors.py",
+  "pattern": "bytes(label, n): SHA-256(utf8(label) || counter as u32 big-endian) for counter = 0, 1, 2, ..., concatenated and cut to n bytes",
+  "qdatastream_version": 16,
+  "source_version": "1.5.0"
+ },
+ "qbytearray": [
+  {
+   "encoded": "ffffffff",
+   "null": true,
+   "value": ""
+  },
+  {
+   "encoded": "00000000",
+   "null": false,
+   "value": ""
+  },
+  {
+   "encoded": "00000003000102",
+   "null": false,
+   "value": "000102"
+  },
+  {
+   "encoded": "0000012c9f75ed446020b496cc1030db28af72d822b87290ef55ea65b51c2fc6379f0c2d53feb241904a4f38f75783567b79d63a0135b0fee2c272f7e5efa92337cf16d0e021b6dff8dcf98cee166c49a80debaa423eaa18c616f61f8cd411c218d443c31a1686deb0dc8b33cad4d637ada220bb8bf3cc157d8240f95183686a01e203d33bff19024a334fa430abb6e0c660f1af583b99f3212c2c77b7503447efff6d77b58d46b3e9663f2122dd1e1015e53f3d904540f7b8636e73252d89c8656ec8c85c61e599e162c3dade33a1c1a673b62ad4c06d9283fee603042f8433f008e673aa22a6fcf381253ca4970685f7cadc983ad881b58988adbbd39e89e2cca885dbdcf474b1e947c4003b29cb9e844561c13506d25c331c1469df5cb95122194955aca285b4530b425e2c1ee9fa",
+   "null": false,
+   "value": "9f75ed446020b496cc1030db28af72d822b87290ef55ea65b51c2fc6379f0c2d53feb241904a4f38f75783567b79d63a0135b0fee2c272f7e5efa92337cf16d0e021b6dff8dcf98cee166c49a80debaa423eaa18c616f61f8cd411c218d443c31a1686deb0dc8b33cad4d637ada220bb8bf3cc157d8240f95183686a01e203d33bff19024a334fa430abb6e0c660f1af583b99f3212c2c77b7503447efff6d77b58d46b3e9663f2122dd1e1015e53f3d904540f7b8636e73252d89c8656ec8c85c61e599e162c3dade33a1c1a673b62ad4c06d9283fee603042f8433f008e673aa22a6fcf381253ca4970685f7cadc983ad881b58988adbbd39e89e2cca885dbdcf474b1e947c4003b29cb9e844561c13506d25c331c1469df5cb95122194955aca285b4530b425e2c1ee9fa"
+  }
+ ],
+ "qint32": [
+  {
+   "encoded": "00000000",
+   "value": 0
+  },
+  {
+   "encoded": "00000001",
+   "value": 1
+  },
+  {
+   "encoded": "ffffffff",
+   "value": -1
+  },
+  {
+   "encoded": "12345678",
+   "value": 305419896
+  },
+  {
+   "encoded": "7fffffff",
+   "value": 2147483647
+  },
+  {
+   "encoded": "80000000",
+   "value": -2147483648
+  }
+ ],
+ "qint64": [
+  {
+   "encoded": "0000000000000000",
+   "value": "0"
+  },
+  {
+   "encoded": "0000000000000001",
+   "value": "1"
+  },
+  {
+   "encoded": "ffffffffffffffff",
+   "value": "-1"
+  },
+  {
+   "encoded": "123456789abcdef0",
+   "value": "1311768467463790320"
+  },
+  {
+   "encoded": "7fffffffffffffff",
+   "value": "9223372036854775807"
+  },
+  {
+   "encoded": "8000000000000000",
+   "value": "-9223372036854775808"
+  }
+ ],
+ "qstring": [
+  {
+   "encoded": "ffffffff",
+   "null": true,
+   "value": ""
+  },
+  {
+   "encoded": "00000000",
+   "null": false,
+   "value": ""
+  },
+  {
+   "encoded": "00000012006f00700065006e00740065006c00650032",
+   "null": false,
+   "value": "opentele2"
+  },
+  {
+   "encoded": "00000008043a043b044e0447",
+   "null": false,
+   "value": "ключ"
+  },
+  {
+   "encoded": "0000000cd83ddd110020006b00650079",
+   "null": false,
+   "value": "🔑 key"
+  }
+ ],
+ "tdf_file": {
+  "blobs": [
+   {
+    "null": false,
+    "value": "6f70656e74656c65322074646620766563746f72"
+   },
+   {
+    "null": true,
+    "value": ""
+   },
+   {
+    "null": false,
+    "value": ""
+   },
+   {
+    "null": false,
+    "value": "3bbcfe0d52c4e138f2bfd247a03a0d70a6eeba96b83a23f1eb5635dc589f3f9c21b87e7824269843bf44cd33a4175227d679517f9c92315c516cc47f9b694e7bd7a26ead08ec3953537f8bc87104e3642f698a1a820893a8ca0dc32615d081622155a550"
+   }
+  ],
+  "file": "5444462479db6a00000000146f70656e74656c65322074646620766563746f72ffffffff00000000000000643bbcfe0d52c4e138f2bfd247a03a0d70a6eeba96b83a23f1eb5635dc589f3f9c21b87e7824269843bf44cd33a4175227d679517f9c92315c516cc47f9b694e7bd7a26ead08ec3953537f8bc87104e3642f698a1a820893a8ca0dc32615d081622155a550620e82d477958c2469bf66441191dc34",
+  "magic": "54444624",
+  "md5": "620e82d477958c2469bf66441191dc34",
+  "name": "vector",
+  "version": 7003001,
+  "written_name": "vectors"
+ }
+}
