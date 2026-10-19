@@ -212,12 +212,18 @@ class APIData(metaclass=BaseAPIMetaClass):
     @staticmethod
     def from_json(data: dict) -> APIData:
         """The API of session JSON as 1.5.0 read it: ``app_id`` and
-        ``app_hash`` are required. A missing ``device`` is the local
-        machine's model, and a missing ``sdk`` or ``app_version`` stays None.
+        ``app_hash`` are required, ``app_id`` an integer or a decimal string.
+        A missing ``device`` is the local machine's model, and a missing
+        ``sdk`` or ``app_version`` stays None.
         ``lang_code`` defaults to ``"en"``, ``lang_pack`` to ``""``, and
         ``system_lang_code`` falls back to ``system_lang_pack``, then
         ``"en"``; a language key holding null stays None."""
         completed = dict(data)
+        # 1.5.0 passed app_id through untouched, so a session JSON storing it
+        # as a decimal string still built an API; the core reads integers only.
+        app_id = completed.get("app_id")
+        if isinstance(app_id, str) and app_id.isascii() and app_id.isdigit():
+            completed["app_id"] = int(app_id)
         # 1.5.0 read every key with dict.get, so null and absent are alike.
         if completed.get("device") is None:
             completed["device"] = _local_device_model()

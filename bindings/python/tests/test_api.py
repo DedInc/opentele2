@@ -449,6 +449,19 @@ def test_from_json_without_credentials_raises_no_instance_matched() -> None:
             APIData.from_json(data)
 
 
+def test_from_json_coerces_a_decimal_string_app_id() -> None:
+    data = {"app_id": "2040", "app_hash": "b18441a1ff607e10a989891a5462e627", "device": "d"}
+    loaded = APIData.from_json(data)
+    assert loaded.api_id == 2040
+    assert type(loaded.api_id) is int
+    assert data["app_id"] == "2040", "the given dict is left as it was"
+    # 2040 in fullwidth digits, which str.isdigit accepts.
+    fullwidth = "".join(chr(0xFF10 + digit) for digit in (2, 0, 4, 0))
+    for app_id in ("", "20x", "-1", "1.5", fullwidth):
+        with pytest.raises(NoInstanceMatched):
+            APIData.from_json({"app_id": app_id, "app_hash": "h"})
+
+
 def test_from_json_is_as_lenient_as_1_5_0() -> None:
     local = api._local_device_model()
     # APIData.from_json(data) of 1.5.0 for each input, as _fields() reads it.
