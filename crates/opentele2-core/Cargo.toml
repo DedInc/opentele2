@@ -22,7 +22,9 @@ scrypt = { version = "0.12.0", default-features = false }
 getrandom = "0.4.3"
 base64 = "0.23.1"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
+# `preserve_order` keeps object keys in insertion order, which the session
+# JSON of `api::ApiProfile::to_session_json` needs to match 1.5.0 byte for byte.
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
 rayon = { version = "1.12.0", optional = true }
 
 [features]

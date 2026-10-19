@@ -11,15 +11,32 @@
 //! 1.5.0 may override [`Versions`] with versions fetched from the network;
 //! the core never fetches, so the host passes them in. [`Versions::offline`]
 //! is the set 1.5.0 uses when fetching is off (`OPENTELE_NO_FETCH`).
+//!
+//! [`ApiProfile::from_session_json`] and [`ApiProfile::to_session_json`]
+//! read and write the session JSON of 1.5.0 `APIData.from_json` and
+//! `APIData.to_json`.
 
-use crate::Result;
+use std::hash::{Hash, Hasher};
+
+use serde_json::{Map, Value};
+
 use crate::devices::{self, Platform, WebClient};
+use crate::{Error, Result};
 
-/// The browser user agent the web clients report in their default
-/// [`profile`] (`_DEFAULT_WEB_USER_AGENT`); [`generate`] picks one from the
-/// web catalog instead.
-const DEFAULT_WEB_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
-     AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36";
+/// The TL schema layer opentele2 advertises to Telegram (1.5.0 `LAYER`,
+/// `_ADVERTISED_LAYER`): the `// LAYER 230` of the `api.tl` shipped by
+/// Telegram Desktop 7.3.1. It is a fixed property of the targeted schema,
+/// independent of the layer any `MTProto` library in use was built for.
+pub const LAYER: i32 = 230;
+
+/// The browser user agent of Chrome `chrome_version` on 64-bit Windows, the
+/// shape of 1.5.0 `PlatformVersions.user_agent` and `_DEFAULT_WEB_USER_AGENT`.
+fn windows_chrome_user_agent(chrome_version: &str) -> String {
+    format!(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+         (KHTML, like Gecko) Chrome/{chrome_version} Safari/537.36"
+    )
+}
 
 /// The `api_id` and `api_hash` shared by every web client.
 const WEB_API_ID: i32 = 2496;
@@ -67,17 +84,25 @@ impl Client {
     }
 }
 
-/// The `PlatformVersions` fields of 1.5.0 that the API profiles use.
+/// Every field of 1.5.0 `PlatformVersions`, in its declaration order.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Versions {
     /// Telegram Android version, for example `13.0.3`.
     pub android_app_version: String,
     /// Telegram Android version code, for example `7183`.
     pub android_app_version_code: u32,
+    /// Inclusive range of Android SDK levels generated devices run, for
+    /// example `(29, 37)`.
+    pub android_sdk_range: (u32, u32),
+    /// The newest Android SDK level, for example `37`.
+    pub android_latest_sdk: u32,
     /// Telegram iOS version, for example `13.0`.
     pub ios_app_version: String,
     /// Telegram iOS build number, for example `35303`.
     pub ios_build_number: u32,
+    /// Inclusive range of iOS versions generated devices run, for example
+    /// `("18.0", "27.0.1")`.
+    pub ios_version_range: (String, String),
     /// The iOS version the default iOS profile reports.
     pub ios_system_version: String,
     /// The macOS version the default macOS profile reports.
@@ -97,17 +122,30 @@ pub struct Versions {
     pub web_a_version: String,
     /// Telegram Web K version, for example `2.2 K`.
     pub web_k_version: String,
+    /// Chrome version of the web user agent, for example `155.0.0.0`.
+    pub chrome_version: String,
+    /// The browser user agent the web clients report as their device in
+    /// their default [`profile`]; [`generate`] picks one from the web catalog
+    /// instead.
+    pub user_agent: String,
 }
 
 impl Versions {
     /// The offline defaults of 1.5.0 `PlatformVersions`.
+    ///
+    /// The user agent is Chrome [`Versions::chrome_version`] on 64-bit
+    /// Windows, which is 1.5.0's default user agent.
     #[must_use]
     pub fn offline() -> Self {
+        let chrome_version = "155.0.0.0".to_owned();
         Self {
             android_app_version: "13.0.3".to_owned(),
             android_app_version_code: 7183,
+            android_sdk_range: (29, 37),
+            android_latest_sdk: 37,
             ios_app_version: "13.0".to_owned(),
             ios_build_number: 35303,
+            ios_version_range: ("18.0".to_owned(), "27.0.1".to_owned()),
             ios_system_version: "27.0.1".to_owned(),
             macos_system_version: "27.0.1".to_owned(),
             desktop_app_version: desktop_version_string(crate::tdata::APP_VERSION),
@@ -117,6 +155,8 @@ impl Versions {
             android_x_app_version: "0.29.1.1817".to_owned(),
             web_a_version: "12.0.47 A".to_owned(),
             web_k_version: "2.2 K".to_owned(),
+            user_agent: windows_chrome_user_agent(&chrome_version),
+            chrome_version,
         }
     }
 }
@@ -134,7 +174,12 @@ fn desktop_version_string(version: u32) -> String {
 }
 
 /// The values a client sends in `initConnection`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Equality and hashing use `api_id`, `api_hash`, `device_model`,
+/// `system_version` and `app_version` only, as 1.5.0 `APIData.__eq__` and
+/// `__hash__` do. The language fields are excluded on purpose: profiles
+/// that differ only in language are the same client on the same device.
+#[derive(Debug, Clone)]
 pub struct ApiProfile {
     /// The application id.
     pub api_id: i32,
@@ -152,6 +197,170 @@ pub struct ApiProfile {
     pub system_lang_code: String,
     /// The language pack name; empty for none.
     pub lang_pack: String,
+}
+
+impl ApiProfile {
+    /// The fields 1.5.0 compares and hashes.
+    fn identity(&self) -> (i32, &str, &str, &str, &str) {
+        (
+            self.api_id,
+            &self.api_hash,
+            &self.device_model,
+            &self.system_version,
+            &self.app_version,
+        )
+    }
+
+    /// Reads a profile from session JSON as 1.5.0 `APIData.from_json` does.
+    ///
+    /// `app_id`, `app_hash`, `device`, `sdk` and `app_version` give the
+    /// credentials, device and versions. `lang_code` defaults to `en` and
+    /// `lang_pack` to empty. `system_lang_code` is taken when it is a
+    /// non-empty string, and otherwise falls back to `system_lang_pack`,
+    /// which defaults to `en`. A JSON `null` counts as an absent key; every
+    /// other key is ignored.
+    ///
+    /// Unlike 1.5.0, which leaves a missing `sdk` or `app_version` unset and
+    /// fills a missing `device` from the local machine, those keys are
+    /// required here.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] with [`std::io::ErrorKind::InvalidData`] when `data` is
+    /// not an object, `app_id` is absent or not an integer that fits `i32`,
+    /// one of `app_hash`, `device`, `sdk` and `app_version` is absent or not a
+    /// string, or a language key holds something other than a string or
+    /// `null`.
+    pub fn from_session_json(data: &Value) -> Result<Self> {
+        let Value::Object(data) = data else {
+            return Err(invalid_session_json("the session JSON is not an object"));
+        };
+        let api_id = match data.get("app_id") {
+            Some(Value::Number(number)) => number
+                .as_i64()
+                .and_then(|id| i32::try_from(id).ok())
+                .ok_or_else(|| invalid_session_json("app_id is not an i32 integer"))?,
+            _ => return Err(invalid_session_json("app_id is missing or not an integer")),
+        };
+        let required = |key: &str| -> Result<String> {
+            optional_text(data, key)?
+                .ok_or_else(|| invalid_session_json(&format!("{key} is missing")))
+        };
+        // 1.5.0 reads `system_lang_code or system_lang_pack`: an empty code
+        // falls back too.
+        let system_lang_code = match optional_text(data, "system_lang_code")? {
+            Some(code) if !code.is_empty() => code,
+            _ => optional_text(data, "system_lang_pack")?.unwrap_or_else(|| "en".to_owned()),
+        };
+        Ok(Self {
+            api_id,
+            api_hash: required("app_hash")?,
+            device_model: required("device")?,
+            system_version: required("sdk")?,
+            app_version: required("app_version")?,
+            lang_code: optional_text(data, "lang_code")?.unwrap_or_else(|| "en".to_owned()),
+            system_lang_code,
+            lang_pack: optional_text(data, "lang_pack")?.unwrap_or_default(),
+        })
+    }
+
+    /// The session JSON 1.5.0 `APIData.to_json(extra)` writes, keys in its
+    /// order.
+    ///
+    /// The profile's keys come first: `app_id`, `app_hash`, `device`, `sdk`,
+    /// `app_version`, `system_lang_pack` and `system_lang_code` (both the
+    /// system language code), `lang_pack`, `lang_code`. The 19 account keys
+    /// of 1.5.0 `_DEFAULT_EXTRA_FIELDS` follow with their default values.
+    /// `extra` overrides those values in place and appends its other keys in
+    /// its own order; an `extra` key naming a profile key overrides that key
+    /// in place too.
+    #[must_use]
+    pub fn to_session_json(&self, extra: Option<&Map<String, Value>>) -> Value {
+        let mut result = Map::new();
+        result.insert("app_id".to_owned(), self.api_id.into());
+        result.insert("app_hash".to_owned(), self.api_hash.clone().into());
+        result.insert("device".to_owned(), self.device_model.clone().into());
+        result.insert("sdk".to_owned(), self.system_version.clone().into());
+        result.insert("app_version".to_owned(), self.app_version.clone().into());
+        result.insert(
+            "system_lang_pack".to_owned(),
+            self.system_lang_code.clone().into(),
+        );
+        result.insert(
+            "system_lang_code".to_owned(),
+            self.system_lang_code.clone().into(),
+        );
+        result.insert("lang_pack".to_owned(), self.lang_pack.clone().into());
+        result.insert("lang_code".to_owned(), self.lang_code.clone().into());
+        let mut extra_fields = default_extra_fields();
+        if let Some(extra) = extra {
+            // Inserting an existing key keeps its position, as `dict.update`.
+            extra_fields.extend(extra.clone());
+        }
+        result.extend(extra_fields);
+        Value::Object(result)
+    }
+}
+
+impl PartialEq for ApiProfile {
+    fn eq(&self, other: &Self) -> bool {
+        self.identity() == other.identity()
+    }
+}
+
+impl Eq for ApiProfile {}
+
+impl Hash for ApiProfile {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.identity().hash(state);
+    }
+}
+
+/// 1.5.0 `_DEFAULT_EXTRA_FIELDS`, in its order.
+fn default_extra_fields() -> Map<String, Value> {
+    let fields = [
+        ("twoFA", Value::Null),
+        ("role", Value::from("")),
+        ("id", Value::Null),
+        ("phone", Value::Null),
+        ("username", Value::Null),
+        ("date_of_birth", Value::Null),
+        ("date_of_birth_integrity", Value::Null),
+        ("is_premium", Value::Bool(false)),
+        ("has_profile_pic", Value::Bool(false)),
+        ("spamblock", Value::Null),
+        ("register_time", Value::Null),
+        ("last_check_time", Value::Null),
+        ("avatar", Value::Null),
+        ("first_name", Value::from("")),
+        ("last_name", Value::from("")),
+        ("sex", Value::Null),
+        ("proxy", Value::Null),
+        ("ipv6", Value::Bool(false)),
+        ("session_file", Value::from("")),
+    ];
+    fields
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value))
+        .collect()
+}
+
+/// The string at `key`, `None` when the key is absent or `null`.
+fn optional_text(data: &Map<String, Value>, key: &str) -> Result<Option<String>> {
+    match data.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(text)) => Ok(Some(text.clone())),
+        Some(_) => Err(invalid_session_json(&format!("{key} is not a string"))),
+    }
+}
+
+/// The error of malformed session JSON, shaped as the core's other malformed
+/// JSON errors.
+fn invalid_session_json(reason: &str) -> Error {
+    Error::Io(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!("invalid session JSON: {reason}"),
+    ))
 }
 
 /// The default profile of `client` after 1.5.0 `_sync_api_versions` applied
@@ -220,7 +429,7 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
         Client::WebA => (
             WEB_API_ID,
             WEB_API_HASH,
-            DEFAULT_WEB_USER_AGENT,
+            versions.user_agent.as_str(),
             "Windows".to_owned(),
             versions.web_a_version.clone(),
             "",
@@ -229,7 +438,7 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
         Client::WebK => (
             WEB_API_ID,
             WEB_API_HASH,
-            DEFAULT_WEB_USER_AGENT,
+            versions.user_agent.as_str(),
             "Win32".to_owned(),
             versions.web_k_version.clone(),
             "macos",
@@ -238,7 +447,7 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
         Client::Webogram => (
             WEB_API_ID,
             WEB_API_HASH,
-            DEFAULT_WEB_USER_AGENT,
+            versions.user_agent.as_str(),
             "Win32".to_owned(),
             "0.7.0".to_owned(),
             "",
