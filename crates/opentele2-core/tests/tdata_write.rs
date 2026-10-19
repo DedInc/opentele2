@@ -394,6 +394,65 @@ fn legacy_passcode_folder_migrates_like_1_5_0() {
     check_legacy_migration("passcode");
 }
 
+/// Loads `tdata_legacy/<name>`, migrates it in place with the first draws
+/// 1.5.0's `SaveTData` made, then saves it twice with the remaining draws:
+/// both saves write `tdata_legacy/<name>_saved` byte for byte, so the second
+/// save does not migrate again.
+fn check_migrate_then_save_twice(name: &str) {
+    let source = format!("tdata_legacy/{name}");
+    let target = format!("{source}_saved");
+    let entry = folder_entry(&source);
+    let saved_entry = folder_entry(&target);
+    let passcode = passcode_of(&entry);
+    let mut tdata = TData::load(vectors_dir().join(&source), passcode, None).expect("load legacy");
+    let local_key = tdata.local_key.as_bytes().to_vec();
+
+    let mut replay = Replay::new(&saved_entry, 0);
+    assert!(
+        tdata.migrate(&mut |buf| replay.fill(buf)).expect("migrate"),
+        "{source} migrates"
+    );
+    let migration_draws = replay.next;
+    assert!(migration_draws > 0, "{source} migration draws");
+    assert!(
+        tdata.key_data.trailer.is_some(),
+        "{source} has a trailer now"
+    );
+    assert!(
+        tdata.local_key.as_bytes() == local_key.as_slice(),
+        "{source} local key"
+    );
+    let mut no_draw = |_: &mut [u8]| panic!("a migrated folder migrates again");
+    assert!(!tdata.migrate(&mut no_draw).expect("migrate again"));
+
+    for round in 0..2 {
+        let mut replay = Replay::new(&saved_entry, migration_draws);
+        let written = scratch(&format!("migrate_{round}"));
+        tdata
+            .save(&written, &mut |buf| replay.fill(buf))
+            .expect("save migrated");
+        replay.finish();
+        assert_same_folder(&target, &written);
+        fs::remove_dir_all(&written).expect("clean scratch");
+    }
+
+    let migrated = TData::load(vectors_dir().join(&target), passcode, None).expect("load saved");
+    assert!(
+        migrated.passcode_key.as_bytes() == tdata.passcode_key.as_bytes(),
+        "{source} passcode key is the new wrap key"
+    );
+}
+
+#[test]
+fn legacy_plain_folder_migrates_once_then_saves_alike() {
+    check_migrate_then_save_twice("plain");
+}
+
+#[test]
+fn legacy_passcode_folder_migrates_once_then_saves_alike() {
+    check_migrate_then_save_twice("passcode");
+}
+
 #[test]
 fn legacy_layout_is_migrated_not_refused() {
     let entry = folder_entry("tdata_plain/performance_on");

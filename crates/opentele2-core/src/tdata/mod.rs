@@ -292,7 +292,9 @@ impl TData {
     /// [`TData`] was loaded or created with, as [`TData::new`] describes
     /// after the local key (open salt, then wrap salt with a passcode, then
     /// the wrap padding). The account files stay valid. `self` is not
-    /// changed, so every save of a still-legacy [`TData`] migrates afresh.
+    /// changed, so every save of a still-legacy [`TData`] migrates afresh;
+    /// [`TData::migrate`] first keeps one migration for every later save,
+    /// as 1.5.0 keeps the key data its first save installed.
     ///
     /// # Errors
     /// - [`Error::SaveFailed`] when there is no account, or when an account
@@ -317,6 +319,36 @@ impl TData {
         self.save_with(dir.as_ref(), &mut |buf| {
             getrandom::fill(buf).map_err(|e| Error::Io(std::io::Error::other(e)))
         })
+    }
+
+    /// Installs 7.3 key data in place of a legacy key file (no trailer),
+    /// drawing from `rng` exactly what [`TData::save`] draws to migrate, and
+    /// returns whether it did. The local key and the accounts stay as they
+    /// are; the passcode key becomes the new wrap key, and the stored
+    /// accounts info, still valid under the same local key, is kept.
+    ///
+    /// Later saves then write this key data instead of migrating afresh,
+    /// so two saves with the same padding write the same files. A key file
+    /// that already has the 7.3 layout is left alone and nothing is drawn.
+    ///
+    /// # Errors
+    /// As [`key_data::create_passcode_key`] when migrating under a
+    /// passcode; `self` is then unchanged.
+    pub fn migrate(&mut self, rng: &mut dyn FnMut(&mut [u8])) -> Result<bool> {
+        if self.key_data.trailer.is_some() {
+            return Ok(false);
+        }
+        let (data, passcode_key) =
+            key_data::install(&self.local_key, &self.passcode.0, &mut |buf| {
+                rng(buf);
+                Ok(())
+            })?;
+        self.key_data = KeyData {
+            info_encrypted: std::mem::take(&mut self.key_data.info_encrypted),
+            ..data
+        };
+        self.passcode_key = passcode_key;
+        Ok(true)
     }
 
     fn save_with(&self, dir: &Path, rng: &mut FillRandom<'_>) -> Result<()> {

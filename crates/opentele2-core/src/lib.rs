@@ -21,6 +21,7 @@
 //! sequentially with identical results.
 
 pub mod api;
+pub mod auth;
 pub mod batch;
 pub mod crypto;
 pub mod devices;
