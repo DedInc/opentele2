@@ -27,13 +27,19 @@
       "types": "./mtcute.d.ts",
       "default": "./mtcute.mjs"
     },
+    "./telethon": {
+      "types": "./telethon.d.ts",
+      "default": "./telethon.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "index.js",
     "index.d.ts",
     "mtcute.mjs",
-    "mtcute.d.ts"
+    "mtcute.d.ts",
+    "telethon.mjs",
+    "telethon.d.ts"
   ],
   "napi": {
     "binaryName": "opentele2",
@@ -58,6 +64,7 @@
     "create-npm-dirs": "napi create-npm-dirs",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "node --test __test__",
+    "typecheck": "tsc --noEmit -p __test__/tsconfig.json",
     "version": "napi version"
   },
   "peerDependencies": {
@@ -75,7 +82,8 @@
   "devDependencies": {
     "@mtcute/core": "0.32.5",
     "@mtcute/node": "0.32.5",
-    "@napi-rs/cli": "3.10.8"
+    "@napi-rs/cli": "3.10.8",
+    "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@10.33.0"
 }
