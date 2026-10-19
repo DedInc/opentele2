@@ -6,7 +6,7 @@ import os
 import pathlib
 import sqlite3
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(0, base_dir)
@@ -90,9 +90,13 @@ ACCOUNT_IDS: list[str] = [
     "215342360",
 ]
 
-JsonDict = dict[str, Any]
-SessionDbDict = dict[str, Any]
 AccountId = str
+
+if TYPE_CHECKING:
+    # Builtin generics are 3.9+ at runtime; annotations are deferred, so
+    # these aliases are only ever evaluated by the type checker.
+    JsonDict = dict[str, Any]
+    SessionDbDict = dict[str, Any]
 
 
 def _load_json(account_id: AccountId) -> JsonDict:

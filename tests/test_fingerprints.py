@@ -5,7 +5,7 @@ import os
 import pathlib
 import sqlite3
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 base_dir = pathlib.Path(__file__).parent.parent.absolute().__str__()
 sys.path.insert(1, base_dir)
@@ -30,10 +30,14 @@ TESTS_DIR = pathlib.Path(__file__).parent
 SESSIONS_DIR = TESTS_DIR / "sessions"
 TDATAS_DIR = TESTS_DIR / "tdatas"
 
-JsonDict = dict[str, Any]
 SessionId = str
 TDataId = str
-ApiClass = type[APIData]
+
+if TYPE_CHECKING:
+    # Builtin generics are 3.9+ at runtime; annotations are deferred, so
+    # these aliases are only ever evaluated by the type checker.
+    JsonDict = dict[str, Any]
+    ApiClass = type[APIData]
 
 
 def load_session_json(session_id: SessionId) -> JsonDict:

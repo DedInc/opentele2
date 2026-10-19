@@ -76,7 +76,8 @@ def test_tdesktop_generate(seed: str) -> None:
     assert _MODEL.match(api.device_model), api.device_model
     assert api.system_version is not None
     assert _TDESKTOP_VERSION.match(api.system_version), api.system_version
-    version = api.system_version.removeprefix("macOS ")
+    # The regex match above guarantees the "macOS " prefix.
+    version = api.system_version[len("macOS ") :]
     assert _version_tuple(version) >= _min_macos()[api.device_model]
 
 

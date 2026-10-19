@@ -15,8 +15,15 @@ _UNVERIFIED_MAC_PREFIXES = ("Mac Studio M5", "Mac mini M5", "Mac mini M6")
 _SEEDS = [f"currency-{i}" for i in range(300)]
 
 
+def _strip_prefix(text: str, prefix: str) -> str:
+    # str.removeprefix is 3.9+; same semantics: unchanged when absent.
+    if text.startswith(prefix):
+        return text[len(prefix) :]
+    return text
+
+
 def _major(version: str) -> int:
-    return int(version.removeprefix("macOS ").split(".")[0])
+    return int(_strip_prefix(version, "macOS ").split(".")[0])
 
 
 @pytest.fixture(scope="module")
@@ -78,7 +85,7 @@ def test_android_max_sdk_capped(android_devices: list[DeviceInfo]) -> None:
     over = [e for e in AndroidDevice._devices if e["max_sdk"] > _MAX_ANDROID_SDK]
     assert not over
     for device in android_devices:
-        assert int(device.version.removeprefix("SDK ")) <= _MAX_ANDROID_SDK
+        assert int(_strip_prefix(device.version, "SDK ")) <= _MAX_ANDROID_SDK
 
 
 @pytest.mark.parametrize("api", [API.TelegramAndroid, API.TelegramAndroidX])

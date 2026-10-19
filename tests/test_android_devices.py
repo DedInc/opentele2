@@ -40,7 +40,7 @@ def devices() -> list[DeviceInfo]:
 
 def _sdk(device: DeviceInfo) -> int:
     assert device.version.startswith("SDK ")
-    return int(device.version.removeprefix("SDK "))
+    return int(device.version[len("SDK ") :])
 
 
 def _versions_by_model(devices: list[DeviceInfo]) -> dict[str, set[int]]:
