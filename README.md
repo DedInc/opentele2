@@ -57,7 +57,7 @@ cargo add opentele2-core@2.0.0-alpha.1      # Rust core
 cargo add opentele2-grammers@2.0.0-alpha.1  # optional grammers 0.11 bridge
 ```
 
-The release workflows are not written yet (see [ARCHITECTURE.md](ARCHITECTURE.md), Phases).
+Releases come from three workflows, `release-python.yml`, `release-node.yml` and `release-crates.yml`, which run only on a bare version tag such as `2.0.0-alpha.1` (PyPI spells it `2.0.0a1`) and publish from the protected environments `pypi`, `npm` and `crates-io`.
 
 ### Python
 
