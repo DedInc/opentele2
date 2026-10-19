@@ -1,0 +1,21 @@
+//! Pure core of opentele2.
+//!
+//! This crate holds every Telegram Desktop `tdata` format and crypto rule
+//! shared by the Python and Node bindings. Its contract:
+//!
+//! - **Pure**: the core transforms bytes and values it is given; it walks no
+//!   filesystem beyond explicit paths passed by the caller.
+//! - **No async**: every function is synchronous; there is no runtime
+//!   dependency such as tokio.
+//! - **No network**: the core opens no sockets and speaks no `MTProto`
+//!   transport.
+//! - **No FFI**: bindings live in separate crates; this crate exports a plain
+//!   Rust API and forbids `unsafe` code.
+//!
+//! Every fallible operation returns [`Result`], whose error type [`Error`]
+//! carries a stable [`Error::code`] that bindings map onto their own
+//! exception types.
+
+mod error;
+
+pub use error::{Error, Result};

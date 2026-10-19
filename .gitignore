@@ -20,3 +20,5 @@ refs/
 docs/
 .coverage
 tests/data/
+/target/
+!/Cargo.lock
