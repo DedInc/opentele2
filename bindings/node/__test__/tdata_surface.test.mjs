@@ -390,6 +390,61 @@ test('addTdataAccount rejects a bad key or user id', async () => {
   assert.equal(tdata.accounts.length, 2)
 })
 
+// What 1.5.0 SaveTData writes for tdata_plain/performance_off after
+// TDesktop(folder) and accounts.pop(1), with performance mode off and
+// os.urandom replaying the first two recorded save draws (after the four
+// local key draws): the SHA-256 of every file.
+const DROPPED_SAVE = {
+  'D877F783D5D3EF8C/configs': '4be29ce6d41a3915545919936d3bbd592e7320be5b3830649b40e50be309d887',
+  'D877F783D5D3EF8C/maps': 'b7844ad62ceba501fadec72a0438db4de337b776f5f684b451f88843adf2fc0e',
+  'D877F783D5D3EF8Cs': '10d2cbd465efc1d9eafe1a33bd1788e60643af2f7d7f9a243bba8674259ec1d6',
+  key_datas: '80833c6e56b542aeb2aeaa0e0bd5e6055c928bb4d5874d9e6f1370149ba86aee',
+}
+
+test('setTdataAccounts keeps the local key and saves as 1.5.0', async () => {
+  const folder = 'tdata_plain/performance_off'
+  const tdata = await core.loadTdata(vectorDir(folder))
+  tdata.performanceMode = false
+  const localKey = tdata.localKey
+  const passcodeKey = tdata.passcodeKey
+  const before = tdata.accounts
+  core.setTdataAccounts(tdata, [before[0]])
+  assert.equal(before.length, 2, 'an earlier accounts array is a snapshot')
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [0],
+  )
+  assertSame(tdata.localKey, localKey, 'local key')
+  assertSame(tdata.passcodeKey, passcodeKey, 'passcode key')
+
+  const draws = manifest[folder].rng_draws.slice(4, 6).map(unhex)
+  const dir = freshDir()
+  await core.saveTdata(tdata, dir, undefined, draws)
+  assert.deepEqual(listedFiles(dir), Object.keys(DROPPED_SAVE).sort())
+  for (const [name, digest] of Object.entries(DROPPED_SAVE)) {
+    const written = createHash('sha256').update(readFileSync(path.join(dir, ...name.split('/')))).digest('hex')
+    assert.equal(written, digest, `${name} differs from 1.5.0`)
+  }
+})
+
+test('setTdataAccounts refuses a list the folder cannot hold', async () => {
+  const tdata = await core.loadTdata(vectorDir('tdata_plain/performance_on'))
+  const tooMany = [0, 1, 2, 3, 4, 5, 6].map(labelledAccount)
+  assert.equal(thrown(() => core.setTdataAccounts(tdata, tooMany)).code, 'OT_MAX_ACCOUNT_LIMIT')
+  const repeated = thrown(() => core.setTdataAccounts(tdata, [2, 0, 2].map(labelledAccount)))
+  assert.equal(repeated.code, 'ERR_INVALID_ARG_VALUE')
+  assert.ok(repeated.message.includes('two accounts have index 2'), repeated.message)
+  const badKey = thrown(() => core.setTdataAccounts(tdata, [{ ...labelledAccount(0), authKey: Buffer.alloc(255) }]))
+  assert.equal(badKey.code, 'OT_BAD_LENGTH')
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [0, 1],
+    'a refused list changes nothing',
+  )
+  core.setTdataAccounts(tdata, [0, 1, 2, 3, 4, 5].map(labelledAccount))
+  assert.equal(tdata.accounts.length, core.TDATA_MAX_ACCOUNTS)
+})
+
 test('keyFile rename then save and reload', async () => {
   const folder = 'tdata_plain/performance_on'
   const tdata = await core.loadTdata(vectorDir(folder))

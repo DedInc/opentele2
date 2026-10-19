@@ -601,6 +601,12 @@ export declare function loadTdata(path: string, passcode?: string | Uint8Array |
 export declare function migrateTdata(tdata: TData, draws?: Array<Uint8Array> | undefined | null): Promise<boolean>
 
 /**
+ * The largest offset `msgIdOffset` draws, so a caller can draw from its
+ * own random source in the same `0..=MSG_ID_OFFSET_MAX` range.
+ */
+export declare const MSG_ID_OFFSET_MAX: number
+
+/**
  * A random msg id offset in `0..=0xFFFF` from the operating system's
  * CSPRNG (1.5.0 `generate_msg_id_offset`).
  */
@@ -955,6 +961,16 @@ export interface SessionRow {
 
 /** The 1.5.0 message of `PrintSessions` when the sessions cannot be fetched. */
 export declare const SESSIONS_UNAVAILABLE: string
+
+/**
+ * Replaces the accounts later saves of `tdata` write, keeping its local
+ * key, key data and salts, as 1.5.0 writes an edited `accounts` list under
+ * the loaded local key. More than `TDATA_MAX_ACCOUNTS` accounts throw
+ * `OT_MAX_ACCOUNT_LIMIT`, two of one index `ERR_INVALID_ARG_VALUE`, and a
+ * bad account the error `newTdata` throws for it; `tdata` is then left as
+ * it was.
+ */
+export declare function setTdataAccounts(tdata: TData, accounts: Array<AccountInput>): void
 
 /**
  * The size in bytes of the SRP numbers `p`, `A`, `B` and the secret

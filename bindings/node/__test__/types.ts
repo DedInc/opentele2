@@ -7,6 +7,7 @@
 // lines fail the check if a declaration here degrades to `any`.
 
 import {
+  MSG_ID_OFFSET_MAX,
   TDATA_MAX_ACCOUNTS,
   TDF_MAGIC,
   addTdataAccount,
@@ -22,6 +23,7 @@ import {
   profile,
   saveTdata,
   sessionJsonFields,
+  setTdataAccounts,
   sessionPairPaths,
   telethonSessionRows,
   webBrowserWeights,
@@ -107,7 +109,11 @@ export async function tdataSurface(account: AccountInput): Promise<void> {
   addTdataAccount(loaded, 1, 2, localKey)
   // @ts-expect-error the key file is a string
   loaded.keyFile = 1
-  void [migrated, passcodeKey, appVersion, index, limit]
+  setTdataAccounts(loaded, [...loaded.accounts, account])
+  // @ts-expect-error the accounts are an array
+  setTdataAccounts(loaded, account)
+  const offsetMax: number = MSG_ID_OFFSET_MAX
+  void [migrated, passcodeKey, appVersion, index, limit, offsetMax]
 }
 
 export function compatData(tdata: TData): void {

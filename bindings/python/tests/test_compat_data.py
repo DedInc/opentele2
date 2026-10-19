@@ -319,8 +319,7 @@ def test_format_table_matches_1_5_0_pretty_table() -> None:
 
 def test_format_table_pads_short_rows_and_drops_extra_cells() -> None:
     assert _native.format_table(["h1", "h2"], [["only"], ["a", "b", "ignored"]]) == (
-        "|------+----|\n|  h1  | h2 |\n|------+----|\n| only |    |\n"
-        "|  a   | b  |\n|------+----|"
+        "|------+----|\n|  h1  | h2 |\n|------+----|\n| only |    |\n|  a   | b  |\n|------+----|"
     )
 
 

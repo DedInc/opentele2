@@ -304,6 +304,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_init_params, module)?)?;
     module.add_function(wrap_pyfunction!(check_versions, module)?)?;
     module.add_function(wrap_pyfunction!(issues_message, module)?)?;
+    // The largest offset `msg_id_offset` draws, so a facade can draw from
+    // Python's `random` in the same `0..=MSG_ID_OFFSET_MAX` range.
+    module.add("MSG_ID_OFFSET_MAX", u16::MAX)?;
     module.add_function(wrap_pyfunction!(msg_id_offset, module)?)?;
     module.add_function(wrap_pyfunction!(is_valid_msg_id, module)?)?;
     module.add_function(wrap_pyfunction!(fingerprint_config, module)?)?;

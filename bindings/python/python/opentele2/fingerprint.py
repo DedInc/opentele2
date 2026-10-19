@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import random
 import time
 import warnings
 from dataclasses import dataclass, field
@@ -305,7 +306,9 @@ class FingerprintConfig:
     """Add a small random offset to msg_id generation to avoid
     predictability.  Official clients do this."""
 
-    _msg_id_offset: int = field(default_factory=_native.msg_id_offset)
+    _msg_id_offset: int = field(
+        default_factory=lambda: random.randint(0, _native.MSG_ID_OFFSET_MAX)
+    )
 
     def get_effective_layer(self) -> int:
         if self.layer_override is not None:
@@ -369,7 +372,8 @@ class TransportRecommendation:
 
 
 def generate_msg_id_offset() -> int:
-    return _native.msg_id_offset()
+    # Python's random, as 1.5.0, so random.seed reproduces the offsets.
+    return random.randint(0, _native.MSG_ID_OFFSET_MAX)
 
 
 # msg_id is a signed 64-bit integer on the wire; anything wider encodes a

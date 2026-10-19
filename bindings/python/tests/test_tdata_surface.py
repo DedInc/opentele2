@@ -409,6 +409,45 @@ def test_add_account_rejects_a_bad_key() -> None:
         tdata.add_account(7, 2, not_bytes)
 
 
+def test_setting_accounts_keeps_the_keys(tmp_path: Path) -> None:
+    folder = "tdata_plain/performance_off"
+    tdata = TData.load(VECTORS / folder)
+    local_key = tdata.local_key
+    passcode_key = tdata.passcode_key
+    kept = tdata.accounts[0]
+    before = tdata.accounts
+    tdata.accounts = [kept, labelled_account(3)]
+    assert [a.index for a in before] == [0, 1], "an earlier accounts list is a snapshot"
+    assert [a.index for a in tdata.accounts] == [0, 3]
+    assert_same(tdata.local_key, local_key, "local key")
+    assert_same(tdata.passcode_key, passcode_key, "passcode key")
+
+    tdata.save(tmp_path)
+    reloaded = TData.load(tmp_path)
+    assert_same(reloaded.local_key, local_key, "reloaded local key")
+    assert [(a.index, a.user_id) for a in reloaded.accounts] == [
+        (0, kept.user_id),
+        (3, 9_000_000_003),
+    ]
+
+
+def test_setting_accounts_refuses_a_list_the_folder_cannot_hold() -> None:
+    tdata = TData.load(VECTORS / "tdata_plain/performance_on")
+    with pytest.raises(CoreError) as error:
+        tdata.accounts = [labelled_account(n) for n in range(TData.MAX_ACCOUNTS + 1)]
+    assert core_code(error) == "MAX_ACCOUNT_LIMIT"
+    with pytest.raises(ValueError, match="two accounts have index 2"):
+        tdata.accounts = [labelled_account(2), labelled_account(0), labelled_account(2)]
+    assert [a.index for a in tdata.accounts] == [0, 1], "a refused list changes nothing"
+    tdata.accounts = [labelled_account(n) for n in range(TData.MAX_ACCOUNTS)]
+    assert len(tdata.accounts) == TData.MAX_ACCOUNTS
+    tdata.accounts = []
+    assert tdata.accounts == []
+    not_accounts: Any = "not accounts"
+    with pytest.raises(TypeError):
+        tdata.accounts = not_accounts
+
+
 def test_key_file_rename_then_save_and_reload(tmp_path: Path) -> None:
     folder = "tdata_plain/performance_on"
     tdata = TData.load(VECTORS / folder)

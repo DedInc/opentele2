@@ -452,6 +452,65 @@ def test_saves_write_the_accounts_list_as_1_5_0(tmp_path: Path) -> None:
         assert account.localKey is tdesk.localKey
 
 
+# What 1.5.0 SaveTData writes after TDesktop(folder) and accounts.pop(1),
+# under the folder's performance mode, with os.urandom replaying the first
+# recorded save draws of the folder: the number of draws it made and the
+# SHA-256 of every file. KEPT is the data name of account 0, the one kept.
+KEPT = "D877F783D5D3EF8C"
+DROPPED_SAVES = {
+    "tdata_plain/performance_off": (
+        2,
+        {
+            f"{KEPT}/configs": "4be29ce6d41a3915545919936d3bbd592e7320be5b3830649b40e50be309d887",
+            f"{KEPT}/maps": "b7844ad62ceba501fadec72a0438db4de337b776f5f684b451f88843adf2fc0e",
+            f"{KEPT}s": "10d2cbd465efc1d9eafe1a33bd1788e60643af2f7d7f9a243bba8674259ec1d6",
+            "key_datas": "80833c6e56b542aeb2aeaa0e0bd5e6055c928bb4d5874d9e6f1370149ba86aee",
+        },
+    ),
+    "tdata_passcode/performance_on": (
+        1,
+        {
+            f"{KEPT}/maps": "0c1906379956bba2688a85f323972525bc1cf4c86bebe2321270a59ffece3d65",
+            f"{KEPT}s": "bc55b195ededacec842cad2cfdbcc02e247d4c399f41a34a7fdd6b92794850bb",
+            "key_datas": "5ed2c321fb1e9f85376d7c2938da9e4442cef501fdc8ed0e9d12ab3ae44dc723",
+        },
+    ),
+    "tdata_passcode/performance_off": (
+        2,
+        {
+            f"{KEPT}/configs": "1ad7cee851526db2354b14881cc2643779193c46911be103bcf67d26c05a0e75",
+            f"{KEPT}/maps": "020ad7cf2bc2ab6589d61c5a265862f0c1f19a6c3f9c5cef42f6f53c50bd3c78",
+            f"{KEPT}s": "f1931cfcb4751928071c235fc130f21fdde494f74807e57571cffff1511fb738",
+            "key_datas": "15968d67cbb19f4f491f23cc212c42930fa1a2a12d9ec52a77964c0e8c5d8511",
+        },
+    ),
+}
+
+
+@pytest.mark.parametrize("folder", sorted(DROPPED_SAVES))
+def test_dropping_an_account_keeps_the_local_key_as_1_5_0(
+    folder: str, tmp_path: Path, performance_mode: Any
+) -> None:
+    entry = entry_of(folder)
+    performance_mode(entry["performance_mode"])
+    count, digests = DROPPED_SAVES[folder]
+    tdesk = load(folder)
+    local_key = tdesk.localKey
+    passcode_key = tdesk.passcodeKey
+    tdesk.accounts.pop(1)
+    save_draws = draws_of(folder)[key_draws(entry) :][:count]
+    assert tdesk.SaveTData(str(tmp_path), draws=save_draws) is True
+    assert tdesk.localKey is local_key, "an edited accounts list keeps the local key"
+    assert tdesk.passcodeKey is passcode_key
+    assert listed_files(tmp_path) == sorted(digests)
+    for name, digest in digests.items():
+        written = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
+        assert written == digest, f"{folder} {name} differs from 1.5.0"
+    reloaded = TDesktop(str(tmp_path), passcode=entry["passcode"])
+    first = entry["accounts"][0]
+    assert [(a.index, a.UserId) for a in reloaded.accounts] == [(0, first["user_id"])]
+
+
 def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
     # TDesktop(folder).accounts[0].MtpConfig of 1.5.0: the production default,
     # and endpoints(MainDcId) sorted by address family and protocol.

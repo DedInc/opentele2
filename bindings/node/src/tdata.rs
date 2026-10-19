@@ -638,6 +638,43 @@ pub fn add_tdata_account(
     thrown(env, added)
 }
 
+/// Replaces the accounts later saves of `tdata` write, keeping its local
+/// key, key data and salts, as 1.5.0 writes an edited `accounts` list under
+/// the loaded local key. More than `TDATA_MAX_ACCOUNTS` accounts throw
+/// `OT_MAX_ACCOUNT_LIMIT`, two of one index `ERR_INVALID_ARG_VALUE`, and a
+/// bad account the error `newTdata` throws for it; `tdata` is then left as
+/// it was.
+#[napi]
+pub fn set_tdata_accounts(
+    env: Env,
+    tdata: &TData,
+    accounts: Vec<AccountInput>,
+) -> napi::Result<()> {
+    let replaced = accounts
+        .into_iter()
+        .map(to_account)
+        .collect::<Result<Vec<_>>>()
+        .and_then(|accounts| {
+            if accounts.len() > CoreTData::MAX_ACCOUNTS {
+                return check(Err(Error::MaxAccountLimit));
+            }
+            for (position, account) in accounts.iter().enumerate() {
+                if accounts[..position]
+                    .iter()
+                    .any(|earlier| earlier.index == account.index)
+                {
+                    return Err(invalid_arg(format!(
+                        "two accounts have index {}",
+                        account.index
+                    )));
+                }
+            }
+            tdata.update(|folder| folder.accounts = accounts);
+            Ok(())
+        });
+    thrown(env, replaced)
+}
+
 /// One `loadMany` request given as an object.
 #[napi(object, object_to_js = false)]
 pub struct LoadRequest {

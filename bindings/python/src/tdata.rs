@@ -334,6 +334,35 @@ impl PyTData {
             .collect()
     }
 
+    /// Replaces the accounts later saves write, keeping the local key, the
+    /// key data and its salts, as 1.5.0 writes an edited `accounts` list
+    /// under the loaded local key. More than `MAX_ACCOUNTS` raises
+    /// `CoreError` `MAX_ACCOUNT_LIMIT`, two accounts of one index
+    /// `ValueError`; the folder is then left as it was.
+    #[setter]
+    fn set_accounts(&self, py: Python<'_>, value: Vec<Bound<'_, PyAccount>>) -> PyResult<()> {
+        let accounts: Vec<Account> = value
+            .into_iter()
+            .map(|account| account.get().inner.clone())
+            .collect();
+        if accounts.len() > TData::MAX_ACCOUNTS {
+            return check(py, Err(Error::MaxAccountLimit));
+        }
+        for (position, account) in accounts.iter().enumerate() {
+            if accounts[..position]
+                .iter()
+                .any(|earlier| earlier.index == account.index)
+            {
+                return Err(PyValueError::new_err(format!(
+                    "two accounts have index {}",
+                    account.index
+                )));
+            }
+        }
+        self.update(|folder| folder.accounts = accounts);
+        Ok(())
+    }
+
     /// The active index stored in the accounts info; saving writes it.
     #[getter]
     fn active_index(&self) -> i32 {

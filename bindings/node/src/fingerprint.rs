@@ -161,6 +161,11 @@ fn fill_os(buf: &mut [u8], failure: &mut Option<getrandom::Error>) {
     }
 }
 
+/// The largest offset `msgIdOffset` draws, so a caller can draw from its
+/// own random source in the same `0..=MSG_ID_OFFSET_MAX` range.
+#[napi]
+pub const MSG_ID_OFFSET_MAX: u16 = u16::MAX;
+
 /// A random msg id offset in `0..=0xFFFF` from the operating system's
 /// CSPRNG (1.5.0 `generate_msg_id_offset`).
 #[napi]

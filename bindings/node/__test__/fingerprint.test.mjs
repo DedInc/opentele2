@@ -220,9 +220,10 @@ test('fingerprintConfig has the 1.5.0 defaults and validates as 1.5.0', () => {
 })
 
 test('msgIdOffset and isValidMsgId match 1.5.0', () => {
+  assert.equal(core.MSG_ID_OFFSET_MAX, 0xffff)
   for (let n = 0; n < 32; n++) {
     const offset = core.msgIdOffset()
-    assert.ok(Number.isInteger(offset) && offset >= 0 && offset <= 0xffff)
+    assert.ok(Number.isInteger(offset) && offset >= 0 && offset <= core.MSG_ID_OFFSET_MAX)
   }
   const NOW = 1760000000
   const cases = [

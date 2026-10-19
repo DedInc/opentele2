@@ -74,6 +74,24 @@ def _same_accounts(held: list[_native.Account], wanted: list[_native.Account]) -
     ]
 
 
+def _keeps_local_key(folder: TData, accounts: list[_native.Account]) -> bool:
+    """Whether ``folder`` now writes exactly ``accounts`` under its local key,
+    as 1.5.0 writes an edited accounts list; the folder takes the list in
+    place of its own unless it holds more than ``MAX_ACCOUNTS`` or repeats
+    an index."""
+    if _same_accounts(folder.accounts, accounts):
+        return True
+    try:
+        folder.accounts = accounts
+    except ValueError:
+        return False
+    except CoreError as error:
+        if error.code != "MAX_ACCOUNT_LIMIT":
+            raise
+        return False
+    return True
+
+
 class TDesktop(BaseObject):
     """Telegram Desktop client.
 
@@ -233,9 +251,9 @@ class TDesktop(BaseObject):
             raise TDataSaveFailed("Could not save tdata, something went wrong")
 
         folder = self.__folder
-        if folder is None or not self.isLoaded() or not _same_accounts(folder.accounts, written):
-            # The core keeps a local key only with the accounts it holds, so
-            # another account list is written under a new local key.
+        if folder is None or not self.isLoaded() or not _keeps_local_key(folder, written):
+            # A list the folder refuses, such as two accounts of one index,
+            # is written under a new local key, as an instance never loaded.
             plan = _native.draw_plan(
                 "new",
                 {"has_passcode": self.passcode != "", "performance_mode": self.kPerformanceMode},
@@ -261,6 +279,10 @@ class TDesktop(BaseObject):
             except CoreError as error:
                 raise_core_error(error)
             self.__passcodeKey = AuthKey(folder.passcode_key)
+        # The folder writes every listed account under its local key, one
+        # appended from another folder too.
+        for account in self.__accounts:
+            account.localKey = self.__localKey
         Expects(self.isLoaded(), "Failed to load? Something went seriously wrong")
 
         try:

@@ -6,6 +6,7 @@ TestPlatformVersions) and test_init_connection.py (tz_offset), plus the
 from __future__ import annotations
 
 import dataclasses
+import random
 import time
 import warnings
 from datetime import datetime, timedelta, timezone
@@ -351,6 +352,21 @@ def test_transport_recommendation() -> None:
 def test_msg_id_offset_range() -> None:
     for _ in range(32):
         assert 0 <= generate_msg_id_offset() <= 0xFFFF
+
+
+def test_msg_id_offsets_follow_random_seed_as_1_5_0() -> None:
+    # 1.5.0 src.fingerprint after random.seed(198): generate_msg_id_offset()
+    # three times, and FingerprintConfig()._msg_id_offset three times.
+    expected = [6944, 62977, 13221]
+    assert _native.MSG_ID_OFFSET_MAX == 0xFFFF
+    state = random.getstate()
+    try:
+        random.seed(198)
+        assert [generate_msg_id_offset() for _ in range(3)] == expected
+        random.seed(198)
+        assert [FingerprintConfig()._msg_id_offset for _ in range(3)] == expected
+    finally:
+        random.setstate(state)
 
 
 def test_is_valid_msg_id_matches_1_5_0() -> None:
