@@ -53,7 +53,12 @@ test('profiles of every client, overrides and errors', () => {
   assert.deepEqual(core.generate('TelegramIOS', -0), core.generate('TelegramIOS', '0'))
   assert.deepEqual(fields(core.generate('TelegramAndroid')), PROFILE_FIELDS)
 
-  assert.equal(thrown(() => core.generate('TelegramWeb_A', 'x')).code, 'OT_IO')
+  const web = core.generate('TelegramWeb_A', 'x')
+  assert.deepEqual(core.generate('TelegramWeb_A', 'x'), web)
+  assert.match(web.deviceModel, /Mozilla\/5\.0/)
+  assert.equal(web.appVersion, core.profile('TelegramWeb_A').appVersion)
+  const webModels = new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((s) => core.generate('TelegramWeb_A', s).deviceModel))
+  assert.ok(webModels.size > 1)
   assert.equal(thrown(() => core.profile('Telegram')).code, 'ERR_INVALID_ARG_VALUE')
   assert.match(thrown(() => core.profile('Telegram')).message, /unknown client/)
   assert.equal(thrown(() => core.generate('TelegramIOS', null, 'linux')).code, 'ERR_INVALID_ARG_VALUE')

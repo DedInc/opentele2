@@ -130,7 +130,7 @@ export interface DcKeyInput {
  * The profile 1.5.0 `API.<client>.Generate` returns: a device picked for
  * `seed` (a string, or an integer `number` or `bigint` as its decimal
  * text), random without one. `system` applies to `"TelegramDesktop"` only.
- * Web clients throw `OT_IO`.
+ * Web clients get a browser user agent picked from the web catalog.
  */
 export declare function generate(client: 'TelegramDesktop' | 'TelegramAndroid' | 'TelegramAndroidX' | 'TelegramIOS' | 'TelegramMacOS' | 'TelegramWeb_A' | 'TelegramWeb_K' | 'Webogram', seed?: string | number | bigint | undefined | null, system?: 'windows' | 'macos' | 'linux' | null, versions?: Versions | undefined | null): ApiProfile
 

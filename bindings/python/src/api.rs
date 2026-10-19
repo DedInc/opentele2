@@ -102,7 +102,8 @@ fn profile<'py>(
 /// The profile 1.5.0 `API.<client>.Generate` returns: a device picked for
 /// `seed` (`str`, or `int` as its decimal string), random without one.
 /// `system` (`"windows"`, `"macos"` or `"linux"`) applies to
-/// `"TelegramDesktop"` only. Web clients raise `CoreError` `IO`.
+/// `"TelegramDesktop"` only. Web clients get a browser user agent picked
+/// from the web catalog.
 #[pyfunction]
 #[pyo3(signature = (client, seed = None, system = None, versions = None))]
 fn generate<'py>(

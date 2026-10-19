@@ -423,9 +423,14 @@ def test_profiles_and_generate_errors() -> None:
     )
     assert set(opentele2_core.generate("TelegramAndroid")) == PROFILE_FIELDS
 
-    with pytest.raises(CoreError) as web:
-        opentele2_core.generate("TelegramWeb_A", seed="x")
-    assert web.value.code == "IO"
+    web = opentele2_core.generate("TelegramWeb_A", seed="x")
+    assert opentele2_core.generate("TelegramWeb_A", seed="x") == web
+    assert "Mozilla/5.0" in web["device_model"]
+    assert web["app_version"] == opentele2_core.profile("TelegramWeb_A")["app_version"]
+    web_models = {
+        opentele2_core.generate("TelegramWeb_A", seed=seed)["device_model"] for seed in "abcdefgh"
+    }
+    assert len(web_models) > 1
     # Values the stub rejects, typed as Any to reach the runtime checks.
     bad_client: Any = "Telegram"
     bad_versions: Any = {"bogus": "1"}
