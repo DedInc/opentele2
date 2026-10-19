@@ -920,6 +920,91 @@ fn seventh_account_is_refused_like_1_5_0() {
     fs::remove_dir_all(&dir).expect("clean scratch");
 }
 
+fn numbered_accounts(indices: std::ops::Range<i32>) -> Vec<Account> {
+    indices
+        .map(|index| {
+            let byte = u8::try_from(index + 1).expect("small index");
+            Account::new(
+                index,
+                100,
+                2,
+                vec![(2, AuthKey::new([byte; AuthKey::SIZE]))],
+            )
+            .expect("account")
+        })
+        .collect()
+}
+
+fn indices_of(tdata: &TData) -> Vec<i32> {
+    tdata.accounts.iter().map(|account| account.index).collect()
+}
+
+/// 1.5.0 loads a folder listing seven accounts and saves an edited list of
+/// them back under the same local key (`src/td/tdesktop.py:216-238,344-350`).
+#[test]
+fn set_accounts_keeps_a_loaded_seven_account_folder_writable() {
+    let mut no_draw = |_: &mut [u8]| panic!("performance mode draws nothing");
+    let seven = TData::new(numbered_accounts(0..7), b"", true, &mut no_draw).expect("new");
+    let dir = scratch("seven");
+    seven.save_random(&dir).expect("save seven");
+    let mut loaded = TData::load(&dir, b"", None).expect("load seven");
+    assert_eq!(indices_of(&loaded), [0, 1, 2, 3, 4, 5, 6]);
+    let key_data = loaded.key_data.clone();
+    let local_key = loaded.local_key.clone();
+
+    let mut reordered = loaded.accounts.clone();
+    reordered.reverse();
+    loaded
+        .set_accounts(reordered)
+        .expect("seven loaded accounts");
+    assert_eq!(indices_of(&loaded), [6, 5, 4, 3, 2, 1, 0]);
+    assert!(loaded.key_data == key_data, "key data and salts kept");
+    assert!(
+        loaded.local_key.as_bytes() == local_key.as_bytes(),
+        "local key kept"
+    );
+
+    let mut eight = loaded.accounts.clone();
+    eight.extend(numbered_accounts(7..8));
+    assert!(matches!(
+        loaded.set_accounts(eight),
+        Err(Error::MaxAccountLimit)
+    ));
+    let mut duplicate = loaded.accounts.clone();
+    duplicate[0] = duplicate[1].clone();
+    assert!(matches!(
+        loaded.set_accounts(duplicate),
+        Err(Error::SaveFailed)
+    ));
+    assert_eq!(indices_of(&loaded), [6, 5, 4, 3, 2, 1, 0], "unchanged");
+
+    let resaved = scratch("seven_resaved");
+    loaded.save_random(&resaved).expect("save seven again");
+    let reloaded = TData::load(&resaved, b"", None).expect("reload seven");
+    assert_eq!(indices_of(&reloaded), [6, 5, 4, 3, 2, 1, 0]);
+    assert!(
+        reloaded.local_key.as_bytes() == local_key.as_bytes(),
+        "same local key on disk"
+    );
+    fs::remove_dir_all(&dir).expect("clean scratch");
+    fs::remove_dir_all(&resaved).expect("clean scratch");
+}
+
+#[test]
+fn set_accounts_caps_a_new_folder_at_six() {
+    let mut no_draw = |_: &mut [u8]| panic!("performance mode draws nothing");
+    let mut tdata = TData::new(Vec::new(), b"", true, &mut no_draw).expect("new");
+    assert!(matches!(
+        tdata.set_accounts(numbered_accounts(0..7)),
+        Err(Error::MaxAccountLimit)
+    ));
+    assert!(tdata.accounts.is_empty());
+    tdata
+        .set_accounts(numbered_accounts(0..6))
+        .expect("six accounts");
+    assert_eq!(indices_of(&tdata), [0, 1, 2, 3, 4, 5]);
+}
+
 /// tdesktop's rule, not 1.5.0's count: a folder holding indices `[0, 2]`
 /// gets 1, never a second 2 that would overwrite the files of account 2.
 #[test]

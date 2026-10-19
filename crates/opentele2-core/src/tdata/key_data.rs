@@ -19,7 +19,7 @@ use crate::crypto::{self, AuthKey};
 use crate::kdf;
 use crate::qt::{QReader, QWriter};
 use crate::tdata::{FillRandom, random_bytes};
-use crate::{Error, Result};
+use crate::{Error, KeyDataFailure, Result};
 
 /// Default `dataName` of a tdata folder; the key file is `key_data`.
 pub const DEFAULT_KEY_FILE: &str = "data";
@@ -160,12 +160,19 @@ impl KeyDataTrailer {
     ///   than [`kdf::PASSCODE_SALT_MIN_SIZE`], or a duplicate generation.
     pub fn parse(blob: &[u8]) -> Result<Self> {
         let mut reader = QReader::new(blob);
-        let magic = reader.read_u32()?;
-        let format = reader.read_u32()?;
-        let committed = reader.read_u32()?;
-        let count = reader.read_u32()?;
+        let [magic, format, committed, count] = streamed(
+            (|| {
+                Ok([
+                    reader.read_u32()?,
+                    reader.read_u32()?,
+                    reader.read_u32()?,
+                    reader.read_u32()?,
+                ])
+            })(),
+            TRAILER_HEADER_STREAM_FAILED,
+        )?;
         if magic != KEY_DATA_MAGIC {
-            return Err(Error::KeyDataInvalid);
+            return Err(invalid(KeyDataFailure::BadTrailerMagic));
         }
         let limit = if format > KEY_DATA_FORMAT_VERSION {
             MAX_NEWER_FORMAT_WRAP_COUNT
@@ -173,29 +180,40 @@ impl KeyDataTrailer {
             MAX_WRAP_COUNT
         };
         if count > limit {
-            return Err(Error::KeyDataInvalid);
+            return Err(invalid(KeyDataFailure::BadWrapCount { count }));
         }
 
         let mut wraps: Vec<PasscodeWrap> = Vec::new();
         for _ in 0..count {
-            let kdf = PasscodeKdf {
-                kind: reader.read_u32()?,
-                generation: reader.read_u32()?,
-                memory: reader.read_u32()?,
-                time: reader.read_u32()?,
-                parallelism: reader.read_u32()?,
-            };
-            let salt = reader.read_bytearray()?.unwrap_or_default().to_vec();
-            let key_encrypted = reader.read_bytearray()?.unwrap_or_default().to_vec();
+            let (kdf, salt, key_encrypted) = streamed(
+                (|| {
+                    let kdf = PasscodeKdf {
+                        kind: reader.read_u32()?,
+                        generation: reader.read_u32()?,
+                        memory: reader.read_u32()?,
+                        time: reader.read_u32()?,
+                        parallelism: reader.read_u32()?,
+                    };
+                    let salt = reader.read_bytearray()?.unwrap_or_default().to_vec();
+                    let key_encrypted = reader.read_bytearray()?.unwrap_or_default().to_vec();
+                    Ok((kdf, salt, key_encrypted))
+                })(),
+                WRAP_STREAM_FAILED,
+            )?;
             // An over-cost wrap only makes the passcode unusable; a malformed
             // one fails the whole file.
             if kdf.cost_within_limits() && !kdf.valid() {
-                return Err(Error::KeyDataInvalid);
+                return Err(invalid(KeyDataFailure::BadKdfFamily { kind: kdf.kind }));
             }
-            if salt.len() < kdf::PASSCODE_SALT_MIN_SIZE
-                || wraps.iter().any(|w| w.kdf.generation == kdf.generation)
-            {
-                return Err(Error::KeyDataInvalid);
+            if salt.len() < kdf::PASSCODE_SALT_MIN_SIZE {
+                return Err(invalid(KeyDataFailure::BadWrapSaltSize {
+                    size: salt.len(),
+                }));
+            }
+            if wraps.iter().any(|w| w.kdf.generation == kdf.generation) {
+                return Err(invalid(KeyDataFailure::DuplicateWrapGeneration {
+                    generation: kdf.generation,
+                }));
             }
             wraps.push(PasscodeWrap {
                 kdf,
@@ -263,16 +281,23 @@ impl KeyData {
     ///   [`KeyDataTrailer::parse`]).
     pub fn parse(payload: &[u8]) -> Result<Self> {
         let mut reader = QReader::new(payload);
-        let salt = reader.read_bytearray()?.unwrap_or_default().to_vec();
-        let key_encrypted = reader.read_bytearray()?.map(<[u8]>::to_vec);
-        let info_encrypted = reader.read_bytearray()?.unwrap_or_default().to_vec();
+        let (salt, key_encrypted, info_encrypted) = streamed(
+            (|| {
+                let salt = reader.read_bytearray()?.unwrap_or_default().to_vec();
+                let key_encrypted = reader.read_bytearray()?.map(<[u8]>::to_vec);
+                let info_encrypted = reader.read_bytearray()?.unwrap_or_default().to_vec();
+                Ok((salt, key_encrypted, info_encrypted))
+            })(),
+            KEY_DATA_STREAM_FAILED,
+        )?;
         if salt.len() != LOCAL_ENCRYPT_SALT_SIZE {
-            return Err(Error::KeyDataInvalid);
+            return Err(invalid(KeyDataFailure::BadSalt { size: salt.len() }));
         }
         let trailer = if reader.is_empty() {
             None
         } else {
-            let blob = reader.read_bytearray()?.unwrap_or_default();
+            let blob =
+                streamed(reader.read_bytearray(), TRAILER_STREAM_FAILED)?.unwrap_or_default();
             Some(KeyDataTrailer::parse(blob)?)
         };
         Ok(Self {
@@ -332,7 +357,12 @@ pub fn create_passcode_key(passcode: &[u8], salt: &[u8], params: &PasscodeKdf) -
         || !params.cost_within_limits()
         || !params.valid()
     {
-        return Err(Error::KeyDataInvalid);
+        return Err(invalid(KeyDataFailure::UnusableWrapParameters {
+            kind: params.kind,
+            memory: params.memory,
+            time: params.time,
+            parallelism: params.parallelism,
+        }));
     }
     let derived = if params.kind == KDF_ARGON2ID {
         kdf::argon2id(
@@ -499,7 +529,7 @@ impl AccountsInfo {
         let mut reader = QReader::new(data);
         let count = reader.read_i32()?;
         if count <= 0 {
-            return Err(Error::KeyDataInvalid);
+            return Err(invalid(KeyDataFailure::BadAccountsCount { count }));
         }
         let mut indices = Vec::new();
         for _ in 0..count {
@@ -554,8 +584,32 @@ pub fn decrypt_accounts_info(
         if passcode.is_empty() && data.live_wrap_count() == 1 {
             Error::BadDecryptKey
         } else {
-            Error::KeyDataInvalid
+            invalid(KeyDataFailure::AccountsInfoDecrypt)
         }
     })?;
     AccountsInfo::parse(&info)
+}
+
+/// 1.5.0's `ExpectStreamStatus` message after the three key file blobs.
+const KEY_DATA_STREAM_FAILED: &str = "Could not stream the key data";
+/// 1.5.0's message when the trailer blob is cut short.
+const TRAILER_STREAM_FAILED: &str = "Could not stream the key data trailer";
+/// 1.5.0's message when the trailer header is cut short.
+const TRAILER_HEADER_STREAM_FAILED: &str = "Could not stream the key data trailer header";
+/// 1.5.0's message when a passcode wrap is cut short.
+const WRAP_STREAM_FAILED: &str = "Could not stream a key data wrap";
+
+/// `result` with a stream failure named by the 1.5.0 `context` of the
+/// reads it covers; other errors pass through.
+fn streamed<T>(result: Result<T>, context: &'static str) -> Result<T> {
+    result.map_err(|error| match error {
+        Error::QDataStreamFailed { context: None } => Error::QDataStreamFailed {
+            context: Some(context),
+        },
+        other => other,
+    })
+}
+
+const fn invalid(context: KeyDataFailure) -> Error {
+    Error::KeyDataInvalid { context }
 }

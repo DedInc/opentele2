@@ -166,7 +166,7 @@ fn accounts_info_failure_maps_like_start_modern() {
     let (_, plain) = load("tdata_plain/performance_on");
     assert!(matches!(
         decrypt_accounts_info(&plain, &wrong, b""),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
 }
 
@@ -265,7 +265,7 @@ fn malformed_trailers_are_key_data_invalid() {
     for (name, blob) in cases {
         let result = parse_trailer(&blob);
         assert!(
-            matches!(result, Err(Error::KeyDataInvalid)),
+            matches!(result, Err(Error::KeyDataInvalid { .. })),
             "{name}: {result:?}"
         );
     }
@@ -280,7 +280,7 @@ fn bad_salt_and_truncation_fail() {
     let trailer = trailer_blob(KEY_DATA_MAGIC, 2, 1, &[ARGON2_WRAP]);
     assert!(matches!(
         KeyData::parse(&payload_with(31, Some(&trailer))),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
     assert!(matches!(
         parse_trailer(&trailer[..trailer.len() - 1]),
@@ -333,7 +333,7 @@ fn over_cap_cost_parses_and_fails_at_open_and_creation() {
     assert!(!wrap.kdf.cost_within_limits());
     assert!(matches!(
         create_passcode_key(b"opentele2", &wrap.salt, &wrap.kdf),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
 }
 
@@ -343,11 +343,11 @@ fn create_passcode_key_rejects_unusable_inputs() {
     let salt = [5; 32];
     assert!(matches!(
         create_passcode_key(b"", &salt, &kdf),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
     assert!(matches!(
         create_passcode_key(b"x", &salt[..7], &kdf),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
     let pbkdf2 = PasscodeKdf {
         kind: KDF_PBKDF2,
@@ -355,7 +355,7 @@ fn create_passcode_key_rejects_unusable_inputs() {
     };
     assert!(matches!(
         create_passcode_key(b"x", &salt, &pbkdf2),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
 }
 
@@ -454,11 +454,11 @@ fn accounts_info_decoding() {
     assert_eq!((info.indices, info.active_index), (vec![4], 0));
     assert!(matches!(
         AccountsInfo::parse(&encode(&[0])),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
     assert!(matches!(
         AccountsInfo::parse(&encode(&[-1])),
-        Err(Error::KeyDataInvalid)
+        Err(Error::KeyDataInvalid { .. })
     ));
     assert!(matches!(
         AccountsInfo::parse(&encode(&[i32::MAX, 1])),

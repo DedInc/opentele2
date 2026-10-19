@@ -37,6 +37,60 @@ pub enum MapReadFailure {
     Decrypt,
 }
 
+/// What an [`Error::KeyDataInvalid`] was raised for (1.5.0
+/// `src/td/key_data.py` and `TDesktop.__loadFromTData`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum KeyDataFailure {
+    /// The parameters of a passcode wrap cannot make a passcode key
+    /// (`create_passcode_key`), or the passcode is empty.
+    UnusableWrapParameters {
+        /// KDF family.
+        kind: u32,
+        /// Argon2id memory in KiB, or scrypt `N`.
+        memory: u32,
+        /// Argon2id passes, or scrypt `r`.
+        time: u32,
+        /// Argon2id lanes, or scrypt `p`.
+        parallelism: u32,
+    },
+    /// The open salt of the key file has the wrong size.
+    BadSalt {
+        /// The size of the salt found, in bytes.
+        size: usize,
+    },
+    /// The trailer does not start with the key data magic.
+    BadTrailerMagic,
+    /// The trailer holds more wraps than its format allows.
+    BadWrapCount {
+        /// The wrap count found.
+        count: u32,
+    },
+    /// A wrap within the cost caps has parameters its KDF does not accept.
+    BadKdfFamily {
+        /// The KDF kind of the wrap.
+        kind: u32,
+    },
+    /// A wrap salt is shorter than the passcode salt minimum.
+    BadWrapSaltSize {
+        /// The size of the wrap salt, in bytes.
+        size: usize,
+    },
+    /// Two wraps share a generation.
+    DuplicateWrapGeneration {
+        /// The repeated generation.
+        generation: u32,
+    },
+    /// The accounts info does not decrypt under the local key.
+    AccountsInfoDecrypt,
+    /// The accounts info lists no account (1.5.0 raises a plain
+    /// `OpenTeleException` with this text).
+    BadAccountsCount {
+        /// The count found.
+        count: i32,
+    },
+}
+
 /// Every failure the core can report.
 ///
 /// Variants map 1:1 onto the tdata exceptions of the Python package
@@ -143,7 +197,10 @@ pub enum Error {
     /// The `key_<dataName>` file is malformed or uses parameters that cannot
     /// make a passcode key (`TDataKeyDataInvalid`).
     #[error("tdata key data is invalid")]
-    KeyDataInvalid,
+    KeyDataInvalid {
+        /// Which check of the key data failed.
+        context: KeyDataFailure,
+    },
 
     /// A buffer, key, or IV has the wrong length.
     #[error("{what} has a bad length: expected {expected}, got {actual}")]
@@ -182,7 +239,7 @@ impl Error {
             Self::AuthKeyNotFound => "TDATA_AUTH_KEY_NOT_FOUND",
             Self::MaxAccountLimit => "MAX_ACCOUNT_LIMIT",
             Self::SaveFailed => "TDATA_SAVE_FAILED",
-            Self::KeyDataInvalid => "TDATA_KEY_DATA_INVALID",
+            Self::KeyDataInvalid { .. } => "TDATA_KEY_DATA_INVALID",
             Self::BadLength { .. } => "BAD_LENGTH",
             Self::Io(_) => "IO",
         }
@@ -207,8 +264,13 @@ impl Error {
     /// - [`Error::ReadMapDataFailed`], [`Error::ReadMapDataIncorrectPasscode`],
     ///   [`Error::AuthKeyNotFound`] and [`Error::MaxAccountLimit`]: the
     ///   `MapData.read`, `_findMainAuthKey` and `FromTelethon` messages.
+    /// - [`Error::KeyDataInvalid`]: the `read_key_data`,
+    ///   `create_passcode_key` and `__loadFromTData` message of its context.
+    /// - [`Error::SaveFailed`]: `Could not save tdata, something went wrong`,
+    ///   the one message 1.5.0's `SaveTData` raised.
     ///
-    /// Every other variant has no single 1.5.0 message and gives its
+    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadConfigData`]
+    /// (no context yet), [`Error::BadLength`] and [`Error::Io`] give their
     /// `Display` text.
     #[must_use]
     pub fn legacy_message(&self) -> String {
@@ -259,12 +321,40 @@ impl Error {
             Self::MaxAccountLimit => {
                 "You can't have more than 6 accounts in one TDesktop client".to_owned()
             }
-            Self::WrongPasscode
-            | Self::BadConfigData
-            | Self::SaveFailed
-            | Self::KeyDataInvalid
-            | Self::BadLength { .. }
-            | Self::Io(_) => self.to_string(),
+            Self::KeyDataInvalid { context } => key_data_message(*context),
+            Self::SaveFailed => "Could not save tdata, something went wrong".to_owned(),
+            Self::WrongPasscode | Self::BadConfigData | Self::BadLength { .. } | Self::Io(_) => {
+                self.to_string()
+            }
+        }
+    }
+}
+
+/// The 1.5.0 message of an [`Error::KeyDataInvalid`].
+fn key_data_message(context: KeyDataFailure) -> String {
+    match context {
+        KeyDataFailure::UnusableWrapParameters {
+            kind,
+            memory,
+            time,
+            parallelism,
+        } => format!(
+            "Unusable passcode wrap parameters: PasscodeKdf(kind={kind}, memory={memory}, \
+             time={time}, parallel={parallelism})"
+        ),
+        KeyDataFailure::BadSalt { size } => format!("Bad salt in key data, size: {size}"),
+        KeyDataFailure::BadTrailerMagic => "Bad key data trailer magic".to_owned(),
+        KeyDataFailure::BadWrapCount { count } => format!("Bad key data wrap count: {count}"),
+        KeyDataFailure::BadKdfFamily { kind } => format!("Bad key data KDF family: {kind}"),
+        KeyDataFailure::BadWrapSaltSize { size } => {
+            format!("Bad key data wrap salt size: {size}")
+        }
+        KeyDataFailure::DuplicateWrapGeneration { generation } => {
+            format!("Duplicate key data wrap generation: {generation}")
+        }
+        KeyDataFailure::AccountsInfoDecrypt => "Could not decrypt the accounts info".to_owned(),
+        KeyDataFailure::BadAccountsCount { count } => {
+            format!("Bad accounts count {count}, the data might have been corrupted")
         }
     }
 }
@@ -309,7 +399,7 @@ fn push_hex(out: &mut String, byte: u8) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, MagicContext, MapReadFailure};
+    use super::{Error, KeyDataFailure, MagicContext, MapReadFailure};
     use std::collections::HashSet;
 
     /// One value of every variant; the exhaustive match below fails to
@@ -346,7 +436,9 @@ mod tests {
             Error::AuthKeyNotFound,
             Error::MaxAccountLimit,
             Error::SaveFailed,
-            Error::KeyDataInvalid,
+            Error::KeyDataInvalid {
+                context: KeyDataFailure::BadTrailerMagic,
+            },
             Error::BadLength {
                 what: "key",
                 expected: 32,
@@ -370,7 +462,7 @@ mod tests {
                 | Error::AuthKeyNotFound
                 | Error::MaxAccountLimit
                 | Error::SaveFailed
-                | Error::KeyDataInvalid
+                | Error::KeyDataInvalid { .. }
                 | Error::BadLength { .. }
                 | Error::Io(_) => {}
             }
@@ -449,15 +541,11 @@ mod tests {
         }
     }
 
-    /// Variants without context of their own give their `Display` text.
+    /// Variants without a 1.5.0 message of their own give their `Display`
+    /// text.
     #[test]
     fn legacy_message_falls_back_to_display() {
-        for error in [
-            Error::WrongPasscode,
-            Error::BadConfigData,
-            Error::SaveFailed,
-            Error::KeyDataInvalid,
-        ] {
+        for error in [Error::WrongPasscode, Error::BadConfigData] {
             assert_eq!(error.legacy_message(), error.to_string());
         }
     }

@@ -210,10 +210,13 @@ impl<'a> Stream<'a> {
             .map_err(|_| Error::QDataStreamFailed { context: None })
     }
 
-    /// `ExpectStreamStatus`.
-    const fn status(&self) -> Result<()> {
+    /// `ExpectStreamStatus(stream, context)`, `context` being the 1.5.0
+    /// message of the reads it covers.
+    const fn status(&self, context: &'static str) -> Result<()> {
         if self.failed {
-            Err(Error::QDataStreamFailed { context: None })
+            Err(Error::QDataStreamFailed {
+                context: Some(context),
+            })
         } else {
             Ok(())
         }
@@ -365,17 +368,17 @@ impl DcOptions {
                 }
                 secret = stream.sized(secret_size);
             }
-            stream.status()?;
+            stream.status("Could not stream config data")?;
             options.add(id, flags, &ip, port, secret);
         }
         if !stream.at_end() && version > 1 {
             let keys = stream.i32();
-            stream.status()?;
+            stream.status("Could not stream CDN config data")?;
             for _ in 0..keys {
                 let dc_id = stream.i32();
                 let n = stream.block().to_vec();
                 let e = stream.block().to_vec();
-                stream.status()?;
+                stream.status("Could not stream CDN public key")?;
                 options.cdn_public_keys.push(RsaPublicKey { dc_id, n, e });
             }
         }
@@ -725,7 +728,7 @@ impl MtpConfig {
         let options = stream.block();
         let mut fields = ConfigFields::new(environment);
         fields.read(&mut stream)?;
-        stream.status()?;
+        stream.status("Could not stream MtpData serialized")?;
         Ok(Self {
             environment,
             dc_options: DcOptions::parse(options)?,

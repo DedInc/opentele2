@@ -190,6 +190,10 @@ pub struct TData {
     /// The passcode given to [`TData::new`] or [`TData::load`]; a legacy
     /// key file is migrated under it on [`TData::save`].
     passcode: Passcode,
+    /// How many accounts [`TData::load`] loaded; 0 for [`TData::new`].
+    /// [`TData::set_accounts`] accepts up to this many when it is above
+    /// [`TData::MAX_ACCOUNTS`].
+    loaded_accounts: usize,
 }
 
 impl fmt::Debug for TData {
@@ -282,6 +286,7 @@ impl TData {
             active_index: NEW_FOLDER_ACTIVE_INDEX,
             performance_mode,
             passcode: Passcode(passcode.to_vec()),
+            loaded_accounts: 0,
         })
     }
 
@@ -436,11 +441,38 @@ impl TData {
             key_data: data,
             local_key: opened.local_key,
             passcode_key: opened.passcode_key,
+            loaded_accounts: accounts.len(),
             accounts,
             active_index: info.active_index,
             performance_mode: true,
             passcode: Passcode(passcode.to_vec()),
         })
+    }
+
+    /// Replaces the accounts later saves write, keeping the local key, the
+    /// key data with its salts, and the active index, as 1.5.0 writes an
+    /// edited `accounts` list under the loaded local key.
+    ///
+    /// Up to [`TData::MAX_ACCOUNTS`] accounts are accepted, or as many as
+    /// [`TData::load`] loaded when that is more: 1.5.0 loads a folder that
+    /// lists more than six and saves it back under the same local key.
+    ///
+    /// # Errors
+    /// - [`Error::MaxAccountLimit`] for more accounts than that limit.
+    /// - [`Error::SaveFailed`] when two accounts share an index, whose files
+    ///   one save would overwrite.
+    ///
+    /// `self` is then unchanged.
+    pub fn set_accounts(&mut self, accounts: Vec<Account>) -> Result<()> {
+        if accounts.len() > Self::MAX_ACCOUNTS.max(self.loaded_accounts) {
+            return Err(Error::MaxAccountLimit);
+        }
+        let mut seen = HashSet::new();
+        if !accounts.iter().all(|account| seen.insert(account.index)) {
+            return Err(Error::SaveFailed);
+        }
+        self.accounts = accounts;
+        Ok(())
     }
 
     /// Adds an account with `auth_key` as the key of `main_dc`, as 1.5.0's
