@@ -1050,7 +1050,9 @@ async fn tdata_from_client_uses_the_home_dc_key_and_get_me() {
         .expect_err("negative id");
     assert!(matches!(
         error,
-        ClientError::Core(opentele2_core::Error::BadConfigData)
+        ClientError::Core(opentele2_core::Error::BadConfigData {
+            context: opentele2_core::ConfigFailure::BadUserId { user_id: -5 }
+        })
     ));
     fake.assert_done();
 }

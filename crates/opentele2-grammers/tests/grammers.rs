@@ -20,7 +20,7 @@ use opentele2_core::session::dc;
 use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::mtp_config::{DcOptions, Environment, FLAG_IPV6, MtpConfig};
-use opentele2_core::{Error, Result};
+use opentele2_core::{ConfigFailure, Error, Result};
 use opentele2_grammers::{account_from_session, connection_params, session_data};
 use serde_json::Value;
 
@@ -294,7 +294,9 @@ fn accounts_session_data_cannot_express() {
         assert!(data.peer_infos.is_empty(), "user id {user_id}");
         assert!(matches!(
             account_from_session(&data, 0),
-            Err(Error::BadConfigData)
+            Err(Error::BadConfigData {
+                context: ConfigFailure::NoSelfUser
+            })
         ));
     }
 

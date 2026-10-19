@@ -230,7 +230,7 @@ mod file {
         VERSION, session_path,
     };
     use crate::crypto::AuthKey;
-    use crate::{Error, Result};
+    use crate::{ConfigFailure, Error, Result};
 
     /// A failure of SQLite itself, as an I/O error on the caller's path.
     #[allow(clippy::needless_pass_by_value)] // Used as `map_err(sqlite_error)`.
@@ -385,19 +385,26 @@ mod file {
             Value::Blob(bytes) => AuthKey::from_slice(&bytes)?,
             _ => return Err(Error::QDataStreamFailed { context: None }),
         };
+        let null = |column| Error::BadConfigData {
+            context: ConfigFailure::NullSessionColumn { column },
+        };
         let dc_id = match dc_id {
-            Value::Integer(id) => i32::try_from(id).map_err(|_| Error::BadConfigData)?,
-            Value::Null => return Err(Error::BadConfigData),
+            Value::Integer(id) => i32::try_from(id).map_err(|_| Error::BadConfigData {
+                context: ConfigFailure::DcIdOutOfRange { dc_id: id },
+            })?,
+            Value::Null => return Err(null("dc_id")),
             _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let server_address = match server_address {
             Value::Text(text) => text,
-            Value::Null => return Err(Error::BadConfigData),
+            Value::Null => return Err(null("server_address")),
             _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let port = match port {
-            Value::Integer(port) => u16::try_from(port).map_err(|_| Error::BadConfigData)?,
-            Value::Null => return Err(Error::BadConfigData),
+            Value::Integer(port) => u16::try_from(port).map_err(|_| Error::BadConfigData {
+                context: ConfigFailure::PortOutOfRange { port },
+            })?,
+            Value::Null => return Err(null("port")),
             _ => return Err(Error::QDataStreamFailed { context: None }),
         };
         let takeout_id = match takeout_id {

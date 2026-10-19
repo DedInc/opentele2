@@ -19,7 +19,7 @@ use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::map::MapData;
 use opentele2_core::tdf::{self, TdfFile};
-use opentele2_core::{Error, MagicContext, MapReadFailure, Result};
+use opentele2_core::{ConfigFailure, Error, MagicContext, MapReadFailure, Result};
 
 /// A fresh, empty directory under the target tmp dir.
 fn scratch(label: &str) -> PathBuf {
@@ -469,6 +469,91 @@ fn mtp_config_stream_messages_match_1_5_0() {
     assert_eq!(
         message(MtpConfig::parse(&bei32(&[1, 0, 0, 1]))),
         "Could not stream MtpData serialized"
+    );
+}
+
+/// The `TDataBadConfigData` checks of `DcOptions.constructFromSerialized`
+/// (`src/td/mtp.py:117-132`) and the version check of `Config.FromSerialized`
+/// (`src/td/mtp.py:391-394`) on the same bytes.
+#[test]
+fn bad_config_messages_match_1_5_0() {
+    use opentele2_core::tdata::mtp_config::{DcOptions, MtpConfig};
+
+    let endpoint = |ip_size: i32| bei32(&[-2, 1, 2, 0, 443, ip_size]);
+    let with_secret =
+        |secret_size: i32| [endpoint(1), b"1".to_vec(), bei32(&[secret_size])].concat();
+    let cases = [
+        (
+            endpoint(0),
+            "Bad ipSize data",
+            ConfigFailure::BadIpSize { size: 0 },
+        ),
+        (
+            endpoint(46),
+            "Bad ipSize data",
+            ConfigFailure::BadIpSize { size: 46 },
+        ),
+        (
+            with_secret(33),
+            "Bad secretSize data",
+            ConfigFailure::BadSecretSize { size: 33 },
+        ),
+        (
+            with_secret(-1),
+            "Bad secretSize data",
+            ConfigFailure::BadSecretSize { size: -1 },
+        ),
+    ];
+    for (serialized, want, context) in cases {
+        let error = DcOptions::parse(&serialized).expect_err("bad config");
+        assert_eq!(error.code(), "TDATA_BAD_CONFIG_DATA");
+        assert!(
+            matches!(error, Error::BadConfigData { context: found } if found == context),
+            "{error:?}"
+        );
+        assert_eq!(error.legacy_message(), want);
+    }
+
+    for version in [0, 2, -1] {
+        let error = MtpConfig::parse(&bei32(&[version, 0])).expect_err("bad version");
+        assert_eq!(error.code(), "TDATA_BAD_CONFIG_DATA");
+        assert_eq!(
+            error.legacy_message(),
+            "version != kVersion, something went wrong"
+        );
+    }
+}
+
+/// The checks 1.5.0 reached through Python itself: `ip.decode("ascii")`
+/// in `constructFromSerialized` (`UnicodeDecodeError`) and
+/// `MTP.Environment(...)` in `Config.FromSerialized` (`ValueError`, the
+/// Python 3.8 text), and `TDataDcIdNotFound` from `MTP.Config.endpoints`.
+#[test]
+fn bad_config_python_messages_match_1_5_0() {
+    use opentele2_core::session::telethon::StringSession;
+    use opentele2_core::tdata::mtp_config::{DcOptions, MtpConfig};
+
+    for (ip, want) in [
+        (vec![0xff], "byte 0xff in position 0"),
+        (b"1\xff\xfe".to_vec(), "byte 0xff in position 1"),
+    ] {
+        let size = i32::try_from(ip.len()).expect("size fits");
+        let serialized = [bei32(&[-2, 1, 2, 0, 443, size]), ip, bei32(&[0])].concat();
+        assert_eq!(
+            message(DcOptions::parse(&serialized)),
+            format!("'ascii' codec can't decode {want}: ordinal not in range(128)")
+        );
+    }
+
+    assert_eq!(
+        message(MtpConfig::parse(&bei32(&[1, 2]))),
+        "2 is not a valid Environment"
+    );
+
+    let unknown_dc = Account::new(0, 1, 9, vec![(9, counting_key())]).expect("account");
+    assert_eq!(
+        message(StringSession::from_account(&unknown_dc, false)),
+        "No endpoints for dc id 9"
     );
 }
 

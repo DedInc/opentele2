@@ -20,7 +20,7 @@ use crate::crypto::AuthKey;
 use crate::session::dc;
 use crate::tdata::account::Account;
 use crate::tdata::mtp_config::{Endpoint, Environment, MtpConfig};
-use crate::{Error, Result};
+use crate::{ConfigFailure, Error, Result};
 
 /// The account's stored config ([`Account::mtp_config`]); `None` when it has
 /// no config bytes, and the built-in table applies.
@@ -31,8 +31,14 @@ fn stored_config(account: &Account) -> Option<MtpConfig> {
 /// The address of a config endpoint, as Telethon packs it
 /// (`ipaddress.ip_address(ip)` and a `u16` port).
 fn endpoint_addr(endpoint: &Endpoint) -> Result<SocketAddr> {
-    let ip: IpAddr = endpoint.ip.parse().map_err(|_| Error::BadConfigData)?;
-    let port = u16::try_from(endpoint.port).map_err(|_| Error::BadConfigData)?;
+    let ip: IpAddr = endpoint.ip.parse().map_err(|_| Error::BadConfigData {
+        context: ConfigFailure::BadEndpointIp,
+    })?;
+    let port = u16::try_from(endpoint.port).map_err(|_| Error::BadConfigData {
+        context: ConfigFailure::PortOutOfRange {
+            port: i64::from(endpoint.port),
+        },
+    })?;
     Ok(SocketAddr::new(ip, port))
 }
 
@@ -57,18 +63,23 @@ pub(super) fn account_target(
     account: &Account,
     ipv6: bool,
 ) -> Result<(SocketAddr, String, bool, &AuthKey)> {
+    let not_found = Error::BadConfigData {
+        context: ConfigFailure::DcNotFound {
+            dc_id: account.main_dc,
+        },
+    };
     let (addr, ip_text, test) = if let Some(config) = stored_config(account) {
-        let endpoints = config
-            .endpoints(account.main_dc)
-            .ok_or(Error::BadConfigData)?;
-        let endpoint = endpoints.select(ipv6).ok_or(Error::BadConfigData)?;
+        let endpoints = config.endpoints(account.main_dc).ok_or(not_found)?;
+        let endpoint = endpoints.select(ipv6).ok_or(Error::BadConfigData {
+            context: ConfigFailure::NoTcpEndpoint,
+        })?;
         (
             endpoint_addr(endpoint)?,
             endpoint.ip.clone(),
             config.environment == Environment::Test,
         )
     } else {
-        let addr = dc::production(account.main_dc, ipv6).ok_or(Error::BadConfigData)?;
+        let addr = dc::production(account.main_dc, ipv6).ok_or(not_found)?;
         (addr, table_text(addr.ip()), false)
     };
     let key = account.auth_key().ok_or(Error::AuthKeyNotFound)?;
@@ -90,7 +101,11 @@ fn table_text(ip: IpAddr) -> String {
 
 /// The main DC id as one byte; every id of the built-in table fits.
 fn dc_byte(dc_id: i32) -> Result<u8> {
-    u8::try_from(dc_id).map_err(|_| Error::BadConfigData)
+    u8::try_from(dc_id).map_err(|_| Error::BadConfigData {
+        context: ConfigFailure::DcIdOutOfRange {
+            dc_id: i64::from(dc_id),
+        },
+    })
 }
 
 /// A forward-only reader over a decoded session buffer.
@@ -574,7 +589,7 @@ pub mod grammers {
     use crate::session::dc;
     use crate::tdata::account::Account;
     use crate::tdata::mtp_config::MtpConfig;
-    use crate::{Error, Result};
+    use crate::{ConfigFailure, Error, Result};
 
     /// The first IPv4 and IPv6 endpoint of every production DC of [`dc`].
     fn built_in_options() -> Result<HashMap<i32, (SocketAddrV4, SocketAddrV6)>> {
@@ -585,7 +600,9 @@ pub mod grammers {
                     (Some(SocketAddr::V4(ipv4)), Some(SocketAddr::V6(ipv6))) => {
                         Ok((id, (ipv4, ipv6)))
                     }
-                    _ => Err(Error::BadConfigData),
+                    _ => Err(Error::BadConfigData {
+                        context: ConfigFailure::DcNotFound { dc_id: id },
+                    }),
                 },
             )
             .collect()
@@ -650,7 +667,11 @@ pub mod grammers {
                 None => built_in_options()?,
             };
             if !options.contains_key(&account.main_dc) {
-                return Err(Error::BadConfigData);
+                return Err(Error::BadConfigData {
+                    context: ConfigFailure::DcNotFound {
+                        dc_id: account.main_dc,
+                    },
+                });
             }
             let key = account.auth_key().ok_or(Error::AuthKeyNotFound)?;
             let dc_options = options

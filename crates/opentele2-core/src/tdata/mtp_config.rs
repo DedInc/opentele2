@@ -25,7 +25,7 @@
 //! so a cut-short config fails with the same error as in 1.5.0.
 
 use crate::qt::{NULL_LENGTH, QWriter};
-use crate::{Error, Result};
+use crate::{ConfigFailure, Error, Result};
 
 /// Version of the serialized config (`MTP.Config.kVersion`).
 pub const CONFIG_VERSION: i32 = 1;
@@ -353,18 +353,27 @@ impl DcOptions {
             let port = stream.i32();
             let ip_size = stream.i32();
             if !(1..=MAX_IP_SIZE).contains(&ip_size) {
-                return Err(Error::BadConfigData);
+                return Err(Error::BadConfigData {
+                    context: ConfigFailure::BadIpSize { size: ip_size },
+                });
             }
             let ip = stream.sized(ip_size);
-            if !ip.is_ascii() {
-                return Err(Error::BadConfigData);
+            if let Some(position) = ip.iter().position(|byte| !byte.is_ascii()) {
+                return Err(Error::BadConfigData {
+                    context: ConfigFailure::NonAsciiIp {
+                        byte: ip[position],
+                        position,
+                    },
+                });
             }
             let ip = String::from_utf8_lossy(ip).into_owned();
             let mut secret: &[u8] = &[];
             if version > 0 {
                 let secret_size = stream.i32();
                 if !(0..=MAX_SECRET_SIZE).contains(&secret_size) {
-                    return Err(Error::BadConfigData);
+                    return Err(Error::BadConfigData {
+                        context: ConfigFailure::BadSecretSize { size: secret_size },
+                    });
                 }
                 secret = stream.sized(secret_size);
             }
@@ -406,7 +415,9 @@ impl DcOptions {
         put(&mut out, len_i32(endpoints.len())?);
         for endpoint in endpoints {
             if !endpoint.ip.is_ascii() {
-                return Err(Error::BadConfigData);
+                return Err(Error::BadConfigData {
+                    context: ConfigFailure::UnencodableIp,
+                });
             }
             put(&mut out, endpoint.id);
             put(&mut out, endpoint.flags);
@@ -721,10 +732,16 @@ impl MtpConfig {
     ///   string is not UTF-16, and as [`DcOptions::parse`].
     pub fn parse(serialized: &[u8]) -> Result<Self> {
         let mut stream = Stream::new(serialized);
-        if stream.i32() != CONFIG_VERSION {
-            return Err(Error::BadConfigData);
+        let version = stream.i32();
+        if version != CONFIG_VERSION {
+            return Err(Error::BadConfigData {
+                context: ConfigFailure::BadVersion { version },
+            });
         }
-        let environment = Environment::from_code(stream.i32()).ok_or(Error::BadConfigData)?;
+        let code = stream.i32();
+        let environment = Environment::from_code(code).ok_or(Error::BadConfigData {
+            context: ConfigFailure::BadEnvironment { code },
+        })?;
         let options = stream.block();
         let mut fields = ConfigFields::new(environment);
         fields.read(&mut stream)?;

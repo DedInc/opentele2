@@ -53,7 +53,7 @@ use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::dc;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::mtp_config::Endpoint;
-use opentele2_core::{Error, Result};
+use opentele2_core::{ConfigFailure, Error, Result};
 
 #[cfg(feature = "client")]
 pub mod client;
@@ -194,11 +194,17 @@ pub fn account_from_session(data: &SessionData, index: i32) -> Result<Account> {
         } => Some(*id),
         _ => None,
     });
-    let user_id = self_ids.next().ok_or(Error::BadConfigData)?;
+    let user_id = self_ids.next().ok_or(Error::BadConfigData {
+        context: ConfigFailure::NoSelfUser,
+    })?;
     if self_ids.any(|other| other != user_id) {
-        return Err(Error::BadConfigData);
+        return Err(Error::BadConfigData {
+            context: ConfigFailure::ConflictingSelfUsers,
+        });
     }
-    let user_id = u64::try_from(user_id).map_err(|_| Error::BadConfigData)?;
+    let user_id = u64::try_from(user_id).map_err(|_| Error::BadConfigData {
+        context: ConfigFailure::BadUserId { user_id },
+    })?;
     Account::new(
         index,
         user_id,

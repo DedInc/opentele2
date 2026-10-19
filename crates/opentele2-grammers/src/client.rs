@@ -850,7 +850,9 @@ where
         .and_then(|option| option.auth_key)
         .ok_or(opentele2_core::Error::AuthKeyNotFound)?;
     let user_id = get_me_id(invoker).await?;
-    let user_id = u64::try_from(user_id).map_err(|_| opentele2_core::Error::BadConfigData)?;
+    let user_id = u64::try_from(user_id).map_err(|_| opentele2_core::Error::BadConfigData {
+        context: opentele2_core::ConfigFailure::BadUserId { user_id },
+    })?;
     Ok(Account::new(
         index,
         user_id,

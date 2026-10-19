@@ -91,6 +91,83 @@ pub enum KeyDataFailure {
     },
 }
 
+/// What an [`Error::BadConfigData`] was raised for: the 1.5.0 checks of
+/// `src/td/mtp.py`, and the endpoint, session and self-user checks that
+/// report the same code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ConfigFailure {
+    /// A DC options endpoint declares an IP size outside 1 to 45
+    /// (`constructFromSerialized`).
+    BadIpSize {
+        /// The IP size found.
+        size: i32,
+    },
+    /// A DC options endpoint declares a secret size outside 0 to 32
+    /// (`constructFromSerialized`).
+    BadSecretSize {
+        /// The secret size found.
+        size: i32,
+    },
+    /// A serialized DC options IP holds a byte outside ASCII (1.5.0 raises
+    /// `UnicodeDecodeError`).
+    NonAsciiIp {
+        /// The first byte outside ASCII.
+        byte: u8,
+        /// Its offset within the IP.
+        position: usize,
+    },
+    /// An endpoint IP to serialize is not ASCII (1.5.0 raises
+    /// `UnicodeEncodeError`).
+    UnencodableIp,
+    /// A serialized config has a version other than 1
+    /// (`MTP.Config.FromSerialized`).
+    BadVersion {
+        /// The version found.
+        version: i32,
+    },
+    /// A serialized config has an environment other than 0 and 1 (1.5.0
+    /// raises `ValueError`).
+    BadEnvironment {
+        /// The environment code found.
+        code: i32,
+    },
+    /// A DC id has no endpoints in the config or the built-in table (1.5.0
+    /// `TDataDcIdNotFound`).
+    DcNotFound {
+        /// The DC id looked for.
+        dc_id: i32,
+    },
+    /// The main DC has no TCP endpoint (1.5.0 `FromTDesktop`).
+    NoTcpEndpoint,
+    /// An endpoint IP does not parse as an IPv4 or IPv6 address.
+    BadEndpointIp,
+    /// A DC id does not fit the session format.
+    DcIdOutOfRange {
+        /// The DC id found.
+        dc_id: i64,
+    },
+    /// A port does not fit 16 bits.
+    PortOutOfRange {
+        /// The port found.
+        port: i64,
+    },
+    /// A column of a Telethon session row is NULL.
+    NullSessionColumn {
+        /// The column name.
+        column: &'static str,
+    },
+    /// No cached user of a session is the self user.
+    NoSelfUser,
+    /// Cached users with different ids are the self user.
+    ConflictingSelfUsers,
+    /// The self user id is not a tdata user id.
+    BadUserId {
+        /// The user id found.
+        user_id: i64,
+    },
+}
+
 /// Every failure the core can report.
 ///
 /// Variants map 1:1 onto the tdata exceptions of the Python package
@@ -160,7 +237,10 @@ pub enum Error {
 
     /// The config block of a tdata file cannot be parsed (`TDataBadConfigData`).
     #[error("tdata config data is bad")]
-    BadConfigData,
+    BadConfigData {
+        /// Which check of the config failed.
+        context: ConfigFailure,
+    },
 
     /// A `QDataStream` read or write failed (`QDataStreamFailed`).
     #[error("QDataStream operation failed")]
@@ -232,7 +312,7 @@ impl Error {
             Self::WrongPasscode => "TDATA_WRONG_PASSCODE",
             Self::BadEncryptedDataSize { .. } => "TDATA_BAD_ENCRYPTED_DATA_SIZE",
             Self::BadDecryptedDataSize { .. } => "TDATA_BAD_DECRYPTED_DATA_SIZE",
-            Self::BadConfigData => "TDATA_BAD_CONFIG_DATA",
+            Self::BadConfigData { .. } => "TDATA_BAD_CONFIG_DATA",
             Self::QDataStreamFailed { .. } => "QDATASTREAM_FAILED",
             Self::ReadMapDataFailed { .. } => "TDATA_READ_MAP_DATA_FAILED",
             Self::ReadMapDataIncorrectPasscode => "TDATA_READ_MAP_DATA_INCORRECT_PASSCODE",
@@ -268,10 +348,14 @@ impl Error {
     ///   `create_passcode_key` and `__loadFromTData` message of its context.
     /// - [`Error::SaveFailed`]: `Could not save tdata, something went wrong`,
     ///   the one message 1.5.0's `SaveTData` raised.
+    /// - [`Error::BadConfigData`]: the `constructFromSerialized`,
+    ///   `MTP.Config.FromSerialized`, `MTP.Config.endpoints` and
+    ///   `FromTDesktop` message of its context (for the IP and environment
+    ///   checks the Python 3.8 `UnicodeDecodeError` and `ValueError` text),
+    ///   and a plain description for the checks 1.5.0 does not make.
     ///
-    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadConfigData`]
-    /// (no context yet), [`Error::BadLength`] and [`Error::Io`] give their
-    /// `Display` text.
+    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadLength`]
+    /// and [`Error::Io`] give their `Display` text.
     #[must_use]
     pub fn legacy_message(&self) -> String {
         match self {
@@ -323,10 +407,41 @@ impl Error {
             }
             Self::KeyDataInvalid { context } => key_data_message(*context),
             Self::SaveFailed => "Could not save tdata, something went wrong".to_owned(),
-            Self::WrongPasscode | Self::BadConfigData | Self::BadLength { .. } | Self::Io(_) => {
-                self.to_string()
-            }
+            Self::BadConfigData { context } => config_message(*context),
+            Self::WrongPasscode | Self::BadLength { .. } | Self::Io(_) => self.to_string(),
         }
+    }
+}
+
+/// The 1.5.0 message of an [`Error::BadConfigData`].
+fn config_message(context: ConfigFailure) -> String {
+    match context {
+        ConfigFailure::BadIpSize { .. } => "Bad ipSize data".to_owned(),
+        ConfigFailure::BadSecretSize { .. } => "Bad secretSize data".to_owned(),
+        ConfigFailure::NonAsciiIp { byte, position } => {
+            let mut hex = String::with_capacity(2);
+            push_hex(&mut hex, byte);
+            format!(
+                "'ascii' codec can't decode byte 0x{hex} in position {position}: \
+                 ordinal not in range(128)"
+            )
+        }
+        ConfigFailure::UnencodableIp => "Endpoint IP is not ASCII".to_owned(),
+        ConfigFailure::BadVersion { .. } => "version != kVersion, something went wrong".to_owned(),
+        ConfigFailure::BadEnvironment { code } => format!("{code} is not a valid Environment"),
+        ConfigFailure::DcNotFound { dc_id } => format!("No endpoints for dc id {dc_id}"),
+        ConfigFailure::NoTcpEndpoint => {
+            "Couldn't find endpoint for this account, something went wrong?".to_owned()
+        }
+        ConfigFailure::BadEndpointIp => "Endpoint IP is not an IPv4 or IPv6 address".to_owned(),
+        ConfigFailure::DcIdOutOfRange { dc_id } => format!("DC id out of range: {dc_id}"),
+        ConfigFailure::PortOutOfRange { port } => format!("Port out of range: {port}"),
+        ConfigFailure::NullSessionColumn { column } => format!("Session column {column} is NULL"),
+        ConfigFailure::NoSelfUser => "No cached user is the self user".to_owned(),
+        ConfigFailure::ConflictingSelfUsers => {
+            "Cached users with different ids are the self user".to_owned()
+        }
+        ConfigFailure::BadUserId { user_id } => format!("Bad user id: {user_id}"),
     }
 }
 
@@ -399,7 +514,7 @@ fn push_hex(out: &mut String, byte: u8) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, KeyDataFailure, MagicContext, MapReadFailure};
+    use super::{ConfigFailure, Error, KeyDataFailure, MagicContext, MapReadFailure};
     use std::collections::HashSet;
 
     /// One value of every variant; the exhaustive match below fails to
@@ -427,7 +542,9 @@ mod tests {
                 full_len: 32,
                 decrypted_size: 32,
             },
-            Error::BadConfigData,
+            Error::BadConfigData {
+                context: ConfigFailure::BadIpSize { size: 0 },
+            },
             Error::QDataStreamFailed { context: None },
             Error::ReadMapDataFailed {
                 context: MapReadFailure::Open,
@@ -455,7 +572,7 @@ mod tests {
                 | Error::WrongPasscode
                 | Error::BadEncryptedDataSize { .. }
                 | Error::BadDecryptedDataSize { .. }
-                | Error::BadConfigData
+                | Error::BadConfigData { .. }
                 | Error::QDataStreamFailed { .. }
                 | Error::ReadMapDataFailed { .. }
                 | Error::ReadMapDataIncorrectPasscode
@@ -545,8 +662,42 @@ mod tests {
     /// text.
     #[test]
     fn legacy_message_falls_back_to_display() {
-        for error in [Error::WrongPasscode, Error::BadConfigData] {
-            assert_eq!(error.legacy_message(), error.to_string());
+        let error = Error::WrongPasscode;
+        assert_eq!(error.legacy_message(), error.to_string());
+    }
+
+    /// Every config context keeps the one code and `Display` text, and its
+    /// message is not the `Display` fallback.
+    #[test]
+    fn config_contexts_share_code_and_display() {
+        let contexts = [
+            ConfigFailure::BadIpSize { size: 46 },
+            ConfigFailure::BadSecretSize { size: -1 },
+            ConfigFailure::NonAsciiIp {
+                byte: 0x80,
+                position: 3,
+            },
+            ConfigFailure::UnencodableIp,
+            ConfigFailure::BadVersion { version: 2 },
+            ConfigFailure::BadEnvironment { code: 2 },
+            ConfigFailure::DcNotFound { dc_id: 9 },
+            ConfigFailure::NoTcpEndpoint,
+            ConfigFailure::BadEndpointIp,
+            ConfigFailure::DcIdOutOfRange { dc_id: 256 },
+            ConfigFailure::PortOutOfRange { port: 65536 },
+            ConfigFailure::NullSessionColumn { column: "port" },
+            ConfigFailure::NoSelfUser,
+            ConfigFailure::ConflictingSelfUsers,
+            ConfigFailure::BadUserId { user_id: -5 },
+        ];
+        let mut messages = HashSet::new();
+        for context in contexts {
+            let error = Error::BadConfigData { context };
+            assert_eq!(error.code(), "TDATA_BAD_CONFIG_DATA");
+            assert_eq!(error.to_string(), "tdata config data is bad");
+            let message = error.legacy_message();
+            assert_ne!(message, error.to_string(), "{context:?}");
+            assert!(messages.insert(message), "{context:?} repeats a message");
         }
     }
 
