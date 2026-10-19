@@ -60,6 +60,10 @@ from src.tl.telethon import TelegramClient
 TESTS_DIR = pathlib.Path(__file__).parent
 TDATAS_DIR = TESTS_DIR / "tdatas"
 SESSIONS_DIR = TESTS_DIR / "sessions"
+# Committed, synthetic tdata written by 1.5.0 (scripts/gen_core_vectors.py).
+_SYNTHETIC_TDATA = (
+    TESTS_DIR.parent / "crates/opentele2-core/tests/vectors/tdata_plain/performance_on"
+)
 
 
 def _main(tdesk: TDesktop) -> Account:
@@ -1186,7 +1190,7 @@ class TestTelegramClientChecks:
     async def test_from_tdesktop_without_auth_key_raises(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        tdesk = TDesktop(str(TESTS_DIR / "data" / "254593786_tdata" / "tdata"))
+        tdesk = TDesktop(str(_SYNTHETIC_TDATA))
         monkeypatch.setattr(_main(tdesk), "_Account__authKey", None)
         with pytest.raises(TDataAuthKeyNotFound):
             await TelegramClient.FromTDesktop(tdesk, flag=UseCurrentSession)
@@ -1194,7 +1198,7 @@ class TestTelegramClientChecks:
     def test_resolve_account_without_main_account_raises(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        tdesk = TDesktop(str(TESTS_DIR / "data" / "254593786_tdata" / "tdata"))
+        tdesk = TDesktop(str(_SYNTHETIC_TDATA))
         monkeypatch.setattr(tdesk, "_TDesktop__mainAccount", None)
         with pytest.raises(TDesktopHasNoAccount):
             TelegramClient._resolveTDesktopAccount(tdesk)
