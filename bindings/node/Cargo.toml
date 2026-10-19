@@ -17,12 +17,18 @@ doctest = false
 
 [dependencies]
 opentele2-core = { path = "../../crates/opentele2-core" }
+# `fetchVersions`: the release feeds over blocking HTTP, run as an async task.
+opentele2-versions = { path = "../../crates/opentele2-versions" }
 # Already a dependency of the core; seeds the keys of `newTdata`.
 getrandom = "0.4.3"
+# Already a dependency of the core, with `preserve_order`; the session JSON
+# objects keep 1.5.0's key order on their way to and from JavaScript.
+serde_json = "1.0.154"
 # Node-API 4 is the baseline every call needs. `napi6` adds only the BigInt
-# conversions of `userId` and seeds; with `dyn-symbols` the addon resolves
-# Node-API symbols at load time, so it still loads on a Node-API 4 host.
-napi = { version = "3.14.2", default-features = false, features = ["napi4", "napi6", "dyn-symbols"] }
+# conversions of `userId`, seeds and msg ids; with `dyn-symbols` the addon
+# resolves Node-API symbols at load time, so it still loads on a Node-API 4
+# host. `serde-json` converts the session JSON objects.
+napi = { version = "3.14.2", default-features = false, features = ["napi4", "napi6", "dyn-symbols", "serde-json"] }
 napi-derive = "3.6.12"
 
 [build-dependencies]

@@ -2,8 +2,10 @@
 //! the npm package `opentele2`.
 //!
 //! Every function copies its inputs into owned Rust values. Per-packet
-//! AES-IGE and the string sessions run synchronously; the KDFs and every
-//! tdata file operation are async tasks returning promises. Core failures
+//! AES-IGE, the string sessions and the pure fingerprint, session and
+//! formatting helpers run synchronously; the KDFs, every tdata file
+//! operation, legacy key migration, the SRP check and the version fetch are
+//! async tasks returning promises. Core failures
 //! are JavaScript `Error`s whose `code` is `"OT_"` plus the core's stable
 //! error code.
 //!
@@ -15,10 +17,18 @@
 #[cfg(not(test))]
 mod api;
 #[cfg(not(test))]
+mod auth;
+#[cfg(not(test))]
 mod convert;
 #[cfg(not(test))]
 mod crypto;
 #[cfg(not(test))]
 mod error;
 #[cfg(not(test))]
+mod fingerprint;
+#[cfg(not(test))]
+mod session;
+#[cfg(not(test))]
 mod tdata;
+#[cfg(not(test))]
+mod versions;

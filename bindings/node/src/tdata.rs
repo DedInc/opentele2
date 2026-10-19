@@ -1,12 +1,13 @@
-//! `TData`, accounts as plain objects, and the string sessions.
+//! `TData`, accounts as plain objects, their MTP configs, and the string
+//! sessions.
 //!
-//! Loading, creating and saving folders run as async tasks on the libuv
-//! pool; `loadMany` runs its folders on the core's dedicated thread pool
-//! from one such task.
+//! Loading, creating, migrating and saving folders run as async tasks on
+//! the libuv pool; `loadMany` runs its folders on the core's dedicated
+//! thread pool from one such task.
 
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock};
 
 use napi::Task;
 use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, Either, Env, Uint8Array};
@@ -18,6 +19,10 @@ use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::{mtcute, telethon};
 use opentele2_core::tdata::TData as CoreTData;
 use opentele2_core::tdata::account::Account as CoreAccount;
+use opentele2_core::tdata::mtp_config::{
+    self, ConfigFields, Endpoint as CoreEndpoint, Endpoints as CoreEndpoints, Environment,
+    MtpConfig as CoreMtpConfig, ProtocolEndpoints as CoreProtocolEndpoints,
+};
 
 use crate::convert::{to_auth_key, to_passcode, to_user_id};
 use crate::error::{CodedError, Result, check, core_error, invalid_arg, rejection};
@@ -44,6 +49,9 @@ pub struct Account {
     pub auth_key: Buffer,
     /// Every authorization key, in file order.
     pub keys: Vec<DcKey>,
+    /// The serialized MTP config the folder stored for the account (its
+    /// `configs` file); absent when there is none.
+    pub config: Option<Buffer>,
 }
 
 /// One authorization key given to `newTdata` or a session function.
@@ -70,11 +78,14 @@ pub struct AccountInput {
     pub auth_key: Option<Uint8Array>,
     /// Every authorization key, in file order.
     pub keys: Option<Vec<DcKeyInput>>,
+    /// The serialized MTP config of the account; the session functions take
+    /// their endpoints from it, falling back to the production table.
+    pub config: Option<Uint8Array>,
 }
 
 /// The core account for `input`: `OT_BAD_LENGTH` for a key that is not 256
 /// bytes, `OT_TDATA_AUTH_KEY_NOT_FOUND` without a key of the main DC.
-fn to_account(input: AccountInput) -> Result<CoreAccount> {
+pub(crate) fn to_account(input: AccountInput) -> Result<CoreAccount> {
     let keys: Vec<(i32, AuthKey)> = match (input.keys, input.auth_key) {
         (Some(keys), _) => keys
             .into_iter()
@@ -84,7 +95,9 @@ fn to_account(input: AccountInput) -> Result<CoreAccount> {
         (None, None) => Vec::new(),
     };
     let user_id = to_user_id(&input.user_id)?;
-    check(CoreAccount::new(input.index, user_id, input.main_dc, keys))
+    let mut account = check(CoreAccount::new(input.index, user_id, input.main_dc, keys))?;
+    account.config = input.config.map(|config| config.to_vec());
+    Ok(account)
 }
 
 /// `account` as a plain object; key bytes are copied into new buffers.
@@ -103,14 +116,40 @@ fn to_js_account(account: &CoreAccount) -> Result<Account> {
                 auth_key: Buffer::from(key.as_bytes().to_vec()),
             })
             .collect(),
+        config: account.config.clone().map(Buffer::from),
     })
+}
+
+/// The folder a [`TData`] holds. `migrateTdata` replaces it with the
+/// migrated folder; every other operation works on a snapshot.
+type Shared = Arc<RwLock<Arc<CoreTData>>>;
+
+/// The folder `shared` holds now.
+fn snapshot(shared: &Shared) -> Arc<CoreTData> {
+    // Nothing panics while holding the lock, so a poisoned lock still holds
+    // a whole folder.
+    Arc::clone(&shared.read().unwrap_or_else(PoisonError::into_inner))
 }
 
 /// A Telegram Desktop `tdata` folder, loaded from disk or created for
 /// writing. Its keys stay in Rust; only `accounts` copies key bytes out.
 #[napi]
 pub struct TData {
-    inner: Arc<CoreTData>,
+    inner: Shared,
+}
+
+impl TData {
+    /// A `TData` holding `folder`.
+    fn holding(folder: CoreTData) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(Arc::new(folder))),
+        }
+    }
+
+    /// The folder this `TData` holds now.
+    fn folder(&self) -> Arc<CoreTData> {
+        snapshot(&self.inner)
+    }
 }
 
 #[napi]
@@ -118,35 +157,43 @@ impl TData {
     /// The accounts, in accounts-info order.
     #[napi(getter)]
     pub fn accounts(&self) -> Result<Vec<Account>> {
-        self.inner.accounts.iter().map(to_js_account).collect()
+        self.folder().accounts.iter().map(to_js_account).collect()
     }
 
     /// The active index stored in the accounts info.
     #[napi(getter)]
     pub fn active_index(&self) -> i32 {
-        self.inner.active_index
+        self.folder().active_index
     }
 
     /// The account at the active index, else the first one; `null` for a
     /// folder without accounts.
     #[napi(getter)]
     pub fn main_account(&self) -> Result<Option<Account>> {
-        self.inner.main_account().map(to_js_account).transpose()
+        self.folder().main_account().map(to_js_account).transpose()
     }
 
     /// The data name of the key file, `"data"` unless loaded otherwise.
     #[napi(getter)]
     pub fn key_file(&self) -> String {
-        self.inner.key_file.clone()
+        self.folder().key_file.clone()
+    }
+
+    /// Whether the key file has the pre-7.3 layout, which every save
+    /// migrates afresh until `migrateTdata` migrates it once.
+    #[napi(getter)]
+    pub fn legacy_key_file(&self) -> bool {
+        self.folder().key_data.trailer.is_none()
     }
 
     /// The account count and active index; never key bytes.
     #[napi(js_name = "toString")]
     pub fn to_js_string(&self) -> String {
+        let folder = self.folder();
         format!(
             "TData(accounts={}, activeIndex={})",
-            self.inner.accounts.len(),
-            self.inner.active_index
+            folder.accounts.len(),
+            folder.active_index
         )
     }
 }
@@ -154,9 +201,7 @@ impl TData {
 /// The JS value of one core folder result.
 fn folder_or_error(result: opentele2_core::Result<CoreTData>) -> Either<TData, CodedError> {
     match result {
-        Ok(inner) => Either::A(TData {
-            inner: Arc::new(inner),
-        }),
+        Ok(folder) => Either::A(TData::holding(folder)),
         Err(error) => Either::B(core_error(&error)),
     }
 }
@@ -297,8 +342,58 @@ pub fn load_tdata(
 #[napi]
 pub fn save_tdata(tdata: &TData, path: String) -> AsyncTask<SaveTask> {
     AsyncTask::new(SaveTask {
-        tdata: Arc::clone(&tdata.inner),
+        tdata: tdata.folder(),
         dir: PathBuf::from(path),
+    })
+}
+
+/// `TData::migrate` off the JavaScript thread, with keys from the OS random
+/// source.
+pub struct MigrateTask {
+    tdata: Shared,
+}
+
+#[napi]
+impl Task for MigrateTask {
+    type Output = opentele2_core::Result<bool>;
+    type JsValue = bool;
+
+    fn compute(&mut self) -> napi::Result<Self::Output> {
+        let mut folder = CoreTData::clone(&snapshot(&self.tdata));
+        let mut failure = None;
+        let migrated = folder.migrate(&mut |buf| {
+            if failure.is_none()
+                && let Err(error) = getrandom::fill(buf)
+            {
+                failure = Some(error);
+            }
+        });
+        Ok(match (failure, migrated) {
+            // A failed draw leaves the new wrap unspecified, so the folder
+            // stays as it was.
+            (Some(error), _) => Err(Error::Io(std::io::Error::other(error))),
+            (None, Ok(true)) => {
+                *self.tdata.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
+                Ok(true)
+            }
+            (None, other) => other,
+        })
+    }
+
+    fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<bool> {
+        output.map_err(|error| rejection(env, core_error(&error)))
+    }
+}
+
+/// Installs 7.3 key data in place of a legacy (pre-7.3) key file, as the
+/// first save would, and resolves to whether it did. Later saves write that
+/// key data instead of migrating afresh, so the key file keeps one wrap
+/// across saves. A 7.3 key file is left alone (`false`); under a passcode
+/// the new wrap runs Argon2id.
+#[napi]
+pub fn migrate_tdata(tdata: &TData) -> AsyncTask<MigrateTask> {
+    AsyncTask::new(MigrateTask {
+        tdata: Arc::clone(&tdata.inner),
     })
 }
 
@@ -387,4 +482,307 @@ pub fn mtcute_string_session(account: AccountInput) -> Result<String> {
     let account = to_account(account)?;
     let session = mtcute::StringSession::from_account(&account, false);
     Ok(check(session)?.encode())
+}
+
+/// Endpoint flag: an IPv6 address.
+#[napi]
+pub const MTP_FLAG_IPV6: i32 = mtp_config::FLAG_IPV6;
+/// Endpoint flag: for media only.
+#[napi]
+pub const MTP_FLAG_MEDIA_ONLY: i32 = mtp_config::FLAG_MEDIA_ONLY;
+/// Endpoint flag: TCP only, never HTTP.
+#[napi]
+pub const MTP_FLAG_TCPO_ONLY: i32 = mtp_config::FLAG_TCPO_ONLY;
+/// Endpoint flag: a CDN DC.
+#[napi]
+pub const MTP_FLAG_CDN: i32 = mtp_config::FLAG_CDN;
+/// Endpoint flag: a built-in endpoint.
+#[napi]
+pub const MTP_FLAG_STATIC: i32 = mtp_config::FLAG_STATIC;
+/// Endpoint flag: only this port of the address.
+#[napi]
+pub const MTP_FLAG_THIS_PORT_ONLY: i32 = mtp_config::FLAG_THIS_PORT_ONLY;
+/// Endpoint flag: the endpoint has a secret.
+#[napi]
+pub const MTP_FLAG_SECRET: i32 = mtp_config::FLAG_SECRET;
+
+/// One DC endpoint (`MTP.DcOptions.Endpoint`).
+#[napi(object, object_from_js = false)]
+pub struct Endpoint {
+    /// DC id, as stored.
+    pub id: i32,
+    /// `MTP_FLAG_*` bits.
+    pub flags: i32,
+    /// IP address text, kept verbatim.
+    pub ip: String,
+    /// Port.
+    pub port: i32,
+    /// Secret; empty for none.
+    pub secret: Buffer,
+}
+
+impl From<&CoreEndpoint> for Endpoint {
+    fn from(endpoint: &CoreEndpoint) -> Self {
+        Self {
+            id: endpoint.id,
+            flags: endpoint.flags,
+            ip: endpoint.ip.clone(),
+            port: endpoint.port,
+            secret: Buffer::from(endpoint.secret.clone()),
+        }
+    }
+}
+
+/// `endpoints` as JavaScript objects.
+fn to_js_endpoints(endpoints: &[CoreEndpoint]) -> Vec<Endpoint> {
+    endpoints.iter().map(Endpoint::from).collect()
+}
+
+/// The endpoints of one address family, by protocol.
+#[napi(object, object_from_js = false)]
+pub struct ProtocolEndpoints {
+    /// Every endpoint of the family, in insertion order.
+    pub tcp: Vec<Endpoint>,
+    /// The endpoints without `MTP_FLAG_TCPO_ONLY` and `MTP_FLAG_SECRET`.
+    pub http: Vec<Endpoint>,
+}
+
+impl From<&CoreProtocolEndpoints> for ProtocolEndpoints {
+    fn from(family: &CoreProtocolEndpoints) -> Self {
+        Self {
+            tcp: to_js_endpoints(&family.tcp),
+            http: to_js_endpoints(&family.http),
+        }
+    }
+}
+
+/// The endpoints of one DC by address family and protocol, as 1.5.0
+/// `MTP.Config.endpoints` returns them.
+#[napi(object, object_from_js = false)]
+pub struct Endpoints {
+    /// Endpoints without `MTP_FLAG_IPV6`.
+    pub ipv4: ProtocolEndpoints,
+    /// Endpoints with `MTP_FLAG_IPV6`.
+    pub ipv6: ProtocolEndpoints,
+    /// The endpoint 1.5.0's session conversions connect to over IPv4: the
+    /// first IPv4 TCP endpoint; absent without one.
+    pub selected_ipv4: Option<Endpoint>,
+    /// The endpoint they connect to when IPv6 is asked for: the first IPv6
+    /// TCP endpoint, else the IPv4 one; absent without either.
+    pub selected_ipv6: Option<Endpoint>,
+}
+
+impl From<&CoreEndpoints> for Endpoints {
+    fn from(endpoints: &CoreEndpoints) -> Self {
+        Self {
+            ipv4: (&endpoints.ipv4).into(),
+            ipv6: (&endpoints.ipv6).into(),
+            selected_ipv4: endpoints.select(false).map(Endpoint::from),
+            selected_ipv6: endpoints.select(true).map(Endpoint::from),
+        }
+    }
+}
+
+/// The endpoints of one DC of a config.
+#[napi(object, object_from_js = false)]
+pub struct DcEndpoints {
+    /// DC id.
+    pub dc_id: i32,
+    /// Its endpoints, in insertion order.
+    pub endpoints: Vec<Endpoint>,
+}
+
+/// One CDN RSA public key (`MTP.RSAPublicKey`).
+#[napi(object, object_from_js = false)]
+pub struct RsaPublicKey {
+    /// DC id of the CDN.
+    pub dc_id: i32,
+    /// Modulus bytes.
+    pub n: Buffer,
+    /// Exponent bytes.
+    pub e: Buffer,
+}
+
+/// The config fields (`MTP.ConfigFields`), in serialization order.
+#[napi(object, object_from_js = false)]
+pub struct MtpConfigFields {
+    /// `chatSizeMax`.
+    pub chat_size_max: i32,
+    /// `megagroupSizeMax`.
+    pub megagroup_size_max: i32,
+    /// `forwardedCountMax`.
+    pub forwarded_count_max: i32,
+    /// `onlineUpdatePeriod`.
+    pub online_update_period: i32,
+    /// `offlineBlurTimeout`.
+    pub offline_blur_timeout: i32,
+    /// `offlineIdleTimeout`.
+    pub offline_idle_timeout: i32,
+    /// `onlineFocusTimeout`.
+    pub online_focus_timeout: i32,
+    /// `onlineCloudTimeout`.
+    pub online_cloud_timeout: i32,
+    /// `notifyCloudDelay`.
+    pub notify_cloud_delay: i32,
+    /// `notifyDefaultDelay`.
+    pub notify_default_delay: i32,
+    /// `savedGifsLimit`.
+    pub saved_gifs_limit: i32,
+    /// `editTimeLimit`.
+    pub edit_time_limit: i32,
+    /// `revokeTimeLimit`.
+    pub revoke_time_limit: i32,
+    /// `revokePrivateTimeLimit`.
+    pub revoke_private_time_limit: i32,
+    /// `revokePrivateInbox`.
+    pub revoke_private_inbox: bool,
+    /// `stickersRecentLimit`.
+    pub stickers_recent_limit: i32,
+    /// `stickersFavedLimit`.
+    pub stickers_faved_limit: i32,
+    /// `pinnedDialogsCountMax`.
+    pub pinned_dialogs_count_max: i32,
+    /// `pinnedDialogsInFolderMax`.
+    pub pinned_dialogs_in_folder_max: i32,
+    /// `internalLinksDomain`.
+    pub internal_links_domain: String,
+    /// `channelsReadMediaPeriod`.
+    pub channels_read_media_period: i32,
+    /// `callReceiveTimeoutMs`.
+    pub call_receive_timeout_ms: i32,
+    /// `callRingTimeoutMs`.
+    pub call_ring_timeout_ms: i32,
+    /// `callConnectTimeoutMs`.
+    pub call_connect_timeout_ms: i32,
+    /// `callPacketTimeoutMs`.
+    pub call_packet_timeout_ms: i32,
+    /// `webFileDcId`.
+    pub web_file_dc_id: i32,
+    /// `txtDomainString`.
+    pub txt_domain_string: String,
+    /// `phoneCallsEnabled`.
+    pub phone_calls_enabled: bool,
+    /// `blockedMode`.
+    pub blocked_mode: bool,
+    /// `captionLengthMax`.
+    pub caption_length_max: i32,
+    /// `reactionDefaultEmoji`.
+    pub reaction_default_emoji: String,
+    /// `reactionDefaultCustom`.
+    pub reaction_default_custom: u64,
+    /// `ratingDecay`.
+    pub rating_decay: i32,
+    /// `gifSearchUsername`.
+    pub gif_search_username: String,
+    /// `venueSearchUsername`.
+    pub venue_search_username: String,
+}
+
+impl From<ConfigFields> for MtpConfigFields {
+    fn from(fields: ConfigFields) -> Self {
+        Self {
+            chat_size_max: fields.chat_size_max,
+            megagroup_size_max: fields.megagroup_size_max,
+            forwarded_count_max: fields.forwarded_count_max,
+            online_update_period: fields.online_update_period,
+            offline_blur_timeout: fields.offline_blur_timeout,
+            offline_idle_timeout: fields.offline_idle_timeout,
+            online_focus_timeout: fields.online_focus_timeout,
+            online_cloud_timeout: fields.online_cloud_timeout,
+            notify_cloud_delay: fields.notify_cloud_delay,
+            notify_default_delay: fields.notify_default_delay,
+            saved_gifs_limit: fields.saved_gifs_limit,
+            edit_time_limit: fields.edit_time_limit,
+            revoke_time_limit: fields.revoke_time_limit,
+            revoke_private_time_limit: fields.revoke_private_time_limit,
+            revoke_private_inbox: fields.revoke_private_inbox,
+            stickers_recent_limit: fields.stickers_recent_limit,
+            stickers_faved_limit: fields.stickers_faved_limit,
+            pinned_dialogs_count_max: fields.pinned_dialogs_count_max,
+            pinned_dialogs_in_folder_max: fields.pinned_dialogs_in_folder_max,
+            internal_links_domain: fields.internal_links_domain,
+            channels_read_media_period: fields.channels_read_media_period,
+            call_receive_timeout_ms: fields.call_receive_timeout_ms,
+            call_ring_timeout_ms: fields.call_ring_timeout_ms,
+            call_connect_timeout_ms: fields.call_connect_timeout_ms,
+            call_packet_timeout_ms: fields.call_packet_timeout_ms,
+            web_file_dc_id: fields.web_file_dc_id,
+            txt_domain_string: fields.txt_domain_string,
+            phone_calls_enabled: fields.phone_calls_enabled,
+            blocked_mode: fields.blocked_mode,
+            caption_length_max: fields.caption_length_max,
+            reaction_default_emoji: fields.reaction_default_emoji,
+            reaction_default_custom: fields.reaction_default_custom,
+            rating_decay: fields.rating_decay,
+            gif_search_username: fields.gif_search_username,
+            venue_search_username: fields.venue_search_username,
+        }
+    }
+}
+
+/// An account's MTP config (`MTP.Config`).
+#[napi(object, object_from_js = false)]
+pub struct MtpConfig {
+    /// Server environment.
+    #[napi(ts_type = "'production' | 'test'")]
+    pub environment: String,
+    /// Every DC with its endpoints, in first-seen order.
+    pub dcs: Vec<DcEndpoints>,
+    /// CDN public keys, in file order.
+    pub cdn_public_keys: Vec<RsaPublicKey>,
+    /// Every config field.
+    pub fields: MtpConfigFields,
+}
+
+impl From<CoreMtpConfig> for MtpConfig {
+    fn from(config: CoreMtpConfig) -> Self {
+        let environment = match config.environment {
+            Environment::Production => "production",
+            Environment::Test => "test",
+        };
+        Self {
+            environment: environment.to_owned(),
+            dcs: config
+                .dc_options
+                .dcs()
+                .map(|(dc_id, endpoints)| DcEndpoints {
+                    dc_id,
+                    endpoints: to_js_endpoints(endpoints),
+                })
+                .collect(),
+            cdn_public_keys: config
+                .dc_options
+                .cdn_public_keys
+                .iter()
+                .map(|key| RsaPublicKey {
+                    dc_id: key.dc_id,
+                    n: Buffer::from(key.n.clone()),
+                    e: Buffer::from(key.e.clone()),
+                })
+                .collect(),
+            fields: config.fields.into(),
+        }
+    }
+}
+
+/// The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
+/// `config` parsed, or the production default when there is none or it
+/// does not parse.
+#[napi]
+pub fn account_mtp_config(account: AccountInput) -> Result<MtpConfig> {
+    Ok(to_account(account)?.mtp_config().into())
+}
+
+/// The endpoints of DC `dcId` (default the main DC) in the MTP config of
+/// `account`, by address family and protocol (1.5.0
+/// `MTP.Config.endpoints`); `null` when the config has no such DC.
+#[napi]
+pub fn account_endpoints(account: AccountInput, dc_id: Option<i32>) -> Result<Option<Endpoints>> {
+    let account = to_account(account)?;
+    let dc_id = dc_id.unwrap_or(account.main_dc);
+    Ok(account
+        .mtp_config()
+        .endpoints(dc_id)
+        .as_ref()
+        .map(Endpoints::from))
 }

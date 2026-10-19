@@ -860,6 +860,8 @@ dependencies = [
  "napi-sys",
  "nohash-hasher",
  "rustc-hash",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1169,6 +1171,8 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "opentele2-core",
+ "opentele2-versions",
+ "serde_json",
 ]
 
 [[package]]
