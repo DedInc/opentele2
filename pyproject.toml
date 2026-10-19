@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "opentele2"
-version = "1.2.1"
+version = "1.5.0"
 description = "A Python Telegram API Library for converting between tdata and telethon sessions, with built-in official Telegram APIs."
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { file = "LICENSE" }
