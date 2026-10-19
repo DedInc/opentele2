@@ -14,7 +14,7 @@ use opentele2_core::batch::{self, BatchOptions, LoadRequest};
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::mtp_config::{
-    self, ConfigFields, Endpoint, Environment, ProtocolEndpoints,
+    self, ConfigFields, Endpoint, Environment, MtpConfig, ProtocolEndpoints,
 };
 use opentele2_core::tdata::{self, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData};
 
@@ -336,31 +336,17 @@ impl PyTData {
 
     /// Replaces the accounts later saves write, keeping the local key, the
     /// key data and its salts, as 1.5.0 writes an edited `accounts` list
-    /// under the loaded local key. More than `MAX_ACCOUNTS` raises
-    /// `CoreError` `MAX_ACCOUNT_LIMIT`, two accounts of one index
-    /// `ValueError`; the folder is then left as it was.
+    /// under the loaded local key. Up to `MAX_ACCOUNTS` accounts are
+    /// accepted, or as many as were loaded when that is more. More raises
+    /// `CoreError` `MAX_ACCOUNT_LIMIT`, two accounts of one index `CoreError`
+    /// `TDATA_SAVE_FAILED`; the folder is then left as it was.
     #[setter]
     fn set_accounts(&self, py: Python<'_>, value: Vec<Bound<'_, PyAccount>>) -> PyResult<()> {
         let accounts: Vec<Account> = value
             .into_iter()
             .map(|account| account.get().inner.clone())
             .collect();
-        if accounts.len() > TData::MAX_ACCOUNTS {
-            return check(py, Err(Error::MaxAccountLimit));
-        }
-        for (position, account) in accounts.iter().enumerate() {
-            if accounts[..position]
-                .iter()
-                .any(|earlier| earlier.index == account.index)
-            {
-                return Err(PyValueError::new_err(format!(
-                    "two accounts have index {}",
-                    account.index
-                )));
-            }
-        }
-        self.update(|folder| folder.accounts = accounts);
-        Ok(())
+        check(py, self.update(|folder| folder.set_accounts(accounts)))
     }
 
     /// The active index stored in the accounts info; saving writes it.
@@ -627,15 +613,26 @@ fn fields_dict<'py>(py: Python<'py>, fields: &ConfigFields) -> PyResult<Bound<'p
     Ok(dict)
 }
 
+/// The MTP config of an account, or the production default 1.5.0 starts
+/// every account with (`StorageAccount.__init__`).
+fn config_of(account: Option<&Bound<'_, PyAccount>>) -> MtpConfig {
+    account.map_or_else(
+        || MtpConfig::new(Environment::Production),
+        |account| account.get().inner.mtp_config(),
+    )
+}
+
 /// The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
 /// `config` parsed, or the production default when there is none or it
-/// does not parse.
+/// does not parse. No account, one never loaded, has the production
+/// default.
 #[pyfunction]
+#[pyo3(signature = (account = None))]
 fn account_mtp_config<'py>(
     py: Python<'py>,
-    account: &Bound<'py, PyAccount>,
+    account: Option<&Bound<'py, PyAccount>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let config = account.get().inner.mtp_config();
+    let config = config_of(account);
     let environment = match config.environment {
         Environment::Production => "production",
         Environment::Test => "test",
@@ -673,19 +670,17 @@ fn account_mtp_config<'py>(
 /// The endpoints of DC `dc_id` (default the main DC) in the MTP config of
 /// `account`, by address family and protocol (1.5.0
 /// `MTP.Config.endpoints`), with the endpoints the session conversions
-/// select; `None` when the config has no such DC.
+/// select; `None` when the config has no such DC. No account reads the
+/// production default, whose main DC is 0, a DC no config lists.
 #[pyfunction]
-#[pyo3(signature = (account, dc_id = None))]
+#[pyo3(signature = (account = None, dc_id = None))]
 fn account_endpoints<'py>(
     py: Python<'py>,
-    account: &Bound<'py, PyAccount>,
+    account: Option<&Bound<'py, PyAccount>>,
     dc_id: Option<i32>,
 ) -> PyResult<Option<Bound<'py, PyDict>>> {
-    let account = &account.get().inner;
-    let Some(endpoints) = account
-        .mtp_config()
-        .endpoints(dc_id.unwrap_or(account.main_dc))
-    else {
+    let main_dc = account.map_or(0, |account| account.get().inner.main_dc);
+    let Some(endpoints) = config_of(account).endpoints(dc_id.unwrap_or(main_dc)) else {
         return Ok(None);
     };
     let selected = |ipv6| {

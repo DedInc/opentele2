@@ -432,8 +432,7 @@ test('setTdataAccounts refuses a list the folder cannot hold', async () => {
   const tooMany = [0, 1, 2, 3, 4, 5, 6].map(labelledAccount)
   assert.equal(thrown(() => core.setTdataAccounts(tdata, tooMany)).code, 'OT_MAX_ACCOUNT_LIMIT')
   const repeated = thrown(() => core.setTdataAccounts(tdata, [2, 0, 2].map(labelledAccount)))
-  assert.equal(repeated.code, 'ERR_INVALID_ARG_VALUE')
-  assert.ok(repeated.message.includes('two accounts have index 2'), repeated.message)
+  assert.equal(repeated.code, 'OT_TDATA_SAVE_FAILED')
   const badKey = thrown(() => core.setTdataAccounts(tdata, [{ ...labelledAccount(0), authKey: Buffer.alloc(255) }]))
   assert.equal(badKey.code, 'OT_BAD_LENGTH')
   assert.deepEqual(
@@ -443,6 +442,22 @@ test('setTdataAccounts refuses a list the folder cannot hold', async () => {
   )
   core.setTdataAccounts(tdata, [0, 1, 2, 3, 4, 5].map(labelledAccount))
   assert.equal(tdata.accounts.length, core.TDATA_MAX_ACCOUNTS)
+})
+
+test('setTdataAccounts keeps a loaded folder of more accounts writable, as 1.5.0', async () => {
+  const dir = freshDir()
+  await core.saveTdata(await core.newTdata([0, 1, 2, 3, 4, 5, 6].map(labelledAccount)), dir)
+  const tdata = await core.loadTdata(dir)
+  const localKey = tdata.localKey
+  core.setTdataAccounts(tdata, [6, 5, 4, 3, 2, 1, 0].map(labelledAccount))
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [6, 5, 4, 3, 2, 1, 0],
+  )
+  assertSame(tdata.localKey, localKey, 'local key')
+  const tooMany = thrown(() => core.setTdataAccounts(tdata, [0, 1, 2, 3, 4, 5, 6, 7].map(labelledAccount)))
+  assert.equal(tooMany.code, 'OT_MAX_ACCOUNT_LIMIT')
+  assert.equal(tdata.accounts.length, 7, 'a refused list changes nothing')
 })
 
 test('keyFile rename then save and reload', async () => {

@@ -213,6 +213,23 @@ def _empty_if_none(value: str | None) -> str:
     return "" if value is None else value
 
 
+# The ids an i32 api_id holds; no official id lies outside them.
+_API_ID_RANGE = range(-(1 << 31), 1 << 31)
+
+
+def _comparable_api_id(api_id: object) -> int:
+    """``api_id`` as the core compares it with the official id of a
+    lang_pack. 1.5.0 compared with ``!=``: a number equal to an int compares
+    as that int; any other value, such as the text ``"2040"``, equals no
+    official id, and neither does 0."""
+    if isinstance(api_id, float) and api_id.is_integer():
+        api_id = int(api_id)
+    if isinstance(api_id, int) and api_id in _API_ID_RANGE:
+        # A bool is an int; the core shows it as one.
+        return int(api_id)
+    return 0
+
+
 def _init_issues(
     api_id: int | None,
     device_model: str | None,
@@ -227,8 +244,9 @@ def _init_issues(
     # 1.5.0 tested a None value as empty, except lang_pack, which it looked
     # up as the text "None" among the known packs; an api_id of None matched
     # no official id.
+    comparable_api_id = _comparable_api_id(api_id)
     profile: ApiProfile = {
-        "api_id": 0 if api_id is None else api_id,
+        "api_id": comparable_api_id,
         "api_hash": "",
         "device_model": _empty_if_none(device_model),
         "system_version": _empty_if_none(system_version),
@@ -238,9 +256,19 @@ def _init_issues(
         "lang_pack": str(lang_pack),
     }
     # Checked against PLATFORM_VERSIONS as it is now, fetched or edited.
-    return _native.validate_init_params(
+    issues = _native.validate_init_params(
         profile, _native_versions(PLATFORM_VERSIONS), "strict" if strict else "warn"
     )
+    # 1.5.0 formatted the values it was given, None and "2040" included,
+    # where the core shows the values it checked.
+    for issue in issues:
+        if issue["kind"] == "ShortLangCode" and lang_code is None:
+            issue["message"] = issue["message"].replace("lang_code ''", "lang_code 'None'", 1)
+        elif issue["kind"] == "ApiIdMismatch":
+            issue["message"] = issue["message"].replace(
+                f"api_id {comparable_api_id}", f"api_id {api_id}", 1
+            )
+    return issues
 
 
 def validate_init_connection_params(

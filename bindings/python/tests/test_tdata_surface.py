@@ -436,8 +436,9 @@ def test_setting_accounts_refuses_a_list_the_folder_cannot_hold() -> None:
     with pytest.raises(CoreError) as error:
         tdata.accounts = [labelled_account(n) for n in range(TData.MAX_ACCOUNTS + 1)]
     assert core_code(error) == "MAX_ACCOUNT_LIMIT"
-    with pytest.raises(ValueError, match="two accounts have index 2"):
+    with pytest.raises(CoreError) as repeated:
         tdata.accounts = [labelled_account(2), labelled_account(0), labelled_account(2)]
+    assert core_code(repeated) == "TDATA_SAVE_FAILED"
     assert [a.index for a in tdata.accounts] == [0, 1], "a refused list changes nothing"
     tdata.accounts = [labelled_account(n) for n in range(TData.MAX_ACCOUNTS)]
     assert len(tdata.accounts) == TData.MAX_ACCOUNTS
@@ -446,6 +447,21 @@ def test_setting_accounts_refuses_a_list_the_folder_cannot_hold() -> None:
     not_accounts: Any = "not accounts"
     with pytest.raises(TypeError):
         tdata.accounts = not_accounts
+
+
+def test_setting_accounts_keeps_a_loaded_seven_account_folder_writable(tmp_path: Path) -> None:
+    # 1.5.0 loads a folder listing seven accounts and saves an edited list
+    # of them under the same local key.
+    TData.new([labelled_account(n) for n in range(7)]).save(tmp_path / "seven")
+    tdata = TData.load(tmp_path / "seven")
+    local_key = tdata.local_key
+    tdata.accounts = [labelled_account(n) for n in reversed(range(7))]
+    assert [a.index for a in tdata.accounts] == [6, 5, 4, 3, 2, 1, 0]
+    assert_same(tdata.local_key, local_key, "local key")
+    with pytest.raises(CoreError) as error:
+        tdata.accounts = [labelled_account(n) for n in range(8)]
+    assert core_code(error) == "MAX_ACCOUNT_LIMIT"
+    assert len(tdata.accounts) == 7, "a refused list changes nothing"
 
 
 def test_key_file_rename_then_save_and_reload(tmp_path: Path) -> None:

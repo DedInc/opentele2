@@ -44,10 +44,11 @@ def _absolute_path(path: str | None) -> str:
 
 class MtpConfigView(BaseObject):
     """1.5.0 ``Account.MtpConfig``, read only: the MTP config of one loaded
-    account as ``_native.account_mtp_config`` parses it. Every read returns
-    a new copy, so editing a result changes nothing that is saved."""
+    account as ``_native.account_mtp_config`` parses it, or the production
+    default for no account. Every read returns a new copy, so editing a
+    result changes nothing that is saved."""
 
-    def __init__(self, account: _native.Account) -> None:
+    def __init__(self, account: _native.Account | None) -> None:
         self.__account = account
 
     @property
@@ -166,11 +167,9 @@ class Account(BaseObject):
     def MtpConfig(self) -> MtpConfigView:
         """The account's MTP config, as 1.5.0 read it from the folder: the
         production default when the folder stores none or it does not parse.
-        An account that was never loaded has none to read."""
-        core = self.__core
-        if core is None:
-            raise TDAccountNotLoaded("Account not loaded yet")
-        return MtpConfigView(core)
+        An account that was never loaded has the production default, as
+        1.5.0 starts every account with it."""
+        return MtpConfigView(self.__core)
 
     def isAuthorized(self) -> bool:
         return self.__isAuthorized

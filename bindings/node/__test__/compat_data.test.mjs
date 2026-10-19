@@ -296,7 +296,7 @@ test('drawPlan refuses what a save refuses and checks its arguments', async () =
   const empty = await core.newTdata([])
   const failed = thrown(() => core.drawPlan('save', empty))
   assert.equal(failed.code, 'OT_TDATA_SAVE_FAILED')
-  assert.equal(failed.legacyMessage, failed.message)
+  assert.equal(failed.legacyMessage, 'Could not save tdata, something went wrong')
 
   assert.equal(thrown(() => core.drawPlan('delete', empty)).code, 'ERR_INVALID_ARG_VALUE')
   assert.match(thrown(() => core.drawPlan('save', { hasPasscode: true })).message, /TData/)

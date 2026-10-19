@@ -415,7 +415,28 @@ NONE_REPORTS: list[tuple[str, bool, list[str]]] = [
     ("lang_pack", False, [LANG_PACK_NONE]),
     ("lang_pack", True, [LANG_PACK_NONE]),
     ("api_id", False, []),
+    ("api_id", True, ["api_id None does not match lang_pack 'tdesktop' (expected 2040)"]),
+    ("lang_code", False, ["lang_code 'None' looks invalid (too short)"]),
+    ("lang_code", True, ["lang_code 'None' looks invalid (too short)"]),
 ]
+
+# validate_init_connection_params(**{**DESKTOP, "api_id": api_id}, strict=strict)
+# of 1.5.0, which compared api_id with the official id by != and formatted it.
+API_ID_REPORTS: list[tuple[object, bool, list[str]]] = [
+    ("2040", False, []),
+    ("2040", True, ["api_id 2040 does not match lang_pack 'tdesktop' (expected 2040)"]),
+    (2040.0, True, []),
+    (True, True, ["api_id True does not match lang_pack 'tdesktop' (expected 2040)"]),
+    (2**40, True, ["api_id 1099511627776 does not match lang_pack 'tdesktop' (expected 2040)"]),
+]
+
+
+@pytest.mark.parametrize(("api_id", "strict", "expected"), API_ID_REPORTS)
+def test_api_ids_of_any_type_are_accepted_as_1_5_0(
+    api_id: Any, strict: bool, expected: list[str]
+) -> None:
+    params = {**DESKTOP, "api_id": api_id}
+    assert validate_init_connection_params(**params, strict=strict) == expected
 
 
 @pytest.mark.parametrize(("field", "strict", "expected"), NONE_REPORTS)

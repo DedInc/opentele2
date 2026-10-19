@@ -965,10 +965,11 @@ export declare const SESSIONS_UNAVAILABLE: string
 /**
  * Replaces the accounts later saves of `tdata` write, keeping its local
  * key, key data and salts, as 1.5.0 writes an edited `accounts` list under
- * the loaded local key. More than `TDATA_MAX_ACCOUNTS` accounts throw
- * `OT_MAX_ACCOUNT_LIMIT`, two of one index `ERR_INVALID_ARG_VALUE`, and a
- * bad account the error `newTdata` throws for it; `tdata` is then left as
- * it was.
+ * the loaded local key. Up to `TDATA_MAX_ACCOUNTS` accounts are accepted,
+ * or as many as were loaded when that is more. More throw
+ * `OT_MAX_ACCOUNT_LIMIT`, two of one index `OT_TDATA_SAVE_FAILED`, and a bad
+ * account the error `newTdata` throws for it; `tdata` is then left as it
+ * was.
  */
 export declare function setTdataAccounts(tdata: TData, accounts: Array<AccountInput>): void
 

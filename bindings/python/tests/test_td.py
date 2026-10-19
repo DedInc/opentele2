@@ -27,7 +27,6 @@ from opentele2._native import CoreError, TData
 from opentele2.api import API, APIData
 from opentele2.exception import (
     OpenTeleException,
-    TDAccountNotLoaded,
     TDataBadDecryptKey,
     TDataSaveFailed,
     TFileNotFound,
@@ -548,8 +547,88 @@ def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
         options[2].clear()
         assert len(config.dcOptions[2]) == 3, "a read returns a copy"
 
-    with pytest.raises(TDAccountNotLoaded):
-        _ = Account(TDesktop()).MtpConfig
+
+def test_an_unloaded_account_has_the_production_default_mtp_config_as_1_5_0() -> None:
+    # Account(TDesktop()).MtpConfig of 1.5.0: the production default its
+    # StorageAccount starts with, DCs 1 to 5, three endpoints of DC 2, no
+    # CDN key.
+    config = Account(TDesktop()).MtpConfig
+    assert config.environment == "production"
+    assert not config.isTestMode()
+    options = config.dcOptions
+    assert sorted(options) == [1, 2, 3, 4, 5]
+    assert len(options[2]) == 3
+    assert options[1][0]["ip"] == "149.154.175.50"
+    assert config.cdnPublicKeys == []
+    fields = config.fields
+    assert (fields["web_file_dc_id"], fields["txt_domain_string"]) == (4, "apv3.stel.com")
+    assert fields["chat_size_max"] == 200
+    endpoints = config.endpoints(2)
+    assert endpoints is not None
+    assert [len(endpoints["ipv4"][p]) for p in ("tcp", "http")] == [2, 2]
+    assert [len(endpoints["ipv6"][p]) for p in ("tcp", "http")] == [1, 1]
+    assert config.endpoints() is None, "an unloaded account has main DC 0"
+
+
+def test_an_account_added_after_a_removal_takes_the_freed_place_as_1_5_0(
+    tmp_path: Path,
+) -> None:
+    # 1.5.0 Account.FromTelethon on TDesktop(six) after accounts.pop():
+    # index = accountsCount = 5, no MaxAccountLimit.
+    key = bytes(range(256))
+    accounts = [_native.Account(i, 1000 + i, 2, [(2, key)]) for i in range(6)]
+    TData.new(accounts).save(tmp_path / "six")
+    tdesk = TDesktop(str(tmp_path / "six"))
+    removed = tdesk.accounts.pop()
+    assert removed.index == 5
+    added = tdesk._addAccount(4242, AuthKey(key, AuthKeyType.ReadFromFile, 4))
+    assert added.index == 5
+    assert (added.UserId, added.MainDcId) == (4242, 4)
+    assert tdesk.accountsCount == TDesktop.kMaxAccounts
+    tdesk.SaveTData(str(tmp_path / "saved"))
+    reloaded = TDesktop(str(tmp_path / "saved"))
+    assert [(a.index, a.UserId) for a in reloaded.accounts] == [
+        *[(i, 1000 + i) for i in range(5)],
+        (5, 4242),
+    ]
+
+
+def test_an_edited_seven_account_folder_keeps_its_local_key_as_1_5_0(tmp_path: Path) -> None:
+    # 1.5.0 SaveTData of TDesktop(seven) with its accounts reordered writes
+    # them under the loaded local key.
+    key = bytes(range(256))
+    accounts = [_native.Account(i, 1000 + i, 2, [(2, key)]) for i in range(7)]
+    TData.new(accounts).save(tmp_path / "seven")
+    tdesk = TDesktop(str(tmp_path / "seven"))
+    local_key = tdesk.localKey
+    assert local_key is not None
+    tdesk.accounts.append(tdesk.accounts.pop(0))
+    assert tdesk.SaveTData(str(tmp_path / "saved")) is True
+    assert tdesk.localKey is local_key, "an edited accounts list keeps the local key"
+    saved = TData.load(tmp_path / "saved")
+    assert_same(saved.local_key, local_key.key, "saved local key")
+    assert [a.index for a in saved.accounts] == [1, 2, 3, 4, 5, 6, 0]
+
+
+def test_a_list_the_folder_refuses_fails_the_save_without_a_rekey(tmp_path: Path) -> None:
+    # Two accounts of one index would overwrite each other's files; the
+    # save fails with 1.5.0's TDataSaveFailed instead of writing the list
+    # under a new local key.
+    tdesk = load("tdata_plain/performance_on")
+    local_key = tdesk.localKey
+    tdesk.accounts.append(tdesk.accounts[0])
+    with pytest.raises(TDataSaveFailed) as failed:
+        tdesk.SaveTData(str(tmp_path))
+    assert failed.value.message == SAVE_FAILED
+    assert tdesk.localKey is local_key, "a refused list does not rekey"
+    assert listed_files(tmp_path) == []
+    tdesk.accounts.pop()
+    assert tdesk.SaveTData(str(tmp_path)) is True
+    assert_same(
+        TData.load(tmp_path).local_key,
+        TData.load(VECTORS / "tdata_plain/performance_on").local_key,
+        "local key",
+    )
 
 
 def test_api_reaches_every_account() -> None:
