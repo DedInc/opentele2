@@ -17,6 +17,7 @@
 //! exception types.
 
 pub mod crypto;
+pub mod devices;
 mod error;
 pub mod kdf;
 pub mod qt;

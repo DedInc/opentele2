@@ -21,9 +21,10 @@ argon2 = { version = "0.6.0", default-features = false, features = ["alloc"] }
 scrypt = { version = "0.12.0", default-features = false }
 getrandom = "0.4.3"
 base64 = "0.23.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 
 [dev-dependencies]
-serde_json = "1.0.154"
 hex = "0.4.3"
 
 [lints]

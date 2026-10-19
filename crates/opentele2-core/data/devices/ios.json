@@ -1,0 +1,427 @@
+{
+  "models": [
+    {
+      "model": "iPhone XS",
+      "min_ios": "12.0",
+      "max_major": 18,
+      "weight": 1
+    },
+    {
+      "model": "iPhone XS Max",
+      "min_ios": "12.0",
+      "max_major": 18,
+      "weight": 1
+    },
+    {
+      "model": "iPhone XR",
+      "min_ios": "12.0",
+      "max_major": 18,
+      "weight": 1
+    },
+    {
+      "model": "iPhone 11",
+      "min_ios": "13.0",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 11 Pro",
+      "min_ios": "13.0",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 11 Pro Max",
+      "min_ios": "13.0",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone SE (2nd gen)",
+      "min_ios": "13.4",
+      "max_major": 27,
+      "weight": 2
+    },
+    {
+      "model": "iPhone 12 mini",
+      "min_ios": "14.2",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 12",
+      "min_ios": "14.1",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 12 Pro",
+      "min_ios": "14.1",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 12 Pro Max",
+      "min_ios": "14.2",
+      "max_major": 27,
+      "weight": 3
+    },
+    {
+      "model": "iPhone 13 Mini",
+      "min_ios": "15.0",
+      "max_major": 27,
+      "weight": 5
+    },
+    {
+      "model": "iPhone 13",
+      "min_ios": "15.0",
+      "max_major": 27,
+      "weight": 5
+    },
+    {
+      "model": "iPhone 13 Pro",
+      "min_ios": "15.0",
+      "max_major": 27,
+      "weight": 5
+    },
+    {
+      "model": "iPhone 13 Pro Max",
+      "min_ios": "15.0",
+      "max_major": 27,
+      "weight": 5
+    },
+    {
+      "model": "iPhone SE (3rd gen)",
+      "min_ios": "15.4",
+      "max_major": 27,
+      "weight": 2
+    },
+    {
+      "model": "iPhone 14",
+      "min_ios": "16.0",
+      "max_major": 27,
+      "weight": 6
+    },
+    {
+      "model": "iPhone 14 Plus",
+      "min_ios": "16.0",
+      "max_major": 27,
+      "weight": 6
+    },
+    {
+      "model": "iPhone 14 Pro",
+      "min_ios": "16.0",
+      "max_major": 27,
+      "weight": 6
+    },
+    {
+      "model": "iPhone 14 Pro Max",
+      "min_ios": "16.0",
+      "max_major": 27,
+      "weight": 6
+    },
+    {
+      "model": "iPhone 15",
+      "min_ios": "17.0",
+      "max_major": 27,
+      "weight": 7
+    },
+    {
+      "model": "iPhone 15 Plus",
+      "min_ios": "17.0",
+      "max_major": 27,
+      "weight": 7
+    },
+    {
+      "model": "iPhone 15 Pro",
+      "min_ios": "17.0",
+      "max_major": 27,
+      "weight": 7
+    },
+    {
+      "model": "iPhone 15 Pro Max",
+      "min_ios": "17.0",
+      "max_major": 27,
+      "weight": 7
+    },
+    {
+      "model": "iPhone 16",
+      "min_ios": "18.0",
+      "max_major": 27,
+      "weight": 8
+    },
+    {
+      "model": "iPhone 16 Plus",
+      "min_ios": "18.0",
+      "max_major": 27,
+      "weight": 8
+    },
+    {
+      "model": "iPhone 16 Pro",
+      "min_ios": "18.0",
+      "max_major": 27,
+      "weight": 8
+    },
+    {
+      "model": "iPhone 16 Pro Max",
+      "min_ios": "18.0",
+      "max_major": 27,
+      "weight": 8
+    },
+    {
+      "model": "iPhone 16e",
+      "min_ios": "18.3",
+      "max_major": 27,
+      "weight": 4
+    },
+    {
+      "model": "iPhone 17",
+      "min_ios": "26.0",
+      "max_major": 27,
+      "weight": 9
+    },
+    {
+      "model": "iPhone 17 Pro",
+      "min_ios": "26.0",
+      "max_major": 27,
+      "weight": 9
+    },
+    {
+      "model": "iPhone 17 Pro Max",
+      "min_ios": "26.0",
+      "max_major": 27,
+      "weight": 9
+    },
+    {
+      "model": "iPhone Air",
+      "min_ios": "26.0",
+      "max_major": 27,
+      "weight": 5
+    }
+  ],
+  "versions": [
+    {
+      "version": "27.0.1",
+      "weight": 18
+    },
+    {
+      "version": "27.0",
+      "weight": 1
+    },
+    {
+      "version": "26.7.1",
+      "weight": 30
+    },
+    {
+      "version": "26.7",
+      "weight": 1
+    },
+    {
+      "version": "26.6.2",
+      "weight": 5
+    },
+    {
+      "version": "26.6.1",
+      "weight": 1
+    },
+    {
+      "version": "26.6",
+      "weight": 1
+    },
+    {
+      "version": "26.5.2",
+      "weight": 5
+    },
+    {
+      "version": "26.5.1",
+      "weight": 1
+    },
+    {
+      "version": "26.5",
+      "weight": 1
+    },
+    {
+      "version": "26.4.2",
+      "weight": 5
+    },
+    {
+      "version": "26.4.1",
+      "weight": 1
+    },
+    {
+      "version": "26.4",
+      "weight": 1
+    },
+    {
+      "version": "26.3.1",
+      "weight": 5
+    },
+    {
+      "version": "26.3",
+      "weight": 1
+    },
+    {
+      "version": "26.2.1",
+      "weight": 5
+    },
+    {
+      "version": "26.2",
+      "weight": 1
+    },
+    {
+      "version": "26.1",
+      "weight": 5
+    },
+    {
+      "version": "26.0.1",
+      "weight": 5
+    },
+    {
+      "version": "26.0",
+      "weight": 1
+    },
+    {
+      "version": "18.7.10",
+      "weight": 9
+    },
+    {
+      "version": "18.7.9",
+      "weight": 1
+    },
+    {
+      "version": "18.7.8",
+      "weight": 1
+    },
+    {
+      "version": "18.7.7",
+      "weight": 1
+    },
+    {
+      "version": "18.7.6",
+      "weight": 1
+    },
+    {
+      "version": "18.7.5",
+      "weight": 1
+    },
+    {
+      "version": "18.7.4",
+      "weight": 1
+    },
+    {
+      "version": "18.7.3",
+      "weight": 1
+    },
+    {
+      "version": "18.7.2",
+      "weight": 1
+    },
+    {
+      "version": "18.7.1",
+      "weight": 1
+    },
+    {
+      "version": "18.7",
+      "weight": 1
+    },
+    {
+      "version": "18.6.2",
+      "weight": 1
+    },
+    {
+      "version": "18.6.1",
+      "weight": 1
+    },
+    {
+      "version": "18.6",
+      "weight": 1
+    },
+    {
+      "version": "18.5",
+      "weight": 1
+    },
+    {
+      "version": "18.4.1",
+      "weight": 1
+    },
+    {
+      "version": "18.4",
+      "weight": 1
+    },
+    {
+      "version": "18.3.2",
+      "weight": 1
+    },
+    {
+      "version": "18.3.1",
+      "weight": 1
+    },
+    {
+      "version": "18.3",
+      "weight": 1
+    },
+    {
+      "version": "18.2.1",
+      "weight": 1
+    },
+    {
+      "version": "18.2",
+      "weight": 1
+    },
+    {
+      "version": "18.1.1",
+      "weight": 1
+    },
+    {
+      "version": "18.1",
+      "weight": 1
+    },
+    {
+      "version": "18.0.1",
+      "weight": 1
+    },
+    {
+      "version": "18.0",
+      "weight": 1
+    }
+  ],
+  "only": {
+    "18.7.3": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "18.7.4": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "18.7.5": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "18.7.6": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "18.7.9": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "18.7.10": [
+      "iPhone XS",
+      "iPhone XS Max",
+      "iPhone XR"
+    ],
+    "26.5.1": [
+      "iPhone 17",
+      "iPhone 17 Pro",
+      "iPhone 17 Pro Max",
+      "iPhone Air"
+    ]
+  },
+  "except": {}
+}
