@@ -11,3 +11,9 @@ try:
     importlib.import_module("cryptg")
 except ImportError:
     sys.modules["cryptg"] = importlib.import_module("opentele2._native.cryptg")
+
+# Importing api imports fingerprint, which fetches and applies the current
+# platform versions (unless OPENTELE_NO_FETCH is set), and then syncs the
+# API class attributes to them.
+from . import api as api
+from . import fingerprint as fingerprint

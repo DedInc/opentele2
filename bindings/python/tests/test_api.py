@@ -443,6 +443,69 @@ def test_from_json_defaults_and_system_lang_pack_fallback() -> None:
 def test_from_json_without_credentials_raises_no_instance_matched() -> None:
     with pytest.raises(NoInstanceMatched, match="session JSON"):
         APIData.from_json({"app_hash": "h", "device": "d", "sdk": "s", "app_version": "v"})
+    # 1.5.0 rejected only a missing app_id or app_hash, null counting as missing.
+    for data in ({"app_hash": "h"}, {"app_id": 1}, {"app_id": None, "app_hash": "h"}):
+        with pytest.raises(NoInstanceMatched):
+            APIData.from_json(data)
+
+
+def test_from_json_is_as_lenient_as_1_5_0() -> None:
+    local = api._local_device_model()
+    # APIData.from_json(data) of 1.5.0 for each input, as _fields() reads it.
+    cases: list[tuple[dict[str, Any], Fields]] = [
+        ({"app_id": 1, "app_hash": "h"}, (1, "h", local, None, None, "en", "en", "")),
+        (
+            {
+                "app_id": 1,
+                "app_hash": "h",
+                "device": None,
+                "sdk": None,
+                "app_version": None,
+                "lang_code": None,
+                "lang_pack": None,
+                "system_lang_pack": None,
+            },
+            (1, "h", local, None, None, None, None, None),
+        ),
+        (
+            {
+                "app_id": 1,
+                "app_hash": "h",
+                "device": "",
+                "sdk": "",
+                "app_version": "",
+                "system_lang_code": "",
+                "system_lang_pack": "de-DE",
+            },
+            (1, "h", "", "", "", "en", "de-DE", ""),
+        ),
+        (
+            {"app_id": 6, "app_hash": "h", "sdk": "SDK 35", "system_lang_code": "ru-RU"},
+            (6, "h", local, "SDK 35", None, "en", "ru-RU", ""),
+        ),
+        (
+            {
+                "app_id": 6,
+                "app_hash": "h",
+                "device": "Pixel 9",
+                "app_version": "13.0.3",
+                "system_lang_code": None,
+                "system_lang_pack": "fr-FR",
+                "lang_code": "fr",
+            },
+            (6, "h", "Pixel 9", None, "13.0.3", "fr", "fr-FR", ""),
+        ),
+        (
+            {"app_id": 6, "app_hash": "h", "system_lang_code": "en-GB", "system_lang_pack": None},
+            (6, "h", local, None, None, "en", "en-GB", ""),
+        ),
+    ]
+    for data, expected in cases:
+        before = dict(data)
+        loaded = APIData.from_json(data)
+        assert type(loaded) is APIData
+        assert _fields(loaded) == expected, data
+        assert data == before, "from_json must not edit its argument"
 
 
 def test_to_json_basic_and_roundtrip() -> None:

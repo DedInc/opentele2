@@ -6,6 +6,7 @@ it, and ``Generate`` the device ``_native.generate`` picks for the seed.
 
 from __future__ import annotations
 
+import logging
 import platform
 from typing import TYPE_CHECKING, overload
 
@@ -37,6 +38,8 @@ __all__ = [
     "LoginFlag",
     "UseCurrentSession",
 ]
+
+logger = logging.getLogger(__name__)
 
 _X64_ARCHES = ("x86_64", "AMD64")
 _X86_ARCHES = ("i386", "i686", "x86")
@@ -112,6 +115,10 @@ def _desktop_system(name: str | None) -> _DesktopSystem | None:
 
 def _unset_marked(value: str | None) -> str:
     return _UNSET_FIELD if value is None else value
+
+
+def _holds_null(data: dict, key: str) -> bool:
+    return key in data and data[key] is None
 
 
 class APIData(metaclass=BaseAPIMetaClass):
@@ -204,24 +211,43 @@ class APIData(metaclass=BaseAPIMetaClass):
 
     @staticmethod
     def from_json(data: dict) -> APIData:
-        """The API of session JSON as 1.5.0 wrote it: ``app_id``, ``app_hash``,
-        ``device``, ``sdk`` and ``app_version`` are required; ``lang_code``
-        defaults to ``"en"``, ``lang_pack`` to ``""``, and ``system_lang_code``
-        falls back to ``system_lang_pack``, then ``"en"``."""
+        """The API of session JSON as 1.5.0 read it: ``app_id`` and
+        ``app_hash`` are required. A missing ``device`` is the local
+        machine's model, and a missing ``sdk`` or ``app_version`` stays None.
+        ``lang_code`` defaults to ``"en"``, ``lang_pack`` to ``""``, and
+        ``system_lang_code`` falls back to ``system_lang_pack``, then
+        ``"en"``; a language key holding null stays None."""
+        completed = dict(data)
+        # 1.5.0 read every key with dict.get, so null and absent are alike.
+        if completed.get("device") is None:
+            completed["device"] = _local_device_model()
+        sdk_unset = completed.get("sdk") is None
+        if sdk_unset:
+            completed["sdk"] = ""
+        app_version_unset = completed.get("app_version") is None
+        if app_version_unset:
+            completed["app_version"] = ""
+
         try:
-            profile = _native.profile_from_session_json(data)
+            profile = _native.profile_from_session_json(completed)
         except CoreError as error:
             raise NoInstanceMatched(error.message) from error
+
+        # The core reads a language key holding null as absent; 1.5.0's
+        # dict.get defaults applied only to absent keys.
+        system_lang_code: str | None = profile["system_lang_code"]
+        if not data.get("system_lang_code") and _holds_null(data, "system_lang_pack"):
+            system_lang_code = None
 
         return APIData(
             api_id=profile["api_id"],
             api_hash=profile["api_hash"],
             device_model=profile["device_model"],
-            system_version=profile["system_version"],
-            app_version=profile["app_version"],
-            lang_code=profile["lang_code"],
-            system_lang_code=profile["system_lang_code"],
-            lang_pack=profile["lang_pack"],
+            system_version=None if sdk_unset else profile["system_version"],
+            app_version=None if app_version_unset else profile["app_version"],
+            lang_code=None if _holds_null(data, "lang_code") else profile["lang_code"],
+            system_lang_code=system_lang_code,
+            lang_pack=None if _holds_null(data, "lang_pack") else profile["lang_pack"],
         )
 
     def to_json(self, extra: dict | None = None) -> dict:
@@ -440,3 +466,34 @@ class UseCurrentSession(LoginFlag):
 
 class CreateNewSession(LoginFlag):
     pass
+
+
+def _sync_api_versions() -> None:
+    try:
+        from .fingerprint import PLATFORM_VERSIONS as pv
+
+        suffix = pv.desktop_app_version_suffix
+        API.TelegramDesktop.app_version = (
+            f"{pv.desktop_app_version} {suffix}" if suffix else pv.desktop_app_version
+        )
+
+        API.TelegramAndroid.app_version = (
+            f"{pv.android_app_version} ({pv.android_app_version_code})"
+        )
+
+        API.TelegramAndroidX.app_version = pv.android_x_app_version
+
+        API.TelegramIOS.app_version = f"{pv.ios_app_version} ({pv.ios_build_number}) "
+        API.TelegramIOS.system_version = pv.ios_system_version
+
+        API.TelegramMacOS.app_version = f"{pv.macos_app_version} ({pv.macos_build_number}) "
+        API.TelegramMacOS.system_version = pv.macos_system_version
+
+        API.TelegramWeb_A.app_version = pv.web_a_version
+        API.TelegramWeb_K.app_version = pv.web_k_version
+    except Exception:
+        # Keep the class defaults if the platform versions are unusable.
+        logger.debug("Could not sync API versions", exc_info=True)
+
+
+_sync_api_versions()
