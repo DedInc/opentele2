@@ -6,7 +6,17 @@
 // Deno and DOM types that no Node setup provides; the `@ts-expect-error`
 // lines fail the check if a declaration here degrades to `any`.
 
-import { loadTdata, migrateTdata, newTdata, profile, saveTdata, sessionPairPaths, telethonSessionRows } from 'opentele2'
+import {
+  TDATA_MAX_ACCOUNTS,
+  addTdataAccount,
+  loadTdata,
+  migrateTdata,
+  newTdata,
+  profile,
+  saveTdata,
+  sessionPairPaths,
+  telethonSessionRows,
+} from 'opentele2'
 import type { AccountInput, ApiProfile, SessionPairPaths, TData, TelethonSessionRows } from 'opentele2'
 import { initConnectionOptions, toStringSession } from 'opentele2/mtcute'
 import type { InitConnectionOptions } from 'opentele2/mtcute'
@@ -73,5 +83,12 @@ export async function tdataSurface(account: AccountInput): Promise<void> {
   loaded.performanceMode = 'on'
   // @ts-expect-error draws are byte arrays
   await saveTdata(loaded, 'out', true, ['00'])
-  void [migrated, passcodeKey, appVersion]
+  const index: number = addTdataAccount(loaded, 1n, 2, localKey)
+  const limit: number = TDATA_MAX_ACCOUNTS
+  loaded.keyFile = 'custom'
+  // @ts-expect-error the user id is a bigint
+  addTdataAccount(loaded, 1, 2, localKey)
+  // @ts-expect-error the key file is a string
+  loaded.keyFile = 1
+  void [migrated, passcodeKey, appVersion, index, limit]
 }

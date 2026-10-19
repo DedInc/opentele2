@@ -135,16 +135,21 @@ impl PyTData {
         Arc::clone(&self.inner.read().unwrap_or_else(PoisonError::into_inner))
     }
 
-    /// Applies `change` to the folder; snapshots taken before keep the
-    /// folder as it was.
-    fn update(&self, change: impl FnOnce(&mut TData)) {
+    /// Applies `change` to the folder and returns its result; snapshots
+    /// taken before keep the folder as it was.
+    fn update<T>(&self, change: impl FnOnce(&mut TData) -> T) -> T {
         let mut folder = self.inner.write().unwrap_or_else(PoisonError::into_inner);
-        change(Arc::make_mut(&mut folder));
+        change(Arc::make_mut(&mut folder))
     }
 }
 
 #[pymethods]
 impl PyTData {
+    /// Most accounts one folder holds (1.5.0's `kMaxAccounts`); `add_account`
+    /// refuses more.
+    #[classattr]
+    const MAX_ACCOUNTS: usize = TData::MAX_ACCOUNTS;
+
     /// Loads the folder at `path`; `passcode` is the local passcode (`str`
     /// is UTF-8 encoded) and `key_file` the key file data name, `"data"` by
     /// default.
@@ -265,6 +270,25 @@ impl PyTData {
         Ok(migrated)
     }
 
+    /// Adds an account with `auth_key` as the key of `main_dc`, as 1.5.0's
+    /// `Account.FromTelethon` does, and returns its index: the lowest one
+    /// below `MAX_ACCOUNTS` no account holds. The active index is not
+    /// changed. A full folder raises `CoreError` `MAX_ACCOUNT_LIMIT` and is
+    /// left as it was.
+    fn add_account(
+        &self,
+        py: Python<'_>,
+        user_id: u64,
+        main_dc: i32,
+        auth_key: &Bound<'_, PyAny>,
+    ) -> PyResult<i32> {
+        let auth_key = to_auth_key(py, auth_key)?;
+        check(
+            py,
+            self.update(|folder| folder.add_account(user_id, main_dc, auth_key)),
+        )
+    }
+
     /// Telegram Desktop version in the key file's `TDF$` header; saving
     /// always writes 1.5.0's 7003001.
     #[getter]
@@ -329,9 +353,17 @@ impl PyTData {
     }
 
     /// The data name of the key file, `"data"` unless loaded otherwise.
+    /// Setting it renames the key file and the account files of later saves
+    /// (1.5.0's `SaveTData(keyFile=...)`); an empty name raises `CoreError`
+    /// `TDATA_SAVE_FAILED` and keeps the old one.
     #[getter]
     fn key_file(&self) -> String {
         self.folder().key_file.clone()
+    }
+
+    #[setter]
+    fn set_key_file(&self, py: Python<'_>, value: &str) -> PyResult<()> {
+        check(py, self.update(|folder| folder.set_key_file(value)))
     }
 
     /// Whether the key file has the pre-7.3 layout, which every save

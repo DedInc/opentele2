@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 from opentele2 import _native
-from opentele2._native import Account, TData
+from opentele2._native import Account, CoreError, TData
 
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 APP_VERSION = 7_003_001
@@ -332,3 +332,120 @@ def test_save_and_migrate_reject_mismatched_draws(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="1 of 1 draws were left unused"):
         modern.migrate(draws=[b"\x00"])
     assert modern.migrate(draws=[]) is False
+
+
+# ---------------------------------------------------------------- add_account and key_file
+
+
+def core_code(error: pytest.ExceptionInfo[CoreError]) -> str:
+    return str(error.value.code)
+
+
+def labelled_account(index: int) -> Account:
+    return Account(index, 9_000_000_000 + index, 2, [(2, label_bytes(f"account {index}", 256))])
+
+
+def test_max_accounts_is_tdesktops_limit() -> None:
+    assert TData.MAX_ACCOUNTS == 6
+    tdata = TData.load(VECTORS / "tdata_plain/performance_on")
+    assert tdata.MAX_ACCOUNTS == 6
+
+
+def test_add_account_then_save_and_reload(tmp_path: Path) -> None:
+    folder = "tdata_plain/performance_on"
+    tdata = TData.load(VECTORS / folder)
+    before = tdata.accounts
+    active = tdata.active_index
+    key = label_bytes("added account", 256)
+    assert tdata.add_account(9_000_000_123, 3, bytearray(key)) == 2
+    assert [a.index for a in before] == [0, 1], "an earlier accounts list is a snapshot"
+    assert [a.index for a in tdata.accounts] == [0, 1, 2]
+    assert tdata.active_index == active
+    added = tdata.accounts[2]
+    assert (added.user_id, added.main_dc) == (9_000_000_123, 3)
+    assert_same(added.auth_key, key, "added auth key")
+    assert added.config is None
+
+    tdata.save(tmp_path)
+    assert len(listed_files(tmp_path)) == len(entry_of(folder)["files"]) + 2
+    reloaded = TData.load(tmp_path)
+    assert [(a.index, a.user_id, a.main_dc) for a in reloaded.accounts] == [
+        (a.index, a.user_id, a.main_dc) for a in tdata.accounts
+    ]
+    for loaded, kept in zip(reloaded.accounts, tdata.accounts):
+        assert_same(loaded.auth_key, kept.auth_key, f"account {kept.index} auth key")
+
+
+def test_add_account_takes_the_lowest_free_index() -> None:
+    tdata = TData.new([labelled_account(0), labelled_account(2)])
+    assert tdata.add_account(1, 1, label_bytes("gap", 256)) == 1
+    assert tdata.add_account(3, 1, label_bytes("next", 256)) == 3
+    assert [a.index for a in tdata.accounts] == [0, 2, 1, 3]
+
+
+def test_add_account_refuses_more_than_max_accounts() -> None:
+    tdata = TData.load(VECTORS / "tdata_plain/performance_on")
+    added = [tdata.add_account(n, 2, label_bytes(f"fill {n}", 256)) for n in range(4)]
+    assert added == [2, 3, 4, 5]
+    with pytest.raises(CoreError) as error:
+        tdata.add_account(7, 2, label_bytes("seventh", 256))
+    assert core_code(error) == "MAX_ACCOUNT_LIMIT"
+    assert [a.index for a in tdata.accounts] == [0, 1, 2, 3, 4, 5], "a refused add changes nothing"
+
+    full = TData.new([labelled_account(n) for n in range(TData.MAX_ACCOUNTS)])
+    with pytest.raises(CoreError) as error:
+        full.add_account(7, 2, label_bytes("seventh", 256))
+    assert core_code(error) == "MAX_ACCOUNT_LIMIT"
+
+
+def test_add_account_rejects_a_bad_key() -> None:
+    tdata = TData.load(VECTORS / "tdata_plain/performance_on")
+    with pytest.raises(CoreError) as error:
+        tdata.add_account(7, 2, b"\x00" * 255)
+    assert core_code(error) == "BAD_LENGTH"
+    assert len(tdata.accounts) == 2
+    not_bytes: Any = "not bytes"
+    with pytest.raises(TypeError):
+        tdata.add_account(7, 2, not_bytes)
+
+
+def test_key_file_rename_then_save_and_reload(tmp_path: Path) -> None:
+    folder = "tdata_plain/performance_on"
+    tdata = TData.load(VECTORS / folder)
+    snapshot = TData.load(VECTORS / folder)
+    tdata.key_file = "custom"
+    assert tdata.key_file == "custom"
+    assert snapshot.key_file == "data"
+    tdata.save(tmp_path)
+    files = listed_files(tmp_path)
+    assert "key_customs" in files
+    assert "key_datas" not in files
+    assert len(files) == len(entry_of(folder)["files"])
+    assert not set(files) & (set(entry_of(folder)["files"]) - {"key_datas"}), (
+        "account files are renamed with the key file"
+    )
+
+    with pytest.raises(CoreError) as error:
+        TData.load(tmp_path)
+    assert core_code(error) == "TFILE_NOT_FOUND"
+    reloaded = TData.load(tmp_path, key_file="custom")
+    assert reloaded.key_file == "custom"
+    assert [(a.index, a.user_id) for a in reloaded.accounts] == [
+        (a.index, a.user_id) for a in tdata.accounts
+    ]
+    for loaded, kept in zip(reloaded.accounts, tdata.accounts):
+        assert_same(loaded.auth_key, kept.auth_key, f"account {kept.index} auth key")
+    assert_same(reloaded.local_key, tdata.local_key, "reloaded local key")
+
+
+def test_key_file_rejects_an_empty_name() -> None:
+    tdata = TData.load(VECTORS / "tdata_plain/performance_on")
+    with pytest.raises(CoreError) as error:
+        tdata.key_file = ""
+    assert core_code(error) == "TDATA_SAVE_FAILED"
+    assert tdata.key_file == "data"
+    untyped: Any = tdata
+    with pytest.raises(TypeError):
+        untyped.key_file = 1
+    with pytest.raises((AttributeError, TypeError)):
+        del untyped.key_file

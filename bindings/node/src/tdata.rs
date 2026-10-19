@@ -153,11 +153,11 @@ impl TData {
         snapshot(&self.inner)
     }
 
-    /// Applies `change` to the folder; snapshots taken before, such as a
-    /// save in flight, keep the folder as it was.
-    fn update(&self, change: impl FnOnce(&mut CoreTData)) {
+    /// Applies `change` to the folder and returns its result; snapshots
+    /// taken before, such as a save in flight, keep the folder as it was.
+    fn update<T>(&self, change: impl FnOnce(&mut CoreTData) -> T) -> T {
         let mut folder = self.inner.write().unwrap_or_else(PoisonError::into_inner);
-        change(Arc::make_mut(&mut folder));
+        change(Arc::make_mut(&mut folder))
     }
 }
 
@@ -226,6 +226,14 @@ impl TData {
     #[napi(getter)]
     pub fn key_file(&self) -> String {
         self.folder().key_file.clone()
+    }
+
+    /// Renames the key file and the account files of later saves, as
+    /// 1.5.0's `SaveTData(keyFile=...)` does; an empty name throws
+    /// `OT_TDATA_SAVE_FAILED` and keeps the old one.
+    #[napi(setter)]
+    pub fn set_key_file(&self, value: String) -> Result<()> {
+        check(self.update(move |folder| folder.set_key_file(&value)))
     }
 
     /// Whether the key file has the pre-7.3 layout, which every save
@@ -510,6 +518,32 @@ pub fn new_tdata(
         active_index: active_index.unwrap_or(NEW_FOLDER_ACTIVE_INDEX),
         draws: to_draws(draws),
     }))
+}
+
+/// Most accounts one folder holds (1.5.0's `kMaxAccounts`);
+/// `addTdataAccount` refuses more.
+#[napi]
+pub const TDATA_MAX_ACCOUNTS: u32 = 6;
+
+const _: () = assert!(TDATA_MAX_ACCOUNTS as usize == CoreTData::MAX_ACCOUNTS);
+
+/// Adds an account to `tdata` with `authKey` as the key of `mainDc`, as
+/// 1.5.0's `Account.FromTelethon` does, and returns its index: the lowest
+/// one below `TDATA_MAX_ACCOUNTS` no account holds. The active index is not
+/// changed. A full folder throws `OT_MAX_ACCOUNT_LIMIT`, a key that is not
+/// 256 bytes `OT_BAD_LENGTH`; `tdata` is then left as it was.
+#[napi]
+pub fn add_tdata_account(
+    tdata: &TData,
+    user_id: BigInt,
+    main_dc: i32,
+    auth_key: &[u8],
+) -> Result<i32> {
+    // napi has no borrowed `BigInt` argument, so the owned one is moved
+    // into the conversion and dropped there.
+    let user_id = to_user_id(&{ user_id })?;
+    let auth_key = to_auth_key(auth_key)?;
+    check(tdata.update(|folder| folder.add_account(user_id, main_dc, auth_key)))
 }
 
 /// One `loadMany` request given as an object.

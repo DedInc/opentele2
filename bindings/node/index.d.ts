@@ -51,6 +51,12 @@ export declare class TData {
   /** The data name of the key file, `"data"` unless loaded otherwise. */
   get keyFile(): string
   /**
+   * Renames the key file and the account files of later saves, as
+   * 1.5.0's `SaveTData(keyFile=...)` does; an empty name throws
+   * `OT_TDATA_SAVE_FAILED` and keeps the old one.
+   */
+  set keyFile(value: string)
+  /**
    * Whether the key file has the pre-7.3 layout, which every save
    * migrates afresh until `migrateTdata` migrates it once.
    */
@@ -114,6 +120,15 @@ export interface AccountInput {
  * does not parse.
  */
 export declare function accountMtpConfig(account: AccountInput): MtpConfig
+
+/**
+ * Adds an account to `tdata` with `authKey` as the key of `mainDc`, as
+ * 1.5.0's `Account.FromTelethon` does, and returns its index: the lowest
+ * one below `TDATA_MAX_ACCOUNTS` no account holds. The active index is not
+ * changed. A full folder throws `OT_MAX_ACCOUNT_LIMIT`, a key that is not
+ * 256 bytes `OT_BAD_LENGTH`; `tdata` is then left as it was.
+ */
+export declare function addTdataAccount(tdata: TData, userId: bigint, mainDc: number, authKey: Uint8Array): number
 
 /** Decrypts `data` with AES-256-IGE; lengths as `aesIgeEncrypt`. */
 export declare function aesIgeDecrypt(data: Uint8Array, key: Uint8Array, iv: Uint8Array): Buffer
@@ -899,6 +914,12 @@ export interface SrpParams {
   /** `account.Password.srp_B`, big-endian, at most 256 bytes. */
   srpB: Uint8Array
 }
+
+/**
+ * Most accounts one folder holds (1.5.0's `kMaxAccounts`);
+ * `addTdataAccount` refuses more.
+ */
+export declare const TDATA_MAX_ACCOUNTS: number
 
 /** Clears the sessions row before `TELETHON_INSERT_SESSION`. */
 export declare const TELETHON_DELETE_SESSIONS: string

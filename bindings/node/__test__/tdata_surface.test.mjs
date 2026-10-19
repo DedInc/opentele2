@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 
-import { FOLDERS, VECTORS, assertSame, core, listedFiles, loadJson, rejection, unhex, vectorAccount } from './helpers.mjs'
+import { FOLDERS, VECTORS, assertSame, core, listedFiles, loadJson, rejection, thrown, unhex, vectorAccount } from './helpers.mjs'
 
 const manifest = loadJson('tdata.json').folders
 const scratch = mkdtempSync(path.join(tmpdir(), 'opentele2-node-surface-'))
@@ -308,4 +308,122 @@ test('saveTdata and migrateTdata reject mismatched draws', async () => {
   const unused = await rejection(core.migrateTdata(modern, [Buffer.alloc(1)]))
   assert.equal(unused.code, 'ERR_INVALID_ARG_VALUE')
   assert.equal(await core.migrateTdata(modern, []), false)
+})
+
+// ---------------------------------------------------------------- addTdataAccount and keyFile
+
+const labelledAccount = (index) => ({
+  index,
+  userId: 9_000_000_000n + BigInt(index),
+  mainDc: 2,
+  authKey: labelBytes(`account ${index}`, 256),
+})
+
+test('TDATA_MAX_ACCOUNTS is the tdesktop limit', () => {
+  assert.equal(core.TDATA_MAX_ACCOUNTS, 6)
+})
+
+test('addTdataAccount then save and reload', async () => {
+  const folder = 'tdata_plain/performance_on'
+  const tdata = await core.loadTdata(vectorDir(folder))
+  const before = tdata.accounts
+  const active = tdata.activeIndex
+  const key = labelBytes('added account', 256)
+  assert.equal(core.addTdataAccount(tdata, 9_000_000_123n, 3, new Uint8Array(key)), 2)
+  assert.deepEqual(
+    before.map((a) => a.index),
+    [0, 1],
+    'an earlier accounts array is a snapshot',
+  )
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [0, 1, 2],
+  )
+  assert.equal(tdata.activeIndex, active)
+  const added = tdata.accounts[2]
+  assert.equal(added.userId, 9_000_000_123n)
+  assert.equal(added.mainDc, 3)
+  assertSame(added.authKey, key, 'added authKey')
+
+  const dir = freshDir()
+  await core.saveTdata(tdata, dir)
+  assert.equal(listedFiles(dir).length, manifest[folder].files.length + 2)
+  const reloaded = await core.loadTdata(dir)
+  assert.deepEqual(
+    reloaded.accounts.map((a) => [a.index, a.userId, a.mainDc]),
+    tdata.accounts.map((a) => [a.index, a.userId, a.mainDc]),
+  )
+  reloaded.accounts.forEach((a, n) => assertSame(a.authKey, tdata.accounts[n].authKey, `account ${a.index} authKey`))
+})
+
+test('addTdataAccount takes the lowest free index', async () => {
+  const tdata = await core.newTdata([labelledAccount(0), labelledAccount(2)])
+  assert.equal(core.addTdataAccount(tdata, 1n, 1, labelBytes('gap', 256)), 1)
+  assert.equal(core.addTdataAccount(tdata, 3n, 1, labelBytes('next', 256)), 3)
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [0, 2, 1, 3],
+  )
+})
+
+test('addTdataAccount throws OT_MAX_ACCOUNT_LIMIT past TDATA_MAX_ACCOUNTS', async () => {
+  const tdata = await core.loadTdata(vectorDir('tdata_plain/performance_on'))
+  const added = [0, 1, 2, 3].map((n) => core.addTdataAccount(tdata, BigInt(n), 2, labelBytes(`fill ${n}`, 256)))
+  assert.deepEqual(added, [2, 3, 4, 5])
+  const error = thrown(() => core.addTdataAccount(tdata, 7n, 2, labelBytes('seventh', 256)))
+  assert.equal(error.code, 'OT_MAX_ACCOUNT_LIMIT')
+  assert.deepEqual(
+    tdata.accounts.map((a) => a.index),
+    [0, 1, 2, 3, 4, 5],
+    'a refused add changes nothing',
+  )
+
+  const full = await core.newTdata([0, 1, 2, 3, 4, 5].map(labelledAccount))
+  const again = thrown(() => core.addTdataAccount(full, 7n, 2, labelBytes('seventh', 256)))
+  assert.equal(again.code, 'OT_MAX_ACCOUNT_LIMIT')
+})
+
+test('addTdataAccount rejects a bad key or user id', async () => {
+  const tdata = await core.loadTdata(vectorDir('tdata_plain/performance_on'))
+  assert.equal(thrown(() => core.addTdataAccount(tdata, 7n, 2, Buffer.alloc(255))).code, 'OT_BAD_LENGTH')
+  assert.ok(thrown(() => core.addTdataAccount(tdata, -1n, 2, labelBytes('negative', 256))) instanceof Error)
+  assert.equal(tdata.accounts.length, 2)
+})
+
+test('keyFile rename then save and reload', async () => {
+  const folder = 'tdata_plain/performance_on'
+  const tdata = await core.loadTdata(vectorDir(folder))
+  const other = await core.loadTdata(vectorDir(folder))
+  tdata.keyFile = 'custom'
+  assert.equal(tdata.keyFile, 'custom')
+  assert.equal(other.keyFile, 'data')
+  const dir = freshDir()
+  await core.saveTdata(tdata, dir)
+  const files = listedFiles(dir)
+  assert.ok(files.includes('key_customs'), files.join(', '))
+  assert.ok(!files.includes('key_datas'))
+  assert.equal(files.length, manifest[folder].files.length)
+  assert.ok(
+    files.every((name) => !manifest[folder].files.includes(name)),
+    'account files are renamed with the key file',
+  )
+
+  assert.equal((await rejection(core.loadTdata(dir))).code, 'OT_TFILE_NOT_FOUND')
+  const reloaded = await core.loadTdata(dir, undefined, 'custom')
+  assert.equal(reloaded.keyFile, 'custom')
+  assert.deepEqual(
+    reloaded.accounts.map((a) => [a.index, a.userId]),
+    tdata.accounts.map((a) => [a.index, a.userId]),
+  )
+  reloaded.accounts.forEach((a, n) => assertSame(a.authKey, tdata.accounts[n].authKey, `account ${a.index} authKey`))
+  assertSame(reloaded.localKey, tdata.localKey, 'reloaded localKey')
+})
+
+test('keyFile rejects an empty name', async () => {
+  const tdata = await core.loadTdata(vectorDir('tdata_plain/performance_on'))
+  const error = thrown(() => {
+    tdata.keyFile = ''
+  })
+  assert.equal(error.code, 'OT_TDATA_SAVE_FAILED')
+  assert.equal(tdata.keyFile, 'data')
 })
