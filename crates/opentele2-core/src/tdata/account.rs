@@ -21,12 +21,44 @@ use std::path::Path;
 use md5::{Digest, Md5};
 
 use crate::crypto::{self, AuthKey};
-use crate::qt::QReader;
+use crate::qt::{QReader, QWriter};
 use crate::tdata::map::MapData;
+use crate::tdata::{FillRandom, encrypt, hex_bytes, write_tdf};
 use crate::{Error, Result, tdf};
 
 /// dbi block id of the `MtpAuthorization` blob in the MTP data.
 pub const DBI_MTP_AUTHORIZATION: u32 = 0x4B;
+
+/// The serialized default MTP config: the exact bytes of 1.5.0's
+/// `td.MTP.Config(td.MTP.Environment.Production).Serialize()` (production DC
+/// options and the default config fields). [`crate::tdata::TData::save`]
+/// writes it into `configs` for an account without loaded config bytes.
+pub const MTP_CONFIG_PRODUCTION: [u8; 748] = hex_bytes(concat!(
+    "0000000100000000000001fefffffffe0000000b0000000100000010000001bb",
+    "0000000e3134392e3135342e3137352e35300000000000000001000000110000",
+    "01bb00000027323030313a306232383a663233643a663030313a303030303a30",
+    "3030303a303030303a30303061000000000000000200000010000001bb000000",
+    "0e3134392e3135342e3136372e3531000000000000000200000010000001bb00",
+    "00000d39352e3136312e37362e313030000000000000000200000011000001bb",
+    "00000027323030313a303637633a303465383a663030323a303030303a303030",
+    "303a303030303a30303061000000000000000300000010000001bb0000000f31",
+    "34392e3135342e3137352e313030000000000000000300000011000001bb0000",
+    "0027323030313a306232383a663233643a663030333a303030303a303030303a",
+    "303030303a30303061000000000000000400000010000001bb0000000e313439",
+    "2e3135342e3136372e3931000000000000000400000011000001bb0000002732",
+    "3030313a303637633a303465383a663030343a303030303a303030303a303030",
+    "303a30303061000000000000000500000010000001bb0000000d3134392e3135",
+    "342e3137312e35000000000000000500000011000001bb00000027323030313a",
+    "306232383a663233663a663030353a303030303a303030303a303030303a3030",
+    "30610000000000000000000000c800002710000000640001d4c0000013880000",
+    "7530000003e8000493e000007530000005dc000000c80002a3000002a3000002",
+    "a300000000000000001e0000000500000005000000640000001a006800740074",
+    "00700073003a002f002f0074002e006d0065002f00093a8000004e2000015f90",
+    "0000753000002710000000040000001a0061007000760033002e007300740065",
+    "006c002e0063006f006d00000001000000000000040000000004d83ddc4d0000",
+    "0000000000000024ea0000000006006700690066000000140066006f00750072",
+    "007300710075006100720065",
+));
 
 /// Tag that marks the wide-ids layout of `MtpAuthorization` (`kWideIdsTag`).
 pub const WIDE_IDS_TAG: i64 = -1;
@@ -90,6 +122,20 @@ fn read_encrypted(dir: &Path, name: &str, local_key: &AuthKey) -> Result<Vec<u8>
         .flatten()
         .unwrap_or_default();
     crypto::decrypt_local(encrypted, local_key)
+}
+
+/// Encrypts `data` under `local_key` and writes it as the only `QByteArray`
+/// of the `TDF$` file `name` in `dir` (`FileWriteDescriptor.writeEncrypted`).
+fn write_encrypted(
+    dir: &Path,
+    name: &str,
+    data: &[u8],
+    local_key: &AuthKey,
+    rng: &mut FillRandom<'_>,
+) -> Result<()> {
+    let mut payload = QWriter::new();
+    payload.write_bytearray(Some(&encrypt(data, local_key, rng)?))?;
+    write_tdf(dir, name, payload.into_bytes())
 }
 
 /// A reader that also hands out raw bytes, which [`QReader`] does not.
@@ -165,6 +211,29 @@ pub struct Account {
 }
 
 impl Account {
+    /// A new account the way 1.5.0 builds one before saving
+    /// (`Account(owner, index)` then `_setMtpAuthorizationCustom`): the given
+    /// keys, no keys to destroy, the map of [`MapData::new_account`], and no
+    /// config.
+    ///
+    /// # Errors
+    /// [`Error::AuthKeyNotFound`] when no key belongs to `main_dc`.
+    pub fn new(index: i32, user_id: u64, main_dc: i32, keys: Vec<(i32, AuthKey)>) -> Result<Self> {
+        let account = Self {
+            index,
+            user_id,
+            main_dc,
+            keys,
+            keys_to_destroy: Vec::new(),
+            map: MapData::new_account(),
+            config: None,
+        };
+        if account.auth_key().is_none() {
+            return Err(Error::AuthKeyNotFound);
+        }
+        Ok(account)
+    }
+
     /// Decodes an `MtpAuthorization` blob (`_setMtpAuthorization`) for
     /// account `index`, with an empty map and no config.
     ///
@@ -217,6 +286,41 @@ impl Account {
         write_keys(&mut out, &self.keys)?;
         write_keys(&mut out, &self.keys_to_destroy)?;
         Ok(out)
+    }
+
+    /// Encodes the decrypted MTP data (`_writeMtpData`): the `u32` block id
+    /// [`DBI_MTP_AUTHORIZATION`] followed by
+    /// [`Account::encode_mtp_authorization`] as a `QByteArray`.
+    ///
+    /// # Errors
+    /// [`Error::QDataStreamFailed`] as [`Account::encode_mtp_authorization`].
+    pub fn encode_mtp_data(&self) -> Result<Vec<u8>> {
+        let mut writer = QWriter::new();
+        writer.write_u32(DBI_MTP_AUTHORIZATION);
+        writer.write_bytearray(Some(&self.encode_mtp_authorization()?))?;
+        Ok(writer.into_bytes())
+    }
+
+    /// Writes the account files under `dir` (`Account._writeData`): the map,
+    /// then the config unless `performance_mode` is on, then the MTP data.
+    pub(crate) fn write(
+        &self,
+        dir: &Path,
+        key_file: &str,
+        local_key: &AuthKey,
+        performance_mode: bool,
+        rng: &mut FillRandom<'_>,
+    ) -> Result<()> {
+        let part = folder_name(&data_name(key_file, self.index));
+        let folder = dir.join(&part);
+        self.map.write(&folder, local_key, rng)?;
+        if !performance_mode {
+            let config = self.config.as_deref().unwrap_or(&MTP_CONFIG_PRODUCTION);
+            let mut data = QWriter::new();
+            data.write_bytearray(Some(config))?;
+            write_encrypted(&folder, CONFIG_FILE, &data.into_bytes(), local_key, rng)?;
+        }
+        write_encrypted(dir, &part, &self.encode_mtp_data()?, local_key, rng)
     }
 
     /// The first key of the main DC (`_findMainAuthKey`).

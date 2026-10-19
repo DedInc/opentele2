@@ -18,6 +18,7 @@
 use crate::crypto::{self, AuthKey};
 use crate::kdf;
 use crate::qt::{QReader, QWriter};
+use crate::tdata::{FillRandom, random_bytes};
 use crate::{Error, Result};
 
 /// Default `dataName` of a tdata folder; the key file is `key_data`.
@@ -409,6 +410,56 @@ pub fn open_local_key(data: &KeyData, passcode: &[u8]) -> Result<OpenedKey> {
     opened(&wrap.key_encrypted, wrap_key)
 }
 
+/// Wraps `local_key` in a fresh 7.3 key file (`TDesktop.__installKeyData`,
+/// `Domain::generateLocalKey`) and returns it with the wrap key.
+///
+/// Draws a [`LOCAL_ENCRYPT_SALT_SIZE`] open salt. Without a passcode the
+/// local key is wrapped under `create_local_key("", salt)` with no passcode
+/// wrap; otherwise the open wrap is null, a second salt is drawn, and the one
+/// wrap uses [`default_passcode_kdf`] and is committed. The info is left
+/// empty for the writer to fill.
+pub(crate) fn install(
+    local_key: &AuthKey,
+    passcode: &[u8],
+    rng: &mut FillRandom<'_>,
+) -> Result<(KeyData, AuthKey)> {
+    let salt = random_bytes(rng, LOCAL_ENCRYPT_SALT_SIZE)?;
+    let padding_len = crypto::local_padding_len(AuthKey::SIZE);
+    if passcode.is_empty() {
+        let wrap_key = kdf::create_local_key(&[], &salt);
+        let padding = random_bytes(rng, padding_len)?;
+        let data = KeyData {
+            key_encrypted: Some(wrap_local_key(local_key, &wrap_key, &padding)?),
+            salt,
+            info_encrypted: Vec::new(),
+            trailer: Some(KeyDataTrailer {
+                committed: 0,
+                wraps: Vec::new(),
+            }),
+        };
+        return Ok((data, wrap_key));
+    }
+    let params = default_passcode_kdf();
+    let wrap_salt = random_bytes(rng, LOCAL_ENCRYPT_SALT_SIZE)?;
+    let wrap_key = create_passcode_key(passcode, &wrap_salt, &params)?;
+    let padding = random_bytes(rng, padding_len)?;
+    let wrap = PasscodeWrap {
+        kdf: params,
+        salt: wrap_salt,
+        key_encrypted: wrap_local_key(local_key, &wrap_key, &padding)?,
+    };
+    let data = KeyData {
+        salt,
+        key_encrypted: None,
+        info_encrypted: Vec::new(),
+        trailer: Some(KeyDataTrailer {
+            committed: params.generation,
+            wraps: vec![wrap],
+        }),
+    };
+    Ok((data, wrap_key))
+}
+
 fn opened(key_encrypted: &[u8], wrap_key: AuthKey) -> Result<OpenedKey> {
     Ok(OpenedKey {
         local_key: unwrap_local_key(key_encrypted, &wrap_key)?,
@@ -451,6 +502,22 @@ impl AccountsInfo {
             indices,
             active_index,
         })
+    }
+
+    /// Encodes `count: i32`, the indices as `i32`, and `active: i32`, as
+    /// 1.5.0's `__writeAccounts` does before encrypting.
+    ///
+    /// # Errors
+    /// [`Error::QDataStreamFailed`] when the count does not fit an `i32`.
+    pub fn encode(&self) -> Result<Vec<u8>> {
+        let count = i32::try_from(self.indices.len()).map_err(|_| Error::QDataStreamFailed)?;
+        let mut writer = QWriter::new();
+        writer.write_i32(count);
+        for &index in &self.indices {
+            writer.write_i32(index);
+        }
+        writer.write_i32(self.active_index);
+        Ok(writer.into_bytes())
     }
 }
 
