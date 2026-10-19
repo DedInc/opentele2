@@ -3,7 +3,9 @@
 //!
 //! Each folder is rebuilt from its account inputs while the recorded
 //! `os.urandom` draws are replayed in order, and the written files must be
-//! byte-identical to what 1.5.0 wrote. Key bytes are never printed: every
+//! byte-identical to what 1.5.0 wrote. The pre-7.3 folders under
+//! `tdata_legacy` are loaded and saved the same way and must match what
+//! 1.5.0 migrated them to. Key bytes are never printed: every
 //! comparison of file or key bytes uses `assert!` without the values.
 
 use std::fs;
@@ -13,7 +15,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use opentele2_core::Error;
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::tdata::account::{Account, MTP_CONFIG_PRODUCTION, data_name, folder_name};
-use opentele2_core::tdata::key_data::AccountsInfo;
+use opentele2_core::tdata::key_data::{
+    AccountsInfo, DEFAULT_WRAP_GENERATION, default_passcode_kdf,
+};
 use opentele2_core::tdata::map::{
     LSK_BOT_STORAGES, LSK_DRAFT, LSK_USER_SETTINGS, LSK_WALLET_ENGINE_STORAGES, LSK_WEBVIEW_TOKENS,
     MapData, MapEntry, NEW_ACCOUNT_SETTINGS_KEY,
@@ -303,19 +307,139 @@ fn save_refuses_what_1_5_0_cannot_write() {
         Err(Error::SaveFailed)
     ));
 
-    let mut legacy = tdata.clone();
-    legacy.key_data.trailer = None;
-    assert!(matches!(
-        legacy.save(scratch("legacy"), &mut no_draw),
-        Err(Error::SaveFailed)
-    ));
-
     let mut no_map = tdata.clone();
     no_map.accounts[0].map = MapData::default();
     assert!(matches!(
         no_map.save(scratch("nomap"), &mut no_draw),
         Err(Error::SaveFailed)
     ));
+}
+
+/// Loads the pre-7.3 vector `tdata_legacy/<name>`, saves it while the draws
+/// 1.5.0's `SaveTData` made are replayed, and checks the migrated folder
+/// against `tdata_legacy/<name>_saved` byte for byte.
+fn check_legacy_migration(name: &str) {
+    let source = format!("tdata_legacy/{name}");
+    let target = format!("{source}_saved");
+    let entry = folder_entry(&source);
+    let saved_entry = folder_entry(&target);
+    assert_eq!(saved_entry["source"].as_str(), Some(source.as_str()));
+    let passcode = passcode_of(&entry);
+    assert_eq!(passcode_of(&saved_entry), passcode, "{target} passcode");
+    let accounts = accounts_of(&entry);
+
+    let legacy = TData::load(vectors_dir().join(&source), passcode, None).expect("load legacy");
+    assert!(legacy.key_data.trailer.is_none(), "{source} has a trailer");
+    let main = legacy.main_account().expect("main account").index;
+    assert_eq!(
+        Some(i64::from(main)),
+        entry["main_account_index"].as_i64(),
+        "{source} main account"
+    );
+    assert_same_accounts(&source, &legacy, &accounts, false);
+
+    let mut replay = Replay::new(&saved_entry, 0);
+    let written = scratch("legacy");
+    legacy
+        .save(&written, &mut |buf| replay.fill(buf))
+        .expect("save migrates the legacy key file");
+    replay.finish();
+    assert_same_folder(&target, &written);
+
+    let migrated = TData::load(&written, passcode, None).expect("load migrated folder");
+    assert!(
+        migrated.local_key.as_bytes() == legacy.local_key.as_bytes(),
+        "{target} local key"
+    );
+    assert_eq!(
+        migrated.active_index, legacy.active_index,
+        "{target} active"
+    );
+    assert_eq!(
+        migrated.main_account().expect("main account").index,
+        main,
+        "{target} main account"
+    );
+    assert_same_accounts(&target, &migrated, &accounts, true);
+    let trailer = migrated.key_data.trailer.as_ref().expect("7.3 trailer");
+    if passcode.is_empty() {
+        assert!(
+            migrated.key_data.key_encrypted.is_some(),
+            "{target} open wrap"
+        );
+        assert!(trailer.wraps.is_empty(), "{target} passcode wraps");
+    } else {
+        assert!(
+            migrated.key_data.key_encrypted.is_none(),
+            "{target} open wrap"
+        );
+        assert_eq!(trailer.committed, DEFAULT_WRAP_GENERATION);
+        assert_eq!(trailer.wraps.len(), 1, "{target} passcode wraps");
+        assert_eq!(trailer.wraps[0].kdf, default_passcode_kdf());
+        assert!(matches!(
+            TData::load(&written, b"", None),
+            Err(Error::BadDecryptKey)
+        ));
+    }
+    fs::remove_dir_all(&written).expect("clean scratch");
+}
+
+#[test]
+fn legacy_plain_folder_migrates_like_1_5_0() {
+    check_legacy_migration("plain");
+}
+
+#[test]
+fn legacy_passcode_folder_migrates_like_1_5_0() {
+    check_legacy_migration("passcode");
+}
+
+#[test]
+fn legacy_layout_is_migrated_not_refused() {
+    let entry = folder_entry("tdata_plain/performance_on");
+    let mut no_draw = |_: &mut [u8]| {};
+    let mut legacy = TData::new(accounts_of(&entry), b"", true, &mut no_draw).expect("new");
+    legacy.key_data.trailer = None;
+    let mut next = 0u8;
+    let dir = scratch("legacy_new");
+    legacy
+        .save(&dir, &mut |buf| {
+            for byte in buf {
+                next = next.wrapping_add(1);
+                *byte = next;
+            }
+        })
+        .expect("save migrates");
+    let loaded = TData::load(&dir, b"", None).expect("load migrated");
+    assert!(
+        loaded.key_data.trailer.is_some(),
+        "migrated key file has a trailer"
+    );
+    assert!(
+        loaded.key_data.salt != legacy.key_data.salt,
+        "migration draws a fresh open salt"
+    );
+    assert!(
+        loaded.local_key.as_bytes() == legacy.local_key.as_bytes(),
+        "migration keeps the local key"
+    );
+    assert_same_accounts("legacy_new", &loaded, &legacy.accounts, true);
+    fs::remove_dir_all(&dir).expect("clean scratch");
+}
+
+#[test]
+fn debug_never_shows_the_passcode() {
+    let entry = folder_entry("tdata_passcode/performance_on");
+    let tdata = TData::load(
+        vectors_dir().join("tdata_passcode/performance_on"),
+        passcode_of(&entry),
+        None,
+    )
+    .expect("load vector");
+    let text = format!("{tdata:?}");
+    let passcode = std::str::from_utf8(passcode_of(&entry)).expect("utf-8 passcode");
+    assert!(!text.contains(passcode), "passcode leaked into Debug");
+    assert!(!text.contains("passcode:"), "passcode field in Debug");
 }
 
 #[test]

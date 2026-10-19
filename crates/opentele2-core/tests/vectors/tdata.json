@@ -1,5 +1,158 @@
 {
  "folders": {
+  "tdata_legacy/passcode": {
+   "accounts": [
+    {
+     "auth_key": "07aa218e0fca6715c57370443e507db86cc670b3cd0ce71f4e8c10ad645f6a53726130249579b81dc7151ac8835d2da325929fa656a30990eac628cdfe607244b94522ce7700be40eb416eade9ed750723ff8d10800ed09f5adf03ab1358bfad37996ab7975df3af9701ad3c4ffb10ffb21dcd35472f609996fd933c6ecae7ae6b3c27da32643b96a3e7c25575e5f7fa2cc899a593b4f510ddf0761f1cb0b817a4caff96437f53400059ea25b936dad3efea4eca401d3242496649c462446b81f657370059acf56cc0226f927b008b158c9ae277fb9d026b6caac7e63342170df18ba57085acfc11df7a225e9058b2c45b1b3ad873aea3dbcf14e2a9f6bad0ca",
+     "index": 0,
+     "main_dc": 5,
+     "user_id": 400000004
+    },
+    {
+     "auth_key": "6271cfeaaa18dd3d6f32e74729c7a497c3c595a8f5218114cff53f9ffd1a1a062f53d5c1370a8d971b48559b2c98236c27d3a5e4ebbc03b6feb75f87ce9173bcb8f31430b3bb488938c10732856b4b571d5d8f1758cd1f32c8f435f7ef35bdbbffccceab3adfe9647742bf3f52565f305e72d45e9667a737a1ac6519cd809621262cf74f494129237565e02d5a1017d118b03a1dd1d16f4fbc2e829c0ebf2c64852f07cd65600dc8d926d5132a4829cfc32b8b39dcdc3e179247587f1c194d6067d9dfe12a03bd4db1478d90ac5cf159d2fb07dfb6ecfe0adb2cedbe924626900174c238477488784b78f01389a1e9f947968b4b453fad592673152b8111a7f9",
+     "index": 1,
+     "main_dc": 1,
+     "user_id": 8000000987
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/configs",
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/configs",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "legacy": true,
+   "main_account_index": 1,
+   "passcode": "opentele2",
+   "performance_mode": false,
+   "rng_draws": [
+    "0425aa6f4e3bf3b6b4c35bbb",
+    "2f773e8b2bfb6b893e198a91",
+    "0fb6f3bd",
+    "d7be3908403f394fe55acbdf",
+    "03dd254c",
+    "10491e7b765e51b31ccb1313"
+   ],
+   "rng_label": "tdata_legacy/passcode/rng"
+  },
+  "tdata_legacy/passcode_saved": {
+   "accounts": [
+    {
+     "auth_key": "07aa218e0fca6715c57370443e507db86cc670b3cd0ce71f4e8c10ad645f6a53726130249579b81dc7151ac8835d2da325929fa656a30990eac628cdfe607244b94522ce7700be40eb416eade9ed750723ff8d10800ed09f5adf03ab1358bfad37996ab7975df3af9701ad3c4ffb10ffb21dcd35472f609996fd933c6ecae7ae6b3c27da32643b96a3e7c25575e5f7fa2cc899a593b4f510ddf0761f1cb0b817a4caff96437f53400059ea25b936dad3efea4eca401d3242496649c462446b81f657370059acf56cc0226f927b008b158c9ae277fb9d026b6caac7e63342170df18ba57085acfc11df7a225e9058b2c45b1b3ad873aea3dbcf14e2a9f6bad0ca",
+     "index": 0,
+     "main_dc": 5,
+     "user_id": 400000004
+    },
+    {
+     "auth_key": "6271cfeaaa18dd3d6f32e74729c7a497c3c595a8f5218114cff53f9ffd1a1a062f53d5c1370a8d971b48559b2c98236c27d3a5e4ebbc03b6feb75f87ce9173bcb8f31430b3bb488938c10732856b4b571d5d8f1758cd1f32c8f435f7ef35bdbbffccceab3adfe9647742bf3f52565f305e72d45e9667a737a1ac6519cd809621262cf74f494129237565e02d5a1017d118b03a1dd1d16f4fbc2e829c0ebf2c64852f07cd65600dc8d926d5132a4829cfc32b8b39dcdc3e179247587f1c194d6067d9dfe12a03bd4db1478d90ac5cf159d2fb07dfb6ecfe0adb2cedbe924626900174c238477488784b78f01389a1e9f947968b4b453fad592673152b8111a7f9",
+     "index": 1,
+     "main_dc": 1,
+     "user_id": 8000000987
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "legacy": false,
+   "main_account_index": 1,
+   "passcode": "opentele2",
+   "performance_mode": true,
+   "rng_draws": [
+    "92c59fe554425151616623778a1ec8d5ebb5e395ca6ea22e323d4bae473d1e38",
+    "7309c847019fece4217e3265afdfcc131c29bc1663577914a2a860673f3dbed4",
+    "9797f28ea62aae81f4ead01e",
+    "5935d4d2",
+    "f56a4d64",
+    "100fc977ab00ba5fdda35154"
+   ],
+   "rng_label": "tdata_legacy/passcode_saved/rng",
+   "source": "tdata_legacy/passcode"
+  },
+  "tdata_legacy/plain": {
+   "accounts": [
+    {
+     "auth_key": "da9ab2fa7bf7a2d1acbe6c9a522d5293e91006412808a8302dda04e387fc1d78e0c51f14c0d02400bfa543b18768adacd5db0b207523e49bf1f771f68a2006fad2e73fd68b1ff6ce26a4d56e61b0e881bb8cf2d7b54b1a9e50d176ce586a6d3dd364e9b22a3b9a1668545475637333a356827a37048049f91ccc5a4978f4c2aa5e225ff3fe900c4128ee4801dbc35ac7fcb907dc5169c059a8e76a413c15211f8d770e983f63628c869d18fca0024d55cecbd90d91d415abe1b37032b126f8028467122d9caf115174fc57ea1f8628470a6b76cdf8065ff47f004ddbb6aa35680e465ed924206cdadbb8259e845511e083e3dad524171fb8ce93803ea0fea0db",
+     "index": 0,
+     "main_dc": 2,
+     "user_id": 300000003
+    },
+    {
+     "auth_key": "6a3a50040556bbcd0c00db5a27fb636008bb381bacc4f52ef04a6a594fbaf9fe07cb84aa6d11743b4e11b6d5b6376a3e6b50518b46d012b6c38ee4f0806002620e4f14aaa29d1019978da96166932457dae628d5bdc7a6581504f57ff35999158d3122c18095dff1180b19d5ed05f4880729c3a7b29463122994a159b0b32cd4c861736b183c8b9e2bbbb48951f9083247a3fd4ff3b338257fa7bbbdf18ec71518617d1dd2e90559517ae37666d8139f85be106ad9261916b007ca03680cbee20e54e89423cd89342d14d048f0d96c33f25b7a4c4417a606d9f48b728187ab07cd94ecd7f9335257a35e468ac5d46189848d0b3e8116b856a5d7533747c41b57",
+     "index": 1,
+     "main_dc": 4,
+     "user_id": 7000000789
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/configs",
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/configs",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "legacy": true,
+   "main_account_index": 1,
+   "passcode": "",
+   "performance_mode": false,
+   "rng_draws": [
+    "b4f81fa985e40cb5ee512e3f",
+    "72e173485316ad3b6e89cd2d",
+    "8c55d0b8",
+    "90982eb65d695512353fb350",
+    "cf8ba22a",
+    "1cfa2cfd32db70213cec8e2b"
+   ],
+   "rng_label": "tdata_legacy/plain/rng"
+  },
+  "tdata_legacy/plain_saved": {
+   "accounts": [
+    {
+     "auth_key": "da9ab2fa7bf7a2d1acbe6c9a522d5293e91006412808a8302dda04e387fc1d78e0c51f14c0d02400bfa543b18768adacd5db0b207523e49bf1f771f68a2006fad2e73fd68b1ff6ce26a4d56e61b0e881bb8cf2d7b54b1a9e50d176ce586a6d3dd364e9b22a3b9a1668545475637333a356827a37048049f91ccc5a4978f4c2aa5e225ff3fe900c4128ee4801dbc35ac7fcb907dc5169c059a8e76a413c15211f8d770e983f63628c869d18fca0024d55cecbd90d91d415abe1b37032b126f8028467122d9caf115174fc57ea1f8628470a6b76cdf8065ff47f004ddbb6aa35680e465ed924206cdadbb8259e845511e083e3dad524171fb8ce93803ea0fea0db",
+     "index": 0,
+     "main_dc": 2,
+     "user_id": 300000003
+    },
+    {
+     "auth_key": "6a3a50040556bbcd0c00db5a27fb636008bb381bacc4f52ef04a6a594fbaf9fe07cb84aa6d11743b4e11b6d5b6376a3e6b50518b46d012b6c38ee4f0806002620e4f14aaa29d1019978da96166932457dae628d5bdc7a6581504f57ff35999158d3122c18095dff1180b19d5ed05f4880729c3a7b29463122994a159b0b32cd4c861736b183c8b9e2bbbb48951f9083247a3fd4ff3b338257fa7bbbdf18ec71518617d1dd2e90559517ae37666d8139f85be106ad9261916b007ca03680cbee20e54e89423cd89342d14d048f0d96c33f25b7a4c4417a606d9f48b728187ab07cd94ecd7f9335257a35e468ac5d46189848d0b3e8116b856a5d7533747c41b57",
+     "index": 1,
+     "main_dc": 4,
+     "user_id": 7000000789
+    }
+   ],
+   "files": [
+    "A7FDF864FBC10B77/maps",
+    "A7FDF864FBC10B77s",
+    "D877F783D5D3EF8C/maps",
+    "D877F783D5D3EF8Cs",
+    "key_datas"
+   ],
+   "key_file": "data",
+   "legacy": false,
+   "main_account_index": 1,
+   "passcode": "",
+   "performance_mode": true,
+   "rng_draws": [
+    "5ee1bce7000379644ed6df0fea7042980013907c4915506d7095336c8a193f0c",
+    "4044975fb35fe71cb12f078a",
+    "e34e691d",
+    "fe8243a6",
+    "d885a44b97c70e4e84dc782b"
+   ],
+   "rng_label": "tdata_legacy/plain_saved/rng",
+   "source": "tdata_legacy/plain"
+  },
   "tdata_passcode/performance_off": {
    "accounts": [
     {
@@ -157,6 +310,7 @@
  },
  "meta": {
   "generator": "scripts/gen_core_vectors.py",
+  "legacy": "tdata_legacy/<name>: a pre-7.3 folder (key file without the 7.3 trailer, the local key bytes(tdata_legacy/<name>/local_key, 256) wrapped under Storage.CreateLocalKey(bytes(tdata_legacy/<name>/salt, 32), passcode)) whose accounts and key file 1.5.0's TDesktop.__writeAccounts writes with performance mode off; tdata_legacy/<name>_saved: what 1.5.0 SaveTData writes after loading it with performance mode on (the migrated key file)",
   "loader": "src.td.TDesktop(folder, passcode=passcode) under the same mode",
   "pattern": "bytes(label, n): SHA-256(utf8(label) || counter as u32 big-endian) for counter = 0, 1, 2, ..., concatenated and cut to n bytes",
   "rng": "os.urandom is replaced by one bytes(label, ...) stream per vector; each call takes the next len bytes of that stream",

@@ -17,6 +17,7 @@ pub mod map;
 pub mod mtp_config;
 
 use std::collections::HashSet;
+use std::fmt;
 use std::path::Path;
 
 use crate::crypto::{self, AuthKey};
@@ -140,10 +141,24 @@ pub(crate) fn write_tdf(dir: &Path, name: &str, payload: Vec<u8>) -> Result<()> 
     )
 }
 
+/// The local passcode a [`TData`] was loaded or created with (1.5.0's
+/// `TDesktop.__passcodeBytes`). It has no `Debug`, and its bytes are
+/// overwritten when it is dropped.
+#[derive(Clone)]
+struct Passcode(Vec<u8>);
+
+impl Drop for Passcode {
+    fn drop(&mut self) {
+        self.0.fill(0);
+        // Keeps the fill from being removed as a store nobody reads.
+        std::hint::black_box(&mut self.0);
+    }
+}
+
 /// A tdata folder, loaded from disk or created for writing.
 ///
-/// `Debug` prints key ids only, never key material.
-#[derive(Debug, Clone)]
+/// `Debug` prints key ids only, never key material, and never the passcode.
+#[derive(Clone)]
 pub struct TData {
     /// Telegram Desktop version stored in the key file's `TDF$` header;
     /// [`TData::save`] always writes [`APP_VERSION`], as 1.5.0 does.
@@ -152,7 +167,8 @@ pub struct TData {
     pub key_file: String,
     /// The parsed key file; as in 1.5.0 only the live passcode wraps are
     /// kept, so stale wraps are not written back. [`TData::save`] writes it
-    /// with a freshly encrypted accounts info.
+    /// with a freshly encrypted accounts info, migrated first when it has
+    /// the legacy layout.
     pub key_data: KeyData,
     /// The local key every other file is encrypted with.
     pub local_key: AuthKey,
@@ -165,6 +181,24 @@ pub struct TData {
     /// 1.5.0's `TDesktop.kPerformanceMode`: when on, [`TData::save`] writes
     /// no `configs` file. [`TData::load`] turns it on, the 1.5.0 default.
     pub performance_mode: bool,
+    /// The passcode given to [`TData::new`] or [`TData::load`]; a legacy
+    /// key file is migrated under it on [`TData::save`].
+    passcode: Passcode,
+}
+
+impl fmt::Debug for TData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TData")
+            .field("app_version", &self.app_version)
+            .field("key_file", &self.key_file)
+            .field("key_data", &self.key_data)
+            .field("local_key", &self.local_key)
+            .field("passcode_key", &self.passcode_key)
+            .field("accounts", &self.accounts)
+            .field("active_index", &self.active_index)
+            .field("performance_mode", &self.performance_mode)
+            .finish_non_exhaustive()
+    }
 }
 
 impl TData {
@@ -236,6 +270,7 @@ impl TData {
             accounts,
             active_index: NEW_FOLDER_ACTIVE_INDEX,
             performance_mode,
+            passcode: Passcode(passcode.to_vec()),
         })
     }
 
@@ -251,11 +286,19 @@ impl TData {
     /// under the local key, and the 7.3 trailer. Every file carries
     /// [`APP_VERSION`].
     ///
+    /// A legacy key file (no trailer) is migrated first, as 1.5.0's
+    /// `SaveTData` does (`__installKeyData`): before any other draw, the same
+    /// local key is wrapped in a fresh 7.3 key file under the passcode this
+    /// [`TData`] was loaded or created with, as [`TData::new`] describes
+    /// after the local key (open salt, then wrap salt with a passcode, then
+    /// the wrap padding). The account files stay valid. `self` is not
+    /// changed, so every save of a still-legacy [`TData`] migrates afresh.
+    ///
     /// # Errors
-    /// - [`Error::SaveFailed`] when there is no account, when an account map
-    ///   encodes to nothing (1.5.0 cannot encrypt it either), or when the key
-    ///   file has the legacy layout: 1.5.0 migrates it with the passcode,
-    ///   which a loaded [`TData`] does not keep.
+    /// - [`Error::SaveFailed`] when there is no account, or when an account
+    ///   map encodes to nothing (1.5.0 cannot encrypt it either).
+    /// - As [`key_data::create_passcode_key`] when migrating under a
+    ///   passcode.
     /// - [`Error::Io`] when a directory or file cannot be written.
     /// - [`Error::QDataStreamFailed`] when a blob does not fit a `u32` length.
     pub fn save(&self, dir: impl AsRef<Path>, rng: &mut dyn FnMut(&mut [u8])) -> Result<()> {
@@ -277,9 +320,17 @@ impl TData {
     }
 
     fn save_with(&self, dir: &Path, rng: &mut FillRandom<'_>) -> Result<()> {
-        if self.accounts.is_empty() || self.key_data.trailer.is_none() {
+        if self.accounts.is_empty() {
             return Err(Error::SaveFailed);
         }
+        // tdesktop 7.3 migrates a pre-7.3 key file on start; 1.5.0 writes
+        // the migrated shape directly, before the accounts draw padding.
+        let migrated = if self.key_data.trailer.is_none() {
+            Some(key_data::install(&self.local_key, &self.passcode.0, rng)?.0)
+        } else {
+            None
+        };
+        let base = migrated.as_ref().unwrap_or(&self.key_data);
         for account in &self.accounts {
             account.write(
                 dir,
@@ -295,7 +346,7 @@ impl TData {
         };
         let key_data = KeyData {
             info_encrypted: encrypt(&info.encode()?, &self.local_key, rng)?,
-            ..self.key_data.clone()
+            ..base.clone()
         };
         write_tdf(
             dir,
@@ -348,6 +399,7 @@ impl TData {
             accounts,
             active_index: info.active_index,
             performance_mode: true,
+            passcode: Passcode(passcode.to_vec()),
         })
     }
 

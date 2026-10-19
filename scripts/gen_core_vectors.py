@@ -558,6 +558,155 @@ def write_tdata(
     }
 
 
+LEGACY_ACCOUNTS: dict[str, tuple[SyntheticAccount, ...]] = {
+    "plain": (
+        SyntheticAccount(0, 300000003, 2),
+        SyntheticAccount(1, 7000000789, 4),
+    ),
+    "passcode": (
+        SyntheticAccount(0, 400000004, 5),
+        SyntheticAccount(1, 8000000987, 1),
+    ),
+}
+
+# A pre-7.3 client stores the index of the account in use; not the first one,
+# so a migration that loses it shows.
+LEGACY_ACTIVE_INDEX = 1
+
+LEGACY_DOC = (
+    "tdata_legacy/<name>: a pre-7.3 folder (key file without the 7.3 trailer, "
+    "the local key bytes(tdata_legacy/<name>/local_key, 256) wrapped under "
+    "Storage.CreateLocalKey(bytes(tdata_legacy/<name>/salt, 32), passcode)) "
+    "whose accounts and key file 1.5.0's TDesktop.__writeAccounts writes with "
+    "performance mode off; tdata_legacy/<name>_saved: what 1.5.0 SaveTData "
+    "writes after loading it with performance mode on (the migrated key file)"
+)
+
+
+def legacy_account_key(name: str, account: SyntheticAccount) -> bytes:
+    return pattern(f"tdata_legacy/{name}/account{account.index}/auth_key", 256)
+
+
+def legacy_readback(folder: Path, passcode: str | None) -> tuple[Any, Any]:
+    """Load ``folder`` with the 1.5.0 loader; return it and its accounts."""
+    from src.td import TDesktop
+
+    loaded = TDesktop(str(folder), passcode=passcode)
+    readback = []
+    for account in loaded.accounts:
+        auth_key = account.authKey
+        if auth_key is None:
+            raise AssertionError("loaded account has no auth key")
+        readback.append(
+            {
+                "index": account.index,
+                "user_id": account.UserId,
+                "main_dc": int(account.MainDcId),
+                "auth_key": auth_key.key.hex(),
+            }
+        )
+    return loaded, readback
+
+
+def folder_files(target: Path) -> list[str]:
+    return sorted(
+        p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()
+    )
+
+
+def write_legacy_tdata(
+    target: Path, saved: Path, name: str, passcode: str | None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Write a pre-7.3 folder, then what 1.5.0 SaveTData migrates it to."""
+    from src.qt_compat import QByteArray
+    from src.td import Account, AuthKey, AuthKeyType, Storage, TDesktop
+    from src.td.configs import DcId
+    from src.td.key_data import LOCAL_ENCRYPT_SALT_SIZE, KeyData, wrap_local_key
+
+    label = f"tdata_legacy/{name}"
+    local_key = AuthKey(pattern(f"{label}/local_key", AuthKey.kSize))
+    salt = QByteArray(pattern(f"{label}/salt", LOCAL_ENCRYPT_SALT_SIZE))
+    passcode_bytes = (passcode or "").encode("utf-8")
+    # Before 7.3 the passcode itself made the open wrap key, as 1.5.0's
+    # open_local_key reads a legacy key file.
+    wrap_key = Storage.CreateLocalKey(salt, QByteArray(passcode_bytes))
+
+    # A real pre-7.3 client writes the configs file as well.
+    TDesktop.PerformanceMode(False)
+    try:
+        desktop = TDesktop()
+        desktop._TDesktop__localKey = local_key
+        for spec in LEGACY_ACCOUNTS[name]:
+            dc = DcId(spec.main_dc)
+            key = AuthKey(legacy_account_key(name, spec), AuthKeyType.ReadFromFile, dc)
+            account = Account(desktop, api=desktop.api, index=spec.index)
+            account._setMtpAuthorizationCustom(dc, spec.user_id, [key])
+            desktop._addSingleAccount(account)
+        desktop._TDesktop__active_index = LEGACY_ACTIVE_INDEX
+        build_label = f"{label}/rng"
+        with fixed_urandom(build_label) as build_draws:
+            desktop._TDesktop__keyData = KeyData(
+                openSalt=salt,
+                openKeyEncrypted=wrap_local_key(local_key, wrap_key),
+                legacy=True,
+            )
+            # __writeAccounts leaves the trailer out of a legacy key file.
+            desktop._TDesktop__writeAccounts(str(target))
+    finally:
+        TDesktop.PerformanceMode(True)
+
+    expected = [
+        {
+            "index": spec.index,
+            "user_id": spec.user_id,
+            "main_dc": spec.main_dc,
+            "auth_key": legacy_account_key(name, spec).hex(),
+        }
+        for spec in LEGACY_ACCOUNTS[name]
+    ]
+
+    loaded, readback = legacy_readback(target, passcode)
+    if not loaded._TDesktop__keyData.legacy or readback != expected:
+        raise AssertionError(f"{label}: the 1.5.0 loader did not read it as legacy")
+    main = loaded.mainAccount
+    if main is None or main.index != LEGACY_ACTIVE_INDEX:
+        raise AssertionError(f"{label}: the 1.5.0 loader lost the active index")
+
+    save_label = f"{label}_saved/rng"
+    with fixed_urandom(save_label) as save_draws:
+        loaded.SaveTData(str(saved))
+
+    migrated, readback_saved = legacy_readback(saved, passcode)
+    if migrated._TDesktop__keyData.legacy or readback_saved != expected:
+        raise AssertionError(f"{label}_saved: 1.5.0 did not migrate the key file")
+    local = migrated.localKey
+    if local is None or local.key != local_key.key:
+        raise AssertionError(f"{label}_saved: the migration changed the local key")
+    main_saved = migrated.mainAccount
+
+    common = {"passcode": passcode or "", "key_file": "data", "accounts": expected}
+    legacy_entry = {
+        **common,
+        "legacy": True,
+        "performance_mode": False,
+        "main_account_index": main.index,
+        "rng_label": build_label,
+        "rng_draws": [d.hex() for d in build_draws],
+        "files": folder_files(target),
+    }
+    saved_entry = {
+        **common,
+        "legacy": False,
+        "source": label,
+        "performance_mode": True,
+        "main_account_index": None if main_saved is None else main_saved.index,
+        "rng_label": save_label,
+        "rng_draws": [d.hex() for d in save_draws],
+        "files": folder_files(saved),
+    }
+    return legacy_entry, saved_entry
+
+
 def tdata_vectors(workdir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
     folders: dict[str, Any] = {}
     files: dict[str, bytes] = {}
@@ -574,10 +723,20 @@ def tdata_vectors(workdir: Path) -> tuple[dict[str, Any], dict[str, bytes]]:
             folders[f"{kind}/{sub}"] = entry
             for name in written:
                 files[f"{kind}/{sub}/{name}"] = (target / name).read_bytes()
+    for legacy_name, passcode in (("plain", None), ("passcode", PASSCODE)):
+        target = workdir / "tdata_legacy" / legacy_name
+        saved = workdir / "tdata_legacy" / f"{legacy_name}_saved"
+        entries = write_legacy_tdata(target, saved, legacy_name, passcode)
+        for folder, entry in zip((target, saved), entries, strict=True):
+            key = f"tdata_legacy/{folder.name}"
+            folders[key] = entry
+            for name in entry["files"]:
+                files[f"{key}/{name}"] = (folder / name).read_bytes()
     document = {
         "meta": meta(
             rng=RNG_DOC,
             loader="src.td.TDesktop(folder, passcode=passcode) under the same mode",
+            legacy=LEGACY_DOC,
         ),
         "folders": folders,
     }
