@@ -446,6 +446,44 @@ impl Error {
             | Self::Io(_) => self.to_string(),
         }
     }
+
+    /// The class name of the exception 1.5.0 raised for the failure, the
+    /// single source the bindings name their errors after (the Python
+    /// `CORE_ERROR_TYPES` table, the Node error `name`).
+    ///
+    /// Each tdata variant gives the `src/exception.py` class its doc names,
+    /// for example `TDataWrongPasscode`; [`Error::KeyDataInvalid`] with
+    /// [`KeyDataFailure::BadAccountsCount`] ([`Error::detail_code`]
+    /// `BAD_ACCOUNTS_COUNT`) gives `OpenTeleException`, the class 1.5.0
+    /// raised it as. The variants with no 1.5.0 class of their own give the
+    /// builtin 1.5.0 raised: `ValueError` for [`Error::BadLength`] (its
+    /// AES-IGE backend) and [`Error::InvalidInput`] (as `hashlib` does),
+    /// `OSError` for [`Error::Io`].
+    #[must_use]
+    pub fn legacy_class(&self) -> &'static str {
+        match self {
+            Self::FileNotFound { .. } => "TFileNotFound",
+            Self::InvalidMagic { .. } => "TDataInvalidMagic",
+            Self::InvalidCheckSum { .. } => "TDataInvalidCheckSum",
+            Self::BadDecryptKey => "TDataBadDecryptKey",
+            Self::WrongPasscode => "TDataWrongPasscode",
+            Self::BadEncryptedDataSize { .. } => "TDataBadEncryptedDataSize",
+            Self::BadDecryptedDataSize { .. } => "TDataBadDecryptedDataSize",
+            Self::BadConfigData { .. } => "TDataBadConfigData",
+            Self::QDataStreamFailed { .. } => "QDataStreamFailed",
+            Self::ReadMapDataFailed { .. } => "TDataReadMapDataFailed",
+            Self::ReadMapDataIncorrectPasscode => "TDataReadMapDataIncorrectPasscode",
+            Self::AuthKeyNotFound => "TDataAuthKeyNotFound",
+            Self::MaxAccountLimit => "MaxAccountLimit",
+            Self::SaveFailed => "TDataSaveFailed",
+            Self::KeyDataInvalid {
+                context: KeyDataFailure::BadAccountsCount { .. },
+            } => "OpenTeleException",
+            Self::KeyDataInvalid { .. } => "TDataKeyDataInvalid",
+            Self::BadLength { .. } | Self::InvalidInput { .. } => "ValueError",
+            Self::Io(_) => "OSError",
+        }
+    }
 }
 
 /// The 1.5.0 message of an [`Error::BadConfigData`].

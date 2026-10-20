@@ -19,7 +19,7 @@ use opentele2_core::tdata::TData;
 use opentele2_core::tdata::account::Account;
 use opentele2_core::tdata::map::MapData;
 use opentele2_core::tdf::{self, TdfFile};
-use opentele2_core::{ConfigFailure, Error, MagicContext, MapReadFailure, Result};
+use opentele2_core::{ConfigFailure, Error, KeyDataFailure, MagicContext, MapReadFailure, Result};
 
 /// A fresh, empty directory under the target tmp dir.
 fn scratch(label: &str) -> PathBuf {
@@ -569,4 +569,146 @@ fn save_failed_message_matches_1_5_0() {
         "Could not save tdata, something went wrong"
     );
     fs::remove_dir_all(&dir).expect("clean scratch");
+}
+
+/// Each error has `code` and the `class` of the `CORE_ERROR_TYPES` table.
+fn assert_classes(cases: &[(Error, &str, &str)]) {
+    for (error, code, class) in cases {
+        assert_eq!(error.code(), *code);
+        assert_eq!(error.legacy_class(), *class, "{error:?}");
+    }
+}
+
+/// `Error::legacy_class` is the `CORE_ERROR_TYPES` table of
+/// `opentele2/exception.py`, code by code: the file and decryption codes.
+#[test]
+fn legacy_classes_of_file_codes_are_the_python_table() {
+    assert_classes(&[
+        (
+            Error::FileNotFound {
+                file: "map".to_owned(),
+            },
+            "TFILE_NOT_FOUND",
+            "TFileNotFound",
+        ),
+        (
+            Error::InvalidMagic {
+                context: MagicContext::MtpDataBlock { block_id: 9 },
+            },
+            "TDATA_INVALID_MAGIC",
+            "TDataInvalidMagic",
+        ),
+        (
+            Error::InvalidCheckSum {
+                file: "maps".to_owned(),
+                computed: [0; 16],
+            },
+            "TDATA_INVALID_CHECKSUM",
+            "TDataInvalidCheckSum",
+        ),
+        (
+            Error::BadDecryptKey,
+            "TDATA_BAD_DECRYPT_KEY",
+            "TDataBadDecryptKey",
+        ),
+        (
+            Error::WrongPasscode,
+            "TDATA_WRONG_PASSCODE",
+            "TDataWrongPasscode",
+        ),
+        (
+            Error::BadEncryptedDataSize { size: 15 },
+            "TDATA_BAD_ENCRYPTED_DATA_SIZE",
+            "TDataBadEncryptedDataSize",
+        ),
+        (
+            Error::BadDecryptedDataSize {
+                encrypted_size: 48,
+                full_len: 32,
+                decrypted_size: 16,
+            },
+            "TDATA_BAD_DECRYPTED_DATA_SIZE",
+            "TDataBadDecryptedDataSize",
+        ),
+        (
+            Error::BadConfigData {
+                context: ConfigFailure::NoTcpEndpoint,
+            },
+            "TDATA_BAD_CONFIG_DATA",
+            "TDataBadConfigData",
+        ),
+        (
+            Error::QDataStreamFailed { context: None },
+            "QDATASTREAM_FAILED",
+            "QDataStreamFailed",
+        ),
+    ]);
+}
+
+/// The rest of the `CORE_ERROR_TYPES` table, with the bad accounts count
+/// raised as the plain `OpenTeleException` 1.5.0 gave it and the builtins
+/// of the codes 1.5.0 has no class for.
+#[test]
+fn legacy_classes_of_account_and_input_codes_are_the_python_table() {
+    assert_classes(&[
+        (
+            Error::ReadMapDataFailed {
+                context: MapReadFailure::Decrypt,
+            },
+            "TDATA_READ_MAP_DATA_FAILED",
+            "TDataReadMapDataFailed",
+        ),
+        (
+            Error::ReadMapDataIncorrectPasscode,
+            "TDATA_READ_MAP_DATA_INCORRECT_PASSCODE",
+            "TDataReadMapDataIncorrectPasscode",
+        ),
+        (
+            Error::AuthKeyNotFound,
+            "TDATA_AUTH_KEY_NOT_FOUND",
+            "TDataAuthKeyNotFound",
+        ),
+        (
+            Error::MaxAccountLimit,
+            "MAX_ACCOUNT_LIMIT",
+            "MaxAccountLimit",
+        ),
+        (Error::SaveFailed, "TDATA_SAVE_FAILED", "TDataSaveFailed"),
+        (
+            Error::KeyDataInvalid {
+                context: KeyDataFailure::BadTrailerMagic,
+            },
+            "TDATA_KEY_DATA_INVALID",
+            "TDataKeyDataInvalid",
+        ),
+        (
+            Error::KeyDataInvalid {
+                context: KeyDataFailure::BadAccountsCount { count: 0 },
+            },
+            "TDATA_KEY_DATA_INVALID",
+            "OpenTeleException",
+        ),
+        (
+            Error::BadLength {
+                what: "key",
+                expected: 32,
+                actual: 16,
+            },
+            "BAD_LENGTH",
+            "ValueError",
+        ),
+        (
+            Error::InvalidInput {
+                what: "pq",
+                reason: "is 0".to_owned(),
+            },
+            "INVALID_INPUT",
+            "ValueError",
+        ),
+        (
+            Error::Io(std::io::Error::other("disk gone")),
+            "IO",
+            "OSError",
+        ),
+    ]);
 }

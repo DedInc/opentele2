@@ -11,9 +11,9 @@
 
 use opentele2_core::api::{self, ApiProfile, Client, LAYER, Versions};
 use opentele2_core::auth::{
-    self, CURRENT_SESSION_MISSING, Check, CheckResult, ConsistencyExpectations, LANG_PACK_EMPTY,
-    LAYER_TOLERANCE, NO_APP_UPDATE, OFFICIAL_API_IDS, SESSION_COLUMNS, SessionRow, SrpCheck,
-    SrpError, SrpParams, TERMS_OF_SERVICE_OK,
+    self, CURRENT_SESSION_MISSING, Check, CheckResult, ConsistencyExpectations, FlowFailure,
+    LANG_PACK_EMPTY, LAYER_TOLERANCE, NO_APP_UPDATE, OFFICIAL_API_IDS, SESSION_COLUMNS, SessionRow,
+    SrpCheck, SrpError, SrpParams, TERMS_OF_SERVICE_OK,
 };
 
 /// `p` of the fixtures, Telegram's 2FA prime.
@@ -268,6 +268,147 @@ fn srp_check_random_makes_a_valid_check() {
     let second = auth::srp_check_random(&params, SRP_ONE.password).expect("srp check");
     assert_eq!(first.srp_id, SRP_ONE.srp_id);
     assert!(first.a != second.a, "fresh exponents give a fresh A");
+}
+
+/// The `telethon.py` `_compute_check` rule: both fields or id 0 and an
+/// empty `B`, which the check refuses as a bad `B`.
+#[test]
+fn srp_inputs_follow_the_python_rule() {
+    let b = bytes(SRP_ONE.srp_b);
+    assert_eq!(
+        auth::srp_inputs(Some(SRP_ONE.srp_id), Some(&b)),
+        (SRP_ONE.srp_id, b.clone())
+    );
+    assert_eq!(auth::srp_inputs(Some(7), Some(&[])), (7, Vec::new()));
+    assert_eq!(auth::srp_inputs(None, Some(&b)), (0, Vec::new()));
+    assert_eq!(
+        auth::srp_inputs(Some(SRP_ONE.srp_id), None),
+        (0, Vec::new())
+    );
+    assert_eq!(auth::srp_inputs(None, None), (0, Vec::new()));
+
+    let (srp_id, srp_b) = auth::srp_inputs(None, Some(&b));
+    let fixture = SrpFixture { srp_id, ..SRP_ONE };
+    assert_eq!(
+        run_srp(&fixture, &bytes(P), &srp_b),
+        (Err(SrpError::BadB), 0)
+    );
+}
+
+/// The `SrpError` codes and classes of `CORE_ERROR_TYPES`, without its
+/// dead `SRP_FAILED` entry.
+#[test]
+fn srp_error_codes_and_classes_are_the_python_table() {
+    let expected = [
+        (SrpError::BadPrimeOrGenerator, "SRP_BAD_PRIME_OR_GENERATOR"),
+        (SrpError::BadB, "SRP_BAD_B"),
+        (SrpError::NoGoodRandom, "SRP_NO_GOOD_RANDOM"),
+        (SrpError::RandomUnavailable, "SRP_RANDOM_UNAVAILABLE"),
+    ];
+    for (error, code) in expected {
+        assert_eq!(error.code(), code);
+        assert_ne!(error.code(), "SRP_FAILED");
+        assert_eq!(error.legacy_class(), "ValueError", "{error:?}");
+    }
+}
+
+#[test]
+fn flow_rpc_error_names_are_telegrams() {
+    assert_eq!(auth::RPC_PASSWORD_HASH_INVALID, "PASSWORD_HASH_INVALID");
+    assert_eq!(auth::RPC_SESSION_PASSWORD_NEEDED, "SESSION_PASSWORD_NEEDED");
+    assert_eq!(
+        auth::RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN,
+        "FRESH_RESET_AUTHORISATION_FORBIDDEN"
+    );
+    assert_eq!(auth::RPC_HASH_INVALID, "HASH_INVALID");
+    assert_eq!(
+        auth::RPC_AUTH_TOKEN_ALREADY_ACCEPTED,
+        "AUTH_TOKEN_ALREADY_ACCEPTED"
+    );
+    assert_eq!(auth::RPC_AUTH_TOKEN_EXPIRED, "AUTH_TOKEN_EXPIRED");
+    assert_eq!(auth::RPC_AUTH_TOKEN_INVALID, "AUTH_TOKEN_INVALID");
+}
+
+#[test]
+fn flow_texts_are_the_bindings() {
+    assert_eq!(
+        auth::USER_ID_UNRESOLVED,
+        "Could not resolve the account's user id"
+    );
+    assert_eq!(
+        auth::SIGN_UP_REQUIRED,
+        "the server asked to sign up instead of logging in"
+    );
+}
+
+/// The codes the Node flows give with `OT_` and the classes the Python
+/// flows raise (`telethon.py`, `account.py`) and mtcute names its errors.
+#[test]
+fn flow_failure_codes_and_classes_are_pinned() {
+    let expected = [
+        (
+            FlowFailure::NoPasswordProvided,
+            "NO_PASSWORD_PROVIDED",
+            "NoPasswordProvided",
+        ),
+        (
+            FlowFailure::PasswordIncorrect,
+            "PASSWORD_INCORRECT",
+            "PasswordIncorrect",
+        ),
+        (
+            FlowFailure::AuthTokenAlreadyAccepted,
+            "AUTH_TOKEN_ALREADY_ACCEPTED",
+            "AuthTokenAlreadyAcceptedError",
+        ),
+        (
+            FlowFailure::AuthTokenExpired,
+            "AUTH_TOKEN_EXPIRED",
+            "AuthTokenExpiredError",
+        ),
+        (
+            FlowFailure::AuthTokenInvalid,
+            "AUTH_TOKEN_INVALID",
+            "AuthTokenInvalidError",
+        ),
+        (
+            FlowFailure::QrLoginTimeout,
+            "QR_LOGIN_TIMEOUT",
+            "TimeoutError",
+        ),
+        (
+            FlowFailure::FreshResetForbidden,
+            "FRESH_RESET_FORBIDDEN",
+            "FreshResetAuthorisationForbiddenError",
+        ),
+        (FlowFailure::HashInvalid, "HASH_INVALID", "HashInvalidError"),
+        (
+            FlowFailure::UnsupportedPasswordAlgorithm,
+            "UNSUPPORTED_PASSWORD_ALGORITHM",
+            "ValueError",
+        ),
+        (
+            FlowFailure::SignUpRequired,
+            "SIGN_UP_REQUIRED",
+            "SignUpRequired",
+        ),
+        (
+            FlowFailure::UserIdUnresolved,
+            "USER_ID_UNRESOLVED",
+            "TelethonUnauthorized",
+        ),
+        (
+            FlowFailure::SessionsUnavailable,
+            "SESSIONS_UNAVAILABLE",
+            "OpenTeleException",
+        ),
+    ];
+    assert_eq!(FlowFailure::ALL.len(), expected.len());
+    for (failure, (listed, code, class)) in FlowFailure::ALL.into_iter().zip(expected) {
+        assert_eq!(failure, listed);
+        assert_eq!(failure.code(), code);
+        assert_eq!(failure.legacy_class(), class);
+    }
 }
 
 /// A session row; `text` is device, platform, system, app name and version.

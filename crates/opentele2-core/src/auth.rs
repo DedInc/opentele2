@@ -16,7 +16,9 @@
 //! - Login flow: the post-login sequence ([`POST_LOGIN_STEPS`]) with its
 //!   sleeps ([`random_delay_ms`]), the QR login constants and warnings
 //!   ([`QR_LOGIN_ATTEMPTS`], [`qr_attempt_timeout_warning`]) and the 2FA
-//!   algorithm name ([`SRP_ALGORITHM`]).
+//!   algorithm name ([`SRP_ALGORITHM`]), the `srp_id`/`srp_B` rule
+//!   ([`srp_inputs`]), the RPC error names the flows match (`RPC_*`), and
+//!   the code and 1.5.0 class of each flow failure ([`FlowFailure`]).
 //! - Consistency: [`ConsistencyExpectations`] says what each of the seven
 //!   1.5.0 `ConsistencyChecker` checks ([`Check`]) expects for a profile, and
 //!   [`CheckResult`] with [`consistency_summary`] and the detail builders
@@ -138,6 +140,164 @@ impl SrpError {
             Self::BadB => "SRP_BAD_B",
             Self::NoGoodRandom => "SRP_NO_GOOD_RANDOM",
             Self::RandomUnavailable => "SRP_RANDOM_UNAVAILABLE",
+        }
+    }
+
+    /// The class name of the exception 1.5.0 raised for the refusal, in the
+    /// style of [`crate::Error::legacy_class`] and the single source the
+    /// bindings use: `ValueError` for every refusal (Telethon
+    /// `compute_check` raises it).
+    #[must_use]
+    pub fn legacy_class(self) -> &'static str {
+        match self {
+            Self::BadPrimeOrGenerator
+            | Self::BadB
+            | Self::NoGoodRandom
+            | Self::RandomUnavailable => "ValueError",
+        }
+    }
+}
+
+/// The `srp_id` and `srp_B` [`SrpParams`] takes from an `account.Password`
+/// whose fields are `srp_id` and `srp_b`, the rule both bindings share:
+/// both as given when both are present, otherwise id 0 and an empty `B`,
+/// which [`srp_check`] refuses with [`SrpError::BadB`] (Telethon cannot
+/// run the check without them either).
+#[must_use]
+pub fn srp_inputs(srp_id: Option<i64>, srp_b: Option<&[u8]>) -> (i64, Vec<u8>) {
+    match (srp_id, srp_b) {
+        (Some(srp_id), Some(srp_b)) => (srp_id, srp_b.to_vec()),
+        _ => (0, Vec::new()),
+    }
+}
+
+/// The RPC error `auth.checkPassword` fails with for a wrong password; the
+/// flows raise it as [`FlowFailure::PasswordIncorrect`].
+pub const RPC_PASSWORD_HASH_INVALID: &str = "PASSWORD_HASH_INVALID";
+
+/// The RPC error of a QR login step on an account with 2FA; the flows then
+/// run 1.5.0 `_handle2FA`.
+pub const RPC_SESSION_PASSWORD_NEEDED: &str = "SESSION_PASSWORD_NEEDED";
+
+/// The RPC error `account.resetAuthorization` fails with within 24 hours of
+/// login ([`FlowFailure::FreshResetForbidden`]).
+pub const RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN: &str = "FRESH_RESET_AUTHORISATION_FORBIDDEN";
+
+/// The RPC error `account.resetAuthorization` fails with for an unknown
+/// hash ([`FlowFailure::HashInvalid`]).
+pub const RPC_HASH_INVALID: &str = "HASH_INVALID";
+
+/// The RPC error of a QR login token accepted already; 1.5.0 re-raises it.
+pub const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: &str = "AUTH_TOKEN_ALREADY_ACCEPTED";
+
+/// The RPC error of an expired QR login token; 1.5.0 re-raises it.
+pub const RPC_AUTH_TOKEN_EXPIRED: &str = "AUTH_TOKEN_EXPIRED";
+
+/// The RPC error of an invalid QR login token; 1.5.0 re-raises it.
+pub const RPC_AUTH_TOKEN_INVALID: &str = "AUTH_TOKEN_INVALID";
+
+/// The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+/// cannot be resolved.
+pub const USER_ID_UNRESOLVED: &str = "Could not resolve the account's user id";
+
+/// The message of a login the server answered with
+/// `auth.authorizationSignUpRequired` ([`FlowFailure::SignUpRequired`]).
+pub const SIGN_UP_REQUIRED: &str = "the server asked to sign up instead of logging in";
+
+/// Why a login or session admin flow failed, for the bindings to name their
+/// errors from one table ([`FlowFailure::code`], [`FlowFailure::legacy_class`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum FlowFailure {
+    /// 2FA is needed and no password was given ([`NO_PASSWORD_PROVIDED`]).
+    NoPasswordProvided,
+    /// `auth.checkPassword` failed with [`RPC_PASSWORD_HASH_INVALID`].
+    PasswordIncorrect,
+    /// [`RPC_AUTH_TOKEN_ALREADY_ACCEPTED`], re-raised.
+    AuthTokenAlreadyAccepted,
+    /// [`RPC_AUTH_TOKEN_EXPIRED`], re-raised.
+    AuthTokenExpired,
+    /// [`RPC_AUTH_TOKEN_INVALID`], re-raised.
+    AuthTokenInvalid,
+    /// No QR login attempt logged in ([`QR_LOGIN_TIMEOUT`]).
+    QrLoginTimeout,
+    /// `TerminateSession` hit [`RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN`]
+    /// ([`FRESH_RESET_FORBIDDEN`]).
+    FreshResetForbidden,
+    /// `TerminateSession` hit [`RPC_HASH_INVALID`] ([`HASH_INVALID`]).
+    HashInvalid,
+    /// The password uses an algorithm other than [`SRP_ALGORITHM`]
+    /// ([`unsupported_password_algorithm`]).
+    UnsupportedPasswordAlgorithm,
+    /// A login was answered with a sign-up request ([`SIGN_UP_REQUIRED`]).
+    SignUpRequired,
+    /// The self user could not be resolved ([`USER_ID_UNRESOLVED`]).
+    UserIdUnresolved,
+    /// The sessions could not be fetched ([`SESSIONS_UNAVAILABLE`]).
+    SessionsUnavailable,
+}
+
+impl FlowFailure {
+    /// Every flow failure, in declaration order.
+    pub const ALL: [Self; 12] = [
+        Self::NoPasswordProvided,
+        Self::PasswordIncorrect,
+        Self::AuthTokenAlreadyAccepted,
+        Self::AuthTokenExpired,
+        Self::AuthTokenInvalid,
+        Self::QrLoginTimeout,
+        Self::FreshResetForbidden,
+        Self::HashInvalid,
+        Self::UnsupportedPasswordAlgorithm,
+        Self::SignUpRequired,
+        Self::UserIdUnresolved,
+        Self::SessionsUnavailable,
+    ];
+
+    /// The stable error code of the failure, in the style of
+    /// [`SrpError::code`]; the Node binding prefixes `OT_`, for example
+    /// `OT_PASSWORD_INCORRECT`.
+    #[must_use]
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::NoPasswordProvided => "NO_PASSWORD_PROVIDED",
+            Self::PasswordIncorrect => "PASSWORD_INCORRECT",
+            Self::AuthTokenAlreadyAccepted => "AUTH_TOKEN_ALREADY_ACCEPTED",
+            Self::AuthTokenExpired => "AUTH_TOKEN_EXPIRED",
+            Self::AuthTokenInvalid => "AUTH_TOKEN_INVALID",
+            Self::QrLoginTimeout => "QR_LOGIN_TIMEOUT",
+            Self::FreshResetForbidden => "FRESH_RESET_FORBIDDEN",
+            Self::HashInvalid => "HASH_INVALID",
+            Self::UnsupportedPasswordAlgorithm => "UNSUPPORTED_PASSWORD_ALGORITHM",
+            Self::SignUpRequired => "SIGN_UP_REQUIRED",
+            Self::UserIdUnresolved => "USER_ID_UNRESOLVED",
+            Self::SessionsUnavailable => "SESSIONS_UNAVAILABLE",
+        }
+    }
+
+    /// The class name of the exception 1.5.0 raised for the failure, the
+    /// single source the bindings name their flow errors after: an
+    /// opentele2 class (`NoPasswordProvided`, `PasswordIncorrect`,
+    /// `TelethonUnauthorized`, `OpenTeleException`), a Telethon RPC error
+    /// class (`AuthTokenExpiredError`, `HashInvalidError`, ...) or a builtin
+    /// (`TimeoutError`, and `ValueError` from Telethon `compute_check` for
+    /// an unsupported algorithm). 1.5.0 has no class for a sign-up answer;
+    /// [`FlowFailure::SignUpRequired`] gives `SignUpRequired`.
+    #[must_use]
+    pub fn legacy_class(self) -> &'static str {
+        match self {
+            Self::NoPasswordProvided => "NoPasswordProvided",
+            Self::PasswordIncorrect => "PasswordIncorrect",
+            Self::AuthTokenAlreadyAccepted => "AuthTokenAlreadyAcceptedError",
+            Self::AuthTokenExpired => "AuthTokenExpiredError",
+            Self::AuthTokenInvalid => "AuthTokenInvalidError",
+            Self::QrLoginTimeout => "TimeoutError",
+            Self::FreshResetForbidden => "FreshResetAuthorisationForbiddenError",
+            Self::HashInvalid => "HashInvalidError",
+            Self::UnsupportedPasswordAlgorithm => "ValueError",
+            Self::SignUpRequired => "SignUpRequired",
+            Self::UserIdUnresolved => "TelethonUnauthorized",
+            Self::SessionsUnavailable => "OpenTeleException",
         }
     }
 }
