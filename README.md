@@ -53,8 +53,8 @@
 - AES-256-IGE and -CTR, SHA-1, SHA-256, HMAC, PBKDF2, PQ factorisation, gzip and the OS random
   source. Telethon reaches it through `cryptg` plus a bridge for AES-CTR, PQ, SHA and password
   hashing; mtcute through a complete `ICryptoProvider`; grammers is Rust.
-- Measured on one machine: a one-account tdata folder loads in 0.24 ms against 1.08 ms for the
-  previous pure-Python loader (best of 3 x 200 loads); AES-CTR on 1 MiB takes 0.9 ms against
+- Measured on one machine: a one-account tdata folder loads in 0.24 ms against 1.08 ms for a
+  pure-Python loader (best of 3 x 200 loads); AES-CTR on 1 MiB takes 0.9 ms against
   3.6 s with pyaes.
 
 ## Installation

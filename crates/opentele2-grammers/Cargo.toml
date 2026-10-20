@@ -1,7 +1,7 @@
 [package]
 name = "opentele2-grammers"
-description = "grammers 0.11 sessions and connection params from opentele2 tdata accounts and API profiles"
-keywords = ["telegram", "tdata", "grammers", "opentele"]
+description = "grammers 0.11 bridge for opentele2: sessions and initConnection params from tdata and API profiles; QR login, 2FA, session admin and consistency checks (feature `client`)"
+keywords = ["telegram", "grammers", "tdata", "mtproto", "session"]
 categories = ["api-bindings"]
 version.workspace = true
 edition.workspace = true

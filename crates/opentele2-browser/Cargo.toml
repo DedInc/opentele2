@@ -1,6 +1,6 @@
 [package]
 name = "opentele2-browser"
-description = "Browser HTTP header and fingerprint generation from the Apify fingerprint datapoints; a Rust port of browserforge"
+description = "Browser HTTP headers and fingerprints from Bayesian networks over the Apify fingerprint datapoints, deterministic by seed; based on browserforge"
 keywords = ["browserforge", "fingerprint", "user-agent", "headers", "bayesian"]
 categories = ["web-programming", "simulation"]
 version.workspace = true

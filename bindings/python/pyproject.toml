@@ -4,11 +4,11 @@ build-backend = "maturin"
 
 [project]
 name = "opentele2"
-description = "Telegram Desktop tdata, Telethon and mtcute sessions and official API fingerprints, on a Rust core"
+description = "Telegram client identity toolkit: Telegram Desktop tdata, Telethon sessions, official API profiles and devices, fingerprint checks, QR login and browser fingerprints, on a Rust core"
 requires-python = ">=3.8"
 license = "MIT"
 authors = [{ name = "DedInc.", email = "visitanimation@gmail.com" }]
-keywords = ["tdata", "tdesktop", "telegram", "telethon", "opentele2"]
+keywords = ["telegram", "tdata", "tdesktop", "telethon", "mtproto", "fingerprint", "opentele2"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

@@ -1,7 +1,7 @@
 [package]
 name = "opentele2-versions"
-description = "Current official Telegram client versions from their public release feeds, as a patch onto opentele2-core Versions"
-keywords = ["telegram", "versions", "tdesktop", "opentele"]
+description = "Current official Telegram client versions and stable Chrome/Firefox versions, as a patch onto opentele2-core Versions"
+keywords = ["telegram", "versions", "tdesktop", "chrome", "firefox"]
 categories = ["api-bindings", "parser-implementations"]
 version.workspace = true
 edition.workspace = true

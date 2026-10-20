@@ -1,13 +1,16 @@
 {
   "name": "opentele2",
   "version": "2.0.0",
-  "description": "Telegram Desktop tdata formats, crypto, string sessions and API fingerprints from the Rust core of opentele2, with mtcute helpers",
+  "description": "Telegram client identity toolkit on a Rust core: Telegram Desktop tdata, mtcute and Telethon sessions, official API profiles and devices, fingerprint checks, an mtcute crypto provider and browser fingerprints",
   "keywords": [
     "telegram",
     "tdata",
     "tdesktop",
-    "opentele",
     "mtcute",
+    "telethon",
+    "mtproto",
+    "fingerprint",
+    "opentele2",
     "napi-rs"
   ],
   "license": "MIT",

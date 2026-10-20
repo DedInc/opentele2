@@ -1,7 +1,7 @@
 [package]
 name = "opentele2-core"
-description = "Pure Rust core of opentele2: Telegram Desktop tdata formats and crypto, with no async, network, or FFI"
-keywords = ["telegram", "tdata", "tdesktop", "opentele"]
+description = "Telegram client identity core: Telegram Desktop tdata, Telethon/mtcute/grammers sessions, official API profiles, devices, fingerprint checks and MTProto crypto"
+keywords = ["telegram", "tdata", "mtproto", "telethon", "fingerprint"]
 categories = ["parser-implementations", "cryptography"]
 version.workspace = true
 edition.workspace = true
