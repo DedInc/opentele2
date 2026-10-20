@@ -239,3 +239,7 @@ publishes from a protected environment with required reviewers.
 - On its error path the Python session companion reader parses the `.json`
   once more, since the core's `read_companion` shares one `what` across its
   errors.
+- A web device's user agent carries the live browser major, which can be newer
+  than the newest major in the Apify networks; a full browser fingerprint
+  cannot then be generated for exactly that user agent ("No headers based on
+  this input"). Generate the fingerprint from browser options instead.
