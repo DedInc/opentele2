@@ -501,6 +501,23 @@ LANG_PACK_EMPTY: str
 NO_APP_UPDATE: str
 TERMS_OF_SERVICE_OK: str
 CONSISTENCY_WARNING_PREFIX: str
+SRP_ALGORITHM: str
+QR_LOGIN_ATTEMPTS: int
+QR_EXPIRE_SAFETY_SECONDS: int
+QR_LOGIN_TIMEOUT: str
+QR_TIMEOUT_ERROR_TYPE: str
+EXISTING_SESSION_KEPT: str
+EXISTING_SESSION_REPLACED: str
+POST_LOGIN_APP_UPDATE_SOURCE: str
+POST_LOGIN_COUNTRIES_LANG_CODE: str
+
+# One step of the 1.5.0 post-login sequence: the request's TL name, such as
+# "help.getConfig", and the inclusive range of the sleep before it.
+class PostLoginStep(TypedDict):
+    request: str
+    delay_ms: tuple[int, int] | None
+
+POST_LOGIN_STEPS: tuple[PostLoginStep, ...]
 
 # The account.Password fields srp_check needs.
 class SrpParams(TypedDict):
@@ -543,7 +560,54 @@ class CheckResult(TypedDict):
     passed: bool
     detail: str
 
+# How one check ended: it returned a result...
+class CheckFinished(TypedDict):
+    passed: bool
+    detail: str
+
+# ...or raised out of its own handling with this str(e).
+class CheckRaised(TypedDict):
+    raised: str
+
+CheckOutcome: TypeAlias = CheckFinished | CheckRaised
+
+class ConsistencyReport(TypedDict):
+    checks: list[CheckResult]
+    all_passed: bool
+    summary: str
+    warning: str | None
+
+# The attributes session_row reads; Telethon's types.Authorization has them.
+class _Authorization(Protocol):
+    @property
+    def current(self) -> bool | None: ...
+    @property
+    def device_model(self) -> str: ...
+    @property
+    def platform(self) -> str: ...
+    @property
+    def system_version(self) -> str: ...
+    @property
+    def api_id(self) -> int: ...
+    @property
+    def app_name(self) -> str: ...
+    @property
+    def app_version(self) -> str: ...
+    @property
+    def official_app(self) -> bool | None: ...
+
 def qr_login_url(token: _Bytes) -> str: ...
+def unsupported_password_algorithm(algorithm: str) -> str: ...
+def qr_attempt_timeout_warning(attempt_number: int, error_type: str | None = None) -> str: ...
+def qr_attempt_retry_warning(attempt_number: int) -> str: ...
+def post_login_steps(lang_pack: str) -> list[PostLoginStep]: ...
+
+# Raises ValueError when min_ms > max_ms, as random.randint does.
+def random_delay_ms(min_ms: int, max_ms: int) -> int: ...
+def session_row(authorization: _Authorization) -> SessionRow: ...
+
+# Raises ValueError unless there is one outcome per consistency_checks() name.
+def consistency_report(outcomes: Iterable[CheckOutcome]) -> ConsistencyReport: ...
 
 # Raises CoreError "SRP_BAD_PRIME_OR_GENERATOR", "SRP_BAD_B" or
 # "SRP_NO_GOOD_RANDOM", and ValueError when `exponents` runs out.
@@ -559,7 +623,7 @@ def consistency_expectations(
     profile: ApiProfile, versions: _VersionsArg | None = None
 ) -> ConsistencyExpectations: ...
 def consistency_checks() -> list[str]: ...
-def layer_result(library_layer: int) -> CheckResult: ...
+def layer_result(library_layer: int, advertised_layer: int | None = None) -> CheckResult: ...
 def consistency_summary(results: Iterable[CheckResult]) -> str: ...
 def get_config_detail(this_dc: int | None = None) -> str: ...
 def get_config_error(error: str) -> str: ...

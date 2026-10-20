@@ -1,17 +1,17 @@
 """1.5.0 ``src/tl/telethon.py``: ``telethon.TelegramClient`` with official
 client fingerprints and the tdata conversions. The endpoint and key of a
-tdata account, the sessions table, the 2FA check and the fixed messages come
-from :mod:`opentele2._native`."""
+tdata account, the sessions table, the 2FA check, the post-login sequence
+with its delays, the QR login rules and the fixed messages come from
+:mod:`opentele2._native`."""
 
 from __future__ import annotations
 
 import asyncio
 import datetime
 import logging
-import random
 import warnings
-from collections.abc import Awaitable
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 import telethon
 from telethon import functions, types
@@ -58,44 +58,41 @@ from .session_io import (
 if TYPE_CHECKING:
     from typing_extensions import Unpack
 
-    from .._native import SessionRow, TelethonSessionRows
+    from .._native import TelethonSessionRows
     from ..consistency import ConsistencyReport
     from .client_kwargs import TelethonClientKwargs
 
-_DEFAULT_REQUEST_RETRIES = 5
-_QR_EXPIRE_SAFETY_SECONDS = 5
+_DEFAULT_REQUEST_RETRIES = _native.QR_LOGIN_ATTEMPTS
+_QR_EXPIRE_SAFETY_SECONDS = _native.QR_EXPIRE_SAFETY_SECONDS
 
 logger = logging.getLogger(__name__)
 
-_POST_LOGIN_STEPS = [
-    (None, lambda _lang_pack: functions.help.GetConfigRequest(), None),
-    ((100, 300), lambda _lang_pack: functions.help.GetNearestDcRequest(), None),
-    (
-        (200, 400),
-        lambda _lang_pack: functions.account.UpdateStatusRequest(offline=False),
-        None,
+# The Telethon request of each core post-login step, by its TL name; the
+# core decides the order, the sleeps and which steps run.
+_POST_LOGIN_REQUESTS: dict[str, Callable[[str], Any]] = {
+    "help.getConfig": lambda _lang_pack: functions.help.GetConfigRequest(),
+    "help.getNearestDc": lambda _lang_pack: functions.help.GetNearestDcRequest(),
+    "account.updateStatus": lambda _lang_pack: functions.account.UpdateStatusRequest(offline=False),
+    "langpack.getLanguages": lambda lang_pack: functions.langpack.GetLanguagesRequest(
+        lang_pack=lang_pack
     ),
-    (
-        (100, 200),
-        lambda lang_pack: functions.langpack.GetLanguagesRequest(lang_pack=lang_pack),
-        lambda lang_pack: bool(lang_pack),
+    "help.getAppUpdate": lambda _lang_pack: functions.help.GetAppUpdateRequest(
+        source=_native.POST_LOGIN_APP_UPDATE_SOURCE
     ),
-    (
-        (300, 500),
-        lambda _lang_pack: functions.help.GetAppUpdateRequest(source=""),
-        None,
+    "help.getTermsOfServiceUpdate": lambda _lang_pack: (
+        functions.help.GetTermsOfServiceUpdateRequest()
     ),
-    (
-        (100, 300),
-        lambda _lang_pack: functions.help.GetTermsOfServiceUpdateRequest(),
-        None,
+    "help.getCountriesList": lambda _lang_pack: functions.help.GetCountriesListRequest(
+        lang_code=_native.POST_LOGIN_COUNTRIES_LANG_CODE, hash=0
     ),
-    (
-        (50, 150),
-        lambda _lang_pack: functions.help.GetCountriesListRequest(lang_code="en", hash=0),
-        None,
-    ),
-]
+}
+
+# Telethon's class of the only 2FA algorithm the core supports: its TL name
+# with a capital first letter. The annotation only tells type checkers
+# which class that is.
+_SRP_ALGORITHM_CLASS: type[
+    types.PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow
+] = getattr(types, _native.SRP_ALGORITHM[:1].upper() + _native.SRP_ALGORITHM[1:])
 
 _NO_ENDPOINT = "Couldn't find endpoint for this account, something went wrong?"
 _NO_AUTH_KEY = "The account has no authKey loaded"
@@ -131,27 +128,11 @@ def _session_rows(account: td.Account, use_ipv6: bool) -> TelethonSessionRows:
         raise_core_error(error)
 
 
-def _session_row(auth: types.Authorization) -> SessionRow:
-    """The ``SessionRow`` of a Telethon ``Authorization``."""
-    return {
-        "current": bool(auth.current),
-        "device_model": auth.device_model,
-        "platform": auth.platform,
-        "system_version": auth.system_version,
-        "api_id": auth.api_id,
-        "app_name": auth.app_name,
-        "app_version": auth.app_version,
-        "official_app": bool(auth.official_app),
-    }
-
-
 def _compute_check(pwd: types.account.Password, password: str) -> types.InputCheckPasswordSRP:
     """Telethon ``password.compute_check``, computed by the core."""
     algo = pwd.current_algo
-    if not isinstance(
-        algo, types.PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow
-    ):
-        raise ValueError(f"unsupported password algorithm {algo.__class__.__name__}")
+    if not isinstance(algo, _SRP_ALGORITHM_CLASS):
+        raise ValueError(_native.unsupported_password_algorithm(algo.__class__.__name__))
     srp_id, srp_b = pwd.srp_id, pwd.srp_B
     if srp_id is None or srp_b is None:
         # Telethon cannot run the check without them either; the core
@@ -316,13 +297,12 @@ class TelegramClient(telethon.TelegramClient):
 
         lang_pack = self._get_lang_pack()
 
-        for delay_range, request_factory, condition in _POST_LOGIN_STEPS:
-            if condition is not None and not condition(lang_pack):
-                continue
-            if delay_range is not None:
-                await asyncio.sleep(random.randint(*delay_range) / 1000.0)
+        for step in _native.post_login_steps(lang_pack):
+            delay_ms = step["delay_ms"]
+            if delay_ms is not None:
+                await asyncio.sleep(_native.random_delay_ms(*delay_ms) / 1000.0)
             try:
-                await self(request_factory(lang_pack))
+                await self(_POST_LOGIN_REQUESTS[step["request"]](lang_pack))
             except Exception:
                 logger.debug("Post-login request failed", exc_info=True)
 
@@ -361,7 +341,9 @@ class TelegramClient(telethon.TelegramClient):
         if sessions is None:
             raise OpenTeleException(_native.SESSIONS_UNAVAILABLE)
 
-        print(_native.format_sessions([_session_row(auth) for auth in sessions.authorizations]))
+        print(
+            _native.format_sessions([_native.session_row(auth) for auth in sessions.authorizations])
+        )
 
     async def is_official_app(self) -> bool:
         auth = await self.GetCurrentSession()
@@ -436,18 +418,9 @@ class TelegramClient(telethon.TelegramClient):
             return newClient
 
         if currentAuth.api_id == api.api_id:
-            warnings.warn(
-                "\nCreateNewSession - a session file with the same name "
-                "is already existed, returning the old session",
-                stacklevel=1,
-            )
+            warnings.warn(_native.EXISTING_SESSION_KEPT, stacklevel=1)
         else:
-            warnings.warn(
-                "\nCreateNewSession - a session file with the same name "
-                "is already existed, but its api_id is different from "
-                "the current one, it will be overwritten",
-                stacklevel=1,
-            )
+            warnings.warn(_native.EXISTING_SESSION_REPLACED, stacklevel=1)
 
             await self._cleanup_client(newClient)
 
@@ -504,17 +477,15 @@ class TelegramClient(telethon.TelegramClient):
 
             except (TimeoutError, asyncio.TimeoutError) as e:
                 warnings.warn(
-                    f"\nQRLoginToNewClient attempt {attempt + 1} failed because {type(e)}",
+                    _native.qr_attempt_timeout_warning(attempt + 1, str(type(e))),
                     stacklevel=1,
                 )
-                timeout_err = TimeoutError("Something went wrong, i couldn't perform the QR login")
+                timeout_err = TimeoutError(_native.QR_LOGIN_TIMEOUT)
 
             except telethon.errors.SessionPasswordNeededError:
                 return await self._handle2FA(newClient, password)
 
-            warnings.warn(
-                f"\nQRLoginToNewClient attempt {attempt + 1} failed. Retrying..", stacklevel=1
-            )
+            warnings.warn(_native.qr_attempt_retry_warning(attempt + 1), stacklevel=1)
 
         if timeout_err:
             raise timeout_err

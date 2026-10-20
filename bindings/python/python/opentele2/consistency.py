@@ -1,6 +1,7 @@
 """1.5.0 ``src/consistency.py``: server-side checks of a connected
-:class:`~opentele2.tl.TelegramClient`, with every detail line, summary and
-pass rule from :mod:`opentele2._native`."""
+:class:`~opentele2.tl.TelegramClient`, with every detail line, summary, pass
+rule, session row and the report of :meth:`ConsistencyChecker.run_all` from
+:mod:`opentele2._native`."""
 
 from __future__ import annotations
 
@@ -12,8 +13,8 @@ from typing import TYPE_CHECKING, Any
 from . import _native, fingerprint
 
 if TYPE_CHECKING:
+    from ._native import CheckOutcome
     from ._native import CheckResult as _NativeCheckResult
-    from ._native import SessionRow
     from .tl.telethon import TelegramClient
 
 logger = logging.getLogger(__name__)
@@ -23,8 +24,6 @@ __all__ = [
     "ConsistencyChecker",
     "ConsistencyReport",
 ]
-
-_CHECK_PREFIX = "check_"
 
 
 @dataclass
@@ -55,28 +54,14 @@ class ConsistencyReport:
         return self.summary
 
 
-def _session_row(auth: Any) -> SessionRow:
-    """The ``SessionRow`` of a Telethon ``Authorization``."""
-    return {
-        "current": bool(auth.current),
-        "device_model": auth.device_model,
-        "platform": auth.platform,
-        "system_version": auth.system_version,
-        "api_id": auth.api_id,
-        "app_name": auth.app_name,
-        "app_version": auth.app_version,
-        "official_app": bool(auth.official_app),
-    }
-
-
 class ConsistencyChecker:
     def __init__(self, client: TelegramClient, *, auto_warn: bool = True) -> None:
         self._client = client
         self._auto_warn = auto_warn
 
     async def run_all(self) -> ConsistencyReport:
-        report = ConsistencyReport()
-
+        # In _native.consistency_checks() order; the core names each entry
+        # after its place in that order.
         checks = [
             self.check_get_config,
             self.check_nearest_dc,
@@ -87,25 +72,35 @@ class ConsistencyChecker:
             self.check_terms_of_service,
         ]
 
+        server_responses: list[Any] = []
+        outcomes: list[CheckOutcome] = []
         for check_fn in checks:
             try:
                 result = await check_fn()
-                report.checks.append(result)
             except Exception as e:
                 logger.debug("Consistency check raised", exc_info=True)
-                report.checks.append(
-                    CheckResult(
-                        name=check_fn.__name__.replace(_CHECK_PREFIX, ""),
-                        passed=False,
-                        detail=_native.check_exception(str(e)),
-                    )
-                )
+                server_responses.append(None)
+                outcomes.append({"raised": str(e)})
+            else:
+                server_responses.append(result.server_response)
+                outcomes.append({"passed": result.passed, "detail": result.detail})
 
-        if self._auto_warn and not report.all_passed:
-            warnings.warn(
-                f"{_native.CONSISTENCY_WARNING_PREFIX}{report.summary}",
-                stacklevel=2,
-            )
+        native = _native.consistency_report(outcomes)
+        report = ConsistencyReport(
+            checks=[
+                CheckResult(
+                    name=entry["name"],
+                    passed=entry["passed"],
+                    detail=entry["detail"],
+                    server_response=server_response,
+                )
+                for entry, server_response in zip(native["checks"], server_responses)
+            ]
+        )
+
+        warning = native["warning"]
+        if self._auto_warn and warning is not None:
+            warnings.warn(warning, stacklevel=2)
 
         return report
 
@@ -158,7 +153,7 @@ class ConsistencyChecker:
                     detail=_native.CURRENT_SESSION_MISSING,
                 )
 
-            row = _session_row(auth)
+            row = _native.session_row(auth)
             return CheckResult(
                 name="current_session",
                 passed=row.get("official_app", False),
@@ -174,13 +169,10 @@ class ConsistencyChecker:
             )
 
     async def check_layer_match(self) -> CheckResult:
-        telethon_layer = fingerprint._detect_telethon_layer()
-        advertised_layer = fingerprint.get_advertised_layer()
-        diff = abs(telethon_layer - advertised_layer)
-
-        passed = diff <= _native.LAYER_TOLERANCE
-        detail = _native.layer_detail(telethon_layer, advertised_layer)
-        return CheckResult(name="layer_match", passed=passed, detail=detail)
+        result = _native.layer_result(
+            fingerprint._detect_telethon_layer(), fingerprint.get_advertised_layer()
+        )
+        return CheckResult(name=result["name"], passed=result["passed"], detail=result["detail"])
 
     def _get_sender_lang_pack(self) -> str:
         init_req = getattr(self._client, "_init_request", None)

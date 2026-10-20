@@ -2,22 +2,24 @@
 //! 1.5.0 (`src/tl/telethon.py`, `src/consistency.py`).
 //!
 //! The SRP check runs PBKDF2 with 100000 iterations, so it runs with the
-//! thread detached; everything else is pure formatting.
+//! thread detached; `random_delay_ms` draws from the OS random source and
+//! everything else is pure formatting or tables.
 
 use std::borrow::Cow;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyModule, PyString, PyTuple};
+use pyo3::types::{PyDict, PyList, PyModule, PyString, PyTuple};
 
 use opentele2_core::api::LAYER;
 use opentele2_core::auth::{
-    self, Check, CheckResult, ConsistencyExpectations, SessionRow, SrpCheck, SrpError, SrpParams,
+    self, Check, CheckOutcome, CheckResult, ConsistencyExpectations, PostLoginStep,
+    RawAuthorization, SessionRow, SrpCheck, SrpError, SrpParams,
 };
 
 use crate::api::{to_profile, versions};
 use crate::convert::{dicts, optional, required, required_bytes, to_bytes};
-use crate::error::coded_error;
+use crate::error::{check_value, coded_error};
 use crate::fingerprint::issue_dicts;
 
 /// Why one `srp_check` call failed.
@@ -177,6 +179,59 @@ fn to_session_row(dict: &Bound<'_, PyDict>) -> PyResult<SessionRow> {
     })
 }
 
+/// `row` as a `SessionRow` dict, every key present.
+fn session_row_dict<'py>(py: Python<'py>, row: &SessionRow) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    dict.set_item("current", row.current)?;
+    dict.set_item("device_model", &row.device_model)?;
+    dict.set_item("platform", &row.platform)?;
+    dict.set_item("system_version", &row.system_version)?;
+    dict.set_item("api_id", row.api_id)?;
+    dict.set_item("app_name", &row.app_name)?;
+    dict.set_item("app_version", &row.app_version)?;
+    dict.set_item("official_app", row.official_app)?;
+    Ok(dict)
+}
+
+/// The `SessionRow` of an `authorization` as a client library returns one,
+/// read from its attributes `current`, `device_model`, `platform`,
+/// `system_version`, `api_id`, `app_name`, `app_version` and
+/// `official_app`: an absent (`None`) `current` or `official_app` flag is
+/// `False`, as 1.5.0 reads it.
+#[pyfunction]
+fn session_row<'py>(
+    py: Python<'py>,
+    authorization: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
+    fn flag(authorization: &Bound<'_, PyAny>, name: &str) -> PyResult<Option<bool>> {
+        let value = authorization.getattr(name)?;
+        if value.is_none() {
+            Ok(None)
+        } else {
+            value.extract().map(Some)
+        }
+    }
+    fn text(authorization: &Bound<'_, PyAny>, name: &str) -> PyResult<String> {
+        authorization.getattr(name)?.extract()
+    }
+    let device_model = text(authorization, "device_model")?;
+    let platform = text(authorization, "platform")?;
+    let system_version = text(authorization, "system_version")?;
+    let app_name = text(authorization, "app_name")?;
+    let app_version = text(authorization, "app_version")?;
+    let raw = RawAuthorization {
+        current: flag(authorization, "current")?,
+        device_model: &device_model,
+        platform: &platform,
+        system_version: &system_version,
+        api_id: authorization.getattr("api_id")?.extract()?,
+        app_name: &app_name,
+        app_version: &app_version,
+        official_app: flag(authorization, "official_app")?,
+    };
+    session_row_dict(py, &SessionRow::from_authorization(&raw))
+}
+
 /// The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
 /// newline; with no rows, the header alone.
 #[pyfunction]
@@ -255,15 +310,127 @@ fn consistency_checks() -> Vec<&'static str> {
 }
 
 /// The `layer_match` result for a library built for `library_layer`: it
-/// passes within `LAYER_TOLERANCE` of `LAYER`.
+/// passes within `LAYER_TOLERANCE` of `advertised_layer` (default `LAYER`).
 #[pyfunction]
-fn layer_result(py: Python<'_>, library_layer: i32) -> PyResult<Bound<'_, PyDict>> {
+#[pyo3(signature = (library_layer, advertised_layer = None))]
+fn layer_result(
+    py: Python<'_>,
+    library_layer: i32,
+    advertised_layer: Option<i32>,
+) -> PyResult<Bound<'_, PyDict>> {
+    let advertised_layer = advertised_layer.unwrap_or(LAYER);
     let result = CheckResult {
         name: Check::LayerMatch.name().to_owned(),
-        passed: library_layer.abs_diff(LAYER) <= auth::LAYER_TOLERANCE,
-        detail: auth::layer_detail(library_layer, LAYER),
+        passed: library_layer.abs_diff(advertised_layer) <= auth::LAYER_TOLERANCE,
+        detail: auth::layer_detail(library_layer, advertised_layer),
     };
     result_dict(py, &result)
+}
+
+/// The core outcome a `CheckOutcome` dict holds: `{"raised": str(e)}` for a
+/// check that raised, else `{"passed": ..., "detail": ...}`.
+fn to_check_outcome(dict: &Bound<'_, PyDict>) -> PyResult<CheckOutcome> {
+    const WHAT: &str = "the check outcome";
+    if let Some(error) = optional::<String>(dict, "raised")? {
+        return Ok(CheckOutcome::Raised(error));
+    }
+    Ok(CheckOutcome::Finished {
+        passed: required(dict, "passed", WHAT)?,
+        detail: required(dict, "detail", WHAT)?,
+    })
+}
+
+/// The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+/// one per check in `consistency_checks()` order: a dict of the `checks`
+/// (`CheckResult` dicts named after their check; one that raised fails with
+/// the `check_exception` detail), `all_passed`, `summary` and the
+/// `auto_warn` `warning` (`None` when all passed). Raises `ValueError` when
+/// `outcomes` does not hold one outcome per check.
+#[pyfunction]
+fn consistency_report<'py>(
+    py: Python<'py>,
+    outcomes: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let outcomes = dicts(outcomes, "check outcome")?
+        .iter()
+        .map(to_check_outcome)
+        .collect::<PyResult<Vec<_>>>()?;
+    let count = outcomes.len();
+    let outcomes: [CheckOutcome; Check::ALL.len()] = outcomes.try_into().map_err(|_| {
+        PyValueError::new_err(format!(
+            "consistency_report needs {} outcomes, got {count}",
+            Check::ALL.len()
+        ))
+    })?;
+    let report = auth::consistency_report(outcomes);
+    let checks = PyList::empty(py);
+    for result in &report.checks {
+        checks.append(result_dict(py, result)?)?;
+    }
+    let dict = PyDict::new(py);
+    dict.set_item("checks", checks)?;
+    dict.set_item("all_passed", report.all_passed())?;
+    dict.set_item("summary", report.summary())?;
+    dict.set_item("warning", report.warning())?;
+    Ok(dict)
+}
+
+/// `step` as a `PostLoginStep` dict: the `request` TL name and the
+/// inclusive `delay_ms` range of the sleep before it, `None` for none.
+fn post_login_step_dict<'py>(
+    py: Python<'py>,
+    step: &PostLoginStep,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    dict.set_item("request", step.request.tl_name())?;
+    dict.set_item("delay_ms", step.delay_ms)?;
+    Ok(dict)
+}
+
+/// The 1.5.0 post-login steps run for a client whose `lang_pack` is
+/// `lang_pack`, in order: `langpack.getLanguages` only runs for a
+/// non-empty one.
+#[pyfunction]
+fn post_login_steps<'py>(py: Python<'py>, lang_pack: &str) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    auth::post_login_steps(lang_pack)
+        .iter()
+        .map(|step| post_login_step_dict(py, step))
+        .collect()
+}
+
+/// A random whole number of milliseconds in `min_ms..=max_ms`, uniform,
+/// from the OS random source: the sleep 1.5.0 takes as
+/// `random.randint(min_ms, max_ms)`. Raises `ValueError` when
+/// `min_ms > max_ms`, as `random.randint` does.
+#[pyfunction]
+fn random_delay_ms(min_ms: u64, max_ms: u64) -> PyResult<u64> {
+    check_value(auth::random_delay_ms(min_ms, max_ms))
+}
+
+/// Telethon's `compute_check` `ValueError` text for a 2FA algorithm other
+/// than `SRP_ALGORITHM`, named `algorithm`.
+#[pyfunction]
+fn unsupported_password_algorithm(algorithm: &str) -> String {
+    auth::unsupported_password_algorithm(algorithm)
+}
+
+/// The 1.5.0 warning of QR login attempt `attempt_number` (from 1) that
+/// timed out with an error whose `str(type(e))` is `error_type` (default
+/// `QR_TIMEOUT_ERROR_TYPE`).
+#[pyfunction]
+#[pyo3(signature = (attempt_number, error_type = None))]
+fn qr_attempt_timeout_warning(attempt_number: u32, error_type: Option<&str>) -> String {
+    auth::qr_attempt_timeout_warning(
+        attempt_number,
+        error_type.unwrap_or(auth::QR_TIMEOUT_ERROR_TYPE),
+    )
+}
+
+/// The 1.5.0 warning after QR login attempt `attempt_number` (from 1)
+/// failed.
+#[pyfunction]
+fn qr_attempt_retry_warning(attempt_number: u32) -> String {
+    auth::qr_attempt_retry_warning(attempt_number)
 }
 
 /// 1.5.0 `ConsistencyReport.summary`: a count line, then one
@@ -385,7 +552,34 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "CONSISTENCY_WARNING_PREFIX",
         auth::CONSISTENCY_WARNING_PREFIX,
     )?;
+    module.add("SRP_ALGORITHM", auth::SRP_ALGORITHM)?;
+    module.add("QR_LOGIN_ATTEMPTS", auth::QR_LOGIN_ATTEMPTS)?;
+    module.add("QR_EXPIRE_SAFETY_SECONDS", auth::QR_EXPIRE_SAFETY_SECONDS)?;
+    module.add("QR_LOGIN_TIMEOUT", auth::QR_LOGIN_TIMEOUT)?;
+    module.add("QR_TIMEOUT_ERROR_TYPE", auth::QR_TIMEOUT_ERROR_TYPE)?;
+    module.add("EXISTING_SESSION_KEPT", auth::EXISTING_SESSION_KEPT)?;
+    module.add("EXISTING_SESSION_REPLACED", auth::EXISTING_SESSION_REPLACED)?;
+    module.add(
+        "POST_LOGIN_APP_UPDATE_SOURCE",
+        auth::POST_LOGIN_APP_UPDATE_SOURCE,
+    )?;
+    module.add(
+        "POST_LOGIN_COUNTRIES_LANG_CODE",
+        auth::POST_LOGIN_COUNTRIES_LANG_CODE,
+    )?;
+    let steps = auth::POST_LOGIN_STEPS
+        .iter()
+        .map(|step| post_login_step_dict(py, step))
+        .collect::<PyResult<Vec<_>>>()?;
+    module.add("POST_LOGIN_STEPS", PyTuple::new(py, steps)?)?;
     module.add_function(wrap_pyfunction!(qr_login_url, module)?)?;
+    module.add_function(wrap_pyfunction!(unsupported_password_algorithm, module)?)?;
+    module.add_function(wrap_pyfunction!(qr_attempt_timeout_warning, module)?)?;
+    module.add_function(wrap_pyfunction!(qr_attempt_retry_warning, module)?)?;
+    module.add_function(wrap_pyfunction!(post_login_steps, module)?)?;
+    module.add_function(wrap_pyfunction!(random_delay_ms, module)?)?;
+    module.add_function(wrap_pyfunction!(session_row, module)?)?;
+    module.add_function(wrap_pyfunction!(consistency_report, module)?)?;
     module.add_function(wrap_pyfunction!(srp_check, module)?)?;
     module.add_function(wrap_pyfunction!(is_official_api_id, module)?)?;
     module.add_function(wrap_pyfunction!(format_sessions, module)?)?;
