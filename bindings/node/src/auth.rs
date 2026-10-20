@@ -10,13 +10,15 @@ use napi_derive::napi;
 
 use opentele2_core::api::LAYER;
 use opentele2_core::auth::{
-    self, Check, CheckResult as CoreCheckResult, ConsistencyExpectations as CoreExpectations,
-    SessionRow as CoreSessionRow, SrpCheck as CoreSrpCheck, SrpError, SrpParams as CoreSrpParams,
+    self, Check, CheckOutcome as CoreCheckOutcome, CheckResult as CoreCheckResult,
+    ConsistencyExpectations as CoreExpectations, PostLoginStep as CorePostLoginStep,
+    RawAuthorization as CoreRawAuthorization, SessionRow as CoreSessionRow,
+    SrpCheck as CoreSrpCheck, SrpError, SrpParams as CoreSrpParams,
 };
 
 use crate::api::{ApiProfile, Versions, versions};
 use crate::convert::with_text;
-use crate::error::{CodedError, Result, invalid_arg, rejection};
+use crate::error::{CodedError, Result, check, invalid_arg, rejection, thrown};
 use crate::fingerprint::{Issue, to_js_issues};
 
 /// The scheme and query key in front of a QR login token.
@@ -78,12 +80,142 @@ pub const TERMS_OF_SERVICE_OK: &str = auth::TERMS_OF_SERVICE_OK;
 #[napi]
 pub const CONSISTENCY_WARNING_PREFIX: &str = auth::CONSISTENCY_WARNING_PREFIX;
 
+/// The TL name of the only 2FA algorithm `srpCheck` supports.
+#[napi]
+pub const SRP_ALGORITHM: &str = auth::SRP_ALGORITHM;
+
+/// How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+/// (`_DEFAULT_REQUEST_RETRIES`).
+#[napi]
+pub const QR_LOGIN_ATTEMPTS: u32 = auth::QR_LOGIN_ATTEMPTS;
+
+/// How many seconds past a QR token's expiry 1.5.0 waits for it to be
+/// accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+#[napi]
+pub const QR_EXPIRE_SAFETY_SECONDS: u32 = 5;
+
+// The core holds the value as a `u64`, which would reach JavaScript as a
+// `bigint`; the number above must stay equal to it.
+const _: () = assert!(QR_EXPIRE_SAFETY_SECONDS as u64 == auth::QR_EXPIRE_SAFETY_SECONDS);
+
+/// The 1.5.0 `TimeoutError` message when no QR login attempt logged in.
+#[napi]
+pub const QR_LOGIN_TIMEOUT: &str = auth::QR_LOGIN_TIMEOUT;
+
+/// Python 3.11+ `str(type(e))` of the timeout a QR login wait raises, the
+/// default `errorType` of `qrAttemptTimeoutWarning`.
+#[napi]
+pub const QR_TIMEOUT_ERROR_TYPE: &str = auth::QR_TIMEOUT_ERROR_TYPE;
+
+/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// holds a session of the same `api_id`, which is kept.
+#[napi]
+pub const EXISTING_SESSION_KEPT: &str = auth::EXISTING_SESSION_KEPT;
+
+/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// holds a session of another `api_id`, which is replaced.
+#[napi]
+pub const EXISTING_SESSION_REPLACED: &str = auth::EXISTING_SESSION_REPLACED;
+
+/// The `source` of the post-login `help.getAppUpdate`.
+#[napi]
+pub const POST_LOGIN_APP_UPDATE_SOURCE: &str = auth::POST_LOGIN_APP_UPDATE_SOURCE;
+
+/// The `langCode` of the post-login `help.getCountriesList`; its `hash` is
+/// 0.
+#[napi]
+pub const POST_LOGIN_COUNTRIES_LANG_CODE: &str = auth::POST_LOGIN_COUNTRIES_LANG_CODE;
+
 /// The URL a QR login code carries for the `auth.exportLoginToken`
 /// `token`: `tg://login?token=` and the token in URL-safe base64 without
 /// padding, as Telethon `QRLogin.url`.
 #[napi]
 pub fn qr_login_url(token: &[u8]) -> String {
     auth::qr_login_url(token)
+}
+
+/// The 1.5.0 warning of QR login attempt `attemptNumber` (from 1) that
+/// timed out with an error whose Python `str(type(e))` is `errorType`
+/// (default `QR_TIMEOUT_ERROR_TYPE`).
+#[napi]
+pub fn qr_attempt_timeout_warning(
+    attempt_number: u32,
+    error_type: Option<JsString<'_>>,
+) -> Result<String> {
+    match error_type {
+        Some(error_type) => with_text(error_type, |error_type| {
+            auth::qr_attempt_timeout_warning(attempt_number, error_type)
+        }),
+        None => Ok(auth::qr_attempt_timeout_warning(
+            attempt_number,
+            auth::QR_TIMEOUT_ERROR_TYPE,
+        )),
+    }
+}
+
+/// The 1.5.0 warning after QR login attempt `attemptNumber` (from 1)
+/// failed, emitted after `qrAttemptTimeoutWarning`.
+#[napi]
+pub fn qr_attempt_retry_warning(attempt_number: u32) -> String {
+    auth::qr_attempt_retry_warning(attempt_number)
+}
+
+/// Telethon's `compute_check` error text for a 2FA algorithm other than
+/// `SRP_ALGORITHM`, named `algorithm`.
+#[napi]
+pub fn unsupported_password_algorithm(algorithm: JsString<'_>) -> Result<String> {
+    with_text(algorithm, auth::unsupported_password_algorithm)
+}
+
+/// One step of the 1.5.0 post-login sequence: a random sleep in `delayMs`,
+/// then the request.
+#[napi(object, object_from_js = false)]
+pub struct PostLoginStep {
+    /// The TL name of the request, such as `help.getConfig`.
+    pub request: &'static str,
+    /// The inclusive range `[minMs, maxMs]` of the sleep before the
+    /// request (`randomDelayMs`); absent for no sleep.
+    pub delay_ms: Option<(u32, u32)>,
+}
+
+/// A core delay bound in milliseconds as a JavaScript number; every bound
+/// of the 1.5.0 table is well below `u32::MAX`.
+fn delay_bound(ms: u64) -> u32 {
+    u32::try_from(ms).unwrap_or(u32::MAX)
+}
+
+impl From<CorePostLoginStep> for PostLoginStep {
+    fn from(step: CorePostLoginStep) -> Self {
+        Self {
+            request: step.request.tl_name(),
+            delay_ms: step
+                .delay_ms
+                .map(|(min, max)| (delay_bound(min), delay_bound(max))),
+        }
+    }
+}
+
+/// The 1.5.0 post-login steps (`_POST_LOGIN_STEPS`), in order: every one
+/// without `langPack`, else those 1.5.0 runs for a client whose `lang_pack`
+/// is `langPack` (`langpack.getLanguages` only for a non-empty one).
+#[napi]
+pub fn post_login_steps(lang_pack: Option<JsString<'_>>) -> Result<Vec<PostLoginStep>> {
+    let steps = match lang_pack {
+        Some(lang_pack) => with_text(lang_pack, auth::post_login_steps)?,
+        None => auth::POST_LOGIN_STEPS.to_vec(),
+    };
+    Ok(steps.into_iter().map(PostLoginStep::from).collect())
+}
+
+/// A random whole number of milliseconds in `minMs..=maxMs`, uniform, from
+/// the OS random source: the sleep 1.5.0 takes as `random.randint(minMs,
+/// maxMs)`. Throws `OT_INVALID_INPUT` when `minMs > maxMs`.
+#[napi]
+pub fn random_delay_ms(env: Env, min_ms: u32, max_ms: u32) -> napi::Result<u32> {
+    let delay = check(auth::random_delay_ms(u64::from(min_ms), u64::from(max_ms)))
+        // The draw is at most `maxMs`, so it fits.
+        .map(|delay| u32::try_from(delay).unwrap_or(max_ms));
+    thrown(env, delay)
 }
 
 /// The `account.Password` fields `srpCheck` needs, for the
@@ -257,7 +389,7 @@ pub fn is_official_api_id(api_id: i32) -> bool {
 }
 
 /// The fields of an `authorization` that 1.5.0 `PrintSessions` shows.
-#[napi(object, object_to_js = false)]
+#[napi(object)]
 pub struct SessionRow {
     /// `current`; absent is `false`.
     pub current: Option<bool>,
@@ -290,6 +422,70 @@ impl From<SessionRow> for CoreSessionRow {
             official_app: row.official_app.unwrap_or(false),
         }
     }
+}
+
+impl From<CoreSessionRow> for SessionRow {
+    fn from(row: CoreSessionRow) -> Self {
+        Self {
+            current: Some(row.current),
+            device_model: row.device_model,
+            platform: row.platform,
+            system_version: row.system_version,
+            api_id: row.api_id,
+            app_name: row.app_name,
+            app_version: row.app_version,
+            official_app: Some(row.official_app),
+        }
+    }
+}
+
+/// The fields of an `authorization` as a client library returns them, such
+/// as an mtcute `authorization`; other fields are ignored.
+#[napi(object, object_to_js = false)]
+pub struct RawAuthorization {
+    /// `current`; absent when the flag is unset.
+    pub current: Option<bool>,
+    /// `device_model`.
+    pub device_model: String,
+    /// `platform`.
+    pub platform: String,
+    /// `system_version`.
+    pub system_version: String,
+    /// `api_id`.
+    pub api_id: i32,
+    /// `app_name`.
+    pub app_name: String,
+    /// `app_version`.
+    pub app_version: String,
+    /// `official_app`; absent when the flag is unset.
+    pub official_app: Option<bool>,
+}
+
+/// The `SessionRow` of `authorization` as 1.5.0 reads one: an absent
+/// `current` or `officialApp` flag is `false`, every other field is copied.
+#[napi]
+pub fn session_row(authorization: RawAuthorization) -> SessionRow {
+    let RawAuthorization {
+        current,
+        device_model,
+        platform,
+        system_version,
+        api_id,
+        app_name,
+        app_version,
+        official_app,
+    } = authorization;
+    let raw = CoreRawAuthorization {
+        current,
+        device_model: &device_model,
+        platform: &platform,
+        system_version: &system_version,
+        api_id,
+        app_name: &app_name,
+        app_version: &app_version,
+        official_app,
+    };
+    CoreSessionRow::from_authorization(&raw).into()
 }
 
 /// The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
@@ -422,6 +618,86 @@ pub fn consistency_summary(results: Vec<CheckResult>) -> String {
         })
         .collect();
     auth::consistency_summary(&results)
+}
+
+/// How one consistency check ended: `{ raised }` with the error text of a
+/// check that threw out of its own handling, else `{ passed, detail }`.
+#[napi(object, object_to_js = false)]
+pub struct CheckOutcome {
+    /// Whether the check passed; required without `raised`.
+    pub passed: Option<bool>,
+    /// The detail text; required without `raised`.
+    pub detail: Option<String>,
+    /// The error text of a check that threw; it fails with the
+    /// `checkException` detail.
+    pub raised: Option<String>,
+}
+
+impl TryFrom<CheckOutcome> for CoreCheckOutcome {
+    type Error = CodedError;
+
+    fn try_from(outcome: CheckOutcome) -> Result<Self> {
+        if let Some(error) = outcome.raised {
+            return Ok(Self::Raised(error));
+        }
+        match (outcome.passed, outcome.detail) {
+            (Some(passed), Some(detail)) => Ok(Self::Finished { passed, detail }),
+            _ => Err(invalid_arg(
+                "a check outcome needs `raised`, or `passed` and `detail`",
+            )),
+        }
+    }
+}
+
+/// A 1.5.0 `ConsistencyReport`, without the server responses.
+#[napi(object, object_from_js = false)]
+pub struct ConsistencyReport {
+    /// One entry per check, in `consistencyChecks()` order.
+    pub checks: Vec<CheckResult>,
+    /// Whether every check passed.
+    pub all_passed: bool,
+    /// The report text, `consistencySummary` of `checks`.
+    pub summary: String,
+    /// The warning 1.5.0 emits with `auto_warn` on:
+    /// `CONSISTENCY_WARNING_PREFIX` and `summary`; absent when all passed.
+    pub warning: Option<String>,
+}
+
+/// The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+/// one per check in `consistencyChecks()` order: every entry is named after
+/// its check, and one that raised fails with the `checkException` detail.
+/// Throws `ERR_INVALID_ARG_VALUE` unless there is one outcome per check.
+#[napi]
+pub fn consistency_report(outcomes: Vec<CheckOutcome>) -> Result<ConsistencyReport> {
+    let count = outcomes.len();
+    let outcomes = outcomes
+        .into_iter()
+        .map(CoreCheckOutcome::try_from)
+        .collect::<Result<Vec<_>>>()?;
+    let outcomes: [CoreCheckOutcome; Check::ALL.len()] = outcomes.try_into().map_err(|_| {
+        invalid_arg(format!(
+            "consistencyReport needs {} outcomes, got {count}",
+            Check::ALL.len()
+        ))
+    })?;
+    let report = auth::consistency_report(outcomes);
+    let all_passed = report.all_passed();
+    let summary = report.summary();
+    let warning = report.warning();
+    Ok(ConsistencyReport {
+        checks: report
+            .checks
+            .into_iter()
+            .map(|result| CheckResult {
+                name: result.name,
+                passed: result.passed,
+                detail: result.detail,
+            })
+            .collect(),
+        all_passed,
+        summary,
+        warning,
+    })
 }
 
 /// The `get_config` detail on success; an absent `thisDc` prints `None`.

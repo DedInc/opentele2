@@ -229,6 +229,22 @@ export declare function checkError(error: string): string
 /** The detail of a check that raised `error` out of its own handling. */
 export declare function checkException(error: string): string
 
+/**
+ * How one consistency check ended: `{ raised }` with the error text of a
+ * check that threw out of its own handling, else `{ passed, detail }`.
+ */
+export interface CheckOutcome {
+  /** Whether the check passed; required without `raised`. */
+  passed?: boolean
+  /** The detail text; required without `raised`. */
+  detail?: string
+  /**
+   * The error text of a check that threw; it fails with the
+   * `checkException` detail.
+   */
+  raised?: string
+}
+
 /** One entry of a 1.5.0 `ConsistencyReport`. */
 export interface CheckResult {
   /**
@@ -290,6 +306,29 @@ export interface ConsistencyExpectations {
   versionIssues: Array<Issue>
   /** Whether the app version is as recent as the known versions. */
   appVersionCurrent: boolean
+}
+
+/**
+ * The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+ * one per check in `consistencyChecks()` order: every entry is named after
+ * its check, and one that raised fails with the `checkException` detail.
+ * Throws `ERR_INVALID_ARG_VALUE` unless there is one outcome per check.
+ */
+export declare function consistencyReport(outcomes: Array<CheckOutcome>): ConsistencyReport
+
+/** A 1.5.0 `ConsistencyReport`, without the server responses. */
+export interface ConsistencyReport {
+  /** One entry per check, in `consistencyChecks()` order. */
+  checks: Array<CheckResult>
+  /** Whether every check passed. */
+  allPassed: boolean
+  /** The report text, `consistencySummary` of `checks`. */
+  summary: string
+  /**
+   * The warning 1.5.0 emits with `auto_warn` on:
+   * `CONSISTENCY_WARNING_PREFIX` and `summary`; absent when all passed.
+   */
+  warning?: string
 }
 
 /**
@@ -409,6 +448,18 @@ export interface Endpoints {
    */
   selectedIpv6?: Endpoint
 }
+
+/**
+ * The 1.5.0 `_handleExistingSession` warning when the new client already
+ * holds a session of the same `api_id`, which is kept.
+ */
+export declare const EXISTING_SESSION_KEPT: string
+
+/**
+ * The 1.5.0 `_handleExistingSession` warning when the new client already
+ * holds a session of another `api_id`, which is replaced.
+ */
+export declare const EXISTING_SESSION_REPLACED: string
 
 /**
  * The factors `[p, q]` of the `MTProto` `pq`, `p <= q`, as minimal
@@ -865,6 +916,36 @@ export interface PlatformVersions {
   userAgent: string
 }
 
+/** The `source` of the post-login `help.getAppUpdate`. */
+export declare const POST_LOGIN_APP_UPDATE_SOURCE: string
+
+/**
+ * The `langCode` of the post-login `help.getCountriesList`; its `hash` is
+ * 0.
+ */
+export declare const POST_LOGIN_COUNTRIES_LANG_CODE: string
+
+/**
+ * One step of the 1.5.0 post-login sequence: a random sleep in `delayMs`,
+ * then the request.
+ */
+export interface PostLoginStep {
+  /** The TL name of the request, such as `help.getConfig`. */
+  request: string
+  /**
+   * The inclusive range `[minMs, maxMs]` of the sleep before the
+   * request (`randomDelayMs`); absent for no sleep.
+   */
+  delayMs?: [number, number]
+}
+
+/**
+ * The 1.5.0 post-login steps (`_POST_LOGIN_STEPS`), in order: every one
+ * without `langPack`, else those 1.5.0 runs for a client whose `lang_pack`
+ * is `langPack` (`langpack.getLanguages` only for a non-empty one).
+ */
+export declare function postLoginSteps(langPack?: string | undefined | null): Array<PostLoginStep>
+
 /**
  * The default API profile of `client` (a 1.5.0 class name such as
  * `"TelegramDesktop"`), with `versions` overriding the offline
@@ -904,8 +985,42 @@ export interface ProtocolEndpoints {
   http: Array<Endpoint>
 }
 
+/**
+ * How many seconds past a QR token's expiry 1.5.0 waits for it to be
+ * accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+ */
+export declare const QR_EXPIRE_SAFETY_SECONDS: number
+
+/**
+ * How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+ * (`_DEFAULT_REQUEST_RETRIES`).
+ */
+export declare const QR_LOGIN_ATTEMPTS: number
+
+/** The 1.5.0 `TimeoutError` message when no QR login attempt logged in. */
+export declare const QR_LOGIN_TIMEOUT: string
+
 /** The scheme and query key in front of a QR login token. */
 export declare const QR_LOGIN_URL_PREFIX: string
+
+/**
+ * Python 3.11+ `str(type(e))` of the timeout a QR login wait raises, the
+ * default `errorType` of `qrAttemptTimeoutWarning`.
+ */
+export declare const QR_TIMEOUT_ERROR_TYPE: string
+
+/**
+ * The 1.5.0 warning after QR login attempt `attemptNumber` (from 1)
+ * failed, emitted after `qrAttemptTimeoutWarning`.
+ */
+export declare function qrAttemptRetryWarning(attemptNumber: number): string
+
+/**
+ * The 1.5.0 warning of QR login attempt `attemptNumber` (from 1) that
+ * timed out with an error whose Python `str(type(e))` is `errorType`
+ * (default `QR_TIMEOUT_ERROR_TYPE`).
+ */
+export declare function qrAttemptTimeoutWarning(attemptNumber: number, errorType?: string | undefined | null): string
 
 /**
  * The URL a QR login code carries for the `auth.exportLoginToken`
@@ -918,10 +1033,40 @@ export declare function qrLoginUrl(token: Uint8Array): string
 export declare function randomBytes(size: number): Buffer
 
 /**
+ * A random whole number of milliseconds in `minMs..=maxMs`, uniform, from
+ * the OS random source: the sleep 1.5.0 takes as `random.randint(minMs,
+ * maxMs)`. Throws `OT_INVALID_INPUT` when `minMs > maxMs`.
+ */
+export declare function randomDelayMs(minMs: number, maxMs: number): number
+
+/**
  * Fills `buf` in place from the operating system's CSPRNG; a failing
  * source throws `OT_IO`.
  */
 export declare function randomFill(buf: Uint8Array): void
+
+/**
+ * The fields of an `authorization` as a client library returns them, such
+ * as an mtcute `authorization`; other fields are ignored.
+ */
+export interface RawAuthorization {
+  /** `current`; absent when the flag is unset. */
+  current?: boolean
+  /** `device_model`. */
+  deviceModel: string
+  /** `platform`. */
+  platform: string
+  /** `system_version`. */
+  systemVersion: string
+  /** `api_id`. */
+  apiId: number
+  /** `app_name`. */
+  appName: string
+  /** `app_version`. */
+  appVersion: string
+  /** `official_app`; absent when the flag is unset. */
+  officialApp?: boolean
+}
 
 /** One CDN RSA public key (`MTP.RSAPublicKey`). */
 export interface RsaPublicKey {
@@ -997,6 +1142,12 @@ export interface SessionPairPaths {
  */
 export declare function sessionPath(path: string): string
 
+/**
+ * The `SessionRow` of `authorization` as 1.5.0 reads one: an absent
+ * `current` or `officialApp` flag is `false`, every other field is copied.
+ */
+export declare function sessionRow(authorization: RawAuthorization): SessionRow
+
 /** The fields of an `authorization` that 1.5.0 `PrintSessions` shows. */
 export interface SessionRow {
   /** `current`; absent is `false`. */
@@ -1036,6 +1187,9 @@ export declare function sha1(data: Uint8Array): Buffer
 
 /** The 32-byte SHA-256 of `data`. */
 export declare function sha256(data: Uint8Array): Buffer
+
+/** The TL name of the only 2FA algorithm `srpCheck` supports. */
+export declare const SRP_ALGORITHM: string
 
 /**
  * The size in bytes of the SRP numbers `p`, `A`, `B` and the secret
@@ -1187,6 +1341,12 @@ export declare const TERMS_OF_SERVICE_OK: string
  * `-new Date().getTimezoneOffset() * 60` for the local offset.
  */
 export declare function tzOffset(offsetSeconds: number): number
+
+/**
+ * Telethon's `compute_check` error text for a 2FA algorithm other than
+ * `SRP_ALGORITHM`, named `algorithm`.
+ */
+export declare function unsupportedPasswordAlgorithm(algorithm: string): string
 
 /**
  * The issues 1.5.0 `FingerprintConfig.validate_params` warns about or

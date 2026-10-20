@@ -88,6 +88,10 @@ class FakeClient {
     this.log.push(`${this.name} notifyLoggedIn ${authorization.user.id}`)
   }
 
+  async notifyLoggedOut() {
+    this.log.push(`${this.name} notifyLoggedOut`)
+  }
+
   push(update) {
     for (const listener of this.listeners) listener(update)
   }
@@ -404,6 +408,8 @@ test('qrLoginToNewClient 2FA: wrong, missing and unsupported passwords', async (
   ;({ authorized, fresh } = scenario(log, { ...server.password, currentAlgo: { _: 'passwordKdfAlgoUnknown' } }))
   const unsupported = await rejection(qrLoginToNewClient(authorized, fresh, { profile: DESKTOP, password: PASSWORD, postLogin: false }))
   assert.equal(unsupported.code, 'OT_UNSUPPORTED_PASSWORD_ALGORITHM')
+  assert.equal(unsupported.message, 'unsupported password algorithm passwordKdfAlgoUnknown')
+  assert.equal(unsupported.message, core.unsupportedPasswordAlgorithm('passwordKdfAlgoUnknown'))
   assert.deepEqual(log, ['fresh updates.getState', 'fresh auth.exportLoginToken', 'fresh account.getPassword'])
 })
 
@@ -425,10 +431,13 @@ test('qrLoginToNewClient retries timed-out attempts, then times out', async () =
   assert.deepEqual(
     warnings.map((warning) => [warning.name, warning.message]),
     Array.from({ length: QR_LOGIN_ATTEMPTS }, (_, n) => [
-      ['UserWarning', `\nQRLoginToNewClient attempt ${n + 1} failed because TimeoutError`],
+      // The core text: Python's str(type(e)) of the TimeoutError.
+      ['UserWarning', `\nQRLoginToNewClient attempt ${n + 1} failed because <class 'TimeoutError'>`],
       ['UserWarning', `\nQRLoginToNewClient attempt ${n + 1} failed. Retrying..`],
     ]).flat(),
   )
+  assert.equal(warnings[0].message, core.qrAttemptTimeoutWarning(1))
+  assert.equal(warnings[1].message, core.qrAttemptRetryWarning(1))
 })
 
 test('qrLoginToNewClient stops once the new client is authorised', async () => {
@@ -477,7 +486,7 @@ test('qrLoginToNewClient re-raises AUTH_TOKEN_* and other errors without retryin
   await assert.rejects(qrLoginToNewClient(new FakeClient('a', [], {}), signUp, {}), TypeError)
 })
 
-test('qrLoginToNewClient keeps an authorised new client of the same api id only', async () => {
+test('qrLoginToNewClient keeps a session of the same api id and replaces one of another', async () => {
   const sessions = (apiId) => ({
     _: 'account.authorizations',
     authorizationTtlDays: 180,
@@ -488,13 +497,59 @@ test('qrLoginToNewClient keeps an authorised new client of the same api id only'
   const { value, warnings } = await withWarnings(() => qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP }))
   assert.deepEqual(value, { client: fresh, userId: 783 })
   assert.equal(warnings[0].message, '\nCreateNewSession - a session file with the same name is already existed, returning the old session')
+  assert.equal(warnings[0].message, core.EXISTING_SESSION_KEPT)
   assert.deepEqual(log, ['fresh updates.getState', 'fresh account.getAuthorizations', 'fresh getMe'])
 
+  // Another api id: 1.5.0 warns, drops the session and logs in again.
   log = []
-  fresh = new FakeClient('fresh', log, { 'updates.getState': { _: 'updates.state' }, 'account.getAuthorizations': sessions(6) })
-  const error = await rejection(qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP }))
-  assert.equal(error.code, 'OT_SESSION_EXISTS')
-  assert.deepEqual(log, ['fresh updates.getState', 'fresh account.getAuthorizations'])
+  fresh = new FakeClient('fresh', log, {
+    'updates.getState': { _: 'updates.state' },
+    'account.getAuthorizations': sessions(6),
+    'auth.logOut': { _: 'auth.loggedOut' },
+    'auth.exportLoginToken': success(784),
+    ...POST_LOGIN_ANSWERS,
+  })
+  const replaced = await withWarnings(() =>
+    qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP, delay: noDelay }),
+  )
+  assert.equal(replaced.error, undefined)
+  assert.deepEqual(replaced.value, { client: fresh, userId: 784 })
+  assert.deepEqual(
+    replaced.warnings.map((warning) => [warning.name, warning.message]),
+    [['UserWarning', core.EXISTING_SESSION_REPLACED]],
+  )
+  assert.match(core.EXISTING_SESSION_REPLACED, /api_id is different from the current one, it will be overwritten$/)
+  assert.deepEqual(log, [
+    'fresh updates.getState',
+    'fresh account.getAuthorizations',
+    'fresh auth.logOut',
+    'fresh notifyLoggedOut',
+    'fresh auth.exportLoginToken',
+    'fresh notifyLoggedIn 784',
+    ...POST_LOGIN_SEQUENCE.map((method) => `fresh ${method}`),
+  ])
+
+  // An mtcute client logs out through its own logOut().
+  log = []
+  fresh = new FakeClient('fresh', log, {
+    'updates.getState': { _: 'updates.state' },
+    'account.getAuthorizations': sessions(6),
+    'auth.exportLoginToken': success(785),
+  })
+  fresh.logOut = async () => {
+    log.push('fresh logOut')
+  }
+  const own = await withWarnings(() =>
+    qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP, postLogin: false }),
+  )
+  assert.equal(own.value.userId, 785)
+  assert.deepEqual(log, [
+    'fresh updates.getState',
+    'fresh account.getAuthorizations',
+    'fresh logOut',
+    'fresh auth.exportLoginToken',
+    'fresh notifyLoggedIn 785',
+  ])
 })
 
 test('postLoginRequests ignores failures and counts them', async () => {
@@ -504,6 +559,54 @@ test('postLoginRequests ignores failures and counts them', async () => {
   assert.deepEqual(log, POST_LOGIN_SEQUENCE.map((method) => `client ${method}`))
   assert.equal(await isAuthorized(new FakeClient('c', [], { 'updates.getState': rpc(401, 'SESSION_PASSWORD_NEEDED') })), false)
   await assert.rejects(isAuthorized(new FakeClient('c', [], { 'updates.getState': () => new Error('socket closed') })), /socket closed/)
+})
+
+test('the flow constants, post-login steps and delays are the core ones', () => {
+  assert.equal(QR_LOGIN_ATTEMPTS, core.QR_LOGIN_ATTEMPTS)
+  assert.equal(QR_LOGIN_ATTEMPTS, 5)
+  assert.equal(QR_LOGIN_TIMEOUT, core.QR_LOGIN_TIMEOUT)
+  assert.equal(core.QR_EXPIRE_SAFETY_SECONDS, 5)
+  assert.equal(core.SRP_ALGORITHM, 'passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow')
+  assert.equal(core.QR_TIMEOUT_ERROR_TYPE, "<class 'TimeoutError'>")
+  assert.equal(core.qrAttemptTimeoutWarning(2, 'X'), '\nQRLoginToNewClient attempt 2 failed because X')
+
+  const all = core.postLoginSteps()
+  assert.deepEqual(all.map((step) => step.request), POST_LOGIN_SEQUENCE)
+  assert.deepEqual(POST_LOGIN_DELAYS_MS, [null, [100, 300], [200, 400], [100, 200], [300, 500], [100, 300], [50, 150]])
+  assert.deepEqual(all.map((step) => step.delayMs ?? null), POST_LOGIN_DELAYS_MS)
+  assert.ok(Object.isFrozen(POST_LOGIN_DELAYS_MS) && Object.isFrozen(POST_LOGIN_DELAYS_MS[1]))
+  assert.deepEqual(core.postLoginSteps('android'), all)
+  assert.deepEqual(
+    core.postLoginSteps('').map((step) => step.request),
+    POST_LOGIN_SEQUENCE.filter((method) => method !== 'langpack.getLanguages'),
+  )
+
+  const seen = new Set()
+  for (let n = 0; n < 400; n += 1) {
+    const delay = core.randomDelayMs(50, 53)
+    assert.ok(Number.isInteger(delay) && delay >= 50 && delay <= 53, String(delay))
+    seen.add(delay)
+  }
+  assert.equal(seen.size, 4)
+  assert.equal(core.randomDelayMs(7, 7), 7)
+  assert.throws(() => core.randomDelayMs(2, 1), { code: 'OT_INVALID_INPUT' })
+})
+
+test('consistencyReport names, fails raised checks and builds the warning', () => {
+  const finished = core.consistencyChecks().map((name, n) => ({ passed: true, detail: `d${n}` }))
+  const ok = core.consistencyReport(finished)
+  assert.deepEqual(ok.checks, core.consistencyChecks().map((name, n) => ({ name, passed: true, detail: `d${n}` })))
+  assert.equal(ok.allPassed, true)
+  assert.equal(ok.summary, core.consistencySummary(ok.checks))
+  assert.equal(ok.warning ?? null, null)
+
+  const raised = core.consistencyReport([{ raised: 'boom' }, ...finished.slice(1)])
+  assert.deepEqual(raised.checks[0], { name: 'get_config', passed: false, detail: core.checkException('boom') })
+  assert.equal(raised.allPassed, false)
+  assert.equal(raised.warning, core.CONSISTENCY_WARNING_PREFIX + raised.summary)
+
+  assert.throws(() => core.consistencyReport(finished.slice(1)), { code: 'ERR_INVALID_ARG_VALUE', message: /needs 7 outcomes, got 6/ })
+  assert.throws(() => core.consistencyReport([{ passed: true }, ...finished.slice(1)]), { code: 'ERR_INVALID_ARG_VALUE' })
 })
 
 // --- session admin -------------------------------------------------------------
@@ -580,6 +683,10 @@ test('getSessions, getCurrentSession, sessionRow, formatSessions and isOfficialA
     appVersion: '0.1',
     officialApp: false,
   })
+  // Absent flags read as false, through the core sessionRow.
+  const { current: _current, officialApp: _officialApp, ...flagless } = AUTHORIZATIONS.authorizations[2]
+  assert.deepEqual(sessionRow(flagless), rows[2])
+  assert.deepEqual(sessionRow(flagless), core.sessionRow(flagless))
   const table = core.formatSessions(rows)
   assert.equal(await formatSessions(client), table)
   assert.equal(await formatSessions(AUTHORIZATIONS), table)

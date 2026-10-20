@@ -89,39 +89,41 @@ async function importPeer(specifier, caller, pkg) {
 // ---------------------------------------------------------------------------
 // Client flows
 //
+// The constants, post-login steps and delays, warning texts, session rows
+// and consistency report are the core's (`native`); this file only drives
+// the client.
+//
 // Gaps against 1.5.0, as in the grammers flows:
 // - `qrLoginToNewClient` takes a client the caller built (its storage, its
-//   initConnection); an already authorised one with another api_id is
-//   refused instead of having its session file deleted and logged in again.
+//   initConnection). An already authorised one with another api_id is
+//   logged out (`logOut()`, or `auth.logOut` and `notifyLoggedOut()`) and
+//   logged in again on the same client, where 1.5.0 deletes its session
+//   file and builds a new client.
 // - Without an `onServerUpdate` emitter on the new client, the QR login
 //   exports the token again as soon as `auth.acceptLoginToken` returns
 //   instead of waiting for `updateLoginToken`.
 // - Error details are mtcute's error messages where 1.5.0 prints Telethon's.
 
 /** How many QR login attempts `qrLoginToNewClient` makes (1.5.0 `_DEFAULT_REQUEST_RETRIES`). */
-export const QR_LOGIN_ATTEMPTS = 5
+export const QR_LOGIN_ATTEMPTS = native.QR_LOGIN_ATTEMPTS
 
 /** The 1.5.0 `TimeoutError` message when no QR login attempt logged in. */
-export const QR_LOGIN_TIMEOUT = "Something went wrong, i couldn't perform the QR login"
+export const QR_LOGIN_TIMEOUT = native.QR_LOGIN_TIMEOUT
 
 /** The 1.5.0 `TelethonUnauthorized` message when the self user is unknown. */
 export const USER_ID_UNRESOLVED = "Could not resolve the account's user id"
 
 /**
  * The delay range in milliseconds before each 1.5.0 post-login request,
- * `null` for none, in `_POST_LOGIN_STEPS` order.
+ * `null` for none, in `_POST_LOGIN_STEPS` order (the core `postLoginSteps()`).
  */
 export const POST_LOGIN_DELAYS_MS = Object.freeze(
-  [null, [100, 300], [200, 400], [100, 200], [300, 500], [100, 300], [50, 150]].map((range) =>
-    range === null ? null : Object.freeze(range),
-  ),
+  native.postLoginSteps().map((step) => (step.delayMs == null ? null : Object.freeze([...step.delayMs]))),
 )
 
 // 1.5.0 `_QR_EXPIRE_SAFETY_SECONDS`: how long past its expiry a QR token is
 // waited for.
-const QR_EXPIRE_SAFETY_MS = 5000
-
-const SRP_ALGO = 'passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow'
+const QR_EXPIRE_SAFETY_MS = native.QR_EXPIRE_SAFETY_SECONDS * 1000
 
 /** An error named after the 1.5.0 exception, with an `OT_` code. */
 function flowError(name, code, message, cause) {
@@ -292,11 +294,11 @@ async function twoFactor(fresh, password) {
   }
   const info = await fresh.call({ _: 'account.getPassword' })
   const algo = info.currentAlgo
-  if (algo?._ !== SRP_ALGO || !info.srpB || info.srpId === undefined || info.srpId === null) {
+  if (algo?._ !== native.SRP_ALGORITHM || !info.srpB || info.srpId === undefined || info.srpId === null) {
     throw flowError(
       'UnsupportedPasswordAlgorithm',
       'OT_UNSUPPORTED_PASSWORD_ALGORITHM',
-      'unsupported password algorithm',
+      native.unsupportedPasswordAlgorithm(String(algo?._)),
     )
   }
   const check = await native.srpCheck(
@@ -339,24 +341,38 @@ async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl
     if (authorization !== null) {
       return onLogin(fresh, authorization)
     }
-    warn(`\nQRLoginToNewClient attempt ${attempt + 1} failed because TimeoutError`)
-    warn(`\nQRLoginToNewClient attempt ${attempt + 1} failed. Retrying..`)
+    warn(native.qrAttemptTimeoutWarning(attempt + 1))
+    warn(native.qrAttemptRetryWarning(attempt + 1))
   }
   throw flowError('TimeoutError', 'OT_QR_LOGIN_TIMEOUT', QR_LOGIN_TIMEOUT)
 }
 
-/** 1.5.0 `_handleExistingSession` for an already authorised new client. */
+/** Drops the session `fresh` holds: mtcute `logOut()`, or `auth.logOut` and `notifyLoggedOut()`. */
+async function dropSession(fresh) {
+  if (typeof fresh.logOut === 'function') {
+    await fresh.logOut()
+    return
+  }
+  await fresh.call({ _: 'auth.logOut' })
+  if (typeof fresh.notifyLoggedOut === 'function') {
+    await fresh.notifyLoggedOut()
+  }
+}
+
+/**
+ * 1.5.0 `_handleExistingSession` for an already authorised new client: the
+ * user id of a kept session, or `null` once a session of another api id is
+ * dropped and has to be logged in again.
+ */
 async function existingSession(fresh, apiId) {
   const current = await getCurrentSession(fresh)
   if (current !== null) {
     if (current.apiId !== apiId) {
-      throw flowError(
-        'SessionExists',
-        'OT_SESSION_EXISTS',
-        `the new client already holds a session of api_id ${current.apiId}, not ${apiId}; give it empty storage`,
-      )
+      warn(native.EXISTING_SESSION_REPLACED)
+      await dropSession(fresh)
+      return null
     }
-    warn('\nCreateNewSession - a session file with the same name is already existed, returning the old session')
+    warn(native.EXISTING_SESSION_KEPT)
   }
   return getMeId(fresh)
 }
@@ -377,7 +393,9 @@ async function alignDc(authorized, fresh) {
  * client `authorized` by QR login, as 1.5.0 `QRLoginToNewClient`:
  *
  * 1. `fresh` moves to the DC of `authorized`. When `fresh` is already
- *    authorised with the same api id, it is returned as is.
+ *    authorised with the same api id, it is returned as is
+ *    (`EXISTING_SESSION_KEPT` warning); with another api id, it is logged
+ *    out and logged in again (`EXISTING_SESSION_REPLACED` warning).
  * 2. Up to `QR_LOGIN_ATTEMPTS` attempts of `auth.exportLoginToken` on
  *    `fresh` (a `loginTokenMigrateTo` is followed by `changePrimaryDc` and
  *    `auth.importLoginToken`), `auth.acceptLoginToken` on `authorized`, the
@@ -401,7 +419,10 @@ export async function qrLoginToNewClient(authorized, fresh, options = {}) {
   }
   await alignDc(authorized, fresh)
   if (await isAuthorized(fresh)) {
-    return { client: fresh, userId: await existingSession(fresh, apiId) }
+    const kept = await existingSession(fresh, apiId)
+    if (kept !== null) {
+      return { client: fresh, userId: kept }
+    }
   }
   const userId = await performQrLogin(authorized, fresh, apiId, apiHash, password, options.onUrl)
   if (options.postLogin !== false) {
@@ -410,57 +431,42 @@ export async function qrLoginToNewClient(authorized, fresh, options = {}) {
   return { client: fresh, userId }
 }
 
-const POST_LOGIN_REQUESTS = [
-  () => ({ _: 'help.getConfig' }),
-  () => ({ _: 'help.getNearestDc' }),
-  () => ({ _: 'account.updateStatus', offline: false }),
-  (langPack) => ({ _: 'langpack.getLanguages', langPack }),
-  () => ({ _: 'help.getAppUpdate', source: '' }),
-  () => ({ _: 'help.getTermsOfServiceUpdate' }),
-  () => ({ _: 'help.getCountriesList', langCode: 'en', hash: 0 }),
-]
-
-const UINT32_RANGE = 0x1_0000_0000
-
-// A uniform whole number in [min, max] from the core's random source. Draws
-// at or above the last whole multiple of the span are redrawn, so no value
-// is favoured.
-function randomIntInclusive(min, max) {
-  const span = max - min + 1
-  const limit = UINT32_RANGE - (UINT32_RANGE % span)
-  for (;;) {
-    const draw = native.randomBytes(4).readUInt32LE(0)
-    if (draw < limit) {
-      return min + (draw % span)
-    }
-  }
+// The mtcute object of each post-login request, by the TL name the core
+// `postLoginSteps` gives it.
+const POST_LOGIN_REQUESTS = {
+  'help.getConfig': () => ({ _: 'help.getConfig' }),
+  'help.getNearestDc': () => ({ _: 'help.getNearestDc' }),
+  'account.updateStatus': () => ({ _: 'account.updateStatus', offline: false }),
+  'langpack.getLanguages': (langPack) => ({ _: 'langpack.getLanguages', langPack }),
+  'help.getAppUpdate': () => ({ _: 'help.getAppUpdate', source: native.POST_LOGIN_APP_UPDATE_SOURCE }),
+  'help.getTermsOfServiceUpdate': () => ({ _: 'help.getTermsOfServiceUpdate' }),
+  'help.getCountriesList': () => ({ _: 'help.getCountriesList', langCode: native.POST_LOGIN_COUNTRIES_LANG_CODE, hash: 0 }),
 }
 
-// 1.5.0 sleeps a random whole number of milliseconds in the inclusive range.
+// 1.5.0 sleeps a random whole number of milliseconds in the inclusive range
+// (the core `randomDelayMs`).
 function randomDelay(minMs, maxMs) {
-  return new Promise((resolve) => setTimeout(resolve, randomIntInclusive(minMs, maxMs)))
+  return new Promise((resolve) => setTimeout(resolve, native.randomDelayMs(minMs, maxMs)))
 }
 
 /**
- * 1.5.0 `_run_post_login_requests`: `help.getConfig`, `help.getNearestDc`,
- * `account.updateStatus(offline=false)`, `langpack.getLanguages` (only for
- * a non-empty `langPack`), `help.getAppUpdate(source="")`,
- * `help.getTermsOfServiceUpdate` and `help.getCountriesList("en", 0)`, each
- * after `delay` with its `POST_LOGIN_DELAYS_MS` range. Failures are
- * ignored, as in 1.5.0; resolves to how many requests failed.
+ * 1.5.0 `_run_post_login_requests`: the core `postLoginSteps(langPack)`
+ * (`help.getConfig`, `help.getNearestDc`, `account.updateStatus(offline=false)`,
+ * `langpack.getLanguages` only for a non-empty `langPack`,
+ * `help.getAppUpdate(source="")`, `help.getTermsOfServiceUpdate` and
+ * `help.getCountriesList("en", 0)`), each after `delay` with its range.
+ * Failures are ignored, as in 1.5.0; resolves to how many requests failed.
  */
 export async function postLoginRequests(client, langPack = '', delay = randomDelay) {
+  const pack = langPack || ''
   let failed = 0
-  for (const [step, request] of POST_LOGIN_REQUESTS.entries()) {
-    if (step === 3 && !langPack) {
-      continue
-    }
-    const range = POST_LOGIN_DELAYS_MS[step]
-    if (range !== null) {
-      await (delay ?? randomDelay)(range[0], range[1])
+  for (const step of native.postLoginSteps(pack)) {
+    const request = POST_LOGIN_REQUESTS[step.request](pack)
+    if (step.delayMs != null) {
+      await (delay ?? randomDelay)(step.delayMs[0], step.delayMs[1])
     }
     try {
-      await client.call(request(langPack))
+      await client.call(request)
     } catch {
       failed += 1
     }
@@ -529,18 +535,12 @@ export async function terminateAllSessions(client) {
   return ended
 }
 
-/** The 1.5.0 `PrintSessions` fields of an mtcute `authorization`. */
+/**
+ * The 1.5.0 `PrintSessions` fields of an mtcute `authorization`, the core
+ * `sessionRow`: an absent `current` or `officialApp` flag is `false`.
+ */
 export function sessionRow(authorization) {
-  return {
-    current: Boolean(authorization.current),
-    deviceModel: authorization.deviceModel,
-    platform: authorization.platform,
-    systemVersion: authorization.systemVersion,
-    apiId: authorization.apiId,
-    appName: authorization.appName,
-    appVersion: authorization.appVersion,
-    officialApp: Boolean(authorization.officialApp),
-  }
+  return native.sessionRow(authorization)
 }
 
 /**
@@ -656,36 +656,41 @@ async function checkTermsOfService(client) {
  *   (the one `initConnectionOptions(profile)` sends), and passes without a
  *   request when it is empty.
  *
- * A check that throws out of its own handling fails with the
- * `checkException` detail. With `autoWarn` (default `true`) a failing
- * check emits the 1.5.0 warning: `CONSISTENCY_WARNING_PREFIX` and
+ * The results are the `checks` of the core `consistencyReport`: a check
+ * that throws out of its own handling fails with the `checkException`
+ * detail. With `autoWarn` (default `true`) a failing check emits the
+ * report's 1.5.0 `warning`: `CONSISTENCY_WARNING_PREFIX` and
  * `consistencySummary`.
  */
 export async function runConsistencyChecks(client, profile, versions, options = {}) {
   const expectations = native.consistencyExpectations(profile, versions)
   const layer =
     options.layer ?? (await importPeer('@mtcute/core', 'runConsistencyChecks', '@mtcute/core')).tl.LAYER
+  // In `consistencyChecks()` order; the core names each entry after its
+  // place in that order.
   const checks = [
-    ['get_config', () => checkGetConfig(client)],
-    ['nearest_dc', () => checkNearestDc(client)],
-    ['current_session', () => checkCurrentSession(client)],
-    ['layer_match', () => native.layerResult(layer)],
-    ['lang_pack', () => checkLangPack(client, expectations)],
-    ['app_update', () => checkAppUpdate(client)],
-    ['terms_of_service', () => checkTermsOfService(client)],
+    () => checkGetConfig(client),
+    () => checkNearestDc(client),
+    () => checkCurrentSession(client),
+    () => native.layerResult(layer),
+    () => checkLangPack(client, expectations),
+    () => checkAppUpdate(client),
+    () => checkTermsOfService(client),
   ]
-  const results = []
-  for (const [name, run] of checks) {
+  const outcomes = []
+  for (const run of checks) {
     try {
-      results.push(await run())
+      const { passed, detail } = await run()
+      outcomes.push({ passed, detail })
     } catch (error) {
-      results.push(checkResult(name, false, native.checkException(errorText(error))))
+      outcomes.push({ raised: errorText(error) })
     }
   }
-  if (options.autoWarn !== false && !results.every((result) => result.passed)) {
-    warn(native.CONSISTENCY_WARNING_PREFIX + native.consistencySummary(results))
+  const report = native.consistencyReport(outcomes)
+  if (options.autoWarn !== false && report.warning != null) {
+    warn(report.warning)
   }
-  return results
+  return report.checks
 }
 
 /**

@@ -29,9 +29,11 @@ export declare function toStringSession(account: AccountInput): string
 export declare function initConnectionOptions(profile: ApiProfile): InitConnectionOptions
 
 /**
- * mtcute's default Node crypto provider with only `createAesIge` replaced
- * by the opentele2 core. Rejects with code `ERR_MODULE_NOT_FOUND` when
- * `@mtcute/node` is not installed.
+ * An mtcute `ICryptoProvider` whose every primitive is the opentele2 core:
+ * hashes, HMAC, PBKDF2, AES-256-CTR and -IGE, `pq` factorisation, gzip and
+ * the OS random source. It needs neither Node's crypto module nor
+ * `@mtcute/node`, and `initialize` has nothing to load. `gzip` writes a gzip
+ * stream, where mtcute's own Node provider writes zlib.
  */
 export declare function createCryptoProvider(): Promise<ICryptoProvider>
 
@@ -53,6 +55,13 @@ export interface FlowClient {
   getMe?(): Promise<{ id: number | bigint }>
   /** The mtcute v3 string session; required by `tdataFromClient`. */
   exportSession?(): Promise<string>
+  /**
+   * mtcute's `logOut`: drops a session of another api id before the QR
+   * login logs in again; without it, `auth.logOut` then `notifyLoggedOut`.
+   */
+  logOut?(): Promise<unknown>
+  /** Told about the `auth.logOut` the flows send when there is no `logOut`. */
+  notifyLoggedOut?(): Promise<unknown>
   /** Server updates; the QR login waits on it for `updateLoginToken`. */
   onServerUpdate?: {
     add(listener: (update: tl.TypeUpdates) => void): void
@@ -60,10 +69,10 @@ export interface FlowClient {
   }
 }
 
-/** How many QR login attempts `qrLoginToNewClient` makes (5). */
+/** How many QR login attempts `qrLoginToNewClient` makes (5), the core `QR_LOGIN_ATTEMPTS`. */
 export declare const QR_LOGIN_ATTEMPTS: number
 
-/** The 1.5.0 message of the `OT_QR_LOGIN_TIMEOUT` rejection. */
+/** The 1.5.0 message of the `OT_QR_LOGIN_TIMEOUT` rejection, the core `QR_LOGIN_TIMEOUT`. */
 export declare const QR_LOGIN_TIMEOUT: string
 
 /** The 1.5.0 message of the `OT_USER_ID_UNRESOLVED` rejection. */
@@ -71,11 +80,15 @@ export declare const USER_ID_UNRESOLVED: string
 
 /**
  * The delay range `[minMs, maxMs]` before each 1.5.0 post-login request,
- * `null` for none, in request order.
+ * `null` for none, in request order (the core `postLoginSteps()`).
  */
 export declare const POST_LOGIN_DELAYS_MS: ReadonlyArray<readonly [number, number] | null>
 
-/** Waits before a post-login request; 1.5.0 sleeps a random whole ms in `[minMs, maxMs]`. */
+/**
+ * Waits before a post-login request; by default a sleep of the core
+ * `randomDelayMs(minMs, maxMs)`, as 1.5.0 sleeps a random whole ms in
+ * `[minMs, maxMs]`.
+ */
 export type PostLoginDelay = (minMs: number, maxMs: number) => Promise<void>
 
 /** Options of `qrLoginToNewClient`. */
@@ -112,10 +125,20 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
  * through `account.getPassword` and the native `srpCheck`, then the
  * post-login requests.
  *
+ * An already authorised `fresh` of the same api id is returned as is with
+ * the `EXISTING_SESSION_KEPT` warning. One of another api id warns
+ * `EXISTING_SESSION_REPLACED`, is logged out (`fresh.logOut()`, or
+ * `auth.logOut` and `notifyLoggedOut()`) and logged in again, as 1.5.0
+ * replaces it; it no longer rejects with `OT_SESSION_EXISTS`. Each
+ * timed-out attempt warns `qrAttemptTimeoutWarning(n)` (the 1.5.0 text,
+ * `... failed because <class 'TimeoutError'>`) and
+ * `qrAttemptRetryWarning(n)`.
+ *
  * Rejects with code `OT_NO_PASSWORD_PROVIDED`, `OT_PASSWORD_INCORRECT`,
- * `OT_UNSUPPORTED_PASSWORD_ALGORITHM`, `OT_QR_LOGIN_TIMEOUT`,
- * `OT_SIGN_UP_REQUIRED`, `OT_SESSION_EXISTS` (an authorised `fresh` with
- * another api id) or the mtcute `RpcError` (`AUTH_TOKEN_*` included).
+ * `OT_UNSUPPORTED_PASSWORD_ALGORITHM` (message
+ * `unsupportedPasswordAlgorithm` of the algorithm's TL name),
+ * `OT_QR_LOGIN_TIMEOUT`, `OT_SIGN_UP_REQUIRED` or the mtcute `RpcError`
+ * (`AUTH_TOKEN_*` included).
  */
 export declare function qrLoginToNewClient<C extends FlowClient>(
   authorized: FlowClient,
@@ -157,7 +180,10 @@ export declare function terminateSession(client: FlowClient, hash: tl.Long): Pro
  */
 export declare function terminateAllSessions(client: FlowClient): Promise<number>
 
-/** The `PrintSessions` fields of an mtcute `authorization`. */
+/**
+ * The `PrintSessions` fields of an mtcute `authorization`, the core
+ * `sessionRow`: an absent `current` or `officialApp` flag is `false`.
+ */
 export declare function sessionRow(authorization: tl.RawAuthorization): SessionRow & { current: boolean; officialApp: boolean }
 
 /**
@@ -181,8 +207,9 @@ export interface ConsistencyOptions {
 
 /**
  * The seven 1.5.0 `ConsistencyChecker.run_all` results for `client` used
- * with `profile`, in `consistencyChecks()` order, with the native details;
- * join them with `consistencySummary`.
+ * with `profile`, in `consistencyChecks()` order, with the native details:
+ * the `checks` of the core `consistencyReport`, whose `warning` is emitted
+ * with `autoWarn`; join them with `consistencySummary`.
  */
 export declare function runConsistencyChecks(
   client: FlowClient,
