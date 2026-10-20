@@ -937,6 +937,27 @@ export interface RawAuthorization {
 }
 
 /**
+ * Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+ * text must parse as a JSON object holding `app_id` and `app_hash`, not
+ * null, else `OT_INVALID_INPUT`; the profile is then read as
+ * `profileFromSessionJson` reads it, `OT_IO` when a key is missing or
+ * has the wrong type.
+ */
+export declare function readSessionCompanion(text: string): SessionCompanion
+
+/**
+ * Reads the sessions row of the version 8 file at `sessionPath(path)`,
+ * written by 1.5.0, by `writeTelethonSessionFile`, or by Telethon itself,
+ * over the bundled SQLite; the file is opened read-only. Rejects with
+ * `OT_TFILE_NOT_FOUND` for no file, `OT_IO` when it is not a database,
+ * `OT_QDATASTREAM_FAILED` for another layout, version or column type,
+ * `OT_TDATA_AUTH_KEY_NOT_FOUND` for no row or key, `OT_BAD_LENGTH` for a
+ * key that is not 256 bytes and `OT_TDATA_BAD_CONFIG_DATA` for a NULL or
+ * out-of-range DC id, address or port.
+ */
+export declare function readTelethonSessionFile(path: string): Promise<TelethonFileRows>
+
+/**
  * Writes `tdata` into the folder `path`, with padding from the OS random
  * source. `performanceMode`, when given, applies to this save only: on, no
  * `configs` files are written.
@@ -950,6 +971,17 @@ export declare function saveTdata(tdata: TData, path: string, performanceMode?: 
 /** The column labels of the 1.5.0 `PrintSessions` table, in order. */
 export declare const SESSION_COLUMNS: string[]
 
+/** The `.json` companion `readSessionCompanion` read. */
+export interface SessionCompanion {
+  /** The profile of the companion (`profileFromSessionJson`). */
+  profile: ApiProfile
+  /**
+   * The whole companion object, keys in order; an integer outside the
+   * safe range is a `bigint`.
+   */
+  json: Record<string, unknown>
+}
+
 /**
  * The `.json` companion 1.5.0 `save_session_json` writes for `profile`
  * (`APIData.to_json(extra)`), keys in its order; 1.5.0's `extra` holds
@@ -957,6 +989,15 @@ export declare const SESSION_COLUMNS: string[]
  * `JSON.stringify(json, null, 2)` indentation.
  */
 export declare function sessionCompanionJson(profile: ApiProfile, extra?: Record<string, unknown> | null): Record<string, unknown>
+
+/**
+ * The `.json` companion text 1.5.0 `save_session_json` writes for
+ * `profile` and `extra`, byte for byte: `sessionCompanionJson(profile,
+ * extra)` as Python's `json.dump(..., indent=2, ensure_ascii=False)`
+ * prints it, with no trailing newline. A `bigint` in `extra` prints its
+ * exact digits, and an integral `number` prints as an integer.
+ */
+export declare function sessionCompanionText(profile: ApiProfile, extra?: Record<string, unknown> | null): string
 
 /** One profile key of the session JSON. */
 export interface SessionJsonField {
@@ -1142,6 +1183,20 @@ export declare const TELETHON_SESSION_SUFFIX: string
 /** The database version 1.5.0 stamps (Telethon's `CURRENT_VERSION`). */
 export declare const TELETHON_SESSION_VERSION: number
 
+/** The `sessions` row `readTelethonSessionFile` read. */
+export interface TelethonFileRows {
+  /** DC id (`dc_id`). */
+  dcId: number
+  /** Server address text (`server_address`). */
+  serverAddress: string
+  /** Port (`port`). */
+  port: number
+  /** The 256-byte auth key (`auth_key`). */
+  authKey: Buffer
+  /** Takeout session id (`takeout_id`), exact; absent is NULL. */
+  takeoutId?: bigint
+}
+
 /** The version 8 tables in 1.5.0's order (`_V8_SCHEMA`). */
 export declare function telethonSchema(): Array<TelethonTable>
 
@@ -1170,6 +1225,23 @@ export interface TelethonSessionRows {
   authKey: Buffer
   /** Takeout session id (`takeout_id`); absent is NULL. */
   takeoutId?: number
+}
+
+/** The rows `writeTelethonSessionFile` writes. */
+export interface TelethonSessionRowsInput {
+  /** DC id (`dc_id`). */
+  dcId: number
+  /** Server address text (`server_address`), kept verbatim. */
+  serverAddress: string
+  /** Port (`port`), in `0..65535`. */
+  port: number
+  /** The 256-byte auth key (`auth_key`). */
+  authKey: Uint8Array
+  /**
+   * Takeout session id (`takeout_id`), in `-(2**63)..2**63`; absent is
+   * NULL.
+   */
+  takeoutId?: bigint
 }
 
 /**
@@ -1299,3 +1371,15 @@ export interface VersionsPatch {
 
 /** 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order. */
 export declare function webBrowserWeights(): Record<string, number>
+
+/**
+ * Writes `rows` as 1.5.0 `write_session_file` does, over the bundled
+ * SQLite, and resolves to the file path (`sessionPath(path)`). A schema
+ * that is not already the version 8 layout is dropped and rebuilt; a
+ * current one keeps its tables and their other rows. The version row
+ * becomes 8 and the sessions row `rows`, `tmp_auth_key` NULL, in one
+ * transaction. Throws `OT_BAD_LENGTH` for a key that is not 256 bytes and
+ * `ERR_INVALID_ARG_VALUE` for a port or takeout id out of range; rejects
+ * with `OT_IO` when SQLite fails.
+ */
+export declare function writeTelethonSessionFile(path: string, rows: TelethonSessionRowsInput): Promise<string>

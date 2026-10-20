@@ -1,7 +1,9 @@
-// telethon_sqlite.test.mjs: `opentele2/telethon` files and pairs over
-// node:sqlite against crates/opentele2-core/tests/session.rs (the 1.5.0
-// dump and the Telethon-written fixture). Keys are synthetic and never
-// printed: dumps mask them and comparisons go through assertSame.
+// telethon_sqlite.test.mjs: `opentele2/telethon` files and pairs, written
+// and read by the native module's bundled SQLite, against
+// crates/opentele2-core/tests/session.rs (the 1.5.0 dump and the
+// Telethon-written fixture). Only the dump and edit helpers below use
+// node:sqlite, so only the tests that use them need it. Keys are synthetic
+// and never printed: dumps mask them and comparisons go through assertSame.
 
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -15,7 +17,8 @@ import { assertSame, core, rejection } from './helpers.mjs'
 import { loadSessionPair, readSessionFile, saveSessionPair, writeSessionFile } from '../telethon.mjs'
 
 const sqlite = await import('node:sqlite').catch(() => null)
-const skip = sqlite === null ? `node:sqlite cannot load on Node ${process.versions.node} (needs >= 22.5)` : false
+const skip =
+  sqlite === null ? `the dump helpers need node:sqlite, which cannot load on Node ${process.versions.node}` : false
 
 const FIXTURE = fileURLToPath(
   new URL('../../../crates/opentele2-core/tests/fixtures/telethon_v8.session', import.meta.url),
@@ -159,7 +162,7 @@ test('write then read round trips', { skip }, async () => {
   checkRows(await readSessionFile(await writeSessionFile(file, native)), native, 'native rows')
 })
 
-test('reads the Telethon-written v8 fixture without changing it', { skip }, async () => {
+test('reads the Telethon-written v8 fixture without changing it', async () => {
   const before = readFileSync(FIXTURE)
   checkRows(await readSessionFile(FIXTURE), rows(4, '149.154.167.91', fixtureKey(), 1234567), 'fixture')
   assert.ok(readFileSync(FIXTURE).equals(before), 'fixture modified')
@@ -221,7 +224,7 @@ test('read errors carry the core codes', { skip }, async () => {
   await expect('alter table sessions drop column tmp_auth_key', 'OT_QDATASTREAM_FAILED')
 })
 
-test('bad rows are refused before the file is opened', { skip }, async () => {
+test('bad rows are refused before the file is opened', async () => {
   const file = path.join(scratch(), 'bad.session')
   assert.equal(await code(writeSessionFile(file, rows(2, 'x', Buffer.alloc(255)))), 'OT_BAD_LENGTH')
   for (const bad of [
@@ -257,7 +260,7 @@ test('saveSessionPair writes the 1.5.0 pair at the normalised paths', { skip }, 
   assert.equal(readFileSync(nested.json, 'utf8'), companion({ session_file: 'acc.session', id: 77 }))
 })
 
-test('saveSessionPair options, ids and loadSessionPair', { skip }, async () => {
+test('saveSessionPair options, ids and loadSessionPair', async () => {
   const dir = scratch()
   const profile = core.profile('TelegramAndroid')
   const base = path.join(dir, 'acc')
@@ -295,14 +298,30 @@ test('saveSessionPair options, ids and loadSessionPair', { skip }, async () => {
 const [major, minor] = process.versions.node.split('.').map(Number)
 const flagSkip = major > 22 || (major === 22 && minor >= 13) ? false : 'needs Node >= 22.13 for --no-experimental-sqlite'
 
-test('the file functions reject with OT_NODE_SQLITE_UNAVAILABLE without node:sqlite', { skip: flagSkip }, () => {
-  const probe = fileURLToPath(new URL('./sqlite_unavailable.fixture.mjs', import.meta.url))
-  const child = spawnSync(process.execPath, ['--no-experimental-sqlite', probe], { encoding: 'utf8' })
+test('the file functions work without node:sqlite', { skip: flagSkip }, () => {
+  const base = path.join(scratch(), 'acc')
+  const probe = `
+    import { createRequire } from 'node:module'
+    const telethon = await import(${JSON.stringify(new URL('../telethon.mjs', import.meta.url).href)})
+    const native = createRequire(${JSON.stringify(fileURLToPath(import.meta.url))})('../index.js')
+    const sqlite = await import('node:sqlite').then(() => true, () => false)
+    const authKey = new Uint8Array(256).fill(7)
+    const base = ${JSON.stringify(base)}
+    const file = await telethon.writeSessionFile(base, { dcId: 2, serverAddress: '149.154.167.51', port: 443, authKey })
+    const read = await telethon.readSessionFile(file)
+    await telethon.saveSessionPair(base, { index: 0, userId: 2n ** 60n + 1n, mainDc: 2, authKey }, native.profile('TelegramDesktop'))
+    const pair = await telethon.loadSessionPair(base)
+    console.log(JSON.stringify({ sqlite, file, dcId: read.dcId, id: String(pair.json.id), port: pair.rows.port }))
+  `
+  const child = spawnSync(process.execPath, ['--no-experimental-sqlite', '--input-type=module', '-e', probe], {
+    encoding: 'utf8',
+  })
   assert.equal(child.status, 0, child.stderr)
   assert.deepEqual(JSON.parse(child.stdout), {
-    loaded: true,
-    write: 'OT_NODE_SQLITE_UNAVAILABLE',
-    read: 'OT_NODE_SQLITE_UNAVAILABLE',
-    pair: 'OT_NODE_SQLITE_UNAVAILABLE',
+    sqlite: false,
+    file: `${base}.session`,
+    dcId: 2,
+    id: '1152921504606846977',
+    port: 443,
   })
 })

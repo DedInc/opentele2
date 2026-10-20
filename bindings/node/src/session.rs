@@ -1,18 +1,20 @@
-//! The pure pieces of the Telethon `.session` file and its `.json`
-//! companion (1.5.0 `src/tl/session_io.py`): the `sessions` row, the SQL
-//! 1.5.0 runs, the pair paths and the companion JSON. Writing the file is
-//! left to `node:sqlite`.
+//! The Telethon `.session` file and its `.json` companion (1.5.0
+//! `src/tl/session_io.py`): the `sessions` row, the SQL 1.5.0 runs, the
+//! pair paths, the file itself (the core's `telethon-sqlite` feature, a
+//! bundled SQLite) and the companion JSON, its text and its reading.
 
 use std::path::PathBuf;
 
-use napi::bindgen_prelude::{Buffer, Env};
+use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, Env, Uint8Array};
+use napi::{JsString, Task};
 use napi_derive::napi;
-use serde_json::{Map, Value};
+use serde_json::{Map, Number, Value};
 
 use opentele2_core::session::telethon_file::{self, SessionRows};
 
 use crate::api::ApiProfile;
-use crate::error::{Result, check, invalid_arg, thrown};
+use crate::convert::{to_auth_key, with_text};
+use crate::error::{Result, check, core_error, invalid_arg, rejection, thrown};
 use crate::tdata::{AccountInput, to_account};
 
 /// The database version 1.5.0 stamps (Telethon's `CURRENT_VERSION`).
@@ -164,4 +166,219 @@ pub fn session_companion_json(
     // No extra keys write the same JSON as no `extra`.
     let extra = extra.unwrap_or_default();
     telethon_file::companion_json(&profile.into(), Some(&extra))
+}
+
+/// The rows `writeTelethonSessionFile` writes.
+#[napi(object, object_to_js = false)]
+pub struct TelethonSessionRowsInput {
+    /// DC id (`dc_id`).
+    pub dc_id: i32,
+    /// Server address text (`server_address`), kept verbatim.
+    pub server_address: String,
+    /// Port (`port`), in `0..65535`.
+    pub port: u32,
+    /// The 256-byte auth key (`auth_key`).
+    pub auth_key: Uint8Array,
+    /// Takeout session id (`takeout_id`), in `-(2**63)..2**63`; absent is
+    /// NULL.
+    pub takeout_id: Option<BigInt>,
+}
+
+/// The core rows of `input`: `OT_BAD_LENGTH` for a key that is not 256
+/// bytes, `ERR_INVALID_ARG_VALUE` for a port or takeout id out of range.
+fn to_session_rows(input: TelethonSessionRowsInput) -> Result<SessionRows> {
+    let port = u16::try_from(input.port)
+        .map_err(|_| invalid_arg("rows.port must be an integer in 0..65535"))?;
+    let auth_key = to_auth_key(&input.auth_key)?;
+    let takeout_id = match &input.takeout_id {
+        None => None,
+        Some(big) => match big.get_i64() {
+            (id, true) => Some(id),
+            (_, false) => return Err(invalid_arg("rows.takeoutId must be a 64-bit integer")),
+        },
+    };
+    Ok(SessionRows {
+        dc_id: input.dc_id,
+        server_address: input.server_address,
+        port,
+        auth_key,
+        takeout_id,
+    })
+}
+
+/// The `sessions` row `readTelethonSessionFile` read.
+#[napi(object, object_from_js = false)]
+pub struct TelethonFileRows {
+    /// DC id (`dc_id`).
+    pub dc_id: i32,
+    /// Server address text (`server_address`).
+    pub server_address: String,
+    /// Port (`port`).
+    pub port: u32,
+    /// The 256-byte auth key (`auth_key`).
+    pub auth_key: Buffer,
+    /// Takeout session id (`takeout_id`), exact; absent is NULL.
+    pub takeout_id: Option<BigInt>,
+}
+
+/// `write_session_file` off the JavaScript thread.
+pub struct WriteSessionFileTask {
+    path: PathBuf,
+    rows: SessionRows,
+}
+
+#[napi]
+impl Task for WriteSessionFileTask {
+    type Output = opentele2_core::Result<PathBuf>;
+    type JsValue = String;
+
+    fn compute(&mut self) -> napi::Result<Self::Output> {
+        Ok(telethon_file::write_session_file(&self.path, &self.rows))
+    }
+
+    fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<String> {
+        thrown(env, check(output).and_then(path_text))
+    }
+}
+
+/// Writes `rows` as 1.5.0 `write_session_file` does, over the bundled
+/// SQLite, and resolves to the file path (`sessionPath(path)`). A schema
+/// that is not already the version 8 layout is dropped and rebuilt; a
+/// current one keeps its tables and their other rows. The version row
+/// becomes 8 and the sessions row `rows`, `tmp_auth_key` NULL, in one
+/// transaction. Throws `OT_BAD_LENGTH` for a key that is not 256 bytes and
+/// `ERR_INVALID_ARG_VALUE` for a port or takeout id out of range; rejects
+/// with `OT_IO` when SQLite fails.
+#[napi]
+pub fn write_telethon_session_file(
+    env: Env,
+    path: String,
+    rows: TelethonSessionRowsInput,
+) -> napi::Result<AsyncTask<WriteSessionFileTask>> {
+    let rows = thrown(env, to_session_rows(rows))?;
+    Ok(AsyncTask::new(WriteSessionFileTask {
+        path: PathBuf::from(path),
+        rows,
+    }))
+}
+
+/// `read_session_file` off the JavaScript thread.
+pub struct ReadSessionFileTask {
+    path: PathBuf,
+}
+
+#[napi]
+impl Task for ReadSessionFileTask {
+    type Output = opentele2_core::Result<SessionRows>;
+    type JsValue = TelethonFileRows;
+
+    fn compute(&mut self) -> napi::Result<Self::Output> {
+        Ok(telethon_file::read_session_file(&self.path))
+    }
+
+    fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<TelethonFileRows> {
+        let rows = output.map_err(|error| rejection(env, core_error(&error)))?;
+        Ok(TelethonFileRows {
+            dc_id: rows.dc_id,
+            server_address: rows.server_address,
+            port: u32::from(rows.port),
+            auth_key: Buffer::from(rows.auth_key.as_bytes().to_vec()),
+            takeout_id: rows.takeout_id.map(BigInt::from),
+        })
+    }
+}
+
+/// Reads the sessions row of the version 8 file at `sessionPath(path)`,
+/// written by 1.5.0, by `writeTelethonSessionFile`, or by Telethon itself,
+/// over the bundled SQLite; the file is opened read-only. Rejects with
+/// `OT_TFILE_NOT_FOUND` for no file, `OT_IO` when it is not a database,
+/// `OT_QDATASTREAM_FAILED` for another layout, version or column type,
+/// `OT_TDATA_AUTH_KEY_NOT_FOUND` for no row or key, `OT_BAD_LENGTH` for a
+/// key that is not 256 bytes and `OT_TDATA_BAD_CONFIG_DATA` for a NULL or
+/// out-of-range DC id, address or port.
+#[napi]
+pub fn read_telethon_session_file(path: String) -> AsyncTask<ReadSessionFileTask> {
+    AsyncTask::new(ReadSessionFileTask {
+        path: PathBuf::from(path),
+    })
+}
+
+/// `value` with every integral `number` that JavaScript handed over as a
+/// float (outside the 32-bit range) as the integer `JSON.stringify` prints.
+fn integral_numbers(value: Value) -> Value {
+    match value {
+        Value::Number(number) => Value::Number(integral_number(number)),
+        Value::Array(items) => Value::Array(items.into_iter().map(integral_numbers).collect()),
+        Value::Object(entries) => Value::Object(
+            entries
+                .into_iter()
+                .map(|(key, item)| (key, integral_numbers(item)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+/// `number` as an integer when it is an integral float in the 64-bit range.
+fn integral_number(number: Number) -> Number {
+    // 2**63, the first float outside the i64 range.
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    match number.as_f64() {
+        Some(float)
+            if number.is_f64()
+                && float.is_finite()
+                && float.fract() == 0.0
+                && float.abs() < LIMIT =>
+        {
+            // An integral f64 prints its exact digits with no fraction.
+            format!("{float:.0}")
+                .parse::<i64>()
+                .map_or(number, Number::from)
+        }
+        _ => number,
+    }
+}
+
+/// The `.json` companion text 1.5.0 `save_session_json` writes for
+/// `profile` and `extra`, byte for byte: `sessionCompanionJson(profile,
+/// extra)` as Python's `json.dump(..., indent=2, ensure_ascii=False)`
+/// prints it, with no trailing newline. A `bigint` in `extra` prints its
+/// exact digits, and an integral `number` prints as an integer.
+#[napi]
+pub fn session_companion_text(
+    profile: ApiProfile,
+    #[napi(ts_arg_type = "Record<string, unknown> | null")] extra: Option<Map<String, Value>>,
+) -> String {
+    let extra = extra
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(key, item)| (key, integral_numbers(item)))
+        .collect();
+    telethon_file::companion_text(&profile.into(), Some(&extra))
+}
+
+/// The `.json` companion `readSessionCompanion` read.
+#[napi(object, object_from_js = false)]
+pub struct SessionCompanion {
+    /// The profile of the companion (`profileFromSessionJson`).
+    pub profile: ApiProfile,
+    /// The whole companion object, keys in order; an integer outside the
+    /// safe range is a `bigint`.
+    #[napi(ts_type = "Record<string, unknown>")]
+    pub json: Value,
+}
+
+/// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+/// text must parse as a JSON object holding `app_id` and `app_hash`, not
+/// null, else `OT_INVALID_INPUT`; the profile is then read as
+/// `profileFromSessionJson` reads it, `OT_IO` when a key is missing or
+/// has the wrong type.
+#[napi]
+pub fn read_session_companion(env: Env, text: JsString<'_>) -> napi::Result<SessionCompanion> {
+    let read = with_text(text, telethon_file::read_companion).and_then(check);
+    let read = read.map(|(profile, json)| SessionCompanion {
+        profile: profile.into(),
+        json: Value::Object(json),
+    });
+    thrown(env, read)
 }

@@ -1174,7 +1174,6 @@ dependencies = [
 name = "opentele2-node"
 version = "2.0.0"
 dependencies = [
- "getrandom 0.4.3",
  "napi",
  "napi-build",
  "napi-derive",

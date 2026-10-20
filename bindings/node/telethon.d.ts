@@ -38,7 +38,7 @@ export interface LoadedSessionPair {
   rows: ReadSessionRows
   /** The profile of the `.json` companion (`profileFromSessionJson`). */
   profile: ApiProfile
-  /** The `.json` companion as parsed. */
+  /** The `.json` companion as parsed; an integer outside the safe range is a `bigint`. */
   json: Record<string, unknown>
 }
 
@@ -46,16 +46,16 @@ export interface LoadedSessionPair {
  * Writes `rows` as 1.5.0 `write_session_file` does and resolves to the file
  * path (`sessionPath(path)`): a schema that is not the version 8 layout is
  * rebuilt, then the version and sessions rows are replaced in one
- * transaction. Rejects with `OT_NODE_SQLITE_UNAVAILABLE` where `node:sqlite`
- * cannot load, `OT_BAD_LENGTH` for a key that is not 256 bytes,
- * `ERR_INVALID_ARG_VALUE` for other bad rows and `OT_IO` when SQLite fails.
+ * transaction, over the native module's bundled SQLite. Rejects with
+ * `OT_BAD_LENGTH` for a key that is not 256 bytes, `ERR_INVALID_ARG_VALUE`
+ * for other bad rows and `OT_IO` when SQLite fails.
  */
 export declare function writeSessionFile(path: string, rows: WriteSessionRows): Promise<string>
 
 /**
  * Reads the sessions row of the version 8 file at `sessionPath(path)`,
  * written by 1.5.0, `writeSessionFile` or Telethon. Rejects with
- * `OT_NODE_SQLITE_UNAVAILABLE`, `OT_TFILE_NOT_FOUND` when the file is
+ * `OT_TFILE_NOT_FOUND` when the file is
  * missing, `OT_IO` when it is not a database, `OT_QDATASTREAM_FAILED` for
  * another layout, version or column type, `OT_TDATA_AUTH_KEY_NOT_FOUND`
  * without a row or key, `OT_BAD_LENGTH` for a key that is not 256 bytes,
@@ -67,8 +67,9 @@ export declare function readSessionFile(path: string): Promise<ReadSessionRows>
 /**
  * Writes the `.session` + `.json` pair 1.5.0 `save_session_json` writes
  * and resolves to its paths: `telethonSessionRows(account, ipv6)` into the
- * session file and `sessionCompanionJson(profile, extra)` with two-space
- * indentation into the companion, `extra` starting with `session_file`.
+ * session file and `sessionCompanionText(profile, extra)` (1.5.0's
+ * two-space `json.dump` text) into the companion, `extra` starting with
+ * `session_file`.
  */
 export declare function saveSessionPair(
   base: string,
