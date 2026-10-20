@@ -793,6 +793,11 @@ export interface PlatformVersions {
   chromeVersion: string
   /** The browser user agent the default web profiles report. */
   userAgent: string
+  /**
+   * Stable Firefox version, for example `"150.0"`, whose major bounds the
+   * Firefox user agents of the generated web devices; a 2.0.0 addition.
+   */
+  firefoxVersion: string
 }
 
 /** The `source` of the post-login `help.getAppUpdate`. */
@@ -1340,6 +1345,8 @@ export interface Versions {
    * `chromeVersion`, as in the core.
    */
   userAgent?: string
+  /** Stable Firefox version of the web device pool, `<major>.0`. */
+  firefoxVersion?: string
 }
 
 /**

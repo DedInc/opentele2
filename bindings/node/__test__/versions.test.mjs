@@ -31,6 +31,8 @@ const OFFLINE = {
   webKVersion: '2.2 K',
   chromeVersion: '155.0.0.0',
   userAgent: WEB_USER_AGENT,
+  // A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
+  firefoxVersion: '150.0',
 }
 
 const FULL_PATCH = {
@@ -105,6 +107,34 @@ test('applyVersionsPatch applies the browser fields of a patch', () => {
   }
   // A null field is absent, and a key no core field has is ignored.
   assert.deepEqual(core.applyVersionsPatch(null, { chromeVersion: null, notAField: 1 }), core.platformVersions())
+})
+
+test('a patched firefoxVersion reaches the web user agents', () => {
+  const patched = core.applyVersionsPatch(null, { firefoxVersion: '155.0' })
+  assert.deepEqual(patched, { ...OFFLINE, firefoxVersion: '155.0' })
+  assert.deepEqual(core.platformVersions(patched), patched)
+
+  const majorsOf = (versions) => {
+    const agents = new Set()
+    for (let seed = 0; seed < 2000; seed++) {
+      agents.add(core.generate('TelegramWeb_K', `firefox ${seed}`, null, versions).deviceModel)
+    }
+    const majors = new Set()
+    for (const agent of agents) {
+      const found = agent.match(/Firefox\/(\d+)\./)
+      if (found) majors.add(Number(found[1]))
+    }
+    return majors
+  }
+  // The pool draws Firefox from the four majors up to the patched one; the
+  // dataset lags the live major, so 155 itself is not required.
+  const majors = majorsOf(patched)
+  assert.ok(majors.size > 0, 'no Firefox user agent')
+  assert.ok([...majors].every((major) => major >= 152 && major <= 155), [...majors].join(', '))
+  // The offline window stays up to 150.
+  const offline = majorsOf(null)
+  assert.ok(offline.size > 0, 'no offline Firefox user agent')
+  assert.ok([...offline].every((major) => major <= 150), [...offline].join(', '))
 })
 
 test('every VersionsPatch key in index.d.ts is a core patch field', () => {

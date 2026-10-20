@@ -124,6 +124,8 @@ pub struct Versions {
     /// The browser user agent of the default web profiles; independent of
     /// `chromeVersion`, as in the core.
     pub user_agent: Option<String>,
+    /// Stable Firefox version of the web device pool, `<major>.0`.
+    pub firefox_version: Option<String>,
 }
 
 /// Every field of 1.5.0 `PlatformVersions`.
@@ -168,6 +170,9 @@ pub struct PlatformVersions {
     pub chrome_version: String,
     /// The browser user agent the default web profiles report.
     pub user_agent: String,
+    /// Stable Firefox version, for example `"150.0"`, whose major bounds the
+    /// Firefox user agents of the generated web devices; a 2.0.0 addition.
+    pub firefox_version: String,
 }
 
 impl From<CoreVersions> for PlatformVersions {
@@ -191,6 +196,7 @@ impl From<CoreVersions> for PlatformVersions {
             web_k_version: versions.web_k_version,
             chrome_version: versions.chrome_version,
             user_agent: versions.user_agent,
+            firefox_version: versions.firefox_version,
         }
     }
 }
@@ -236,6 +242,7 @@ pub(crate) fn versions(overrides: Option<Versions>) -> CoreVersions {
     set(&mut v.web_k_version, overrides.web_k_version);
     set(&mut v.chrome_version, overrides.chrome_version);
     set(&mut v.user_agent, overrides.user_agent);
+    set(&mut v.firefox_version, overrides.firefox_version);
     versions
 }
 
