@@ -12,6 +12,14 @@ try:
 except ImportError:
     sys.modules["cryptg"] = importlib.import_module("opentele2._native.cryptg")
 
+# Telethon's AES-CTR, PQ factorisation, SHA-1/SHA-256 and password hashing
+# are names its modules bind at their own import, so importing
+# _telethon_crypto imports those modules and rebinds the names in place
+# (_telethon_crypto.install): it works whether telethon was imported before or
+# after opentele2. It comes after the cryptg registration because importing
+# telethon binds cryptg.
+from . import _telethon_crypto as _telethon_crypto
+
 # Importing api imports fingerprint, which fetches and applies the current
 # platform versions (unless OPENTELE_NO_FETCH is set), and then syncs the
 # API class attributes to them.
