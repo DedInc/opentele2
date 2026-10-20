@@ -185,7 +185,8 @@ export interface ApiProfile {
  * `PlatformVersions` included) with every field `patch` sets written onto
  * it, as 1.5.0 `_apply_fetched_versions`: each field lands on the field of
  * the same name, except `desktopAppVersion`, which stays bound to the
- * tdata version.
+ * tdata version, and `chromeVersion`, which rebuilds `userAgent` too. A
+ * wrongly typed patch value throws `ERR_INVALID_ARG_VALUE`.
  */
 export declare function applyVersionsPatch(versions: Versions | undefined | null, patch: VersionsPatch): PlatformVersions
 
@@ -431,11 +432,13 @@ export declare const EXISTING_SESSION_REPLACED: string
 export declare function factorizePq(pq: Uint8Array): [Buffer, Buffer]
 
 /**
- * Fetches the current versions from the seven release feeds of 1.5.0
- * `version_fetcher.py` (Telegram Desktop, Android, Telegram X, iOS, macOS,
- * Web K, Web A) in parallel. `timeoutMs` bounds each HTTP request, 10000
- * by default. Never rejects: a source that fails or times out leaves its
- * fields absent, and with no network the patch is empty.
+ * Fetches the current versions from the nine sources of opentele2-versions
+ * (Telegram Desktop, Android, Telegram X, iOS, macOS, Web K, Web A, Chrome,
+ * Firefox) in parallel. `timeoutMs` bounds each HTTP request, 10000 by
+ * default; a `timeoutMs` that is not a positive number rejects with
+ * `OT_INVALID_INPUT`. Never rejects for the network: a source that fails
+ * or times out leaves its fields absent, and with no network the patch is
+ * empty.
  */
 export declare function fetchVersions(timeoutMs?: number | undefined | null): Promise<VersionsPatch>
 
@@ -1367,6 +1370,13 @@ export interface VersionsPatch {
   webKVersion?: string
   /** Telegram Web A version, with its ` A` suffix. */
   webAVersion?: string
+  /**
+   * Stable Chrome version as its user agent reports it, `<major>.0.0.0`;
+   * applying it rebuilds `userAgent` too.
+   */
+  chromeVersion?: string
+  /** Stable Firefox version as its user agent reports it, `<major>.0`. */
+  firefoxVersion?: string
 }
 
 /** 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order. */

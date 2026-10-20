@@ -86,6 +86,54 @@ test('applyVersionsPatch maps every fetched field but the desktop version', () =
   assert.equal(both.iosBuildNumber, 1)
 })
 
+test('applyVersionsPatch applies the browser fields of a patch', () => {
+  // chromeVersion rebuilds the Windows Chrome user agent with it, as the
+  // core's set_chrome_version.
+  const chrome = core.applyVersionsPatch(null, { chromeVersion: '160.0.0.0' })
+  assert.equal(chrome.chromeVersion, '160.0.0.0')
+  assert.equal(chrome.userAgent, WEB_USER_AGENT.replace('Chrome/155.0.0.0', 'Chrome/160.0.0.0'))
+  assert.equal(chrome.desktopAppVersion, OFFLINE.desktopAppVersion)
+  // firefoxVersion is a core patch field: a wrongly typed value is checked
+  // and reported under its camelCase name rather than ignored.
+  assert.doesNotThrow(() => core.applyVersionsPatch(null, { firefoxVersion: '155.0' }))
+  for (const key of ['chromeVersion', 'firefoxVersion', 'iosBuildNumber']) {
+    assert.throws(() => core.applyVersionsPatch(null, { [key]: key === 'iosBuildNumber' ? '1' : 155 }), (error) => {
+      assert.equal(error.code, 'ERR_INVALID_ARG_VALUE')
+      assert.match(error.message, new RegExp(`\`${key}\``))
+      return true
+    })
+  }
+  // A null field is absent, and a key no core field has is ignored.
+  assert.deepEqual(core.applyVersionsPatch(null, { chromeVersion: null, notAField: 1 }), core.platformVersions())
+})
+
+test('every VersionsPatch key in index.d.ts is a core patch field', () => {
+  const typings = readFileSync(new URL('../index.d.ts', import.meta.url), 'utf8')
+  const body = typings.match(/export interface VersionsPatch \{([\s\S]*?)\n\}/)[1]
+  const keys = [...body.matchAll(/^ {2}(\w+)\?: (string|number)$/gm)].map(([, key, type]) => [key, type])
+  assert.deepEqual(
+    keys.map(([key]) => key),
+    [...Object.keys(FULL_PATCH), 'chromeVersion', 'firefoxVersion'],
+  )
+  for (const [key, type] of keys) {
+    // A recognised key is type-checked; an unknown one would be ignored.
+    assert.throws(() => core.applyVersionsPatch(null, { [key]: type === 'string' ? 1 : 'x' }), {
+      code: 'ERR_INVALID_ARG_VALUE',
+    })
+  }
+})
+
+test('fetchVersions rejects a timeoutMs that is not positive, offline', async () => {
+  for (const timeoutMs of [0, -1, -0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    await assert.rejects(core.fetchVersions(timeoutMs), (error) => {
+      assert.equal(error.code, 'OT_INVALID_INPUT')
+      assert.match(error.message, /timeoutMs/)
+      assert.equal(typeof error.legacyMessage, 'string')
+      return true
+    })
+  }
+})
+
 test('fetchVersions is typed as a Promise-returning async task', () => {
   assert.equal(typeof core.fetchVersions, 'function')
   const typings = readFileSync(new URL('../index.d.ts', import.meta.url), 'utf8')
