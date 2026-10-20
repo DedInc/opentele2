@@ -34,6 +34,7 @@
 //! `TransportRecommendation` needs Telethon connection classes and stays in
 //! the Python binding.
 
+use std::cmp::Ordering;
 use std::fmt;
 
 use crate::api::{ApiProfile, LAYER, Versions};
@@ -304,8 +305,10 @@ impl RawApiId<'_> {
     pub fn equals_id(&self, id: i32) -> bool {
         match *self {
             Self::Int(value) => value == i64::from(id),
-            #[allow(clippy::float_cmp)] // Python compares exactly too.
-            Self::Float(value) => value == f64::from(id),
+            // Python compares exactly too: -0.0 equals 0, NaN equals nothing.
+            Self::Float(value) => {
+                matches!(value.partial_cmp(&f64::from(id)), Some(Ordering::Equal))
+            }
             Self::Bool(value) => i32::from(value) == id,
             Self::Text(_) | Self::Missing => false,
         }

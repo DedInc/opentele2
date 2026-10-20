@@ -446,7 +446,6 @@ mod file {
     use crate::{ConfigFailure, Error, Result};
 
     /// A failure of SQLite itself, as an I/O error on the caller's path.
-    #[allow(clippy::needless_pass_by_value)] // Used as `map_err(sqlite_error)`.
     fn sqlite_error(error: rusqlite::Error) -> Error {
         Error::Io(std::io::Error::other(error))
     }

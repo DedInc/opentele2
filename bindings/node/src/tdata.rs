@@ -531,10 +531,10 @@ pub fn new_tdata(
 /// Most accounts one folder holds (1.5.0's `kMaxAccounts`);
 /// `addTdataAccount` refuses more.
 #[napi]
-#[allow(clippy::cast_possible_truncation)] // 6; the assertion below checks it.
-pub const TDATA_MAX_ACCOUNTS: u32 = CoreTData::MAX_ACCOUNTS as u32;
+pub const TDATA_MAX_ACCOUNTS: u32 = 6;
 
-const _: () = assert!(TDATA_MAX_ACCOUNTS as usize == CoreTData::MAX_ACCOUNTS);
+// napi exports a literal; the build fails if the core limit moves.
+const _: () = assert!(CoreTData::MAX_ACCOUNTS == 6);
 
 /// The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), as the
 /// text of its four ASCII bytes.
@@ -735,186 +735,9 @@ pub const MTP_FLAG_THIS_PORT_ONLY: i32 = mtp_config::FLAG_THIS_PORT_ONLY;
 #[napi]
 pub const MTP_FLAG_SECRET: i32 = mtp_config::FLAG_SECRET;
 
-// The objects below declare the TypeScript shapes of `accountMtpConfig` and
-// `accountEndpoints` only: the values are the core's MTP config maps, keys
-// in camelCase, built by `config_object`.
-
-/// One DC endpoint (`MTP.DcOptions.Endpoint`).
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct Endpoint {
-    /// DC id, as stored.
-    pub id: i32,
-    /// `MTP_FLAG_*` bits.
-    pub flags: i32,
-    /// IP address text, kept verbatim.
-    pub ip: String,
-    /// Port.
-    pub port: i32,
-    /// Secret; empty for none.
-    pub secret: Buffer,
-}
-
-/// The endpoints of one address family, by protocol.
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct ProtocolEndpoints {
-    /// Every endpoint of the family, in insertion order.
-    pub tcp: Vec<Endpoint>,
-    /// The endpoints without `MTP_FLAG_TCPO_ONLY` and `MTP_FLAG_SECRET`.
-    pub http: Vec<Endpoint>,
-}
-
-/// The endpoints of one DC by address family and protocol, as 1.5.0
-/// `MTP.Config.endpoints` returns them.
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct Endpoints {
-    /// Endpoints without `MTP_FLAG_IPV6`.
-    pub ipv4: ProtocolEndpoints,
-    /// Endpoints with `MTP_FLAG_IPV6`.
-    pub ipv6: ProtocolEndpoints,
-    /// The endpoint 1.5.0's session conversions connect to over IPv4: the
-    /// first IPv4 TCP endpoint; absent without one.
-    pub selected_ipv4: Option<Endpoint>,
-    /// The endpoint they connect to when IPv6 is asked for: the first IPv6
-    /// TCP endpoint, else the IPv4 one; absent without either.
-    pub selected_ipv6: Option<Endpoint>,
-}
-
-/// The endpoints of one DC of a config.
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct DcEndpoints {
-    /// DC id.
-    pub dc_id: i32,
-    /// Its endpoints, in insertion order.
-    pub endpoints: Vec<Endpoint>,
-}
-
-/// One CDN RSA public key (`MTP.RSAPublicKey`).
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct RsaPublicKey {
-    /// DC id of the CDN.
-    pub dc_id: i32,
-    /// Modulus bytes.
-    pub n: Buffer,
-    /// Exponent bytes.
-    pub e: Buffer,
-}
-
-/// The config fields (`MTP.ConfigFields`), in serialization order.
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct MtpConfigFields {
-    /// `chatSizeMax`.
-    pub chat_size_max: i32,
-    /// `megagroupSizeMax`.
-    pub megagroup_size_max: i32,
-    /// `forwardedCountMax`.
-    pub forwarded_count_max: i32,
-    /// `onlineUpdatePeriod`.
-    pub online_update_period: i32,
-    /// `offlineBlurTimeout`.
-    pub offline_blur_timeout: i32,
-    /// `offlineIdleTimeout`.
-    pub offline_idle_timeout: i32,
-    /// `onlineFocusTimeout`.
-    pub online_focus_timeout: i32,
-    /// `onlineCloudTimeout`.
-    pub online_cloud_timeout: i32,
-    /// `notifyCloudDelay`.
-    pub notify_cloud_delay: i32,
-    /// `notifyDefaultDelay`.
-    pub notify_default_delay: i32,
-    /// `savedGifsLimit`.
-    pub saved_gifs_limit: i32,
-    /// `editTimeLimit`.
-    pub edit_time_limit: i32,
-    /// `revokeTimeLimit`.
-    pub revoke_time_limit: i32,
-    /// `revokePrivateTimeLimit`.
-    pub revoke_private_time_limit: i32,
-    /// `revokePrivateInbox`.
-    pub revoke_private_inbox: bool,
-    /// `stickersRecentLimit`.
-    pub stickers_recent_limit: i32,
-    /// `stickersFavedLimit`.
-    pub stickers_faved_limit: i32,
-    /// `pinnedDialogsCountMax`.
-    pub pinned_dialogs_count_max: i32,
-    /// `pinnedDialogsInFolderMax`.
-    pub pinned_dialogs_in_folder_max: i32,
-    /// `internalLinksDomain`.
-    pub internal_links_domain: String,
-    /// `channelsReadMediaPeriod`.
-    pub channels_read_media_period: i32,
-    /// `callReceiveTimeoutMs`.
-    pub call_receive_timeout_ms: i32,
-    /// `callRingTimeoutMs`.
-    pub call_ring_timeout_ms: i32,
-    /// `callConnectTimeoutMs`.
-    pub call_connect_timeout_ms: i32,
-    /// `callPacketTimeoutMs`.
-    pub call_packet_timeout_ms: i32,
-    /// `webFileDcId`.
-    pub web_file_dc_id: i32,
-    /// `txtDomainString`.
-    pub txt_domain_string: String,
-    /// `phoneCallsEnabled`.
-    pub phone_calls_enabled: bool,
-    /// `blockedMode`.
-    pub blocked_mode: bool,
-    /// `captionLengthMax`.
-    pub caption_length_max: i32,
-    /// `reactionDefaultEmoji`.
-    pub reaction_default_emoji: String,
-    /// `reactionDefaultCustom`.
-    pub reaction_default_custom: u64,
-    /// `ratingDecay`.
-    pub rating_decay: i32,
-    /// `gifSearchUsername`.
-    pub gif_search_username: String,
-    /// `venueSearchUsername`.
-    pub venue_search_username: String,
-}
-
-/// An account's MTP config (`MTP.Config`).
-#[napi(object, object_to_js = false, object_from_js = false)]
-#[expect(
-    dead_code,
-    reason = "a TypeScript declaration; `config_object` builds the value"
-)]
-pub struct MtpConfig {
-    /// Server environment.
-    #[napi(ts_type = "'production' | 'test'")]
-    pub environment: String,
-    /// Every DC with its endpoints, in first-seen order.
-    pub dcs: Vec<DcEndpoints>,
-    /// CDN public keys, in file order.
-    pub cdn_public_keys: Vec<RsaPublicKey>,
-    /// Every config field.
-    pub fields: MtpConfigFields,
-}
+// The TypeScript shapes of `accountMtpConfig` and `accountEndpoints` live in
+// tdata-types.d.ts: the values are the core's MTP config maps, keys in
+// camelCase, built by `config_object`.
 
 /// The keys whose values the core MTP config maps give as lists of 0 to
 /// 255: an endpoint `secret` and a CDN key's `n` and `e`, Node `Buffer`s.
@@ -1013,7 +836,7 @@ fn to_optional_account(
 /// `config` parsed, or the production default when there is none or it
 /// does not parse. No account, one never loaded, has the production
 /// default.
-#[napi(ts_return_type = "MtpConfig")]
+#[napi(ts_return_type = "import('./tdata-types').MtpConfig")]
 pub fn account_mtp_config(env: &Env, account: Option<AccountInput>) -> napi::Result<Object<'_>> {
     let account = to_optional_account(*env, account)?;
     config_object(env, &config_of(account.as_ref()).to_map())
@@ -1024,7 +847,7 @@ pub fn account_mtp_config(env: &Env, account: Option<AccountInput>) -> napi::Res
 /// `MTP.Config.endpoints`); `null` when the config has no such DC. No
 /// account reads the production default, whose main DC is 0, a DC no
 /// config lists.
-#[napi(ts_return_type = "Endpoints | null")]
+#[napi(ts_return_type = "import('./tdata-types').Endpoints | null")]
 pub fn account_endpoints(
     env: &Env,
     account: Option<AccountInput>,
