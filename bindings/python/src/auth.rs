@@ -20,17 +20,6 @@ use crate::convert::{dicts, optional, required, required_bytes, to_bytes};
 use crate::error::coded_error;
 use crate::fingerprint::issue_dicts;
 
-/// The `CoreError` code of an SRP refusal.
-fn srp_code(error: SrpError) -> &'static str {
-    match error {
-        SrpError::BadPrimeOrGenerator => "SRP_BAD_PRIME_OR_GENERATOR",
-        SrpError::BadB => "SRP_BAD_B",
-        SrpError::NoGoodRandom => "SRP_NO_GOOD_RANDOM",
-        SrpError::RandomUnavailable => "SRP_RANDOM_UNAVAILABLE",
-        _ => "SRP_FAILED",
-    }
-}
-
 /// Why one `srp_check` call failed.
 enum SrpFailure {
     /// The core refused the parameters or ran out of randomness.
@@ -159,9 +148,7 @@ fn srp_check<'py>(
             dict.set_item("m1", to_bytes(py, &check.m1))?;
             Ok(dict)
         }
-        Err(SrpFailure::Refused(error)) => {
-            Err(coded_error(py, srp_code(error), &error.to_string()))
-        }
+        Err(SrpFailure::Refused(error)) => Err(coded_error(py, error.code(), &error.to_string())),
         Err(SrpFailure::Exhausted(count)) => Err(PyValueError::new_err(format!(
             "srp_check needed more than the {count} exponents given"
         ))),

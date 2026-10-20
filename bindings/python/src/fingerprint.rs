@@ -2,36 +2,16 @@
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyInt, PyModule, PyString, PyTuple};
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyModule, PyString, PyTuple};
 
-use opentele2_core::Error;
 use opentele2_core::fingerprint::{
-    self, FingerprintConfig, Issue, IssueKind, Severity, StrictMode,
+    self, FingerprintConfig, FingerprintConfigOptions, Issue, IssueKind, RawApiId, RawInitParams,
+    Severity, StrictMode,
 };
 
 use crate::api::{to_profile, versions};
 use crate::convert::{dicts, optional, required};
 use crate::error::check;
-
-/// Every issue kind with its name, the Rust variant's.
-const KINDS: [(&str, IssueKind); 9] = [
-    ("UnknownLangPack", IssueKind::UnknownLangPack),
-    ("ShortLangCode", IssueKind::ShortLangCode),
-    ("MissingRegion", IssueKind::MissingRegion),
-    ("EmptyDeviceModel", IssueKind::EmptyDeviceModel),
-    ("EmptySystemVersion", IssueKind::EmptySystemVersion),
-    ("EmptyAppVersion", IssueKind::EmptyAppVersion),
-    ("ApiIdMismatch", IssueKind::ApiIdMismatch),
-    ("AppVersionMajor", IssueKind::AppVersionMajor),
-    ("AndroidSdkRange", IssueKind::AndroidSdkRange),
-];
-
-/// Every severity with its name.
-const SEVERITIES: [(&str, Severity); 3] = [
-    ("note", Severity::Note),
-    ("warning", Severity::Warning),
-    ("error", Severity::Error),
-];
 
 /// The config keys `fingerprint_config` takes.
 const CONFIG_KEYS: [&str; 7] = [
@@ -44,23 +24,6 @@ const CONFIG_KEYS: [&str; 7] = [
     "msg_id_offset",
 ];
 
-/// The name `table` gives `value`.
-fn name_of<T: PartialEq>(table: &[(&'static str, T)], value: &T) -> &'static str {
-    table
-        .iter()
-        .find(|(_, known)| known == value)
-        .map_or("", |(name, _)| name)
-}
-
-/// The value `table` names `name`; another name raises `ValueError`.
-fn named<T: Copy>(table: &[(&'static str, T)], name: &str, what: &str) -> PyResult<T> {
-    table
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, value)| *value)
-        .ok_or_else(|| PyValueError::new_err(format!("unknown {what} {name:?}")))
-}
-
 /// The mode named `value`; any other text raises `ValueError`.
 fn strict_mode(value: &str) -> PyResult<StrictMode> {
     StrictMode::from_value(value).ok_or_else(|| {
@@ -72,7 +35,8 @@ fn strict_mode(value: &str) -> PyResult<StrictMode> {
 
 /// A msg id offset; outside `0..=0xFFFF` raises `ValueError`.
 fn to_offset(value: i64) -> PyResult<u16> {
-    u16::try_from(value).map_err(|_| PyValueError::new_err("msg_id_offset must be in 0..=0xFFFF"))
+    fingerprint::to_offset(value)
+        .ok_or_else(|| PyValueError::new_err("msg_id_offset must be in 0..=0xFFFF"))
 }
 
 /// `issues` as `Issue` dicts.
@@ -84,22 +48,25 @@ pub(crate) fn issue_dicts<'py>(
         .iter()
         .map(|issue| {
             let dict = PyDict::new(py);
-            dict.set_item("kind", name_of(&KINDS, &issue.kind))?;
-            dict.set_item("severity", name_of(&SEVERITIES, &issue.severity))?;
+            dict.set_item("kind", issue.kind.name())?;
+            dict.set_item("severity", issue.severity.name())?;
             dict.set_item("message", &issue.message)?;
             Ok(dict)
         })
         .collect()
 }
 
-/// The core issue an `Issue` dict holds.
+/// The core issue an `Issue` dict holds; an unknown kind or severity
+/// raises `ValueError`.
 fn to_issue(dict: &Bound<'_, PyDict>) -> PyResult<Issue> {
     const WHAT: &str = "the issue";
     let kind: String = required(dict, "kind", WHAT)?;
     let severity: String = required(dict, "severity", WHAT)?;
     Ok(Issue {
-        kind: named(&KINDS, &kind, "issue kind")?,
-        severity: named(&SEVERITIES, &severity, "severity")?,
+        kind: IssueKind::from_name(&kind)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown issue kind {kind:?}")))?,
+        severity: Severity::from_name(&severity)
+            .ok_or_else(|| PyValueError::new_err(format!("unknown severity {severity:?}")))?,
         message: required(dict, "message", WHAT)?,
     })
 }
@@ -133,6 +100,129 @@ fn to_config(dict: &Bound<'_, PyDict>) -> PyResult<FingerprintConfig> {
     })
 }
 
+/// A config with `options` over the defaults, without drawing an offset:
+/// for the checks that never read it.
+fn undrawn_config(options: FingerprintConfigOptions) -> FingerprintConfig {
+    FingerprintConfig::with_options(
+        FingerprintConfigOptions {
+            msg_id_offset: Some(0),
+            ..options
+        },
+        &mut |_| {},
+    )
+}
+
+/// An `api_id` argument as the caller gave it, owned.
+enum ApiIdArg {
+    Int(i64),
+    Float(f64),
+    Bool(bool),
+    Text(String),
+    Missing,
+}
+
+impl ApiIdArg {
+    /// `value` as the core compares and shows it: `None`, a `bool`, an
+    /// `int` (outside `i64` as its decimal text) or a `float` as such, any
+    /// other value as its `str()`, which equals no official id.
+    fn new(value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        if value.is_none() {
+            return Ok(Self::Missing);
+        }
+        if let Ok(flag) = value.cast::<PyBool>() {
+            return Ok(Self::Bool(flag.is_true()));
+        }
+        if value.is_instance_of::<PyInt>()
+            && let Ok(number) = value.extract::<i64>()
+        {
+            return Ok(Self::Int(number));
+        }
+        if value.is_instance_of::<PyFloat>() {
+            return Ok(Self::Float(value.extract()?));
+        }
+        Ok(Self::Text(value.str()?.to_cow()?.into_owned()))
+    }
+
+    fn raw(&self) -> RawApiId<'_> {
+        match self {
+            Self::Int(value) => RawApiId::Int(*value),
+            Self::Float(value) => RawApiId::Float(*value),
+            Self::Bool(value) => RawApiId::Bool(*value),
+            Self::Text(text) => RawApiId::Text(text),
+            Self::Missing => RawApiId::Missing,
+        }
+    }
+}
+
+/// The arguments of 1.5.0 `validate_init_connection_params`, owned.
+struct InitArgs {
+    api_id: ApiIdArg,
+    device_model: Option<String>,
+    system_version: Option<String>,
+    app_version: Option<String>,
+    system_lang_code: Option<String>,
+    lang_pack: Option<String>,
+    lang_code: Option<String>,
+}
+
+/// The keys of a `RawInitParams` dict, the 1.5.0 argument names.
+const INIT_PARAM_KEYS: [&str; 7] = [
+    "api_id",
+    "device_model",
+    "system_version",
+    "app_version",
+    "system_lang_code",
+    "lang_pack",
+    "lang_code",
+];
+
+impl InitArgs {
+    /// The arguments a `RawInitParams` dict holds. As a call of 1.5.0
+    /// `validate_init_connection_params`, a missing or unknown key raises
+    /// `TypeError`; a text may be `None`, and `lang_pack` may be any value,
+    /// which 1.5.0 looked up as its `str()`.
+    fn new(params: &Bound<'_, PyDict>) -> PyResult<Self> {
+        const WHAT: &str = "the init params";
+        for key in params.keys() {
+            let key = key.cast_into::<PyString>()?;
+            let key = key.to_cow()?;
+            if !INIT_PARAM_KEYS.contains(&key.as_ref()) {
+                return Err(PyTypeError::new_err(format!(
+                    "{WHAT} got an unexpected argument {key:?}"
+                )));
+            }
+        }
+        let api_id: Bound<'_, PyAny> = required(params, "api_id", WHAT)?;
+        let lang_pack: Bound<'_, PyAny> = required(params, "lang_pack", WHAT)?;
+        let lang_pack = if lang_pack.is_none() {
+            None
+        } else {
+            Some(lang_pack.str()?.to_cow()?.into_owned())
+        };
+        Ok(Self {
+            api_id: ApiIdArg::new(&api_id)?,
+            device_model: required(params, "device_model", WHAT)?,
+            system_version: required(params, "system_version", WHAT)?,
+            app_version: required(params, "app_version", WHAT)?,
+            system_lang_code: required(params, "system_lang_code", WHAT)?,
+            lang_pack,
+            lang_code: required(params, "lang_code", WHAT)?,
+        })
+    }
+
+    fn raw(&self) -> RawInitParams<'_> {
+        RawInitParams {
+            api_id: self.api_id.raw(),
+            device_model: self.device_model.as_deref(),
+            system_version: self.system_version.as_deref(),
+            app_version: self.app_version.as_deref(),
+            system_lang_code: self.system_lang_code.as_deref(),
+            lang_pack: self.lang_pack.as_deref(),
+            lang_code: self.lang_code.as_deref(),
+        }
+    }
+}
+
 /// The `tz_offset` Telegram Desktop sends in `initConnection` `params` for
 /// a local UTC offset of `offset_seconds` (1.5.0 `tdesktop_tz_offset`):
 /// wrapped by whole days into -12 h..+14 h, then rounded to a multiple of
@@ -157,6 +247,48 @@ fn validate_init_params<'py>(
     let mode = strict_mode(mode)?;
     let issues =
         fingerprint::validate_init_params(&to_profile(profile)?, &self::versions(versions)?, mode);
+    issue_dicts(py, &issues)
+}
+
+/// The findings of 1.5.0 `validate_init_connection_params` for `params`,
+/// its seven arguments as the caller gave them (`None` for any text, an
+/// `api_id` of any type), with `strict` on exactly when `mode` is
+/// `"strict"`. Each message shows the values as 1.5.0 shows them.
+#[pyfunction]
+#[pyo3(signature = (params, versions = None, mode = "warn"))]
+fn validate_raw_init_params<'py>(
+    py: Python<'py>,
+    params: &Bound<'py, PyDict>,
+    versions: Option<&Bound<'py, PyDict>>,
+    mode: &str,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let mode = strict_mode(mode)?;
+    let args = InitArgs::new(params)?;
+    let issues =
+        fingerprint::validate_raw_init_params(&args.raw(), &self::versions(versions)?, mode);
+    issue_dicts(py, &issues)
+}
+
+/// The findings 1.5.0 `FingerprintConfig.validate_params` warns about or
+/// raises for `params`, as `validate_raw_init_params` takes them, under a
+/// config with `strict_mode` and `auto_validate`: none with `auto_validate`
+/// off or mode `"off"`, otherwise those of the mode.
+#[pyfunction]
+#[pyo3(signature = (strict_mode, auto_validate, params, versions = None))]
+fn validate_raw_fingerprint<'py>(
+    py: Python<'py>,
+    strict_mode: &str,
+    auto_validate: bool,
+    params: &Bound<'py, PyDict>,
+    versions: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let config = undrawn_config(FingerprintConfigOptions {
+        strict_mode: Some(self::strict_mode(strict_mode)?),
+        auto_validate: Some(auto_validate),
+        ..FingerprintConfigOptions::default()
+    });
+    let args = InitArgs::new(params)?;
+    let issues = config.validate_raw(&args.raw(), &self::versions(versions)?);
     issue_dicts(py, &issues)
 }
 
@@ -185,26 +317,11 @@ fn issues_message(issues: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(fingerprint::issues_message(&issues))
 }
 
-/// Fills `buf` from the operating system's CSPRNG, recording the first
-/// failure in `failure`.
-fn fill_os(buf: &mut [u8], failure: &mut Option<getrandom::Error>) {
-    if failure.is_none()
-        && let Err(error) = getrandom::fill(buf)
-    {
-        *failure = Some(error);
-    }
-}
-
 /// A random msg id offset in `0..=0xFFFF` from the operating system's
 /// CSPRNG (1.5.0 `generate_msg_id_offset`).
 #[pyfunction]
 fn msg_id_offset(py: Python<'_>) -> PyResult<u16> {
-    let mut failure = None;
-    let offset = fingerprint::msg_id_offset(&mut |buf| fill_os(buf, &mut failure));
-    match failure {
-        Some(error) => check(py, Err(Error::Io(std::io::Error::other(error)))),
-        None => Ok(offset),
-    }
+    check(py, fingerprint::msg_id_offset_for_os())
 }
 
 /// Whether `msg_id` is plausible at unix time `now_unix` (1.5.0
@@ -245,32 +362,23 @@ fn fingerprint_config<'py>(
             )));
         }
     }
-    let mut config = match optional::<i64>(&options, "msg_id_offset")? {
-        Some(offset) => {
-            let bytes = to_offset(offset)?.to_le_bytes();
-            FingerprintConfig::new(&mut |buf| buf.copy_from_slice(&bytes))
-        }
-        None => check(py, FingerprintConfig::from_os_rng())?,
+    let msg_id_offset = optional::<i64>(&options, "msg_id_offset")?
+        .map(to_offset)
+        .transpose()?;
+    let strict_mode = optional::<String>(&options, "strict_mode")?
+        .as_deref()
+        .map(strict_mode)
+        .transpose()?;
+    let options = FingerprintConfigOptions {
+        strict_mode,
+        auto_validate: optional(&options, "auto_validate")?,
+        preferred_transport: optional(&options, "preferred_transport")?,
+        warn_on_layer_mismatch: optional(&options, "warn_on_layer_mismatch")?,
+        layer_override: optional(&options, "layer_override")?,
+        randomize_msg_id_offset: optional(&options, "randomize_msg_id_offset")?,
+        msg_id_offset,
     };
-    if let Some(mode) = optional::<String>(&options, "strict_mode")? {
-        config.strict_mode = strict_mode(&mode)?;
-    }
-    if let Some(auto) = optional(&options, "auto_validate")? {
-        config.auto_validate = auto;
-    }
-    if let Some(transport) = optional(&options, "preferred_transport")? {
-        config.preferred_transport = transport;
-    }
-    if let Some(warn) = optional(&options, "warn_on_layer_mismatch")? {
-        config.warn_on_layer_mismatch = warn;
-    }
-    if let Some(layer) = optional(&options, "layer_override")? {
-        config.layer_override = Some(layer);
-    }
-    if let Some(randomize) = optional(&options, "randomize_msg_id_offset")? {
-        config.randomize_msg_id_offset = randomize;
-    }
-    config_dict(py, &config)
+    config_dict(py, &check(py, FingerprintConfig::from_options(options))?)
 }
 
 /// The issues 1.5.0 `FingerprintConfig.validate_params` warns about or
@@ -296,12 +404,35 @@ fn effective_layer(config: &Bound<'_, PyDict>) -> PyResult<i32> {
     Ok(to_config(config)?.effective_layer())
 }
 
+/// 1.5.0 `get_effective_layer` for an `MTProto` library built for
+/// `library_layer`, as `(layer, warning)`: `layer_override` and no warning
+/// when it is set, otherwise `library_layer` and the
+/// `layer_mismatch_warning` of it.
+#[pyfunction]
+#[pyo3(signature = (library_layer, layer_override = None))]
+fn effective_layer_for(library_layer: i32, layer_override: Option<i32>) -> (i32, Option<String>) {
+    undrawn_config(FingerprintConfigOptions {
+        layer_override,
+        ..FingerprintConfigOptions::default()
+    })
+    .effective_layer_for(library_layer)
+}
+
+/// The warning 1.5.0 `get_recommended_layer` emits for an `MTProto`
+/// library layer more than `LAYER_TOLERANCE` layers from `LAYER`; `None`
+/// within it.
+#[pyfunction]
+fn layer_mismatch_warning(library_layer: i32) -> Option<String> {
+    fingerprint::layer_mismatch_warning(library_layer)
+}
+
 /// Adds the fingerprint helpers to `module`.
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let modes = StrictMode::ALL.map(StrictMode::as_str);
     module.add("STRICT_MODES", PyTuple::new(module.py(), modes)?)?;
     module.add_function(wrap_pyfunction!(tz_offset, module)?)?;
     module.add_function(wrap_pyfunction!(validate_init_params, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_raw_init_params, module)?)?;
     module.add_function(wrap_pyfunction!(check_versions, module)?)?;
     module.add_function(wrap_pyfunction!(issues_message, module)?)?;
     // The largest offset `msg_id_offset` draws, so a facade can draw from
@@ -311,6 +442,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(is_valid_msg_id, module)?)?;
     module.add_function(wrap_pyfunction!(fingerprint_config, module)?)?;
     module.add_function(wrap_pyfunction!(validate_fingerprint, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_raw_fingerprint, module)?)?;
     module.add_function(wrap_pyfunction!(effective_layer, module)?)?;
+    module.add_function(wrap_pyfunction!(effective_layer_for, module)?)?;
+    module.add_function(wrap_pyfunction!(layer_mismatch_warning, module)?)?;
     Ok(())
 }

@@ -23,7 +23,7 @@ from ._version_fetcher import fetch_all_versions, versions_patch
 if TYPE_CHECKING:
     from telethon.network.connection.connection import Connection
 
-    from ._native import ApiProfile, Issue
+    from ._native import Issue
     from ._native import PlatformVersions as _NativeVersions
 
 logger = logging.getLogger(__name__)
@@ -76,16 +76,9 @@ LAYER: int = _ADVERTISED_LAYER
 
 def get_recommended_layer() -> int:
     telethon_layer = _detect_telethon_layer()
-    diff = abs(telethon_layer - get_advertised_layer())
-    if diff > 15:
-        warnings.warn(
-            f"Telethon TL layer ({telethon_layer}) differs from "
-            f"advertised layer ({get_advertised_layer()}, base={_BASE_LAYER}) "
-            f"by {diff} layers. "
-            f"This may cause initConnection fingerprint inconsistencies. "
-            f"Consider updating Telethon or opentele2.",
-            stacklevel=2,
-        )
+    warning = _native.layer_mismatch_warning(telethon_layer)
+    if warning is not None:
+        warnings.warn(warning, stacklevel=2)
     return telethon_layer
 
 
@@ -209,27 +202,6 @@ def tdesktop_tz_offset(now: datetime | None = None) -> float:
     return _native.tz_offset(int(offset.total_seconds()) if offset is not None else 0)
 
 
-def _empty_if_none(value: str | None) -> str:
-    return "" if value is None else value
-
-
-# The ids an i32 api_id holds; no official id lies outside them.
-_API_ID_RANGE = range(-(1 << 31), 1 << 31)
-
-
-def _comparable_api_id(api_id: object) -> int:
-    """``api_id`` as the core compares it with the official id of a
-    lang_pack. 1.5.0 compared with ``!=``: a number equal to an int compares
-    as that int; any other value, such as the text ``"2040"``, equals no
-    official id, and neither does 0."""
-    if isinstance(api_id, float) and api_id.is_integer():
-        api_id = int(api_id)
-    if isinstance(api_id, int) and api_id in _API_ID_RANGE:
-        # A bool is an int; the core shows it as one.
-        return int(api_id)
-    return 0
-
-
 def _init_issues(
     api_id: int | None,
     device_model: str | None,
@@ -241,34 +213,21 @@ def _init_issues(
     *,
     strict: bool = False,
 ) -> list[Issue]:
-    # 1.5.0 tested a None value as empty, except lang_pack, which it looked
-    # up as the text "None" among the known packs; an api_id of None matched
-    # no official id.
-    comparable_api_id = _comparable_api_id(api_id)
-    profile: ApiProfile = {
-        "api_id": comparable_api_id,
-        "api_hash": "",
-        "device_model": _empty_if_none(device_model),
-        "system_version": _empty_if_none(system_version),
-        "app_version": _empty_if_none(app_version),
-        "lang_code": _empty_if_none(lang_code),
-        "system_lang_code": _empty_if_none(system_lang_code),
-        "lang_pack": str(lang_pack),
+    # The values go to the core as given, None and "2040" included; it
+    # checks and words them as 1.5.0 did. Checked against PLATFORM_VERSIONS
+    # as it is now, fetched or edited.
+    params: dict[str, Any] = {
+        "api_id": api_id,
+        "device_model": device_model,
+        "system_version": system_version,
+        "app_version": app_version,
+        "system_lang_code": system_lang_code,
+        "lang_pack": lang_pack,
+        "lang_code": lang_code,
     }
-    # Checked against PLATFORM_VERSIONS as it is now, fetched or edited.
-    issues = _native.validate_init_params(
-        profile, _native_versions(PLATFORM_VERSIONS), "strict" if strict else "warn"
+    return _native.validate_raw_init_params(
+        params, _native_versions(PLATFORM_VERSIONS), "strict" if strict else "warn"
     )
-    # 1.5.0 formatted the values it was given, None and "2040" included,
-    # where the core shows the values it checked.
-    for issue in issues:
-        if issue["kind"] == "ShortLangCode" and lang_code is None:
-            issue["message"] = issue["message"].replace("lang_code ''", "lang_code 'None'", 1)
-        elif issue["kind"] == "ApiIdMismatch":
-            issue["message"] = issue["message"].replace(
-                f"api_id {comparable_api_id}", f"api_id {api_id}", 1
-            )
-    return issues
 
 
 def validate_init_connection_params(
@@ -339,15 +298,24 @@ class FingerprintConfig:
     )
 
     def get_effective_layer(self) -> int:
-        if self.layer_override is not None:
-            return self.layer_override
-        return get_recommended_layer()
+        layer, warning = _native.effective_layer_for(_detect_telethon_layer(), self.layer_override)
+        if warning is not None:
+            # Where 1.5.0 get_recommended_layer warned from: this frame.
+            warnings.warn(warning, stacklevel=1)
+        return layer
 
     def validate_params(self, **kwargs: Any) -> None:
         if not self.auto_validate:
+            # 1.5.0 returned before reading the arguments: wrong ones raise
+            # nothing while validation is off.
             return
 
-        issues = _init_issues(strict=(self.strict_mode == StrictMode.STRICT), **kwargs)
+        issues = _native.validate_raw_fingerprint(
+            self.strict_mode.value,
+            self.auto_validate,
+            kwargs,
+            _native_versions(PLATFORM_VERSIONS),
+        )
 
         if not issues:
             return

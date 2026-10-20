@@ -444,6 +444,15 @@ def tz_offset(offset_seconds: int) -> float: ...
 def validate_init_params(
     profile: ApiProfile, versions: _VersionsArg | None = None, mode: StrictMode = "warn"
 ) -> list[Issue]: ...
+
+# The seven validate_init_connection_params arguments by name, as given:
+# api_id of any type, the texts str or None, lang_pack any value. A missing
+# or unknown key raises TypeError.
+_RawInitParams: TypeAlias = dict[str, Any]
+
+def validate_raw_init_params(
+    params: _RawInitParams, versions: _VersionsArg | None = None, mode: StrictMode = "warn"
+) -> list[Issue]: ...
 def check_versions(profile: ApiProfile, versions: _VersionsArg | None = None) -> list[Issue]: ...
 def issues_message(issues: Iterable[Issue]) -> str: ...
 
@@ -464,7 +473,17 @@ def fingerprint_config(
 def validate_fingerprint(
     config: FingerprintConfig, profile: ApiProfile, versions: _VersionsArg | None = None
 ) -> list[Issue]: ...
+def validate_raw_fingerprint(
+    strict_mode: StrictMode,
+    auto_validate: bool,
+    params: _RawInitParams,
+    versions: _VersionsArg | None = None,
+) -> list[Issue]: ...
 def effective_layer(config: FingerprintConfig) -> int: ...
+def effective_layer_for(
+    library_layer: int, layer_override: int | None = None
+) -> tuple[int, str | None]: ...
+def layer_mismatch_warning(library_layer: int) -> str | None: ...
 
 # Login, session admin and consistency checks.
 

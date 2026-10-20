@@ -8,36 +8,22 @@ use pyo3::types::{PyDict, PyList, PyModule, PyString, PyTuple};
 use opentele2_core::Error;
 use opentele2_core::api::session_json::{self, JsonDefault};
 use opentele2_core::api::{self, ApiProfile, Client, Versions};
-use opentele2_core::devices::{self, Platform, WebClient};
+use opentele2_core::devices::{self, Platform};
 
 use crate::convert::{required, seed};
 use crate::error::check;
 use crate::json::{from_json, to_json, to_json_object};
 
-/// The 1.5.0 class name of every client, in declaration order.
-const CLIENT_NAMES: [(&str, Client); 8] = [
-    ("TelegramDesktop", Client::Desktop),
-    ("TelegramAndroid", Client::Android),
-    ("TelegramAndroidX", Client::AndroidX),
-    ("TelegramIOS", Client::Ios),
-    ("TelegramMacOS", Client::MacOS),
-    ("TelegramWeb_A", Client::WebA),
-    ("TelegramWeb_K", Client::WebK),
-    ("Webogram", Client::Webogram),
-];
-
+/// The client of the 1.5.0 class name `name`; another name raises
+/// `ValueError`.
 fn client(name: &str) -> PyResult<Client> {
-    CLIENT_NAMES
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, client)| *client)
-        .ok_or_else(|| {
-            let known: Vec<&str> = CLIENT_NAMES.iter().map(|(known, _)| *known).collect();
-            PyValueError::new_err(format!(
-                "unknown client {name:?}; expected one of {}",
-                known.join(", ")
-            ))
-        })
+    Client::from_name(name).ok_or_else(|| {
+        let known = Client::ALL.map(Client::name);
+        PyValueError::new_err(format!(
+            "unknown client {name:?}; expected one of {}",
+            known.join(", ")
+        ))
+    })
 }
 
 /// A two-item sequence as a pair; another length raises `ValueError`.
@@ -324,41 +310,17 @@ fn default_extra_fields(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
     PyList::new(py, fields)
 }
 
-/// The catalog names `catalog_entries`, `device_models` and
-/// `system_versions` accept, with the core platform of each.
-const PLATFORM_NAMES: [(&str, Platform); 7] = [
-    ("windows", Platform::Windows),
-    ("linux", Platform::Linux),
-    ("macos", Platform::MacOS { swift: false }),
-    ("android", Platform::Android),
-    ("ios", Platform::Ios),
-    (
-        "web_a",
-        Platform::Web {
-            client: WebClient::A,
-        },
-    ),
-    (
-        "web_k",
-        Platform::Web {
-            client: WebClient::K,
-        },
-    ),
-];
-
-/// The platform named `name`; an unknown name raises `ValueError`.
+/// The platform of the catalog name `name` (as `catalog_entries`,
+/// `device_models` and `system_versions` take it); an unknown name raises
+/// `ValueError`.
 fn platform(name: &str) -> PyResult<Platform> {
-    PLATFORM_NAMES
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, platform)| *platform)
-        .ok_or_else(|| {
-            let known: Vec<&str> = PLATFORM_NAMES.iter().map(|(known, _)| *known).collect();
-            PyValueError::new_err(format!(
-                "unknown platform {name:?}; expected one of {}",
-                known.join(", ")
-            ))
-        })
+    Platform::from_name(name).ok_or_else(|| {
+        let known = Platform::NAMED.map(Platform::name);
+        PyValueError::new_err(format!(
+            "unknown platform {name:?}; expected one of {}",
+            known.join(", ")
+        ))
+    })
 }
 
 /// The catalog of `name`, built on first use; a malformed embedded catalog
