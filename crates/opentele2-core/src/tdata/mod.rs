@@ -112,11 +112,6 @@ const PERF_PASSCODE_KEY_ENCRYPTED: [u8; 288] = hex_bytes(concat!(
     "cd8a9e089d36405db99d01db20464fb6cabbdce4f67e4ec3742f913a1dd2dac5",
 ));
 
-/// Fills `buf` from the operating system's CSPRNG.
-fn os_random(buf: &mut [u8]) -> Result<()> {
-    getrandom::fill(buf).map_err(|e| Error::Io(std::io::Error::other(e)))
-}
-
 /// `len` bytes from `rng` (`Storage.RandomGenerate`).
 pub(crate) fn random_bytes(rng: &mut FillRandom<'_>, len: usize) -> Result<Vec<u8>> {
     let mut bytes = vec![0u8; len];
@@ -338,7 +333,11 @@ impl TData {
     /// [`Error::Io`] when the system random source fails, otherwise as
     /// [`TData::save`].
     pub fn save_random(&self, dir: impl AsRef<Path>) -> Result<()> {
-        self.save_with(dir.as_ref(), self.performance_mode, &mut os_random)
+        self.save_with(
+            dir.as_ref(),
+            self.performance_mode,
+            &mut crypto::random_fill,
+        )
     }
 
     /// [`TData::new`] with its draws from `draws`, storing `active_index`
@@ -387,7 +386,7 @@ impl TData {
         let dir = dir.as_ref();
         let performance_mode = performance_mode.unwrap_or(self.performance_mode);
         if !draws.is_replay() {
-            return self.save_with(dir, performance_mode, &mut os_random);
+            return self.save_with(dir, performance_mode, &mut crypto::random_fill);
         }
         let saved = self.save_with(dir, performance_mode, &mut |buf| {
             draws.fill(buf);
@@ -685,7 +684,7 @@ impl DrawSource {
             return;
         }
         let Some(replay) = self.replay.as_mut() else {
-            if let Err(error) = os_random(buf) {
+            if let Err(error) = crypto::random_fill(buf) {
                 self.failure = Some(error);
                 buf.fill(0);
             }

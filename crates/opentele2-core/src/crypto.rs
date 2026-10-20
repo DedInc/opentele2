@@ -238,7 +238,7 @@ pub fn encrypt_local(
 /// [`encrypt_local`].
 pub fn encrypt_local_random(data: &[u8], local_key: &AuthKey) -> Result<Vec<u8>> {
     let mut padding = vec![0u8; local_padding_len(data.len())];
-    getrandom::fill(&mut padding).map_err(|e| Error::Io(std::io::Error::other(e)))?;
+    random_fill(&mut padding)?;
     encrypt_local(data, local_key, move |_| padding)
 }
 

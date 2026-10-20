@@ -37,8 +37,8 @@
 use std::cmp::Ordering;
 use std::fmt;
 
+use crate::Result;
 use crate::api::{ApiProfile, LAYER, Versions};
-use crate::{Error, Result};
 
 /// The `tz_offset` Telegram Desktop sends in `initConnection` `params` for a
 /// local UTC offset of `utc_offset_seconds` (1.5.0 `tdesktop_tz_offset`,
@@ -784,10 +784,10 @@ impl FingerprintConfig {
     ///
     /// # Errors
     ///
-    /// [`Error::Io`] when the operating system has no randomness to give.
+    /// [`Error::Io`](crate::Error::Io) when the operating system has no randomness to give.
     pub fn from_os_rng() -> Result<Self> {
         let mut bytes = [0u8; 2];
-        getrandom::fill(&mut bytes).map_err(|e| Error::Io(std::io::Error::other(e)))?;
+        crate::crypto::random_fill(&mut bytes)?;
         // `new` draws exactly these two bytes.
         Ok(Self::new(&mut |buf| buf.copy_from_slice(&bytes)))
     }
@@ -910,7 +910,7 @@ impl FingerprintConfig {
     ///
     /// # Errors
     ///
-    /// [`Error::Io`] when no offset is given and the operating system has
+    /// [`Error::Io`](crate::Error::Io) when no offset is given and the operating system has
     /// no randomness to give.
     pub fn from_options(options: FingerprintConfigOptions) -> Result<Self> {
         let mut config = match options.msg_id_offset {
@@ -962,10 +962,10 @@ pub fn to_offset(value: i64) -> Option<u16> {
 ///
 /// # Errors
 ///
-/// [`Error::Io`] when the operating system has no randomness to give.
+/// [`Error::Io`](crate::Error::Io) when the operating system has no randomness to give.
 pub fn msg_id_offset_for_os() -> Result<u16> {
     let mut bytes = [0u8; 2];
-    getrandom::fill(&mut bytes).map_err(|e| Error::Io(std::io::Error::other(e)))?;
+    crate::crypto::random_fill(&mut bytes)?;
     // `msg_id_offset` draws exactly these two bytes.
     Ok(msg_id_offset(&mut |buf| buf.copy_from_slice(&bytes)))
 }

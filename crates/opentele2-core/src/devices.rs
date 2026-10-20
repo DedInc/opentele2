@@ -331,7 +331,7 @@ fn hash_for(seed: Option<&str>) -> Result<u64> {
         return Ok(seed_hash(seed));
     }
     let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).map_err(|e| Error::Io(std::io::Error::other(e)))?;
+    crate::crypto::random_fill(&mut bytes)?;
     Ok(digest_hash(&bytes))
 }
 

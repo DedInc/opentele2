@@ -348,7 +348,7 @@ pub fn srp_check(
 /// As [`srp_check`].
 pub fn srp_check_random(params: &SrpParams<'_>, password: &str) -> Result<SrpCheck, SrpError> {
     srp_check_with(params, password, &mut |buf| {
-        getrandom::fill(buf).map_err(|_| SrpError::RandomUnavailable)
+        crate::crypto::random_fill(buf).map_err(|_| SrpError::RandomUnavailable)
     })
 }
 
