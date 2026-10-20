@@ -17,8 +17,8 @@ use std::fmt;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
-use crate::Result;
 use crate::tdata::TData;
+use crate::{Error, Result};
 
 /// Upper bound of the default thread count when [`BatchOptions::threads`] is
 /// `None`; an explicit count is used as given.
@@ -35,6 +35,23 @@ pub struct LoadRequest {
     pub passcode: Vec<u8>,
     /// The key file data name; `None` means [`crate::tdata::key_data::DEFAULT_KEY_FILE`].
     pub key_file: Option<String>,
+}
+
+impl LoadRequest {
+    /// A request for `dir` with `passcode` (empty for none) and `key_file`
+    /// (`None` for the default data name).
+    #[must_use]
+    pub fn new(
+        dir: impl Into<PathBuf>,
+        passcode: impl Into<Vec<u8>>,
+        key_file: Option<String>,
+    ) -> Self {
+        Self {
+            dir: dir.into(),
+            passcode: passcode.into(),
+            key_file,
+        }
+    }
 }
 
 impl fmt::Debug for LoadRequest {
@@ -58,6 +75,29 @@ pub struct BatchOptions {
 }
 
 impl BatchOptions {
+    /// Options with the `threads` argument of the bindings' `load_many`:
+    /// `None` for the default count, else a count of at least 1.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`] with `what` `"threads"` and `reason`
+    /// `threads must be at least 1`, the text the bindings show, for 0 or a
+    /// count that does not convert to `usize` (a negative one, for example).
+    pub fn from_threads<T: TryInto<usize>>(threads: Option<T>) -> Result<Self> {
+        let threads = threads
+            .map(|count| {
+                count
+                    .try_into()
+                    .ok()
+                    .and_then(NonZeroUsize::new)
+                    .ok_or_else(|| Error::InvalidInput {
+                        what: "threads",
+                        reason: "threads must be at least 1".to_owned(),
+                    })
+            })
+            .transpose()?;
+        Ok(Self { threads })
+    }
+
     /// The thread count a parallel call uses: [`BatchOptions::threads`], or
     /// `min(available_parallelism, MAX_DEFAULT_THREADS)` when it is `None`
     /// (1 when the parallelism cannot be queried).

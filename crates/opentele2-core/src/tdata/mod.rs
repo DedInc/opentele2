@@ -9,7 +9,8 @@
 //! - [`mtp_config`]: the MTP config and DC options of the per-account
 //!   `configs` file.
 //! - [`TData`]: a whole folder, loaded and saved the way 1.5.0's `TDesktop`
-//!   does; [`draw_plan`] lists the random draws its writers make.
+//!   does; [`draw_plan`] lists the random draws its writers make, and
+//!   [`DrawSource`] serves them from the OS or replays recorded ones.
 
 pub mod account;
 pub mod key_data;
@@ -110,6 +111,11 @@ const PERF_PASSCODE_KEY_ENCRYPTED: [u8; 288] = hex_bytes(concat!(
     "d62ff788347e27c82e9e139eb03ae521539bf3d363b4baea76e5e884cf66fe6b",
     "cd8a9e089d36405db99d01db20464fb6cabbdce4f67e4ec3742f913a1dd2dac5",
 ));
+
+/// Fills `buf` from the operating system's CSPRNG.
+fn os_random(buf: &mut [u8]) -> Result<()> {
+    getrandom::fill(buf).map_err(|e| Error::Io(std::io::Error::other(e)))
+}
 
 /// `len` bytes from `rng` (`Storage.RandomGenerate`).
 pub(crate) fn random_bytes(rng: &mut FillRandom<'_>, len: usize) -> Result<Vec<u8>> {
@@ -320,7 +326,7 @@ impl TData {
     /// - [`Error::Io`] when a directory or file cannot be written.
     /// - [`Error::QDataStreamFailed`] when a blob does not fit a `u32` length.
     pub fn save(&self, dir: impl AsRef<Path>, rng: &mut dyn FnMut(&mut [u8])) -> Result<()> {
-        self.save_with(dir.as_ref(), &mut |buf| {
+        self.save_with(dir.as_ref(), self.performance_mode, &mut |buf| {
             rng(buf);
             Ok(())
         })
@@ -332,9 +338,83 @@ impl TData {
     /// [`Error::Io`] when the system random source fails, otherwise as
     /// [`TData::save`].
     pub fn save_random(&self, dir: impl AsRef<Path>) -> Result<()> {
-        self.save_with(dir.as_ref(), &mut |buf| {
-            getrandom::fill(buf).map_err(|e| Error::Io(std::io::Error::other(e)))
-        })
+        self.save_with(dir.as_ref(), self.performance_mode, &mut os_random)
+    }
+
+    /// [`TData::new`] with its draws from `draws`, storing `active_index`
+    /// (1.5.0's [`NEW_FOLDER_ACTIVE_INDEX`] when the caller has none).
+    ///
+    /// A failed or mismatched draw leaves the keys unspecified, so the folder
+    /// is discarded and the draw failure is returned, before any failure of
+    /// [`TData::new`] itself.
+    ///
+    /// # Errors
+    /// As [`DrawSource::finish`], otherwise as [`TData::new`].
+    pub fn new_with_draws(
+        accounts: Vec<Account>,
+        passcode: &[u8],
+        performance_mode: bool,
+        active_index: i32,
+        mut draws: DrawSource,
+    ) -> Result<Self> {
+        let created = Self::new(accounts, passcode, performance_mode, &mut |buf| {
+            draws.fill(buf);
+        });
+        draws.finish()?;
+        let mut created = created?;
+        created.active_index = active_index;
+        Ok(created)
+    }
+
+    /// [`TData::save`] with its padding from `draws`, and with
+    /// `performance_mode`, when given, in place of
+    /// [`TData::performance_mode`] for this save only (on: no `configs`
+    /// files are written). `self` is not changed.
+    ///
+    /// The operating system source fails fast as [`TData::save_random`]
+    /// does. A replay runs the whole save; on a mismatch the written files
+    /// are not usable and the draw failure is returned, before any failure
+    /// of the save itself.
+    ///
+    /// # Errors
+    /// As [`DrawSource::finish`], otherwise as [`TData::save_random`].
+    pub fn save_with_draws(
+        &self,
+        dir: impl AsRef<Path>,
+        performance_mode: Option<bool>,
+        mut draws: DrawSource,
+    ) -> Result<()> {
+        let dir = dir.as_ref();
+        let performance_mode = performance_mode.unwrap_or(self.performance_mode);
+        if !draws.is_replay() {
+            return self.save_with(dir, performance_mode, &mut os_random);
+        }
+        let saved = self.save_with(dir, performance_mode, &mut |buf| {
+            draws.fill(buf);
+            Ok(())
+        });
+        draws.finish()?;
+        saved
+    }
+
+    /// [`TData::migrate`] with its draws from `draws`. A failed or
+    /// mismatched draw leaves the new wrap unspecified, so `self` stays as
+    /// it was and the draw failure is returned.
+    ///
+    /// # Errors
+    /// As [`DrawSource::finish`], otherwise as [`TData::migrate`]; `self` is
+    /// then unchanged.
+    pub fn migrate_with_draws(&mut self, mut draws: DrawSource) -> Result<bool> {
+        let migration = self.migration(&mut |buf| {
+            draws.fill(buf);
+            Ok(())
+        });
+        draws.finish()?;
+        let Some(migration) = migration? else {
+            return Ok(false);
+        };
+        self.commit_migration(migration);
+        Ok(true)
     }
 
     /// Installs 7.3 key data in place of a legacy key file (no trailer),
@@ -351,23 +431,41 @@ impl TData {
     /// As [`key_data::create_passcode_key`] when migrating under a
     /// passcode; `self` is then unchanged.
     pub fn migrate(&mut self, rng: &mut dyn FnMut(&mut [u8])) -> Result<bool> {
-        if self.key_data.trailer.is_some() {
+        let Some(migration) = self.migration(&mut |buf| {
+            rng(buf);
+            Ok(())
+        })?
+        else {
             return Ok(false);
+        };
+        self.commit_migration(migration);
+        Ok(true)
+    }
+
+    /// The 7.3 key data and wrap key [`TData::migrate`] installs, drawn
+    /// from `rng`; `None` for a key file that already has the 7.3 layout.
+    fn migration(&self, rng: &mut FillRandom<'_>) -> Result<Option<(KeyData, AuthKey)>> {
+        if self.key_data.trailer.is_some() {
+            return Ok(None);
         }
-        let (data, passcode_key) =
-            key_data::install(&self.local_key, &self.passcode.0, &mut |buf| {
-                rng(buf);
-                Ok(())
-            })?;
+        key_data::install(&self.local_key, &self.passcode.0, rng).map(Some)
+    }
+
+    /// Installs a [`TData::migration`], keeping the stored accounts info.
+    fn commit_migration(&mut self, (data, passcode_key): (KeyData, AuthKey)) {
         self.key_data = KeyData {
             info_encrypted: std::mem::take(&mut self.key_data.info_encrypted),
             ..data
         };
         self.passcode_key = passcode_key;
-        Ok(true)
     }
 
-    fn save_with(&self, dir: &Path, rng: &mut FillRandom<'_>) -> Result<()> {
+    fn save_with(
+        &self,
+        dir: &Path,
+        performance_mode: bool,
+        rng: &mut FillRandom<'_>,
+    ) -> Result<()> {
         if self.accounts.is_empty() {
             return Err(Error::SaveFailed);
         }
@@ -380,13 +478,7 @@ impl TData {
         };
         let base = migrated.as_ref().unwrap_or(&self.key_data);
         for account in &self.accounts {
-            account.write(
-                dir,
-                &self.key_file,
-                &self.local_key,
-                self.performance_mode,
-                rng,
-            )?;
+            account.write(dir, &self.key_file, &self.local_key, performance_mode, rng)?;
         }
         let info = self.accounts_info();
         let key_data = KeyData {
@@ -532,8 +624,158 @@ impl TData {
     }
 }
 
+/// Recorded draws served in order.
+struct Replay {
+    draws: Vec<Vec<u8>>,
+    next: usize,
+}
+
+/// The random source of [`TData::new_with_draws`],
+/// [`TData::save_with_draws`] and [`TData::migrate_with_draws`]: the
+/// operating system's CSPRNG, or, as a testing hook, recorded draws (1.5.0's
+/// `os.urandom` calls, sized by [`draw_plan`]) replayed in order.
+///
+/// The first failure is kept and every later draw is zero-filled, so the
+/// caller discards whatever was built; [`DrawSource::finish`] reports it.
+/// `Debug` prints draw counts only, never draw bytes, and replayed bytes are
+/// overwritten when the source is dropped.
+pub struct DrawSource {
+    replay: Option<Replay>,
+    failure: Option<Error>,
+}
+
+impl DrawSource {
+    /// The operating system's CSPRNG.
+    #[must_use]
+    pub fn os() -> Self {
+        Self {
+            replay: None,
+            failure: None,
+        }
+    }
+
+    /// A replay of exactly `draws`, in order.
+    #[must_use]
+    pub fn replay(draws: Vec<Vec<u8>>) -> Self {
+        Self {
+            replay: Some(Replay { draws, next: 0 }),
+            failure: None,
+        }
+    }
+
+    /// The replay of `draws` when given, else the operating system's CSPRNG:
+    /// the optional `draws` argument of the bindings.
+    #[must_use]
+    pub fn new(draws: Option<Vec<Vec<u8>>>) -> Self {
+        draws.map_or_else(Self::os, Self::replay)
+    }
+
+    /// Whether the draws are a replay rather than the operating system's
+    /// CSPRNG.
+    #[must_use]
+    pub fn is_replay(&self) -> bool {
+        self.replay.is_some()
+    }
+
+    /// Fills `buf` with the next draw; after a failure, and on the failing
+    /// draw, `buf` is zero-filled instead.
+    pub fn fill(&mut self, buf: &mut [u8]) {
+        if self.failure.is_some() {
+            buf.fill(0);
+            return;
+        }
+        let Some(replay) = self.replay.as_mut() else {
+            if let Err(error) = os_random(buf) {
+                self.failure = Some(error);
+                buf.fill(0);
+            }
+            return;
+        };
+        match replay.draws.get(replay.next) {
+            Some(draw) if draw.len() == buf.len() => {
+                buf.copy_from_slice(draw);
+                replay.next += 1;
+            }
+            Some(draw) => {
+                self.failure = Some(replay_mismatch(format!(
+                    "draw {} has {} bytes, but {} were drawn",
+                    replay.next,
+                    draw.len(),
+                    buf.len()
+                )));
+                buf.fill(0);
+            }
+            None => {
+                self.failure = Some(replay_mismatch(format!(
+                    "draw {} of {} bytes was not given ({} draws given)",
+                    replay.next,
+                    buf.len(),
+                    replay.draws.len()
+                )));
+                buf.fill(0);
+            }
+        }
+    }
+
+    /// The first failure, else a replay whose draws were not all used.
+    ///
+    /// # Errors
+    /// - [`Error::Io`] when the operating system's CSPRNG failed.
+    /// - [`Error::InvalidInput`] with `what` `"draws"` when the replay did
+    ///   not match what was drawn; `reason` is one of `draw {i} has {n}
+    ///   bytes, but {m} were drawn`, `draw {i} of {m} bytes was not given
+    ///   ({n} draws given)` and `{k} of {n} draws were left unused`, the
+    ///   texts the bindings show after `draws: `.
+    pub fn finish(mut self) -> Result<()> {
+        if let Some(failure) = self.failure.take() {
+            return Err(failure);
+        }
+        match &self.replay {
+            Some(replay) if replay.next != replay.draws.len() => Err(replay_mismatch(format!(
+                "{} of {} draws were left unused",
+                replay.draws.len() - replay.next,
+                replay.draws.len()
+            ))),
+            _ => Ok(()),
+        }
+    }
+}
+
+impl fmt::Debug for DrawSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut out = f.debug_struct("DrawSource");
+        match &self.replay {
+            Some(replay) => out
+                .field("replay_draws", &replay.draws.len())
+                .field("next", &replay.next),
+            None => out.field("source", &"os"),
+        };
+        out.field("failed", &self.failure.is_some()).finish()
+    }
+}
+
+impl Drop for DrawSource {
+    fn drop(&mut self) {
+        if let Some(replay) = self.replay.as_mut() {
+            for draw in &mut replay.draws {
+                draw.fill(0);
+            }
+            // Keeps the fill from being removed as a store nobody reads.
+            std::hint::black_box(&mut replay.draws);
+        }
+    }
+}
+
+/// The [`Error::InvalidInput`] of a replay that does not match the draws.
+fn replay_mismatch(reason: String) -> Error {
+    Error::InvalidInput {
+        what: "draws",
+        reason,
+    }
+}
+
 /// A call whose random draws [`draw_plan`] lists.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum DrawOperation<'a> {
     /// [`TData::new`] with or without a passcode, and with performance mode
     /// on or off.
@@ -547,6 +789,67 @@ pub enum DrawOperation<'a> {
     Migrate(&'a TData),
     /// [`TData::save`] of this folder, in its current state.
     Save(&'a TData),
+}
+
+impl<'a> DrawOperation<'a> {
+    /// The operation names [`DrawOperation::from_name`] accepts, in order.
+    pub const NAMES: [&'static str; 3] = ["new", "migrate", "save"];
+
+    /// The operation the bindings name `name`: `"new"` with `has_passcode`
+    /// (default `false`) and `performance_mode` (default `true`), the
+    /// arguments of [`TData::new`], or `"migrate"` or `"save"` of `folder`.
+    /// `has_passcode` and `performance_mode` are ignored for `"migrate"`
+    /// and `"save"`.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`], whose `reason` is:
+    /// - `unknown operation {name:?}; expected one of new, migrate, save`
+    ///   (`what` `"operation"`) for any other name;
+    /// - `the {name:?} plan takes a TData` (`what` `"target"`) for
+    ///   `"migrate"` or `"save"` without `folder`;
+    /// - `the "new" plan takes has_passcode and performance_mode, not a
+    ///   TData` (`what` `"target"`) for `"new"` with `folder`.
+    pub fn from_name(
+        name: &str,
+        has_passcode: Option<bool>,
+        performance_mode: Option<bool>,
+        folder: Option<&'a TData>,
+    ) -> Result<Self> {
+        match (name, folder) {
+            ("new", None) => Ok(Self::New {
+                has_passcode: has_passcode.unwrap_or(false),
+                performance_mode: performance_mode.unwrap_or(true),
+            }),
+            ("new", Some(_)) => Err(Error::InvalidInput {
+                what: "target",
+                reason: "the \"new\" plan takes has_passcode and performance_mode, not a TData"
+                    .to_owned(),
+            }),
+            ("migrate", Some(folder)) => Ok(Self::Migrate(folder)),
+            ("save", Some(folder)) => Ok(Self::Save(folder)),
+            ("migrate" | "save", None) => Err(Error::InvalidInput {
+                what: "target",
+                reason: format!("the {name:?} plan takes a TData"),
+            }),
+            _ => Err(Error::InvalidInput {
+                what: "operation",
+                reason: format!(
+                    "unknown operation {name:?}; expected one of {}",
+                    Self::NAMES.join(", ")
+                ),
+            }),
+        }
+    }
+
+    /// The name [`DrawOperation::from_name`] accepts for this operation.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::New { .. } => "new",
+            Self::Migrate(_) => "migrate",
+            Self::Save(_) => "save",
+        }
+    }
 }
 
 /// The sizes, in bytes and in order, of the buffers `operation` will hand

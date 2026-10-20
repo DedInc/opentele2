@@ -337,6 +337,25 @@ impl Error {
         }
     }
 
+    /// Stable `SCREAMING_SNAKE` code of the context of an error whose
+    /// context a binding raises differently from the rest of its
+    /// [`Error::code`], else `None`. It never changes once given.
+    ///
+    /// - `"BAD_ACCOUNTS_COUNT"`: [`Error::KeyDataInvalid`] with
+    ///   [`KeyDataFailure::BadAccountsCount`], which 1.5.0 raised as a plain
+    ///   `OpenTeleException` rather than `TDataKeyDataInvalid`.
+    ///
+    /// Every other error has no detail code.
+    #[must_use]
+    pub fn detail_code(&self) -> Option<&'static str> {
+        match self {
+            Self::KeyDataInvalid {
+                context: KeyDataFailure::BadAccountsCount { .. },
+            } => Some("BAD_ACCOUNTS_COUNT"),
+            _ => None,
+        }
+    }
+
     /// The message 1.5.0 gave the matching exception (its `message`
     /// attribute, without the class name and caller `str()` adds), for
     /// example `Invalid magic b'ABCD' in file maps`.
@@ -626,6 +645,18 @@ mod tests {
                 "{code} is not SCREAMING_SNAKE"
             );
         }
+    }
+
+    #[test]
+    fn only_bad_accounts_count_has_a_detail_code() {
+        for error in every_variant() {
+            assert_eq!(error.detail_code(), None, "{error:?}");
+        }
+        let error = Error::KeyDataInvalid {
+            context: KeyDataFailure::BadAccountsCount { count: 0 },
+        };
+        assert_eq!(error.detail_code(), Some("BAD_ACCOUNTS_COUNT"));
+        assert_eq!(error.code(), "TDATA_KEY_DATA_INVALID");
     }
 
     #[test]
