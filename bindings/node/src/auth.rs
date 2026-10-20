@@ -116,17 +116,10 @@ pub struct SrpCheck {
     pub m1: Buffer,
 }
 
-/// The `"OT_SRP_"` error of `error`, with Telethon's message where it has
-/// one.
+/// The `"OT_SRP_"` error of `error`: `OT_` and the core
+/// `SrpError::code`, with Telethon's message where it has one.
 fn srp_error(error: SrpError) -> CodedError {
-    let code = match error {
-        SrpError::BadPrimeOrGenerator => "OT_SRP_BAD_PRIME_OR_GENERATOR",
-        SrpError::BadB => "OT_SRP_BAD_B",
-        SrpError::NoGoodRandom => "OT_SRP_NO_GOOD_RANDOM",
-        SrpError::RandomUnavailable => "OT_SRP_RANDOM_UNAVAILABLE",
-        _ => "OT_SRP_FAILED",
-    };
-    CodedError::new(code.to_owned(), error.to_string())
+    CodedError::new(format!("OT_{}", error.code()), error.to_string())
 }
 
 /// One `srpCheck` call, run off the JavaScript thread.

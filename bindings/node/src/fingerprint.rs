@@ -3,14 +3,15 @@
 use napi::bindgen_prelude::{BigInt, Either, Env};
 use napi_derive::napi;
 
-use opentele2_core::Error;
+use opentele2_core::api::ApiProfile as CoreProfile;
 use opentele2_core::fingerprint::{
-    self, FingerprintConfig as CoreConfig, Issue as CoreIssue, IssueKind, Severity, StrictMode,
+    self, FingerprintConfig as CoreConfig, FingerprintConfigOptions as CoreOptions,
+    Issue as CoreIssue, IssueKind, RawInitParams, Severity, StrictMode,
 };
 
 use crate::api::{ApiProfile, Versions, versions};
 use crate::convert::to_i64;
-use crate::error::{Result, check, core_error, invalid_arg, rejection, thrown};
+use crate::error::{Result, check, invalid_arg, thrown};
 
 /// The TypeScript type of a strict mode.
 const STRICT_MODE_TS: &str = "'off' | 'warn' | 'strict'";
@@ -32,59 +33,26 @@ pub struct Issue {
     pub message: String,
 }
 
-/// Every issue kind with its name, the Rust variant's.
-const KINDS: [(&str, IssueKind); 9] = [
-    ("UnknownLangPack", IssueKind::UnknownLangPack),
-    ("ShortLangCode", IssueKind::ShortLangCode),
-    ("MissingRegion", IssueKind::MissingRegion),
-    ("EmptyDeviceModel", IssueKind::EmptyDeviceModel),
-    ("EmptySystemVersion", IssueKind::EmptySystemVersion),
-    ("EmptyAppVersion", IssueKind::EmptyAppVersion),
-    ("ApiIdMismatch", IssueKind::ApiIdMismatch),
-    ("AppVersionMajor", IssueKind::AppVersionMajor),
-    ("AndroidSdkRange", IssueKind::AndroidSdkRange),
-];
-
-/// Every severity with its name.
-const SEVERITIES: [(&str, Severity); 3] = [
-    ("note", Severity::Note),
-    ("warning", Severity::Warning),
-    ("error", Severity::Error),
-];
-
-/// The name `table` gives `value`.
-fn name_of<T: PartialEq>(table: &[(&'static str, T)], value: &T) -> &'static str {
-    table
-        .iter()
-        .find(|(_, known)| known == value)
-        .map_or("", |(name, _)| name)
-}
-
-/// The value `table` names `name`; another name throws
-/// `ERR_INVALID_ARG_VALUE`.
-fn named<T: Copy>(table: &[(&'static str, T)], name: &str, what: &str) -> Result<T> {
-    table
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, value)| *value)
-        .ok_or_else(|| invalid_arg(format!("unknown {what} {name:?}")))
-}
-
 impl From<CoreIssue> for Issue {
     fn from(issue: CoreIssue) -> Self {
         Self {
-            kind: name_of(&KINDS, &issue.kind).to_owned(),
-            severity: name_of(&SEVERITIES, &issue.severity).to_owned(),
+            kind: issue.kind.name().to_owned(),
+            severity: issue.severity.name().to_owned(),
             message: issue.message,
         }
     }
 }
 
-/// The core issue of `issue`.
+/// The core issue of `issue`; an unknown kind or severity throws
+/// `ERR_INVALID_ARG_VALUE`.
 fn to_core_issue(issue: Issue) -> Result<CoreIssue> {
+    let kind = &issue.kind;
+    let severity = &issue.severity;
     Ok(CoreIssue {
-        kind: named(&KINDS, &issue.kind, "issue kind")?,
-        severity: named(&SEVERITIES, &issue.severity, "severity")?,
+        kind: IssueKind::from_name(kind)
+            .ok_or_else(|| invalid_arg(format!("unknown issue kind {kind:?}")))?,
+        severity: Severity::from_name(severity)
+            .ok_or_else(|| invalid_arg(format!("unknown severity {severity:?}")))?,
         message: issue.message,
     })
 }
@@ -124,8 +92,12 @@ pub fn validate_init_params(
     #[napi(ts_arg_type = "'off' | 'warn' | 'strict'")] mode: Option<String>,
 ) -> Result<Vec<Issue>> {
     let mode = strict_mode(&mode.unwrap_or_else(|| "warn".to_owned()))?;
-    let issues =
-        fingerprint::validate_init_params(&profile.into(), &self::versions(versions), mode);
+    let profile = CoreProfile::from(profile);
+    let issues = fingerprint::validate_raw_init_params(
+        &RawInitParams::from_profile(&profile),
+        &self::versions(versions),
+        mode,
+    );
     Ok(to_js_issues(issues))
 }
 
@@ -151,16 +123,6 @@ pub fn issues_message(issues: Vec<Issue>) -> Result<String> {
     Ok(fingerprint::issues_message(&issues))
 }
 
-/// Fills `buf` from the operating system's CSPRNG, recording the first
-/// failure in `failure`.
-fn fill_os(buf: &mut [u8], failure: &mut Option<getrandom::Error>) {
-    if failure.is_none()
-        && let Err(error) = getrandom::fill(buf)
-    {
-        *failure = Some(error);
-    }
-}
-
 /// The largest offset `msgIdOffset` draws, so a caller can draw from its
 /// own random source in the same `0..=MSG_ID_OFFSET_MAX` range.
 #[napi]
@@ -170,15 +132,8 @@ pub const MSG_ID_OFFSET_MAX: u16 = u16::MAX;
 /// CSPRNG (1.5.0 `generate_msg_id_offset`).
 #[napi]
 pub fn msg_id_offset(env: Env) -> napi::Result<u32> {
-    let mut failure = None;
-    let offset = fingerprint::msg_id_offset(&mut |buf| fill_os(buf, &mut failure));
-    match failure {
-        Some(error) => Err(rejection(
-            env,
-            core_error(&Error::Io(std::io::Error::other(error))),
-        )),
-        None => Ok(u32::from(offset)),
-    }
+    let offset = check(fingerprint::msg_id_offset_for_os());
+    thrown(env, offset.map(u32::from))
 }
 
 /// Whether `msgId` is plausible at unix time `nowUnix` (1.5.0
@@ -241,7 +196,8 @@ pub struct FingerprintConfigOptions {
 /// A msg id offset given as a `number`; outside `0..=0xFFFF` throws
 /// `ERR_INVALID_ARG_VALUE`.
 fn to_offset(value: u32) -> Result<u16> {
-    u16::try_from(value).map_err(|_| invalid_arg("msgIdOffset must be in 0..=0xFFFF"))
+    fingerprint::to_offset(i64::from(value))
+        .ok_or_else(|| invalid_arg("msgIdOffset must be in 0..=0xFFFF"))
 }
 
 impl From<CoreConfig> for FingerprintConfig {
@@ -294,32 +250,22 @@ fn configured(options: Option<FingerprintConfigOptions>) -> Result<FingerprintCo
         randomize_msg_id_offset: None,
         msg_id_offset: None,
     });
-    let mut config = match options.msg_id_offset {
-        Some(offset) => {
-            let bytes = to_offset(offset)?.to_le_bytes();
-            CoreConfig::new(&mut |buf| buf.copy_from_slice(&bytes))
-        }
-        None => check(CoreConfig::from_os_rng())?,
+    let msg_id_offset = options.msg_id_offset.map(to_offset).transpose()?;
+    let strict_mode = options
+        .strict_mode
+        .as_deref()
+        .map(strict_mode)
+        .transpose()?;
+    let options = CoreOptions {
+        strict_mode,
+        auto_validate: options.auto_validate,
+        preferred_transport: options.preferred_transport,
+        warn_on_layer_mismatch: options.warn_on_layer_mismatch,
+        layer_override: options.layer_override,
+        randomize_msg_id_offset: options.randomize_msg_id_offset,
+        msg_id_offset,
     };
-    if let Some(mode) = options.strict_mode {
-        config.strict_mode = strict_mode(&mode)?;
-    }
-    if let Some(auto) = options.auto_validate {
-        config.auto_validate = auto;
-    }
-    if let Some(transport) = options.preferred_transport {
-        config.preferred_transport = transport;
-    }
-    if let Some(warn) = options.warn_on_layer_mismatch {
-        config.warn_on_layer_mismatch = warn;
-    }
-    if options.layer_override.is_some() {
-        config.layer_override = options.layer_override;
-    }
-    if let Some(randomize) = options.randomize_msg_id_offset {
-        config.randomize_msg_id_offset = randomize;
-    }
-    Ok(config.into())
+    Ok(check(CoreConfig::from_options(options))?.into())
 }
 
 /// The issues 1.5.0 `FingerprintConfig.validate_params` warns about or
@@ -332,9 +278,11 @@ pub fn validate_fingerprint(
     versions: Option<Versions>,
 ) -> Result<Vec<Issue>> {
     let config = to_core_config(config)?;
-    Ok(to_js_issues(
-        config.validate(&profile.into(), &self::versions(versions)),
-    ))
+    let profile = CoreProfile::from(profile);
+    Ok(to_js_issues(config.validate_raw(
+        &RawInitParams::from_profile(&profile),
+        &self::versions(versions),
+    )))
 }
 
 /// The layer to invoke with (1.5.0 `get_effective_layer`): `layerOverride`

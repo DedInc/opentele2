@@ -217,6 +217,10 @@ test('fingerprintConfig has the 1.5.0 defaults and validates as 1.5.0', () => {
   )
   assert.equal(core.issuesMessage([]), 'initConnection fingerprint issues:')
   assert.equal(thrown(() => core.issuesMessage([{ kind: 'Nope', severity: 'note', message: 'x' }])).code, 'ERR_INVALID_ARG_VALUE')
+  assert.equal(thrown(() => core.issuesMessage([{ kind: 'ApiIdMismatch', severity: 'Note', message: 'x' }])).code, 'ERR_INVALID_ARG_VALUE')
+  assert.equal(core.issuesMessage([{ kind: 'AndroidSdkRange', severity: 'note', message: 'x' }]), 'initConnection fingerprint issues:\n  - x')
+  assert.equal(thrown(() => core.fingerprintConfig({ msgIdOffset: 0x10000 })).message, 'msgIdOffset must be in 0..=0xFFFF')
+  assert.equal(thrown(() => core.validateFingerprint({ ...config, msgIdOffset: 0x10000 }, profile)).code, 'ERR_INVALID_ARG_VALUE')
 })
 
 test('msgIdOffset and isValidMsgId match 1.5.0', () => {

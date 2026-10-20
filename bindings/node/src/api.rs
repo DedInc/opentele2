@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use opentele2_core::api::session_json;
 use opentele2_core::api::{self, ApiProfile as CoreProfile, Client, Versions as CoreVersions};
-use opentele2_core::devices::{self, Platform, WebClient};
+use opentele2_core::devices::{self, Platform};
 
 use crate::convert::{to_seed, with_text};
 use crate::error::{Result, check, core_error, invalid_arg, thrown};
@@ -20,32 +20,16 @@ use crate::error::{Result, check, core_error, invalid_arg, thrown};
 #[napi]
 pub const LAYER: i32 = api::LAYER;
 
-/// The 1.5.0 class name of every client, in declaration order.
-const CLIENT_NAMES: [(&str, Client); 8] = [
-    ("TelegramDesktop", Client::Desktop),
-    ("TelegramAndroid", Client::Android),
-    ("TelegramAndroidX", Client::AndroidX),
-    ("TelegramIOS", Client::Ios),
-    ("TelegramMacOS", Client::MacOS),
-    ("TelegramWeb_A", Client::WebA),
-    ("TelegramWeb_K", Client::WebK),
-    ("Webogram", Client::Webogram),
-];
-
-/// The client named `name`; an unknown name throws
+/// The client with the 1.5.0 class name `name`; an unknown name throws
 /// `ERR_INVALID_ARG_VALUE`.
 fn client(name: String) -> Result<Client> {
-    CLIENT_NAMES
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, client)| *client)
-        .ok_or_else(move || {
-            let known: Vec<&str> = CLIENT_NAMES.iter().map(|(known, _)| *known).collect();
-            invalid_arg(format!(
-                "unknown client {name:?}; expected one of {}",
-                known.join(", ")
-            ))
-        })
+    Client::from_name(&name).ok_or_else(move || {
+        let known = Client::ALL.map(Client::name);
+        invalid_arg(format!(
+            "unknown client {name:?}; expected one of {}",
+            known.join(", ")
+        ))
+    })
 }
 
 /// The values a client sends in `initConnection`, with its API id and hash.
@@ -426,43 +410,17 @@ pub struct CatalogEntry {
     pub weight: u32,
 }
 
-/// The catalog names `catalogEntries`, `deviceModels` and `systemVersions`
-/// accept, with the core platform of each.
-const PLATFORM_NAMES: [(&str, Platform); 7] = [
-    ("windows", Platform::Windows),
-    ("linux", Platform::Linux),
-    ("macos", Platform::MacOS { swift: false }),
-    ("android", Platform::Android),
-    ("ios", Platform::Ios),
-    (
-        "web_a",
-        Platform::Web {
-            client: WebClient::A,
-        },
-    ),
-    (
-        "web_k",
-        Platform::Web {
-            client: WebClient::K,
-        },
-    ),
-];
-
-/// The catalog of the platform named `name`, built on first use; an unknown
-/// name throws `ERR_INVALID_ARG_VALUE`, a malformed embedded catalog
-/// `OT_IO`.
+/// The catalog of the platform named `name` (one of the core
+/// `Platform::NAMED` names), built on first use; an unknown name throws
+/// `ERR_INVALID_ARG_VALUE`, a malformed embedded catalog `OT_IO`.
 fn catalog(name: &str) -> Result<&'static devices::Catalog> {
-    let platform = PLATFORM_NAMES
-        .iter()
-        .find(|(known, _)| *known == name)
-        .map(|(_, platform)| *platform)
-        .ok_or_else(|| {
-            let known: Vec<&str> = PLATFORM_NAMES.iter().map(|(known, _)| *known).collect();
-            invalid_arg(format!(
-                "unknown platform {name:?}; expected one of {}",
-                known.join(", ")
-            ))
-        })?;
+    let platform = Platform::from_name(name).ok_or_else(|| {
+        let known = Platform::NAMED.map(Platform::name);
+        invalid_arg(format!(
+            "unknown platform {name:?}; expected one of {}",
+            known.join(", ")
+        ))
+    })?;
     check(devices::catalog(platform))
 }
 
