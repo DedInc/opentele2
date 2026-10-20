@@ -1273,6 +1273,73 @@ fn companion_text_prints_floats_as_python_repr() {
 }
 
 #[test]
+fn py_json_text_prints_an_untyped_object_as_python() {
+    // Expected text from Python's json.dumps(value, indent=2,
+    // ensure_ascii=False).
+    let value = serde_json::json!({
+        "app_id": "2040",
+        "app_hash": null,
+        "lang_pack": "тест",
+        "ratio": 0.5,
+        "id": 12_345_678_901_i64,
+        "flags": [true, false, null, [], {}],
+        "proxy": {
+            "type": "socks5",
+            "ports": [1080, 2.5e-7],
+            "auth": { "user": "a\"b\\c\n" }
+        }
+    });
+    let want = r#"{
+  "app_id": "2040",
+  "app_hash": null,
+  "lang_pack": "тест",
+  "ratio": 0.5,
+  "id": 12345678901,
+  "flags": [
+    true,
+    false,
+    null,
+    [],
+    {}
+  ],
+  "proxy": {
+    "type": "socks5",
+    "ports": [
+      1080,
+      2.5e-07
+    ],
+    "auth": {
+      "user": "a\"b\\c\n"
+    }
+  }
+}"#;
+    assert_eq!(telethon_file::py_json_text(&value), want);
+}
+
+#[test]
+fn py_json_text_prints_a_top_level_list_as_python() {
+    let value = serde_json::json!([1, "два", null, { "k": [1.0] }, []]);
+    let want = "[\n  1,\n  \"два\",\n  null,\n  {\n    \"k\": [\n      1.0\n    ]\n  },\n  []\n]";
+    assert_eq!(telethon_file::py_json_text(&value), want);
+}
+
+#[test]
+fn py_json_text_prints_scalars_and_empty_containers_as_python() {
+    let cases = [
+        (serde_json::json!("a\tб"), "\"a\\tб\""),
+        (serde_json::json!(1e16), "1e+16"),
+        (serde_json::json!(null), "null"),
+        (serde_json::json!(true), "true"),
+        (serde_json::json!(-7), "-7"),
+        (serde_json::json!([]), "[]"),
+        (serde_json::json!({}), "{}"),
+    ];
+    for (value, want) in cases {
+        assert_eq!(telethon_file::py_json_text(&value), want, "{value}");
+    }
+}
+
+#[test]
 fn read_companion_reads_what_companion_text_writes() {
     let profile = companion_profile();
     let extra = object(serde_json::json!({

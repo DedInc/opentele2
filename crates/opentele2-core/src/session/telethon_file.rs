@@ -219,18 +219,26 @@ pub fn companion_json(profile: &ApiProfile, extra: Option<&Map<String, Value>>) 
 
 /// The `.json` companion text 1.5.0 `save_session_json` writes, byte for
 /// byte: [`companion_json`] as Python's `json.dump(data, f,
-/// ensure_ascii=False, indent=2)` prints it.
-///
-/// Objects and arrays open a line per item, indented two spaces per level,
-/// items separated by `,` and keys by `: `; an empty array is `[]` and an
-/// empty object `{}`. Strings escape `"`, `\`, `\n`, `\r`, `\t`, `\b`, `\f`
-/// and other control characters as `\u00xx`, and keep every other
-/// character, non-ASCII included. Integers print in full and floats as
-/// Python's `repr`. There is no trailing newline.
+/// ensure_ascii=False, indent=2)` prints it, through [`py_json_text`].
 #[must_use]
 pub fn companion_text(profile: &ApiProfile, extra: Option<&Map<String, Value>>) -> String {
+    py_json_text(&companion_json(profile, extra))
+}
+
+/// Any JSON value exactly as Python's `json.dumps(value, indent=2,
+/// ensure_ascii=False)` prints it (the same text `json.dump` writes).
+///
+/// Objects and arrays open a line per item, indented two spaces per level,
+/// items separated by `,` and keys by `: `, keys in the value's order; an
+/// empty array is `[]` and an empty object `{}`. Strings escape `"`, `\`,
+/// `\n`, `\r`, `\t`, `\b`, `\f` and other control characters as `\u00xx`,
+/// and keep every other character, non-ASCII included. Integers print in
+/// full and floats as Python's `repr`. A scalar prints on its own, and
+/// there is no trailing newline.
+#[must_use]
+pub fn py_json_text(value: &Value) -> String {
     let mut text = String::new();
-    push_py_json(&mut text, &companion_json(profile, extra), 0);
+    push_py_json(&mut text, value, 0);
     text
 }
 
