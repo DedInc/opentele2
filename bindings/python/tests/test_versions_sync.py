@@ -39,6 +39,7 @@ FULL_PATCH = {
     "web_k_version": "2.3 K",
     "web_a_version": "12.1.0 A",
 }
+BROWSER_PATCH = {"chrome_version": "160.0.0.0", "firefox_version": "155.0"}
 
 
 class FakeFetch:
@@ -158,14 +159,21 @@ def test_results_are_cached(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("offline")
-def test_empty_fetched_values_are_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_native_patch_is_taken_as_is(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The core already leaves out every field no source answered with a
+    # non-empty value; the fetcher keeps every field it returns.
     monkeypatch.delenv("OPENTELE_NO_FETCH")
     monkeypatch.setattr(_version_fetcher, "_CACHED", None)
-    fake = FakeFetch({"android_app_version": "", "web_k_version": "2.2 K", "web_a_version": None})
+    fake = FakeFetch({**FULL_PATCH, **BROWSER_PATCH})
     monkeypatch.setattr(_native, "fetch_versions", fake)
 
-    assert _version_fetcher.fetch_all_versions(4.5) == {"web_k_version": "2.2 K"}
+    assert _version_fetcher.fetch_all_versions(4.5) == {**FULL_PATCH, **BROWSER_PATCH}
     assert fake.timeouts == [4.5]
+
+
+def test_the_default_timeout_is_the_core_one() -> None:
+    assert _native.DEFAULT_TIMEOUT == 10.0
+    assert _version_fetcher._TIMEOUT == _native.DEFAULT_TIMEOUT
 
 
 @pytest.mark.usefixtures("offline")
@@ -236,6 +244,26 @@ def test_fetched_versions_are_applied_and_synced(monkeypatch: pytest.MonkeyPatch
         lang_code="en",
         strict=True,
     ) == ["Android app_version '13.0.3' major does not match latest known '14.1.2'"]
+
+
+@pytest.mark.usefixtures("offline")
+def test_fetched_browser_versions_flow_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENTELE_NO_FETCH")
+    monkeypatch.setattr(_version_fetcher, "_CACHED", None)
+    monkeypatch.setattr(_native, "fetch_versions", FakeFetch(BROWSER_PATCH))
+
+    fetched = _version_fetcher.fetch_all_versions()
+    assert fetched == BROWSER_PATCH
+    assert _version_fetcher.versions_patch(fetched) == BROWSER_PATCH
+
+    pv = fingerprint.PLATFORM_VERSIONS
+    fingerprint._apply_fetched_versions()
+    # The patch with both browser fields applies; the Chrome version moves
+    # the user agent with it.
+    assert pv.chrome_version == "160.0.0.0"
+    assert f"Chrome/{pv.chrome_version} " in pv.user_agent
+    assert pv.user_agent != fingerprint.PlatformVersions().user_agent
+    assert pv.android_app_version == fingerprint.PlatformVersions().android_app_version
 
 
 @pytest.mark.usefixtures("offline")

@@ -2,7 +2,7 @@
 # Docstrings live in the extension; this file carries the types only.
 
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal, Protocol, TypedDict, final, overload
 
 from typing_extensions import NotRequired, TypeAlias
@@ -109,7 +109,8 @@ class PlatformVersions(TypedDict):
 
 _VersionsArg: TypeAlias = Versions | PlatformVersions
 
-# The fields the release feeds answered; a field no source answered is absent.
+# The fields the release feeds answered, never empty; a field no source
+# answered is absent.
 class VersionsPatch(TypedDict, total=False):
     desktop_app_version: str | None
     android_app_version: str | None
@@ -121,6 +122,8 @@ class VersionsPatch(TypedDict, total=False):
     macos_build_number: int | None
     web_k_version: str | None
     web_a_version: str | None
+    chrome_version: str | None
+    firefox_version: str | None
 
 # The TL schema layer opentele2 advertises.
 LAYER: int
@@ -440,10 +443,16 @@ def system_versions(platform: _Platform) -> list[str]: ...
 
 WEB_BROWSER_WEIGHTS: dict[str, int]
 
-# Current versions from the release feeds; never raises for the network.
-def fetch_versions(timeout: float = 10.0) -> VersionsPatch: ...
+# The per-request timeout fetch_versions defaults to, in seconds.
+DEFAULT_TIMEOUT: float
+
+# Current versions from the release feeds, keyed by VersionsPatch field;
+# never raises for the network.
+def fetch_versions(timeout: float = ...) -> dict[str, str | int]: ...
+
+# A patch: VersionsPatch fields, None for an absent one.
 def apply_versions_patch(
-    versions: _VersionsArg | None, patch: VersionsPatch
+    versions: _VersionsArg | None, patch: VersionsPatch | Mapping[str, str | int | None]
 ) -> PlatformVersions: ...
 
 # initConnection fingerprint checks.

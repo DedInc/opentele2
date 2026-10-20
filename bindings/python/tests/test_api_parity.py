@@ -124,7 +124,8 @@ def test_apply_versions_patch_skips_the_desktop_version() -> None:
     )
     assert both["ios_app_version"] == "14.1"
     assert both["ios_build_number"] == 1
-    bad_patch: Any = {"chrome_version": "1"}
+    # chrome_version became a real patch field in 2.0.0.
+    bad_patch: Any = {"bogus_version": "1"}
     with pytest.raises(ValueError, match="unknown versions patch field"):
         _native.apply_versions_patch(None, bad_patch)
 
