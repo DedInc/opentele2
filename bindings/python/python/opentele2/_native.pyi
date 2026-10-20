@@ -5,7 +5,7 @@ import os
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Literal, Protocol, TypedDict, final, overload
 
-from typing_extensions import NotRequired, TypeAlias
+from typing_extensions import NotRequired, TypeAlias, Unpack
 
 __version__: str
 
@@ -519,6 +519,114 @@ def effective_layer_for(
     library_layer: int, layer_override: int | None = None
 ) -> tuple[int, str | None]: ...
 def layer_mismatch_warning(library_layer: int) -> str | None: ...
+
+# Browser headers and fingerprints (browserforge-shaped). Unsatisfiable or
+# invalid options raise ValueError; an unknown option key raises TypeError.
+
+_HttpVersion: TypeAlias = Literal[1, 2, "1", "2"]
+_Texts: TypeAlias = str | Sequence[str]
+
+class BrowserSpec(TypedDict):
+    name: str
+    min_version: NotRequired[int | None]
+    max_version: NotRequired[int | None]
+    http_version: NotRequired[_HttpVersion]
+
+class HeaderOptions(TypedDict, total=False):
+    browser: str | Sequence[str | BrowserSpec]
+    os: _Texts
+    device: _Texts
+    locale: _Texts
+    http_version: _HttpVersion
+    strict: bool
+    user_agent: _Texts | None
+    request_dependent_headers: dict[str, str] | None
+
+class ScreenSpec(TypedDict, total=False):
+    min_width: int | None
+    max_width: int | None
+    min_height: int | None
+    max_height: int | None
+
+class FingerprintOptions(TypedDict, total=False):
+    screen: ScreenSpec | None
+    strict: bool
+    mock_webrtc: bool
+    slim: bool
+    header: HeaderOptions
+
+class ScreenData(TypedDict):
+    availTop: int
+    availLeft: int
+    pageXOffset: int
+    pageYOffset: int
+    screenX: int
+    hasHDR: bool
+    width: int
+    height: int
+    availWidth: int
+    availHeight: int
+    clientWidth: int
+    clientHeight: int
+    innerWidth: int
+    innerHeight: int
+    outerWidth: int
+    outerHeight: int
+    colorDepth: int
+    pixelDepth: int
+    devicePixelRatio: float
+
+class NavigatorData(TypedDict):
+    userAgent: str
+    userAgentData: dict[str, Any] | None
+    doNotTrack: str | None
+    appCodeName: str
+    appName: str
+    appVersion: str
+    oscpu: str | None
+    webdriver: Any
+    language: str
+    languages: list[str]
+    platform: str
+    deviceMemory: float | None
+    hardwareConcurrency: int
+    product: str
+    productSub: str
+    vendor: str | None
+    vendorSub: str | None
+    maxTouchPoints: int
+    extraProperties: dict[str, Any] | None
+
+class VideoCardData(TypedDict):
+    renderer: str
+    vendor: str
+
+class FingerprintData(TypedDict):
+    screen: ScreenData
+    navigator: NavigatorData
+    headers: dict[str, str]
+    videoCodecs: dict[str, str] | None
+    audioCodecs: dict[str, str] | None
+    pluginsData: dict[str, Any] | None
+    battery: dict[str, Any] | None
+    videoCard: VideoCardData | None
+    multimediaDevices: dict[str, Any] | None
+    fonts: list[str] | None
+    mockWebRTC: bool
+    slim: bool
+
+def generate_headers(
+    options: HeaderOptions | None = None,
+    *,
+    seed: str | int | None = None,
+    **kwargs: Unpack[HeaderOptions],
+) -> dict[str, str]: ...
+def generate_fingerprint(
+    options: FingerprintOptions | None = None,
+    *,
+    seed: str | int | None = None,
+    **kwargs: Unpack[FingerprintOptions],
+) -> FingerprintData: ...
 
 # Login, session admin and consistency checks.
 

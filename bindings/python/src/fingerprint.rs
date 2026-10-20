@@ -1,17 +1,23 @@
-//! The `initConnection` fingerprint helpers of 1.5.0 `src/fingerprint.py`.
+//! The `initConnection` fingerprint helpers of 1.5.0 `src/fingerprint.py`,
+//! and the browser header and fingerprint generation of `opentele2.browser`.
 
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyModule, PyString, PyTuple};
 
+use opentele2_browser::{
+    Browser, FingerprintGenerator, FingerprintOptions, FingerprintOverrides, HeaderGenerator,
+    HeaderOptions, HeaderOverrides, Headers, HttpVersion, Rng, Screen,
+};
 use opentele2_core::fingerprint::{
     self, FingerprintConfig, FingerprintConfigOptions, Issue, IssueKind, RawApiId, RawInitParams,
     Severity, StrictMode,
 };
 
 use crate::api::{to_profile, versions};
-use crate::convert::{dicts, optional, required};
+use crate::convert::{dicts, optional, required, seed};
 use crate::error::check;
+use crate::json::from_json;
 
 /// The config keys `fingerprint_config` takes.
 const CONFIG_KEYS: [&str; 7] = [
@@ -426,6 +432,297 @@ fn layer_mismatch_warning(library_layer: i32) -> Option<String> {
     fingerprint::layer_mismatch_warning(library_layer)
 }
 
+/// The option keys `generate_headers` takes, browserforge's
+/// `HeaderGenerator` argument names.
+const HEADER_KEYS: [&str; 8] = [
+    "browser",
+    "os",
+    "device",
+    "locale",
+    "http_version",
+    "strict",
+    "user_agent",
+    "request_dependent_headers",
+];
+
+/// The option keys `generate_fingerprint` takes; `header` holds the
+/// `generate_headers` options.
+const FINGERPRINT_KEYS: [&str; 5] = ["screen", "strict", "mock_webrtc", "slim", "header"];
+
+/// The bound keys of a screen constraint dict.
+const SCREEN_KEYS: [&str; 4] = ["min_width", "max_width", "min_height", "max_height"];
+
+/// The keys of a browser dict.
+const BROWSER_KEYS: [&str; 4] = ["name", "min_version", "max_version", "http_version"];
+
+/// A browser crate error as Python raises it: `OSError` without system
+/// entropy, otherwise `ValueError`, as browserforge does.
+fn browser_error(error: &opentele2_browser::Error) -> PyErr {
+    match error {
+        opentele2_browser::Error::Entropy(_) => PyOSError::new_err(error.to_string()),
+        _ => PyValueError::new_err(error.to_string()),
+    }
+}
+
+/// Raises `TypeError` naming `what` for a key of `dict` outside `keys`.
+fn check_keys(dict: &Bound<'_, PyDict>, keys: &[&str], what: &str) -> PyResult<()> {
+    for key in dict.keys() {
+        let key = key
+            .cast_into::<PyString>()
+            .map_err(|_| PyTypeError::new_err(format!("{what} keys must be str")))?;
+        let key = key.to_cow()?;
+        if !keys.contains(&key.as_ref()) {
+            return Err(PyTypeError::new_err(format!(
+                "{what} got an unexpected option {key:?}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// `options` updated with `kwargs`, its keys checked against `keys`.
+fn merged_options<'py>(
+    py: Python<'py>,
+    options: Option<&Bound<'py, PyDict>>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+    keys: &[&str],
+    what: &str,
+) -> PyResult<Bound<'py, PyDict>> {
+    let merged = PyDict::new(py);
+    for source in [options, kwargs].into_iter().flatten() {
+        merged.update(source.as_mapping())?;
+    }
+    check_keys(&merged, keys, what)?;
+    Ok(merged)
+}
+
+/// The value of `key` in `dict`, `None` when it is missing or `None`.
+fn present<'py>(dict: &Bound<'py, PyDict>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    Ok(dict.get_item(key)?.filter(|value| !value.is_none()))
+}
+
+/// A `str` as one text, any other iterable as its `str` items, as
+/// browserforge's `tuplify`.
+fn texts(value: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
+    if let Ok(text) = value.cast::<PyString>() {
+        return Ok(vec![text.to_cow()?.into_owned()]);
+    }
+    value
+        .try_iter()?
+        .map(|item| item?.extract::<String>())
+        .collect()
+}
+
+/// An HTTP version given as `1`, `2`, `"1"` or `"2"`; another value raises
+/// `ValueError`.
+fn http_version(value: &Bound<'_, PyAny>) -> PyResult<HttpVersion> {
+    let text = if value.is_instance_of::<PyBool>() {
+        String::new()
+    } else {
+        value.str()?.to_cow()?.into_owned()
+    };
+    match text.as_str() {
+        "1" => Ok(HttpVersion::One),
+        "2" => Ok(HttpVersion::Two),
+        _ => Err(PyValueError::new_err(format!(
+            "http_version must be 1 or 2, not {}",
+            value.repr()?
+        ))),
+    }
+}
+
+/// The browsers of a `browser` option: names, which speak `default`, or
+/// dicts with `name` and optional `min_version`, `max_version` and
+/// `http_version` (`default` when absent).
+fn browsers(value: &Bound<'_, PyAny>, default: HttpVersion) -> PyResult<Vec<Browser>> {
+    let items: Vec<Bound<'_, PyAny>> = if value.is_instance_of::<PyString>() {
+        vec![value.clone()]
+    } else {
+        value.try_iter()?.collect::<PyResult<_>>()?
+    };
+    items
+        .iter()
+        .map(|item| {
+            if let Ok(name) = item.cast::<PyString>() {
+                return Ok(Browser {
+                    http_version: default,
+                    ..Browser::new(name.to_cow()?.into_owned())
+                });
+            }
+            let dict = item.cast::<PyDict>().map_err(|_| {
+                PyTypeError::new_err("every browser must be a str or a dict with a name")
+            })?;
+            check_keys(dict, &BROWSER_KEYS, "the browser")?;
+            let http = present(dict, "http_version")?
+                .map(|value| http_version(&value))
+                .transpose()?
+                .unwrap_or(default);
+            Ok(Browser {
+                name: required(dict, "name", "the browser")?,
+                min_version: optional(dict, "min_version")?,
+                max_version: optional(dict, "max_version")?,
+                http_version: http,
+            })
+        })
+        .collect()
+}
+
+/// The generator options and per-call overrides a `generate_headers`
+/// options dict holds, defaulting as browserforge's `HeaderGenerator`.
+fn header_request(dict: &Bound<'_, PyDict>) -> PyResult<(HeaderOptions, HeaderOverrides)> {
+    check_keys(dict, &HEADER_KEYS, "the header options")?;
+    let mut options = HeaderOptions::default();
+    if let Some(value) = present(dict, "http_version")? {
+        options = options.with_http_version(http_version(&value)?);
+    }
+    if let Some(value) = present(dict, "browser")? {
+        options.browsers = browsers(&value, options.http_version)?;
+    }
+    if let Some(value) = present(dict, "os")? {
+        options.os = texts(&value)?;
+    }
+    if let Some(value) = present(dict, "device")? {
+        options.devices = texts(&value)?;
+    }
+    if let Some(value) = present(dict, "locale")? {
+        options.locales = texts(&value)?;
+    }
+    if let Some(strict) = optional(dict, "strict")? {
+        options.strict = strict;
+    }
+    let mut overrides = HeaderOverrides::default();
+    if let Some(value) = present(dict, "user_agent")? {
+        overrides.user_agent = texts(&value)?;
+    }
+    if let Some(value) = present(dict, "request_dependent_headers")? {
+        let headers = value.cast::<PyDict>().map_err(|_| {
+            PyTypeError::new_err("request_dependent_headers must be a dict of str to str")
+        })?;
+        overrides.request_dependent_headers = headers
+            .iter()
+            .map(|(name, value)| Ok((name.extract::<String>()?, value.extract::<String>()?)))
+            .collect::<PyResult<Headers>>()?;
+    }
+    Ok((options, overrides))
+}
+
+/// The screen constraint a dict of `min_width`, `max_width`, `min_height`
+/// and `max_height` holds, each optional.
+fn screen(value: &Bound<'_, PyAny>) -> PyResult<Screen> {
+    let dict = value
+        .cast::<PyDict>()
+        .map_err(|_| PyTypeError::new_err("the screen must be a dict of its bounds"))?;
+    check_keys(dict, &SCREEN_KEYS, "the screen")?;
+    Ok(Screen {
+        min_width: optional(dict, "min_width")?,
+        max_width: optional(dict, "max_width")?,
+        min_height: optional(dict, "min_height")?,
+        max_height: optional(dict, "max_height")?,
+    })
+}
+
+/// A generator seeded from the text of `seed`, or from the operating
+/// system's entropy without one.
+fn rng(seed: Option<&str>) -> opentele2_browser::Result<Rng> {
+    seed.map_or_else(Rng::from_entropy, |seed| Ok(Rng::from_seed(seed)))
+}
+
+/// `headers` as a dict, in sending order.
+fn headers_dict<'py>(py: Python<'py>, headers: &Headers) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (name, value) in headers {
+        dict.set_item(name, value)?;
+    }
+    Ok(dict)
+}
+
+/// One set of browser HTTP headers, name to value in sending order, as
+/// browserforge's `HeaderGenerator(...).generate(...)`. The options (a dict,
+/// updated by the keyword arguments) are browserforge's: `browser` (names or
+/// dicts of `name`, `min_version`, `max_version`, `http_version`), `os`,
+/// `device`, `locale` (each a `str` or a list), `http_version` (1 or 2),
+/// `strict`, `user_agent` and `request_dependent_headers`. A `seed` (`str`
+/// or `int`) makes the draw reproducible; without one it comes from the
+/// operating system's entropy. Unsatisfiable or invalid options raise
+/// `ValueError`; runs with the thread detached.
+#[pyfunction]
+#[pyo3(signature = (options = None, *, seed = None, **kwargs))]
+fn generate_headers<'py>(
+    py: Python<'py>,
+    options: Option<&Bound<'py, PyDict>>,
+    seed: Option<&Bound<'py, PyAny>>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let merged = merged_options(py, options, kwargs, &HEADER_KEYS, "generate_headers()")?;
+    let (options, overrides) = header_request(&merged)?;
+    let seed = self::seed(seed)?;
+    let headers = py
+        .detach(move || {
+            let mut rng = rng(seed.as_deref())?;
+            HeaderGenerator::new(options)?.generate(&mut rng, &overrides)
+        })
+        .map_err(|error| browser_error(&error))?;
+    headers_dict(py, &headers)
+}
+
+/// One browser fingerprint with its matching headers, as browserforge's
+/// `FingerprintGenerator(...).generate(...)`, as a dict of browserforge's
+/// `Fingerprint` fields (`screen`, `navigator`, `headers`, `videoCodecs`,
+/// `audioCodecs`, `pluginsData`, `battery`, `videoCard`,
+/// `multimediaDevices`, `fonts`, `mockWebRTC`, `slim`). The options (a dict,
+/// updated by the keyword arguments) are `screen` (a dict of `min_width`,
+/// `max_width`, `min_height`, `max_height`), `strict`, `mock_webrtc`,
+/// `slim` and `header`, the `generate_headers` options. `seed` as for
+/// `generate_headers`. Unsatisfiable or invalid options raise `ValueError`;
+/// runs with the thread detached.
+#[pyfunction]
+#[pyo3(signature = (options = None, *, seed = None, **kwargs))]
+fn generate_fingerprint<'py>(
+    py: Python<'py>,
+    options: Option<&Bound<'py, PyDict>>,
+    seed: Option<&Bound<'py, PyAny>>,
+    kwargs: Option<&Bound<'py, PyDict>>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let merged = merged_options(
+        py,
+        options,
+        kwargs,
+        &FINGERPRINT_KEYS,
+        "generate_fingerprint()",
+    )?;
+    let (header, header_overrides) = match present(&merged, "header")? {
+        Some(value) => header_request(
+            value
+                .cast::<PyDict>()
+                .map_err(|_| PyTypeError::new_err("the header options must be a dict"))?,
+        )?,
+        None => (HeaderOptions::default(), HeaderOverrides::default()),
+    };
+    let options = FingerprintOptions {
+        screen: present(&merged, "screen")?
+            .map(|value| screen(&value))
+            .transpose()?,
+        strict: optional(&merged, "strict")?.unwrap_or(false),
+        mock_webrtc: optional(&merged, "mock_webrtc")?.unwrap_or(false),
+        slim: optional(&merged, "slim")?.unwrap_or(false),
+        header,
+    };
+    let overrides = FingerprintOverrides {
+        header: header_overrides,
+        ..FingerprintOverrides::default()
+    };
+    let seed = self::seed(seed)?;
+    let fingerprint = py
+        .detach(move || {
+            let mut rng = rng(seed.as_deref())?;
+            FingerprintGenerator::new(options)?.generate(&mut rng, &overrides)
+        })
+        .map_err(|error| browser_error(&error))?;
+    let value = serde_json::to_value(&fingerprint)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    from_json(py, &value)
+}
+
 /// Adds the fingerprint helpers to `module`.
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let modes = StrictMode::ALL.map(StrictMode::as_str);
@@ -446,5 +743,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(effective_layer, module)?)?;
     module.add_function(wrap_pyfunction!(effective_layer_for, module)?)?;
     module.add_function(wrap_pyfunction!(layer_mismatch_warning, module)?)?;
+    module.add_function(wrap_pyfunction!(generate_headers, module)?)?;
+    module.add_function(wrap_pyfunction!(generate_fingerprint, module)?)?;
     Ok(())
 }

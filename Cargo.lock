@@ -1187,6 +1187,7 @@ dependencies = [
 name = "opentele2-python"
 version = "2.0.0"
 dependencies = [
+ "opentele2-browser",
  "opentele2-core",
  "opentele2-versions",
  "pyo3",
