@@ -1,4 +1,4 @@
-//! The `initConnection` fingerprint helpers of 1.5.0 `src/fingerprint.py`,
+//! The `initConnection` fingerprint helpers of `opentele2.fingerprint`,
 //! and the browser header and fingerprint generation of `opentele2.browser`.
 
 use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
@@ -163,7 +163,7 @@ impl ApiIdArg {
     }
 }
 
-/// The arguments of 1.5.0 `validate_init_connection_params`, owned.
+/// The arguments of `validate_init_connection_params`, owned.
 struct InitArgs {
     api_id: ApiIdArg,
     device_model: Option<String>,
@@ -174,7 +174,8 @@ struct InitArgs {
     lang_code: Option<String>,
 }
 
-/// The keys of a `RawInitParams` dict, the 1.5.0 argument names.
+/// The keys of a `RawInitParams` dict, the argument names of
+/// `validate_init_connection_params`.
 const INIT_PARAM_KEYS: [&str; 7] = [
     "api_id",
     "device_model",
@@ -186,10 +187,10 @@ const INIT_PARAM_KEYS: [&str; 7] = [
 ];
 
 impl InitArgs {
-    /// The arguments a `RawInitParams` dict holds. As a call of 1.5.0
+    /// The arguments a `RawInitParams` dict holds. As a call of
     /// `validate_init_connection_params`, a missing or unknown key raises
     /// `TypeError`; a text may be `None`, and `lang_pack` may be any value,
-    /// which 1.5.0 looked up as its `str()`.
+    /// which is looked up as its `str()`.
     fn new(params: &Bound<'_, PyDict>) -> PyResult<Self> {
         const WHAT: &str = "the init params";
         for key in params.keys() {
@@ -233,7 +234,7 @@ impl InitArgs {
 }
 
 /// The `tz_offset` Telegram Desktop sends in `initConnection` `params` for
-/// a local UTC offset of `offset_seconds` (1.5.0 `tdesktop_tz_offset`):
+/// a local UTC offset of `offset_seconds` (`tdesktop_tz_offset`):
 /// wrapped by whole days into -12 h..+14 h, then rounded to a multiple of
 /// 900 seconds, halves away from zero.
 #[pyfunction]
@@ -241,7 +242,7 @@ fn tz_offset(offset_seconds: i32) -> f64 {
     fingerprint::tz_offset(offset_seconds)
 }
 
-/// The findings of 1.5.0 `validate_init_connection_params` for `profile`,
+/// The findings of `validate_init_connection_params` for `profile`,
 /// with `strict` on exactly when `mode` is `"strict"`; each finding has the
 /// severity of `mode`. `versions` overrides the offline `PlatformVersions`
 /// the strict version check compares with.
@@ -259,10 +260,10 @@ fn validate_init_params<'py>(
     issue_dicts(py, &issues)
 }
 
-/// The findings of 1.5.0 `validate_init_connection_params` for `params`,
-/// its seven arguments as the caller gave them (`None` for any text, an
+/// The findings of `validate_init_connection_params` for `params`, its
+/// seven arguments as the caller gave them (`None` for any text, an
 /// `api_id` of any type), with `strict` on exactly when `mode` is
-/// `"strict"`. Each message shows the values as 1.5.0 shows them.
+/// `"strict"`.
 #[pyfunction]
 #[pyo3(signature = (params, versions = None, mode = "warn"))]
 fn validate_raw_init_params<'py>(
@@ -278,7 +279,7 @@ fn validate_raw_init_params<'py>(
     issue_dicts(py, &issues)
 }
 
-/// The findings 1.5.0 `FingerprintConfig.validate_params` warns about or
+/// The findings `FingerprintConfig.validate_params` warns about or
 /// raises for `params`, as `validate_raw_init_params` takes them, under a
 /// config with `strict_mode` and `auto_validate`: none with `auto_validate`
 /// off or mode `"off"`, otherwise those of the mode.
@@ -301,8 +302,7 @@ fn validate_raw_fingerprint<'py>(
     issue_dicts(py, &issues)
 }
 
-/// The findings of 1.5.0 `_check_version_consistency` for `profile`, each
-/// an `"error"`: the app version major of `android`, `ios`, `tdesktop` and
+/// The version consistency findings for `profile`, each an `"error"`: the app version major of `android`, `ios`, `tdesktop` and
 /// `macos` profiles, and the Android SDK level range.
 #[pyfunction]
 #[pyo3(signature = (profile, versions = None))]
@@ -315,7 +315,7 @@ fn check_versions<'py>(
     issue_dicts(py, &issues)
 }
 
-/// The message 1.5.0 `FingerprintConfig.validate_params` warns or raises
+/// The message `FingerprintConfig.validate_params` warns or raises
 /// with: a header line, then one `  - ` line per issue.
 #[pyfunction]
 fn issues_message(issues: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -327,14 +327,14 @@ fn issues_message(issues: &Bound<'_, PyAny>) -> PyResult<String> {
 }
 
 /// A random msg id offset in `0..=0xFFFF` from the operating system's
-/// CSPRNG (1.5.0 `generate_msg_id_offset`).
+/// CSPRNG (`generate_msg_id_offset`).
 #[pyfunction]
 fn msg_id_offset(py: Python<'_>) -> PyResult<u16> {
     check(py, fingerprint::msg_id_offset_for_os())
 }
 
-/// Whether `msg_id` is plausible at unix time `now_unix` (1.5.0
-/// `is_valid_msg_id`): positive, odd when `from_client` and even otherwise,
+/// Whether `msg_id` is plausible at unix time `now_unix`
+/// (`is_valid_msg_id`): positive, odd when `from_client` and even otherwise,
 /// with its upper 32 bits within 300 seconds of `now_unix`. A `float`
 /// `now_unix` such as `time.time()` is truncated, as `int(time.time())`.
 #[pyfunction]
@@ -348,7 +348,7 @@ fn is_valid_msg_id(
     Ok(fingerprint::is_valid_msg_id(msg_id, from_client, now_unix))
 }
 
-/// A 1.5.0 `FingerprintConfig` with its defaults (`"warn"`, auto
+/// A `FingerprintConfig` with its defaults (`"warn"`, auto
 /// validation, `"obfuscated"`, layer mismatch warnings, no layer override,
 /// a randomized offset), each replaced by the keyword argument given.
 /// Without `msg_id_offset` the offset is drawn from the OS random source.
@@ -390,7 +390,7 @@ fn fingerprint_config<'py>(
     config_dict(py, &check(py, FingerprintConfig::from_options(options))?)
 }
 
-/// The issues 1.5.0 `FingerprintConfig.validate_params` warns about or
+/// The issues `FingerprintConfig.validate_params` warns about or
 /// raises for `profile`: none with `auto_validate` off or mode `"off"`,
 /// otherwise `validate_init_params` under the configured mode.
 #[pyfunction]
@@ -405,15 +405,15 @@ fn validate_fingerprint<'py>(
     issue_dicts(py, &issues)
 }
 
-/// The layer to invoke with (1.5.0 `get_effective_layer`): `layer_override`
-/// when set, otherwise `LAYER`. Pass the `MTProto` library's layer as the
-/// override to follow 1.5.0, which answers with Telethon's layer.
+/// The layer to invoke with: `layer_override` when set, otherwise `LAYER`.
+/// `FingerprintConfig.get_effective_layer` answers with Telethon's layer
+/// instead, through `effective_layer_for`.
 #[pyfunction]
 fn effective_layer(config: &Bound<'_, PyDict>) -> PyResult<i32> {
     Ok(to_config(config)?.effective_layer())
 }
 
-/// 1.5.0 `get_effective_layer` for an `MTProto` library built for
+/// `FingerprintConfig.get_effective_layer` for an `MTProto` library built for
 /// `library_layer`, as `(layer, warning)`: `layer_override` and no warning
 /// when it is set, otherwise `library_layer` and the
 /// `layer_mismatch_warning` of it.
@@ -427,7 +427,7 @@ fn effective_layer_for(library_layer: i32, layer_override: Option<i32>) -> (i32,
     .effective_layer_for(library_layer)
 }
 
-/// The warning 1.5.0 `get_recommended_layer` emits for an `MTProto`
+/// The warning `get_recommended_layer` emits for an `MTProto`
 /// library layer more than `LAYER_TOLERANCE` layers from `LAYER`; `None`
 /// within it.
 #[pyfunction]
@@ -825,13 +825,13 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(validate_raw_init_params, module)?)?;
     module.add_function(wrap_pyfunction!(check_versions, module)?)?;
     module.add_function(wrap_pyfunction!(issues_message, module)?)?;
-    // The largest offset `msg_id_offset` draws, so a facade can draw from
+    // The largest offset `msg_id_offset` draws, so a caller can draw from
     // Python's `random` in the same `0..=MSG_ID_OFFSET_MAX` range.
     module.add("MSG_ID_OFFSET_MAX", u16::MAX)?;
     module.add_function(wrap_pyfunction!(msg_id_offset, module)?)?;
     module.add_function(wrap_pyfunction!(is_valid_msg_id, module)?)?;
     module.add_function(wrap_pyfunction!(fingerprint_config, module)?)?;
-    // The 1.5.0 FingerprintConfig defaults, without the drawn offset.
+    // The FingerprintConfig defaults, without the drawn offset.
     let defaults = config_dict(
         module.py(),
         &undrawn_config(FingerprintConfigOptions::default()),

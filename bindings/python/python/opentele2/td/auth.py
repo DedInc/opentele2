@@ -1,4 +1,4 @@
-"""1.5.0 ``src/td/auth.py``: an MTProto auth key, its id and its old-MTP
+"""An MTProto auth key, its id and its old-MTP
 AES key derivation, computed by :mod:`opentele2._native`."""
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from ..exception import raise_core_error
 
 __all__ = ["AuthKey", "AuthKeyType"]
 
-# 1.5.0's DcId.Invalid: the DC of a key that belongs to none.
+# The invalid DC id: the DC of a key that belongs to none.
 _INVALID_DC_ID = 0
 
 

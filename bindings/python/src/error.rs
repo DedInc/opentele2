@@ -17,8 +17,8 @@ class CoreError(Exception):
 
     ``code`` is a stable SCREAMING_SNAKE identifier such as
     ``"TDATA_WRONG_PASSCODE"``; ``message`` is human-readable text that may
-    change between releases. ``legacy_message`` is the message opentele2
-    1.5.0 gave the matching exception, such as
+    change between releases. ``legacy_message`` is the stable message the
+    matching ``opentele2.exception`` class carries, such as
     ``"Invalid magic b'ABCD' in file maps"``; it is ``message`` when none is
     given.
     """
@@ -54,8 +54,8 @@ pub(crate) fn core_error_type(py: Python<'_>) -> PyResult<&Bound<'_, PyType>> {
         .map(|class| class.bind(py))
 }
 
-/// A `CoreError` instance for `error`, not raised, with the 1.5.0 message
-/// of [`Error::legacy_message`].
+/// A `CoreError` instance for `error`, not raised, with the exception
+/// message of [`Error::legacy_message`].
 pub(crate) fn core_error_value<'py>(py: Python<'py>, error: &Error) -> PyResult<Bound<'py, PyAny>> {
     core_error_type(py)?.call1((error.code(), error.to_string(), error.legacy_message()))
 }

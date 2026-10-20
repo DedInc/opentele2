@@ -46,8 +46,8 @@ class CoreError(Exception):
     code: str
     # Human-readable text; may change between releases.
     message: str
-    # The message 1.5.0 gave the matching exception; `message` when none
-    # was given.
+    # The stable message of the matching opentele2.exception class;
+    # `message` when none was given.
     legacy_message: str
     # Stable SCREAMING_SNAKE code of a context raised differently from the
     # rest of `code`, such as "BAD_ACCOUNTS_COUNT"; None for most errors.
@@ -87,7 +87,7 @@ class Versions(TypedDict, total=False):
     user_agent: str
     firefox_version: str
 
-# Every field of 1.5.0 PlatformVersions; also a valid override set.
+# Every field of PlatformVersions; also a valid override set.
 class PlatformVersions(TypedDict):
     android_app_version: str
     android_app_version_code: int
@@ -181,7 +181,7 @@ cryptg: _Cryptg
 
 # tdata: repr() of Account and TData never shows key bytes.
 
-# The 1.5.0 messages of TDataSaveFailed and MaxAccountLimit.
+# The messages of TDataSaveFailed and MaxAccountLimit.
 SAVE_FAILED_MESSAGE: str
 MAX_ACCOUNT_LIMIT_MESSAGE: str
 
@@ -394,7 +394,7 @@ def session_companion_json(
 # JSON cannot hold.
 def py_json_text(obj: object) -> str: ...
 
-# Raises CoreError INVALID_INPUT, legacy_message 1.5.0's SessionFileInvalid
+# Raises CoreError INVALID_INPUT, legacy_message the SessionFileInvalid
 # text; the profile is None when its keys are not the strict typed form.
 def read_session_companion(text: str) -> tuple[ApiProfile | None, dict[str, Any]]: ...
 def write_session_file(
@@ -427,7 +427,8 @@ def format_app_version(version: int) -> str: ...
 # (key, attribute, default, fallback) of each session JSON profile key, in
 # the order APIData.to_json writes them.
 SESSION_JSON_FIELDS: list[tuple[str, str, str | None, str | None]]
-# 1.5.0 _DEFAULT_EXTRA_FIELDS as (key, default) items, in order.
+# The account keys APIData.to_json writes after the profile keys, as
+# (key, default) items, in order.
 DEFAULT_EXTRA_FIELDS: list[tuple[str, str | bool | None]]
 
 # device catalogs
@@ -693,7 +694,7 @@ EXISTING_SESSION_REPLACED: str
 POST_LOGIN_APP_UPDATE_SOURCE: str
 POST_LOGIN_COUNTRIES_LANG_CODE: str
 
-# One step of the 1.5.0 post-login sequence: the request's TL name, such as
+# One step of the post-login sequence: the request's TL name, such as
 # "help.getConfig", and the inclusive range of the sleep before it.
 class PostLoginStep(TypedDict):
     request: str

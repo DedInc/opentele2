@@ -1,8 +1,8 @@
-"""The 1.5.0 exception hierarchy, and the mapping of core errors onto it.
+"""The opentele2 exception hierarchy, and the mapping of core errors onto it.
 
 Every ``CoreError`` code of :mod:`opentele2._native` has an entry in
 :data:`CORE_ERROR_TYPES`; :func:`raise_core_error` raises a ``CoreError`` as
-the exception 1.5.0 raised for the same failure.
+the exception of this hierarchy, or the builtin, that names the failure.
 """
 
 from __future__ import annotations
@@ -207,9 +207,9 @@ class SessionFileInvalid(OpenTeleException):
 
 
 class TDataKeyDataInvalid(OpenTeleException):
-    """1.5.0 ``src/td/key_data.py`` defines and exports this class; it lives
-    here so the core error table can name it, outside ``__all__`` so that a
-    star import of this module is unchanged."""
+    """Invalid tdata key data. It lives here so the core error table can name
+    it, outside ``__all__`` so that a star import of this module leaves it
+    out."""
 
 
 def _legacy_class(name: str) -> type[BaseException]:
@@ -221,9 +221,9 @@ def _legacy_class(name: str) -> type[BaseException]:
     return kind
 
 
-# The exception 1.5.0 raised for the failure each core code reports, by the
-# class name the core gives it: an OpenTeleException of this module, or the
-# builtin 1.5.0 raised for codes with no class of their own.
+# The exception raised for the failure each core code reports, by the class
+# name the core gives it: an OpenTeleException of this module, or a builtin
+# for codes with no class of their own.
 CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
     code: _legacy_class(name) for code, name in _native.core_error_classes().items()
 }
@@ -231,7 +231,7 @@ CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
 
 def raise_core_error(error: CoreError, stack_index: int = 1) -> typing.NoReturn:
     """Raise ``error`` as the exception :data:`CORE_ERROR_TYPES` names for
-    its code, chained to it, with the message 1.5.0 gave that exception
+    its code, chained to it, with that exception's stable message
     (``error.legacy_message``). An OpenTeleException reports the caller
     ``stack_index`` frames up from here; a code the table does not know
     re-raises ``error`` itself."""

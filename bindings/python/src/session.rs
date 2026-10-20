@@ -1,5 +1,5 @@
-//! The Telethon `.session` file and its `.json` companion (1.5.0
-//! `src/tl/session_io.py`): the `sessions` row, the SQL 1.5.0 runs, the
+//! The Telethon `.session` file and its `.json` companion
+//! (`opentele2.tl.session_io`): the `sessions` row, the SQL it runs, the
 //! pair paths, the file itself (the core's `telethon-sqlite` feature) and
 //! the companion JSON and its text.
 
@@ -28,8 +28,8 @@ fn rows_dict<'py>(py: Python<'py>, rows: &SessionRows) -> PyResult<Bound<'py, Py
     Ok(dict)
 }
 
-/// The version 8 tables in 1.5.0's order (`_V8_SCHEMA`), each a dict of
-/// `name`, the `ddl` 1.5.0 runs and the `columns` in declaration order.
+/// The version 8 tables in creation order, each a dict of `name`, the
+/// `ddl` that creates it and the `columns` in declaration order.
 #[pyfunction]
 fn telethon_schema(py: Python<'_>) -> PyResult<Vec<Bound<'_, PyDict>>> {
     telethon_file::SCHEMA
@@ -44,9 +44,9 @@ fn telethon_schema(py: Python<'_>) -> PyResult<Vec<Bound<'_, PyDict>>> {
         .collect()
 }
 
-/// The `sessions` row 1.5.0 saves for `account` (`ToTelethon`, then
+/// The `sessions` row saved for `account` (`ToTelethon`, then
 /// `SaveSessionJson`): the endpoint and key `telethon_string_session` uses,
-/// with the address text 1.5.0 writes (the stored config's IP text, else
+/// with the address text it writes (the stored config's IP text, else
 /// the built-in table's, IPv6 with all eight groups as four hex digits),
 /// and no takeout id. Raises `CoreError` `TDATA_BAD_CONFIG_DATA` when the
 /// main DC has no endpoint.
@@ -61,7 +61,7 @@ fn telethon_session_rows<'py>(
     rows_dict(py, &rows)
 }
 
-/// Writes the version 8 session file 1.5.0 `write_session_file` writes and
+/// Writes the version 8 session file `write_session_file` writes and
 /// returns its path (`session_path(path)`): a schema that is not already
 /// the version 8 layout is dropped and rebuilt, a current one keeps its
 /// other rows, and the version and sessions rows are replaced in one
@@ -102,7 +102,7 @@ fn read_session_file(py: Python<'_>, path: PathBuf) -> PyResult<Bound<'_, PyDict
     rows_dict(py, &check(py, rows)?)
 }
 
-/// The `(session, json)` paths of `base` (1.5.0 `_normalize_base_path`):
+/// The `(session, json)` paths of `base`:
 /// one trailing `.session` is removed, then one trailing `.json`, and each
 /// suffix is appended to what is left. The path is treated as text.
 #[pyfunction]
@@ -111,16 +111,16 @@ fn session_pair_paths(base: PathBuf) -> PyResult<(String, String)> {
     Ok((path_text(session)?, path_text(json)?))
 }
 
-/// The session file path of `path` (1.5.0 `write_session_file`): `path`
+/// The session file path of `path` (`write_session_file`): `path`
 /// itself when it ends with `.session`, else `path` with it appended.
 #[pyfunction]
 fn session_path(path: PathBuf) -> PyResult<String> {
     path_text(telethon_file::session_path(path))
 }
 
-/// The `.json` companion 1.5.0 `save_session_json` writes for `profile`
-/// (`APIData.to_json(extra)`), keys in its order; 1.5.0's `extra` holds
-/// `session_file` and, when known, `id`. 1.5.0 writes it with
+/// The `.json` companion `save_session_json` writes for `profile`
+/// (`APIData.to_json(extra)`), keys in its order; its `extra` holds
+/// `session_file` and, when known, `id`. It is written with
 /// `json.dump(..., indent=2, ensure_ascii=False)`.
 #[pyfunction]
 #[pyo3(signature = (profile, extra = None))]
@@ -135,10 +135,10 @@ fn session_companion_json<'py>(
     from_json(py, &telethon_file::companion_json(&profile, Some(&extra)))
 }
 
-/// `obj` as 1.5.0 `save_session_json` writes the `.json` companion, byte
-/// for byte: `json.dumps(obj, indent=2, ensure_ascii=False)`, with no
-/// trailing newline. The values are taken as they are, so an untyped
-/// `APIData.to_json` prints as 1.5.0 printed it; a value JSON cannot hold
+/// `obj` as `save_session_json` writes the `.json` companion, byte for
+/// byte: `json.dumps(obj, indent=2, ensure_ascii=False)`, with no trailing
+/// newline. The values are taken as they are, so an untyped
+/// `APIData.to_json` prints its values unchanged; a value JSON cannot hold
 /// raises `TypeError`, as `json.dump` does.
 #[pyfunction]
 fn py_json_text(obj: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -146,7 +146,7 @@ fn py_json_text(obj: &Bound<'_, PyAny>) -> PyResult<String> {
 }
 
 /// The `CoreError` of a companion `text` that `read_session_companion`
-/// rejects, its `legacy_message` the `SessionFileInvalid` text of 1.5.0
+/// rejects, its `legacy_message` the `SessionFileInvalid` text of
 /// `from_session_json`: `Invalid JSON file: {e}` when the text is not JSON
 /// (the `INVALID_INPUT` message), the bare `Missing required field '{f}'
 /// in JSON` when `app_id` or `app_hash` is missing or null.
@@ -170,14 +170,14 @@ fn companion_error(py: Python<'_>, text: &str, error: &Error) -> PyErr {
     core_error(py, error)
 }
 
-/// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+/// Reads `.json` companion text as `from_session_json` does: the
 /// text must parse as JSON and hold `app_id` and `app_hash`, not null.
 /// Returns `(profile, data)`: the typed profile of the companion, `None`
 /// when its profile keys are not the strict form `profile_from_session_json`
-/// reads (1.5.0 reads those as `APIData.from_json` does), and the whole
-/// object, keys in order. A rejected companion raises `CoreError`
-/// `INVALID_INPUT` whose `legacy_message` is 1.5.0's `SessionFileInvalid`
-/// message.
+/// reads (`from_session_json` reads those as `APIData.from_json` does),
+/// and the whole object, keys in order. A rejected companion raises
+/// `CoreError` `INVALID_INPUT` whose `legacy_message` is the
+/// `SessionFileInvalid` message.
 #[pyfunction]
 fn read_session_companion<'py>(
     py: Python<'py>,

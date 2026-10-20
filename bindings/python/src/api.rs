@@ -1,5 +1,5 @@
 //! API profiles, device fingerprints and their catalogs, `PlatformVersions`
-//! and the session JSON of 1.5.0 `APIData`.
+//! and the session JSON of `APIData`.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -14,7 +14,7 @@ use crate::convert::{required, seed};
 use crate::error::check;
 use crate::json::{from_json, to_json, to_json_object};
 
-/// The client of the 1.5.0 class name `name`; another name raises
+/// The client of the `API` class name `name`; another name raises
 /// `ValueError`.
 fn client(name: &str) -> PyResult<Client> {
     Client::from_name(name).ok_or_else(|| {
@@ -147,7 +147,7 @@ pub(crate) fn to_profile(dict: &Bound<'_, PyDict>) -> PyResult<ApiProfile> {
     })
 }
 
-/// The offline `PlatformVersions` of 1.5.0 (`OPENTELE_NO_FETCH`), with the
+/// The offline `PlatformVersions` (`OPENTELE_NO_FETCH`), with the
 /// fields of `overrides` replaced.
 #[pyfunction]
 #[pyo3(signature = (overrides = None))]
@@ -158,7 +158,7 @@ fn platform_versions<'py>(
     versions_dict(py, &versions(overrides)?)
 }
 
-/// The default API profile of `client` (a 1.5.0 class name such as
+/// The default API profile of `client` (an `API` class name such as
 /// `"TelegramDesktop"`), with `versions` overriding the offline
 /// `PlatformVersions` fields.
 #[pyfunction]
@@ -173,7 +173,7 @@ fn profile<'py>(
     profile_dict(py, &api::profile(client, &versions))
 }
 
-/// The profile 1.5.0 `API.<client>.Generate` returns: a device picked for
+/// The profile `API.<client>.Generate` returns: a device picked for
 /// `seed` (`str`, or `int` as its decimal string), random without one.
 /// `system` (`"windows"`, `"macos"` or `"linux"`) applies to
 /// `"TelegramDesktop"` only. Web clients get a browser user agent picked
@@ -202,7 +202,7 @@ fn generate<'py>(
     profile_dict(py, &check(py, generated)?)
 }
 
-/// The profile 1.5.0 `APIData.from_json` reads from session JSON, given as
+/// The profile `APIData.from_json` reads from session JSON, given as
 /// its text or as a parsed dict. `app_id`, `app_hash`, `device`, `sdk` and
 /// `app_version` are required; `lang_code` defaults to `"en"`, `lang_pack`
 /// to `""`, and `system_lang_code` falls back to `system_lang_pack`, then
@@ -231,11 +231,11 @@ fn profile_from_session_json<'py>(
     profile_dict(py, &check(py, ApiProfile::from_session_json(&data))?)
 }
 
-/// The session JSON 1.5.0 `APIData.to_json(extra)` writes, keys in its
-/// order: the profile's keys, then the 19 account keys with their defaults.
+/// The session JSON `APIData.to_json(extra)` writes, keys in its order:
+/// the profile's keys, then the 19 account keys with their defaults.
 /// `extra` overrides those keys in place and appends its other keys in its
-/// own order. `json.dumps(result, separators=(",", ":"))` is 1.5.0's
-/// compact JSON.
+/// own order. `json.dumps(result, separators=(",", ":"))` is the compact
+/// JSON `APIData.to_json` returns.
 #[pyfunction]
 #[pyo3(signature = (profile, extra = None))]
 fn profile_to_session_json<'py>(
@@ -249,15 +249,15 @@ fn profile_to_session_json<'py>(
     from_json(py, &profile.to_session_json(Some(&extra)))
 }
 
-/// Whether `a` and `b` are the same client on the same device, as 1.5.0
-/// `APIData.__eq__`: `api_id`, `api_hash`, `device_model`, `system_version`
+/// Whether `a` and `b` are the same client on the same device, as
+/// `APIData.__eq__` compares them: `api_id`, `api_hash`, `device_model`, `system_version`
 /// and `app_version` are compared; the language fields are not.
 #[pyfunction]
 fn profiles_equal(a: &Bound<'_, PyDict>, b: &Bound<'_, PyDict>) -> PyResult<bool> {
     Ok(to_profile(a)? == to_profile(b)?)
 }
 
-/// 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+/// A packed Telegram Desktop version as
 /// `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
 /// `7003000` is `"7.3"`.
 #[pyfunction]
@@ -270,7 +270,7 @@ fn json_default(py: Python<'_>, default: JsonDefault) -> PyResult<Bound<'_, PyAn
     from_json(py, &default.to_value())
 }
 
-/// The profile keys of the session JSON, in the order 1.5.0
+/// The profile keys of the session JSON, in the order
 /// `APIData.to_json` writes them, as `(key, attribute, default, fallback)`
 /// tuples: the `APIData` attribute the key reads into and writes from, the
 /// value `from_json` takes when the key is absent, and the key read instead
@@ -293,7 +293,7 @@ fn session_json_fields(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
     PyList::new(py, fields)
 }
 
-/// 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+/// The account keys
 /// `APIData.to_json` writes after the profile keys, with their defaults, as
 /// `(key, default)` tuples in order.
 fn default_extra_fields(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
@@ -334,9 +334,9 @@ fn catalog(py: Python<'_>, name: &str) -> PyResult<&'static devices::Catalog> {
 
 /// The weighted device pairs of the `platform` catalog (`"windows"`,
 /// `"linux"`, `"macos"`, `"android"`, `"ios"`, `"web_a"` or `"web_k"`) in
-/// 1.5.0's `deviceList` order, as `model`, `system_version` and `weight`
-/// dicts: the weight is how many times 1.5.0 repeats the pair. Mac versions
-/// are bare, as in 1.5.0 `macOSDevice.deviceList`.
+/// `deviceList` order, as `model`, `system_version` and `weight` dicts: the
+/// weight is how many times `deviceList` repeats the pair. Mac versions are
+/// bare, as in `macOSDevice.deviceList`.
 #[pyfunction]
 fn catalog_entries<'py>(py: Python<'py>, platform: &str) -> PyResult<Bound<'py, PyList>> {
     let entries = catalog(py, platform)?
@@ -352,7 +352,7 @@ fn catalog_entries<'py>(py: Python<'py>, platform: &str) -> PyResult<Bound<'py, 
     PyList::new(py, entries)
 }
 
-/// The models of the `platform` catalog in file order: 1.5.0
+/// The models of the `platform` catalog in file order: the
 /// `device_models` of the desktop, Mac and iOS classes (empty for Android).
 #[pyfunction]
 fn device_models(py: Python<'_>, platform: &str) -> PyResult<Vec<&'static str>> {
@@ -363,7 +363,7 @@ fn device_models(py: Python<'_>, platform: &str) -> PyResult<Vec<&'static str>> 
         .collect())
 }
 
-/// The system versions of the `platform` catalog in file order: 1.5.0
+/// The system versions of the `platform` catalog in file order: the
 /// `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
 /// `SDK 37` for Android, and the client's platform strings for the web.
 #[pyfunction]
@@ -375,7 +375,7 @@ fn system_versions(py: Python<'_>, platform: &str) -> PyResult<Vec<&'static str>
         .collect())
 }
 
-/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order.
+/// `WebBrowserDevice.BROWSER_WEIGHTS`, browser by browser in catalog order.
 fn web_browser_weights(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     let dict = PyDict::new(py);
     for (browser, weight) in devices::WEB_BROWSER_WEIGHTS {

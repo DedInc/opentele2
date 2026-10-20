@@ -1,4 +1,4 @@
-"""1.5.0 ``src/td/account.py``: one account of a Telegram Desktop folder,
+"""One account of a Telegram Desktop folder,
 read and written by :mod:`opentele2._native` through its
 :class:`~opentele2.td.TDesktop`."""
 
@@ -37,14 +37,14 @@ _DEFAULT_KEY_FILE = "data"
 
 
 def _absolute_path(path: str | None) -> str:
-    """1.5.0 ``Storage.GetAbsolutePath``: no path is the working directory."""
+    """The absolute form of ``path``; no path is the working directory."""
     if path is None or path == "":
         path = os.getcwd()
     return os.path.abspath(path)
 
 
 class MtpConfigView(BaseObject):
-    """1.5.0 ``Account.MtpConfig``, read only: the MTP config of one loaded
+    """``Account.MtpConfig``, read only: the MTP config of one loaded
     account as ``_native.account_mtp_config`` parses it, or the production
     default for no account. Every read returns a new copy, so editing a
     result changes nothing that is saved."""
@@ -74,12 +74,12 @@ class MtpConfigView(BaseObject):
         return _native.account_mtp_config(self.__account)["fields"]
 
     def endpoints(self, dcId: int = 0) -> Endpoints:
-        """The endpoints of ``dcId`` by address family and protocol, as
-        1.5.0 ``MTP.Config.endpoints`` sorted them.
+        """The endpoints of ``dcId`` by address family and protocol, in the
+        order ``_native.account_endpoints`` gives them.
 
         Raises:
-            TDataDcIdNotFound: If the config lists no such DC; 1.5.0's
-                default ``DcId._0`` is never listed.
+            TDataDcIdNotFound: If the config lists no such DC; the default
+                ``dcId`` 0 is never listed.
         """
         endpoints = _native.account_endpoints(self.__account, dcId)
         if endpoints is None:
@@ -173,10 +173,10 @@ class Account(BaseObject):
 
     @property
     def MtpConfig(self) -> MtpConfigView:
-        """The account's MTP config, as 1.5.0 read it from the folder: the
-        production default when the folder stores none or it does not parse.
-        An account that was never loaded has the production default, as
-        1.5.0 starts every account with it."""
+        """The account's MTP config, as read from the folder: the production
+        default when the folder stores none or it does not parse. An account
+        that was never loaded has the production default, which every account
+        starts with."""
         return MtpConfigView(self.__core)
 
     def isAuthorized(self) -> bool:

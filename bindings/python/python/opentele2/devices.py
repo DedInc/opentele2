@@ -1,6 +1,6 @@
-"""The 1.5.0 device classes, picking every device with ``_native.generate``.
+"""The device classes, picking every device with ``_native.generate``.
 
-``RandomDevice(unique_id)`` returns the device 1.5.0 picked for
+``RandomDevice(unique_id)`` returns the same device for the same
 ``unique_id``: a ``str`` as given, anything else as its ``str()``, and a
 random device without one. The device catalogs live in the core.
 """
@@ -87,7 +87,7 @@ class _BrowserWeights:
 
 
 def _weighted_devices(platform: _Platform) -> list[DeviceInfo]:
-    """1.5.0 ``deviceList``: every catalog pair repeated by its weight, in
+    """``deviceList``: every catalog pair repeated by its weight, in
     catalog order."""
     devices: list[DeviceInfo] = []
     for entry in _native.catalog_entries(platform):
@@ -105,7 +105,7 @@ def _no_names() -> list[str]:
 
 
 def _seed(unique_id: object) -> str | None:
-    # 1.5.0 hashed str(unique_id) for anything that is not a str.
+    # Anything that is not a str is hashed as its str().
     if unique_id is None or isinstance(unique_id, str):
         return unique_id
     return str(unique_id)
@@ -119,8 +119,8 @@ def _generated_device(
 
 
 class SystemInfo(BaseObject):
-    # 1.5.0's catalog attributes; a class 1.5.0 filled none of leaves them
-    # empty, as AndroidDevice does with device_models and system_versions.
+    # The catalog attributes; a class without a catalog leaves them empty,
+    # as AndroidDevice does with device_models and system_versions.
     deviceList: _CatalogList[DeviceInfo] = _CatalogList(_no_devices)
     device_models: _CatalogList[str] = _CatalogList(_no_names)
     system_versions: _CatalogList[str] = _CatalogList(_no_names)
@@ -158,7 +158,7 @@ class LinuxDevice(GeneralDesktopDevice):
 
 
 class macOSDevice(GeneralDesktopDevice):
-    # The bare versions; RandomDevice adds "macOS " for tdesktop, as 1.5.0 did.
+    # The bare versions; RandomDevice adds "macOS " for tdesktop.
     deviceList = _CatalogList(lambda: _weighted_devices("macos"))
     device_models = _CatalogList(lambda: _native.device_models("macos"))
     system_versions = _CatalogList(lambda: _native.system_versions("macos"))

@@ -1,4 +1,4 @@
-"""1.5.0 ``src/tl/telethon.py``: ``telethon.TelegramClient`` with official
+"""``telethon.TelegramClient`` with official
 client fingerprints and the tdata conversions. The endpoint and key of a
 tdata account, the sessions table, the 2FA check, the post-login sequence
 with its delays, the QR login rules and the fixed messages come from
@@ -111,7 +111,7 @@ def _resolve_api(
 
 
 def _session_rows(account: td.Account, use_ipv6: bool) -> TelethonSessionRows:
-    """The endpoint 1.5.0 ``FromTDesktop`` connects ``account`` to: the first
+    """The endpoint ``FromTDesktop`` connects ``account`` to: the first
     TCP endpoint of its main DC in its stored config (else the built-in
     table), IPv6 when asked for and available, else IPv4."""
     loaded = account._core
@@ -164,7 +164,7 @@ class TelegramClient(telethon.TelegramClient):
     def __init__(
         self,
         session: str | Session | None = None,
-        # int and str cover the legacy TelegramClient(session, api_id, api_hash).
+        # int and str cover Telethon's TelegramClient(session, api_id, api_hash).
         api: type[APIData] | APIData | int | str | None = None,
         api_id: int | str = 0,
         api_hash: str | None = None,
@@ -180,7 +180,7 @@ class TelegramClient(telethon.TelegramClient):
         if "connection" not in kwargs:
             kwargs["connection"] = TransportRecommendation.get_connection_class()
 
-        # Handle the legacy pattern: TelegramClient(session, api_id_int, api_hash_str)
+        # Telethon's positional form: TelegramClient(session, api_id_int, api_hash_str)
         if api is not None and not isinstance(api, (APIData, type)):
             if isinstance(api, (int, str)) and api_id and isinstance(api_id, str):
                 # Both from the original arguments: api holds the id and

@@ -1,6 +1,6 @@
-"""What 1.5.0 ``src/utils.py`` held: the class helpers the public classes are
-built on, the tdata version constants and the ``PrettyTable`` text table.
-``opentele2.tl.configs`` re-exports all of it, as 1.5.0 did."""
+"""The class helpers the public classes are built on, the tdata version
+constants and the ``PrettyTable`` text table.
+``opentele2.tl.configs`` re-exports all of it."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class _NamedFunction(Protocol[_P, _R_co]):
 
 
 class BaseMetaClass(abc.ABCMeta):
-    """The metaclass of every 1.5.0 public class."""
+    """The metaclass of every public opentele2 class."""
 
 
 class BaseObject(metaclass=BaseMetaClass):
@@ -89,7 +89,7 @@ class sharemethod(Generic[_R]):
 
 
 def PrettyTable(table: Sequence[Mapping[str, object]], addSplit: list[int] | None = None) -> str:
-    """1.5.0's bordered text table: one column per key of the first row, each
+    """A bordered text table: one column per key of the first row, each
     cell centred in its column, and a splitter line before every row index in
     ``addSplit``, rendered by ``_native.format_table`` from the ``str()`` of
     every cell. ``TelegramClient.PrintSessions`` prints the core's own

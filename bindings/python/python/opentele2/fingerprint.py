@@ -1,4 +1,4 @@
-"""The 1.5.0 initConnection fingerprint API, computing through
+"""The initConnection fingerprint API, computing through
 :mod:`opentele2._native`.
 
 Importing this module fetches the current platform versions once, unless
@@ -113,7 +113,7 @@ class PlatformVersions:
 
     chrome_version: str = _OFFLINE["chrome_version"]
     user_agent: str = _OFFLINE["user_agent"]
-    # A 2.0.0 addition: the Firefox major of the generated web user agents.
+    # The Firefox major of the generated web user agents.
     firefox_version: str = _OFFLINE["firefox_version"]
 
 
@@ -217,8 +217,8 @@ def _init_issues(
     strict: bool = False,
 ) -> list[Issue]:
     # The values go to the core as given, None and "2040" included; it
-    # checks and words them as 1.5.0 did. Checked against PLATFORM_VERSIONS
-    # as it is now, fetched or edited.
+    # checks and words them. Checked against PLATFORM_VERSIONS as it is
+    # now, fetched or edited.
     params: dict[str, Any] = {
         "api_id": api_id,
         "device_model": device_model,
@@ -269,7 +269,7 @@ class StrictMode(Enum):
     server-side."""
 
 
-# The core's 1.5.0 defaults; the dataclass defaults below.
+# The core's defaults; the dataclass defaults below.
 _CONFIG_DEFAULTS = _native.FINGERPRINT_CONFIG_DEFAULTS
 _DEFAULT_STRICT_MODE = StrictMode(_CONFIG_DEFAULTS["strict_mode"])
 
@@ -307,13 +307,13 @@ class FingerprintConfig:
     def get_effective_layer(self) -> int:
         layer, warning = _native.effective_layer_for(_detect_telethon_layer(), self.layer_override)
         if warning is not None:
-            # Where 1.5.0 get_recommended_layer warned from: this frame.
+            # The warning points at this frame, not at the caller.
             warnings.warn(warning, stacklevel=1)
         return layer
 
     def validate_params(self, **kwargs: Any) -> None:
         if not self.auto_validate:
-            # 1.5.0 returned before reading the arguments: wrong ones raise
+            # Returns before reading the arguments: wrong ones raise
             # nothing while validation is off.
             return
 
@@ -342,7 +342,7 @@ class TransportRecommendation:
     @staticmethod
     def get_connection_class(lang_pack: str = "tdesktop") -> type[Connection]:
         # Every official client uses the obfuscated transport, whatever its
-        # lang_pack; the parameter is kept for API compatibility.
+        # lang_pack; the parameter is accepted and ignored.
         try:
             from telethon.network.connection.tcpobfuscated import (
                 ConnectionTcpObfuscated,
@@ -375,8 +375,8 @@ class TransportRecommendation:
 
 
 def generate_msg_id_offset() -> int:
-    # Drawn by the core from the OS random source. Unlike 1.5.0,
-    # random.seed does not reproduce the offsets.
+    # Drawn by the core from the OS random source, so random.seed does not
+    # reproduce the offsets.
     return _native.msg_id_offset()
 
 

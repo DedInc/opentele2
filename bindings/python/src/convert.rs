@@ -56,8 +56,8 @@ pub(crate) fn fixed_bytes<const N: usize>(
     )
 }
 
-/// A device seed: a `str` as given or an `int` as its decimal `str()`, as
-/// 1.5.0 hashes it.
+/// A device seed: a `str` as given or an `int` as its decimal `str()`, the
+/// text the device pick hashes.
 pub(crate) fn seed(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<String>> {
     let Some(value) = value.filter(|value| !value.is_none()) else {
         return Ok(None);

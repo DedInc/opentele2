@@ -1,6 +1,5 @@
-"""1.5.0 ``src/tl/configs.py``: the Telethon, API, exception and 1.5.0
-``src/utils.py`` names the Telethon integration works with, in one
-namespace."""
+"""The Telethon, API, exception and class helper names the Telethon
+integration works with, in one namespace."""
 
 import asyncio
 from collections.abc import Callable

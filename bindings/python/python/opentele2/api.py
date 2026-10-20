@@ -1,4 +1,4 @@
-"""The 1.5.0 API classes, with every value from :mod:`opentele2._native`.
+"""The official client API classes, with every value from :mod:`opentele2._native`.
 
 Each client class holds the default profile ``_native.profile`` gives for
 it, and ``Generate`` the device ``_native.generate`` picks for the seed.
@@ -82,7 +82,7 @@ def _local_device_model() -> str:
 
 
 def _defaults(client: _ClientName) -> tuple[int, str, str, str, str, str, str, str]:
-    """The class values of ``client``, in the order 1.5.0 declared them."""
+    """The class values of ``client``, in the order the classes declare them."""
     profile = _native.profile(client)
     return (
         profile["api_id"],
@@ -97,7 +97,7 @@ def _defaults(client: _ClientName) -> tuple[int, str, str, str, str, str, str, s
 
 
 def _desktop_system(name: str | None) -> _DesktopSystem | None:
-    # Matched case-sensitively, as 1.5.0 _DESKTOP_SYSTEMS was.
+    # Matched case-sensitively: "Windows" is not a platform name.
     if name == "windows":
         return "windows"
     if name == "macos":
@@ -197,7 +197,7 @@ class APIData(metaclass=BaseAPIMetaClass):
 
     @staticmethod
     def from_json(data: dict) -> APIData:
-        """The API of session JSON as 1.5.0 read it: each attribute is its
+        """The API of session JSON: each attribute is its
         key of ``_native.SESSION_JSON_FIELDS`` read with ``dict.get`` and the
         key's default, a falsy value falling back to its fallback key; the
         values are taken as they are. A missing ``app_id`` or ``app_hash``
@@ -214,7 +214,7 @@ class APIData(metaclass=BaseAPIMetaClass):
         return APIData(**values)
 
     def to_json(self, extra: dict | None = None) -> dict:
-        """1.5.0's session JSON of this API: every key of
+        """The session JSON of this API: every key of
         ``_native.SESSION_JSON_FIELDS`` holding its attribute, then
         ``_native.DEFAULT_EXTRA_FIELDS`` updated with ``extra``; the values
         are written as they are."""
@@ -290,15 +290,14 @@ class API(BaseObject):
         def Generate(cls, system: str | None = None, unique_id: str | None = None) -> Self:
             """A random desktop device, seeded by ``unique_id``.
 
-            Public API since opentele puts the platform first:
-            ``Generate("windows", "id")``. A single positional argument that
-            is not a platform name is the ``unique_id`` of the base-class
-            form ``Generate("id")``.
+            The platform comes first: ``Generate("windows", "id")``. A single
+            positional argument that is not a platform name is the
+            ``unique_id`` of the base-class form ``Generate("id")``.
             """
             if unique_id is None and system is not None and _desktop_system(system) is None:
                 system, unique_id = None, system
 
-            # Imported here as 1.5.0 did: fingerprint fetches versions on import.
+            # Imported here: fingerprint fetches versions on import.
             from .fingerprint import PLATFORM_VERSIONS, _native_versions
 
             # Without a platform, the core picks one from the unique_id hash;
@@ -419,7 +418,7 @@ def _swift_mac(unique_id: str | None) -> DeviceInfo:
 
 
 # The device APIData.Generate gives each client that does not override it;
-# 1.5.0 matched the exact class, so a subclass raises NotImplementedError.
+# the exact class is matched, so a subclass raises NotImplementedError.
 _RANDOM_DEVICES: dict[type[APIData], Callable[[str | None], DeviceInfo]] = {
     API.TelegramAndroid: AndroidDevice.RandomDevice,
     API.TelegramAndroidX: AndroidDevice.RandomDevice,
@@ -444,7 +443,7 @@ def _sync_api_versions() -> None:
     try:
         from .fingerprint import PLATFORM_VERSIONS, _native_versions
 
-        # The core formats each app version as 1.5.0 did; Webogram's stays.
+        # The core formats each app version; Webogram's stays.
         versions = _native_versions(PLATFORM_VERSIONS)
         synced: list[tuple[type[APIData], _ClientName]] = [
             (API.TelegramDesktop, "TelegramDesktop"),

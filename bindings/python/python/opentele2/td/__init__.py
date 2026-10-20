@@ -1,4 +1,4 @@
-"""1.5.0 ``src/td``: Telegram Desktop folders and their accounts and keys,
+"""Telegram Desktop folders and their accounts and keys,
 read and written by :mod:`opentele2._native`."""
 
 from __future__ import annotations

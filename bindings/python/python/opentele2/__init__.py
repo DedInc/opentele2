@@ -1,5 +1,9 @@
-"""opentele2: Telegram Desktop tdata, Telethon and mtcute sessions and official
-API fingerprints, on the Rust core in ``opentele2._native``."""
+"""opentele2: a Telegram client identity toolkit on a Rust core.
+
+It reads and writes Telegram Desktop ``tdata`` folders, converts their
+accounts to Telethon sessions (and mtcute string sessions), and provides the
+official client API profiles and devices, ``initConnection`` fingerprints and
+browser fingerprints, all computed by the core in ``opentele2._native``."""
 
 import importlib
 import sys

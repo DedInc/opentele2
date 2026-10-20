@@ -1,4 +1,4 @@
-"""1.5.0 ``src/consistency.py``: server-side checks of a connected
+"""Server-side checks of a connected
 :class:`~opentele2.tl.TelegramClient`, with every detail line, summary, pass
 rule, session row and the report of :meth:`ConsistencyChecker.run_all` from
 :mod:`opentele2._native`."""

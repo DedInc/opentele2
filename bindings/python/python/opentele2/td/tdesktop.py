@@ -1,10 +1,9 @@
-"""1.5.0 ``src/td/tdesktop.py``: a Telegram Desktop ``tdata`` folder, loaded
-and saved by :mod:`opentele2._native`.
+"""A Telegram Desktop ``tdata`` folder, loaded and saved by
+:mod:`opentele2._native`.
 
 Saving replays nothing by default; the ``draws`` hook of ``SaveTData``
-replaces the OS random source with recorded draws, the ``os.urandom`` calls
-1.5.0 made for the same save, so that a save can be compared byte for byte
-with a folder 1.5.0 wrote.
+replaces the OS random source with recorded ``os.urandom`` draws for the same
+save, so that a save can be compared byte for byte with a reference folder.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ __all__ = ["TDesktop"]
 
 logger = logging.getLogger(__name__)
 
-# 1.5.0's active index of a folder it created, written until one is loaded.
+# The active index of a newly created folder, written until one is loaded.
 _NEW_FOLDER_ACTIVE_INDEX = -1
 
 
@@ -120,7 +119,7 @@ class TDesktop(BaseObject):
         if passcode is not None and self.__passcode != passcode:
             self.__passcode = passcode
 
-        # 1.5.0 checks the argument but reads the folder at basePath.
+        # The argument is checked, but the folder is read at self.basePath.
         folderPath = _ensure_base_path(self.basePath)
         self.__accounts.clear()
         try:
@@ -142,9 +141,9 @@ class TDesktop(BaseObject):
                 raise TFileNotFound(f"Could not open key_{self.__keyFile}") from error
             if error.code == "TDATA_AUTH_KEY_NOT_FOUND":
                 raise OpenTeleException("No account has been loaded") from error
-            # 1.5.0 checked the accounts count with a bare Expects, so a
-            # count below one is a plain OpenTeleException, not
-            # TDataKeyDataInvalid like the other key data failures.
+            # A count below one fails a bare Expects, so it is a plain
+            # OpenTeleException, not TDataKeyDataInvalid like the other key
+            # data failures.
             if error.detail_code == "BAD_ACCOUNTS_COUNT":
                 raise OpenTeleException(error.legacy_message) from error
             raise_core_error(error)
@@ -195,8 +194,9 @@ class TDesktop(BaseObject):
         key. :attr:`kPerformanceMode` picks the fixed keys for a new local
         key without a passcode, and leaves the ``configs`` files out.
 
-        ``draws``, a testing hook, replays exactly the ``os.urandom`` draws
-        1.5.0 made for this save, in order, instead of the OS random source.
+        ``draws``, a testing hook, replays exactly these recorded
+        ``os.urandom`` draws for this save, in order, instead of the OS random
+        source.
         """
         # An OpenTeleException lists the arguments of the frame raising it,
         # so the replayed draws (key material) leave the argument list.
@@ -216,7 +216,7 @@ class TDesktop(BaseObject):
             self.__passcode = passcode
             self.__isLoaded = False
 
-        # 1.5.0 writes the accounts listed in self.accounts, so removing one
+        # The accounts listed in self.accounts are written, so removing one
         # from the list or appending one is saved.
         accounts = [account._core for account in self.accounts]
         written = [core for core in accounts if core is not None]
@@ -225,7 +225,7 @@ class TDesktop(BaseObject):
 
         folder = self.__folder
         if folder is not None and self.isLoaded():
-            # 1.5.0 writes an edited accounts list under the loaded local
+            # An edited accounts list is written under the loaded local
             # key; the folder takes as many accounts as it loaded. A list it
             # still refuses, two accounts of one index, fails the save
             # instead of being written under another local key.
@@ -274,8 +274,8 @@ class TDesktop(BaseObject):
             Expects(len(self.accounts) > 0)
             try:
                 if folder.key_file != self.keyFile:
-                    # 1.5.0 names the key file and the account files after
-                    # keyFile on every save.
+                    # Every save names the key file and the account files
+                    # after keyFile.
                     folder.key_file = self.keyFile
                 folder.save(basePath, self.kPerformanceMode, draws=replay)
             except CoreError as error:
@@ -308,15 +308,14 @@ class TDesktop(BaseObject):
             raise_core_error(error)
 
     def __generateLocalKey(self) -> None:
-        """1.5.0 ``__generateLocalKey``: a new local key for an instance that
-        was never loaded."""
+        """A new local key for an instance that was never loaded."""
         Expects(not self.isLoaded())
         self.__useFolder(self.__newFolder())
 
     def _addAccount(
         self, userId: int, authKey: AuthKey, api: type[APIData] | APIData = API.TelegramDesktop
     ) -> Account:
-        """1.5.0 ``Account.FromTelethon`` on this owner: an account of ``userId``
+        """``Account.FromTelethon`` on this owner: an account of ``userId``
         holding ``authKey`` as the key of its main DC, at the next index."""
         Expects(
             self.accountsCount < TDesktop.kMaxAccounts,
@@ -324,15 +323,13 @@ class TDesktop(BaseObject):
         )
         folder = self.__folder
         if folder is None:
-            # 1.5.0 holds the accounts of an instance that was never loaded
-            # without a local key until it is saved, which generates one; the
-            # core holds them in a folder, which a save then replaces.
+            # An instance that was never loaded holds its accounts in a new
+            # folder until it is saved; the save then replaces that folder.
             folder = self.__newFolder()
             self.__folder = folder
         try:
-            # The folder adds to the accounts listed in self.accounts, as
-            # 1.5.0 does, not to those it loaded: one removed from the list
-            # frees its place.
+            # The folder adds to the accounts listed in self.accounts, not
+            # to those it loaded: one removed from the list frees its place.
             folder.accounts = [
                 core for core in (a._core for a in self.accounts) if core is not None
             ]

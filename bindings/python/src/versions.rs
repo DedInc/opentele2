@@ -47,7 +47,7 @@ fn fetch_versions(py: Python<'_>, timeout: f64) -> PyResult<Bound<'_, PyDict>> {
 
 /// `versions` (overrides of the offline `PlatformVersions`, a full
 /// `PlatformVersions` included) with every field `patch` sets written onto
-/// it, as 1.5.0 `_apply_fetched_versions`: each field lands on the field of
+/// it, as `_apply_fetched_versions` applies a fetch: each field lands on the field of
 /// the same name, except `desktop_app_version`, which stays bound to the
 /// tdata version, and `chrome_version`, which rebuilds `user_agent` too.
 #[pyfunction]

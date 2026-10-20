@@ -134,7 +134,7 @@ fn create_local_key<'py>(
     Ok(to_bytes(py, key.as_bytes()))
 }
 
-/// The pre-1.x local key for `passcode` and `salt`
+/// The Telegram Desktop legacy local key for `passcode` and `salt`
 /// (`Storage::CreateLegacyLocalKey`), 256 bytes.
 #[pyfunction]
 fn create_legacy_local_key<'py>(

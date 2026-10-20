@@ -1,4 +1,4 @@
-"""1.5.0 ``src/tl/session_io.py``: a Telethon ``.session`` file and its
+"""A Telethon ``.session`` file and its
 ``.json`` companion. The path rules, the file and the companion text are
 written and read by :mod:`opentele2._native`."""
 
@@ -53,8 +53,8 @@ def _pair_paths(path: str) -> tuple[str, str, str]:
 
 def _read_companion(path: str) -> dict[str, typing.Any]:
     """The object of the ``.json`` companion at ``path``, its ``app_id`` and
-    ``app_hash`` present; anything else raises SessionFileInvalid with
-    1.5.0's message."""
+    ``app_hash`` present; anything else raises SessionFileInvalid with the
+    core's ``legacy_message``."""
     try:
         with open(path, encoding="utf-8") as f:
             text = f.read()
@@ -70,7 +70,7 @@ def _read_companion(path: str) -> dict[str, typing.Any]:
 
 
 def _write_companion(path: str, text: str) -> None:
-    # Text mode, as 1.5.0 wrote the companion: newlines are the platform's.
+    # Text mode: newlines in the companion are the platform's.
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
 
@@ -175,7 +175,7 @@ async def save_session_json(
     if client.UserId and "id" not in extra:
         extra["id"] = client.UserId
 
-    # The values as they are, as 1.5.0 json.dump-ed them.
+    # The values as they are, as json.dump writes them.
     text = _native.py_json_text(api_data.to_json(extra))
     await _to_thread(_write_companion, json_file, text)
 

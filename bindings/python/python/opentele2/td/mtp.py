@@ -1,4 +1,4 @@
-"""1.5.0 ``src/td/mtp.py``: only its ``TDataDcIdNotFound``, which
+"""``TDataDcIdNotFound``, which
 :meth:`~opentele2.td.account.MtpConfigView.endpoints` raises; the MTP config
 itself is read by :mod:`opentele2._native`."""
 

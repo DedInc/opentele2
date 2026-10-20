@@ -76,7 +76,7 @@ pub(crate) struct PyAccount {
 
 #[pymethods]
 impl PyAccount {
-    /// A new account the way 1.5.0 builds one before saving; `keys` is a
+    /// A new account, built the way a save needs it; `keys` is a
     /// list of `(dc_id, auth_key)` pairs and must hold a key of `main_dc`.
     /// `config` is the serialized MTP config of the account (its `configs`
     /// file); the session functions take their endpoints from it.
@@ -191,7 +191,7 @@ impl PyTData {
 
 #[pymethods]
 impl PyTData {
-    /// Most accounts one folder holds (1.5.0's `kMaxAccounts`); `add_account`
+    /// Most accounts one folder holds (`TDesktop.kMaxAccounts`); `add_account`
     /// refuses more.
     #[classattr]
     const MAX_ACCOUNTS: usize = TData::MAX_ACCOUNTS;
@@ -212,13 +212,12 @@ impl PyTData {
         Ok(Self::holding(check(py, loaded)?))
     }
 
-    /// A new folder for `accounts` the way 1.5.0's `SaveTData` creates one,
-    /// with keys from the OS random source, storing `active_index` (1.5.0's
-    /// `-1` by default).
+    /// A new folder for `accounts` the way `TDesktop.SaveTData` creates one,
+    /// with keys from the OS random source, storing `active_index` (`-1` by
+    /// default).
     ///
     /// `draws`, a testing hook, replaces the OS random source with exactly
-    /// these byte strings in order, as 1.5.0's `os.urandom` calls were
-    /// recorded; a draw of another size, a missing draw or an unused one
+    /// these byte strings in order, as recorded `os.urandom` calls; a draw of another size, a missing draw or an unused one
     /// raises `ValueError`.
     #[staticmethod]
     #[pyo3(signature = (
@@ -290,7 +289,7 @@ impl PyTData {
         Ok(migrated)
     }
 
-    /// Adds an account with `auth_key` as the key of `main_dc`, as 1.5.0's
+    /// Adds an account with `auth_key` as the key of `main_dc`, as
     /// `Account.FromTelethon` does, and returns its index: the lowest one
     /// below `MAX_ACCOUNTS` no account holds. The active index is not
     /// changed. A full folder raises `CoreError` `MAX_ACCOUNT_LIMIT` and is
@@ -310,7 +309,7 @@ impl PyTData {
     }
 
     /// Telegram Desktop version in the key file's `TDF$` header; saving
-    /// always writes 1.5.0's 7003001.
+    /// always writes 7003001.
     #[getter]
     fn app_version(&self) -> u32 {
         self.folder().app_version
@@ -329,8 +328,8 @@ impl PyTData {
         to_bytes(py, self.folder().passcode_key.as_bytes())
     }
 
-    /// 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
-    /// files. Loading turns it on, the 1.5.0 default.
+    /// `TDesktop.kPerformanceMode`: when on, saving writes no `configs`
+    /// files. Loading turns it on, the default.
     #[getter]
     fn performance_mode(&self) -> bool {
         self.folder().performance_mode
@@ -354,7 +353,7 @@ impl PyTData {
     }
 
     /// Replaces the accounts later saves write, keeping the local key, the
-    /// key data and its salts, as 1.5.0 writes an edited `accounts` list
+    /// key data and its salts, so an edited `accounts` list is written
     /// under the loaded local key. Up to `MAX_ACCOUNTS` accounts are
     /// accepted, or as many as were loaded when that is more. More raises
     /// `CoreError` `MAX_ACCOUNT_LIMIT`, two accounts of one index `CoreError`
@@ -389,7 +388,7 @@ impl PyTData {
 
     /// The data name of the key file, `"data"` unless loaded otherwise.
     /// Setting it renames the key file and the account files of later saves
-    /// (1.5.0's `SaveTData(keyFile=...)`); an empty name raises `CoreError`
+    /// (`TDesktop.SaveTData(keyFile=...)`); an empty name raises `CoreError`
     /// `TDATA_SAVE_FAILED` and keeps the old one.
     #[getter]
     fn key_file(&self) -> String {
@@ -494,7 +493,7 @@ fn load_many<'py>(
 /// `TDATA_SAVE_FAILED` for a folder without accounts.
 #[pyfunction]
 fn draw_plan(py: Python<'_>, operation: &str, target: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
-    /// The text 1.5.0-compatible callers see when `"new"` gets no dict.
+    /// The text callers see when `"new"` gets no dict.
     const NEW_TAKES_A_DICT: &str =
         "the \"new\" plan takes a dict of has_passcode and performance_mode";
     let folder = target
@@ -601,8 +600,8 @@ fn config_dict<'py>(py: Python<'py>, map: &Map<String, Value>) -> PyResult<Bound
     Ok(dict)
 }
 
-/// The MTP config of an account, or the production default 1.5.0 starts
-/// every account with (`StorageAccount.__init__`).
+/// The MTP config of an account, or the production default every account
+/// starts with (`StorageAccount.__init__`).
 fn config_of(account: Option<&Bound<'_, PyAccount>>) -> MtpConfig {
     account.map_or_else(
         || MtpConfig::new(Environment::Production),
@@ -610,7 +609,7 @@ fn config_of(account: Option<&Bound<'_, PyAccount>>) -> MtpConfig {
     )
 }
 
-/// The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
+/// The MTP config of `account`: its stored
 /// `config` parsed, or the production default when there is none or it
 /// does not parse. No account, one never loaded, has the production
 /// default.
@@ -624,8 +623,8 @@ fn account_mtp_config<'py>(
 }
 
 /// The endpoints of DC `dc_id` (default the main DC) in the MTP config of
-/// `account`, by address family and protocol (1.5.0
-/// `MTP.Config.endpoints`), with the endpoints the session conversions
+/// `account`, by address family and protocol (`MTP.Config.endpoints`),
+/// with the endpoints the session conversions
 /// select; `None` when the config has no such DC. No account reads the
 /// production default, whose main DC is 0, a DC no config lists.
 #[pyfunction]
@@ -646,7 +645,7 @@ fn account_endpoints<'py>(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     // Every `CoreError` has a `detail_code`; the tdata errors set their own.
     core_error_type(module.py())?.setattr("detail_code", module.py().None())?;
-    // The 1.5.0 texts the Python layer raises without a `CoreError`.
+    // The texts the Python layer raises without a `CoreError`.
     module.add("SAVE_FAILED_MESSAGE", Error::SaveFailed.legacy_message())?;
     module.add(
         "MAX_ACCOUNT_LIMIT_MESSAGE",

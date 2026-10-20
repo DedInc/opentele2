@@ -1,7 +1,7 @@
 //! Conversions between Python values and the session JSON of the core.
 //!
 //! Dicts keep their key order both ways (`serde_json` `preserve_order`), so a
-//! dict written by `profile_to_session_json` dumps as 1.5.0's JSON.
+//! dict written by `profile_to_session_json` dumps with the core's key order.
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;

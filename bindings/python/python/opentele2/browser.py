@@ -1,5 +1,5 @@
 """Browser HTTP headers and fingerprints shaped as browserforge's, drawn by
-:mod:`opentele2._native` from the Rust port in ``crates/opentele2-browser``.
+:mod:`opentele2._native` from the Rust crate ``crates/opentele2-browser``.
 
 :class:`HeaderGenerator` and :class:`FingerprintGenerator` take browserforge's
 argument names and defaults. Their ``generate`` methods also take ``seed``

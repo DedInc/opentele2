@@ -1,4 +1,4 @@
-"""1.5.0 ``src/tl/shared.py``: the names ``opentele2.tl`` users import."""
+"""The names ``opentele2.tl`` users import."""
 
 from ..consistency import CheckResult, ConsistencyChecker, ConsistencyReport
 from ..fingerprint import (

@@ -1,4 +1,4 @@
-"""The release-feed fetch of 1.5.0 ``src/version_fetcher.py``, over
+"""The release-feed fetch of the current platform versions, over
 ``_native.fetch_versions``: one fetch per process, cached, and skipped
 entirely when ``OPENTELE_NO_FETCH`` is set."""
 
@@ -25,7 +25,7 @@ def fetch_all_versions(timeout: float = _TIMEOUT) -> dict[str, str | int]:
     """The fields the release feeds answered, fetched once and cached.
 
     The native patch is taken as is: it only holds fields a source answered
-    with a non-empty value. Any failure yields an empty result, as in 1.5.0.
+    with a non-empty value. Any failure yields an empty result.
     """
     global _CACHED
     if _CACHED is not None:

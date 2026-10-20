@@ -1,5 +1,5 @@
 //! The client-independent login, session admin and consistency pieces of
-//! 1.5.0 (`src/tl/telethon.py`, `src/consistency.py`).
+//! `opentele2.tl.telethon` and `opentele2.consistency`.
 //!
 //! The SRP check runs PBKDF2 with 100000 iterations, so it runs with the
 //! thread detached; `random_delay_ms` draws from the OS random source and
@@ -198,7 +198,7 @@ fn session_row_dict<'py>(py: Python<'py>, row: &SessionRow) -> PyResult<Bound<'p
 /// read from its attributes `current`, `device_model`, `platform`,
 /// `system_version`, `api_id`, `app_name`, `app_version` and
 /// `official_app`: an absent (`None`) `current` or `official_app` flag is
-/// `False`, as 1.5.0 reads it.
+/// `False`.
 #[pyfunction]
 fn session_row<'py>(
     py: Python<'py>,
@@ -233,7 +233,7 @@ fn session_row<'py>(
     session_row_dict(py, &SessionRow::from_authorization(&raw))
 }
 
-/// The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
+/// The table `PrintSessions` prints for `rows`, without a trailing
 /// newline; with no rows, the header alone.
 #[pyfunction]
 fn format_sessions(rows: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -244,7 +244,7 @@ fn format_sessions(rows: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(auth::format_sessions(&rows))
 }
 
-/// 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+/// `PrettyTable(table, addSplit)` for a table with the columns
 /// `headers`, in order, and the cells of `rows`, already strings; a splitter
 /// line goes before every row whose index is in `add_split`. Columns are
 /// as wide as their longest cell plus two, text centred with the odd space
@@ -266,7 +266,7 @@ fn format_table(
     Ok(auth::format_table(&headers, &rows, &add_split))
 }
 
-/// What the seven 1.5.0 `ConsistencyChecker` checks expect from a session
+/// What the seven `ConsistencyChecker` checks expect from a session
 /// with `profile`, compared against `versions` (default the offline
 /// `PlatformVersions`).
 #[pyfunction]
@@ -303,7 +303,7 @@ fn result_dict<'py>(py: Python<'py>, result: &CheckResult) -> PyResult<Bound<'py
     Ok(dict)
 }
 
-/// The names of the seven 1.5.0 `ConsistencyChecker.run_all` checks, in
+/// The names of the seven `ConsistencyChecker.run_all` checks, in
 /// its order.
 #[pyfunction]
 fn consistency_checks() -> Vec<&'static str> {
@@ -342,7 +342,7 @@ fn to_check_outcome(dict: &Bound<'_, PyDict>) -> PyResult<CheckOutcome> {
     })
 }
 
-/// The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+/// The report `ConsistencyChecker.run_all` builds from `outcomes`,
 /// one per check in `consistency_checks()` order: a dict of the `checks`
 /// (`CheckResult` dicts named after their check; one that raised fails with
 /// the `check_exception` detail), `all_passed`, `summary` and the
@@ -389,7 +389,7 @@ fn post_login_step_dict<'py>(
     Ok(dict)
 }
 
-/// The 1.5.0 post-login steps run for a client whose `lang_pack` is
+/// The post-login steps run for a client whose `lang_pack` is
 /// `lang_pack`, in order: `langpack.getLanguages` only runs for a
 /// non-empty one.
 #[pyfunction]
@@ -401,7 +401,7 @@ fn post_login_steps<'py>(py: Python<'py>, lang_pack: &str) -> PyResult<Vec<Bound
 }
 
 /// A random whole number of milliseconds in `min_ms..=max_ms`, uniform,
-/// from the OS random source: the sleep 1.5.0 takes as
+/// from the OS random source, with the bounds of
 /// `random.randint(min_ms, max_ms)`. Raises `ValueError` when
 /// `min_ms > max_ms`, as `random.randint` does.
 #[pyfunction]
@@ -434,8 +434,8 @@ fn srp_inputs<'py>(
     Ok((srp_id, to_bytes(py, &srp_b)))
 }
 
-/// One error of every core [`Error`] variant: their codes and legacy
-/// classes are the `CoreError` codes `core_error_classes` names.
+/// One error of every core [`Error`] variant: their codes and
+/// `legacy_class` names are the ones `core_error_classes` maps.
 fn every_error() -> [Error; 18] {
     [
         Error::FileNotFound {
@@ -491,10 +491,10 @@ const EVERY_SRP_ERROR: [SrpError; 4] = [
     SrpError::RandomUnavailable,
 ];
 
-/// The class name of the exception 1.5.0 raised for each `CoreError` code
-/// this module raises, by code: the core `Error::legacy_class` of every
-/// error code and `SrpError::legacy_class` of every SRP code. A name is an
-/// opentele2 exception class or a builtin.
+/// The class name of the exception `opentele2.exception` raises for each
+/// `CoreError` code this module raises, by code: the core
+/// `Error::legacy_class` of every error code and `SrpError::legacy_class`
+/// of every SRP code. A name is an opentele2 exception class or a builtin.
 #[pyfunction]
 fn core_error_classes(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     let classes = PyDict::new(py);
@@ -507,7 +507,7 @@ fn core_error_classes(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     Ok(classes)
 }
 
-/// The 1.5.0 `TDataDcIdNotFound` message for DC `dc_id`.
+/// The `TDataDcIdNotFound` message for DC `dc_id`.
 #[pyfunction]
 fn dc_not_found_message(dc_id: i32) -> String {
     Error::BadConfigData {
@@ -516,7 +516,7 @@ fn dc_not_found_message(dc_id: i32) -> String {
     .legacy_message()
 }
 
-/// The 1.5.0 warning of QR login attempt `attempt_number` (from 1) that
+/// The warning of QR login attempt `attempt_number` (from 1) that
 /// timed out with an error whose `str(type(e))` is `error_type` (default
 /// `QR_TIMEOUT_ERROR_TYPE`).
 #[pyfunction]
@@ -528,14 +528,14 @@ fn qr_attempt_timeout_warning(attempt_number: u32, error_type: Option<&str>) -> 
     )
 }
 
-/// The 1.5.0 warning after QR login attempt `attempt_number` (from 1)
+/// The warning after QR login attempt `attempt_number` (from 1)
 /// failed.
 #[pyfunction]
 fn qr_attempt_retry_warning(attempt_number: u32) -> String {
     auth::qr_attempt_retry_warning(attempt_number)
 }
 
-/// 1.5.0 `ConsistencyReport.summary`: a count line, then one
+/// `ConsistencyReport.summary`: a count line, then one
 /// `  [OK] name: detail` or `  [FAIL] name: detail` line per check.
 #[pyfunction]
 fn consistency_summary(results: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -585,7 +585,7 @@ fn current_session_detail(row: &Bound<'_, PyDict>) -> PyResult<String> {
     Ok(auth::current_session_detail(&to_session_row(row)?))
 }
 
-/// The `layer_match` detail; 1.5.0 names the library layer after Telethon.
+/// The `layer_match` detail; it names the library layer after Telethon.
 #[pyfunction]
 #[pyo3(signature = (library_layer, advertised_layer = None))]
 fn layer_detail(library_layer: i32, advertised_layer: Option<i32>) -> String {
