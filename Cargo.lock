@@ -1145,6 +1145,7 @@ dependencies = [
  "hex",
  "hmac",
  "md-5",
+ "opentele2-browser",
  "pbkdf2",
  "rayon",
  "rusqlite",

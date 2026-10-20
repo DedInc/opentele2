@@ -14,6 +14,8 @@ exclude = ["tests/vectors", "tests/fixtures"]
 
 [dependencies]
 thiserror.workspace = true
+# Draws the web device pool as 1.5.0 drew it with browserforge.
+opentele2-browser = { path = "../opentele2-browser", version = "2.0.0" }
 md-5 = "0.11.0"
 grammers-crypto = "0.11.0"
 aes = "0.9.3"

@@ -667,14 +667,16 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
 /// profile with a device picked for `seed`, or a random device without one.
 ///
 /// [`Client::Desktop`] behaves as [`generate_desktop`] without a system.
-/// The web clients pick a browser from the web catalog instead of 1.5.0's
-/// browserforge fingerprints: the user agent becomes the device model and
-/// the client's platform string the system version (Web A as
-/// [`WebClient::A`], Web K and Webogram as [`WebClient::K`]).
+/// The web clients pick a browser from 1.5.0's browserforge pool for the
+/// Chrome and Firefox majors of `versions` ([`devices::web_catalog_for`]),
+/// so the same seed and versions always give the same device: the user
+/// agent becomes the device model and the client's platform string the
+/// system version (Web A as [`WebClient::A`], Web K and Webogram as
+/// [`WebClient::K`]).
 ///
 /// # Errors
 ///
-/// The errors of [`devices::pick`].
+/// The errors of [`devices::pick`] and [`devices::web_catalog_for`].
 pub fn generate(client: Client, seed: Option<&str>, versions: &Versions) -> Result<ApiProfile> {
     let platform = match client {
         Client::Desktop => return generate_desktop(None, seed, versions),
@@ -688,7 +690,12 @@ pub fn generate(client: Client, seed: Option<&str>, versions: &Versions) -> Resu
             client: WebClient::K,
         },
     };
-    let device = devices::pick(platform, seed)?;
+    let device = match platform {
+        Platform::Web { client: web } => {
+            devices::pick_from(&devices::web_catalog_for(web, versions)?, platform, seed)?
+        }
+        _ => devices::pick(platform, seed)?,
+    };
     Ok(ApiProfile {
         device_model: device.model,
         system_version: device.system_version,

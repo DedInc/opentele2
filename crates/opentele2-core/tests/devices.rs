@@ -1,15 +1,17 @@
 //! Tests for `devices`: every case of `tests/vectors/devices.json` (1.5.0
 //! `Generate` per entry point), seed hashes computed by 1.5.0's
 //! `_strtohashid` and catalog sizes equal to 1.5.0's expanded list lengths.
-//! The web catalog
-//! has no 1.5.0 vectors (1.5.0 drew it from browserforge), so its tests check
-//! determinism, reachability, the cited weights and the user agent formats.
+//! The web pool has no 1.5.0 vectors (1.5.0 drew it at random from
+//! browserforge), so its tests check 1.5.0's sizes, weights, platform
+//! strings and version windows, determinism per seed and versions, and
+//! reachability.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
 use opentele2_core::Result;
+use opentele2_core::api::Versions;
 use opentele2_core::devices::{self, Platform, WebClient};
 use serde_json::Value;
 
@@ -195,10 +197,6 @@ fn unseeded_pick_comes_from_the_catalog() -> Result<()> {
     Ok(())
 }
 
-fn web_json_text() -> String {
-    fs::read_to_string(crate_dir().join("data/devices/web.json")).expect("read web.json")
-}
-
 /// The slot of 1.5.0's expanded list that `hash` lands on.
 fn expected_web_pick(platform: Platform, seed: &str) -> Result<(String, String)> {
     let catalog = devices::catalog(platform)?;
@@ -261,198 +259,172 @@ fn every_web_entry_is_reachable() -> Result<()> {
     Ok(())
 }
 
+/// Versions whose Chrome major (155) is ahead of the browserforge dataset's
+/// newest (149) and whose Firefox major (150) is inside it.
+fn lagging_versions() -> Versions {
+    let mut versions = Versions::offline();
+    versions.set_chrome_version("155.0.0.0");
+    "150.0".clone_into(&mut versions.firefox_version);
+    versions
+}
+
+/// Every major that follows `prefix` in `ua`.
+fn majors_after(ua: &str, prefix: &str) -> Vec<u32> {
+    ua.match_indices(prefix)
+        .filter_map(|(at, _)| {
+            let tail = &ua[at + prefix.len()..];
+            let end = tail
+                .find(|c: char| !c.is_ascii_digit())
+                .unwrap_or(tail.len());
+            tail[..end].parse().ok()
+        })
+        .collect()
+}
+
+/// The browser of a pool user agent: Edge before Chrome, as browserforge.
+fn browser(ua: &str) -> &'static str {
+    match opentele2_browser::browser_of(ua) {
+        Some(name @ ("chrome" | "edge" | "firefox")) => name,
+        other => panic!("{ua}: unexpected browser {other:?}"),
+    }
+}
+
 #[test]
-fn web_weights_follow_the_cited_shares() -> Result<()> {
-    let file: Value = serde_json::from_str(&web_json_text()).expect("parse web.json");
-    assert_eq!(file["schema"], 1);
-    let sources = file["sources"].as_array().expect("sources array");
-    assert_ne!(sources.len(), 0);
-    for source in sources {
-        let url = source["url"].as_str().expect("source url");
-        assert!(url.starts_with("https://"), "{url}");
-        assert_eq!(source["accessed"], "2026-10-19", "{url}");
-    }
-    let platforms = file["platforms"].as_array().expect("platforms array");
-    let share_of = |os: &str| -> u64 {
-        platforms
-            .iter()
-            .find(|p| p["os"] == os)
-            .and_then(|p| p["share_bp"].as_u64())
-            .expect("OS share")
-    };
-    // round(browser share * OS share / sum of the browser's OS shares).
-    let mut expected = Vec::new();
-    for browser in file["browsers"].as_array().expect("browsers array") {
-        let share = browser["share_bp"].as_u64().expect("browser share");
-        let version = browser["version"].as_str().expect("version");
-        let agents = browser["user_agents"].as_array().expect("user_agents");
-        let total: u64 = agents
-            .iter()
-            .map(|a| share_of(a["os"].as_str().expect("os")))
-            .sum();
-        for agent in agents {
-            let os_share = share_of(agent["os"].as_str().expect("os"));
-            let template = agent["template"].as_str().expect("template");
-            let weight = (share * os_share * 2 + total) / (total * 2);
-            expected.push((template.replace("{version}", version), weight));
+fn web_pool_has_1_5_0s_sizes_and_weights() -> Result<()> {
+    let versions = lagging_versions();
+    for client in [WebClient::A, WebClient::K] {
+        let catalog = devices::web_catalog_for(client, &versions)?;
+        let mut counts: HashMap<&str, u64> = HashMap::new();
+        for entry in catalog.entries() {
+            let name = browser(entry.model);
+            let weight = devices::WEB_BROWSER_WEIGHTS
+                .iter()
+                .find(|(browser, _)| *browser == name)
+                .map(|&(_, weight)| weight);
+            assert_eq!(Some(entry.weight), weight, "{}", entry.model);
+            *counts.entry(name).or_default() += 1;
         }
+        let chrome = counts.get("chrome").copied().unwrap_or(0);
+        let edge = counts.get("edge").copied().unwrap_or(0);
+        let firefox = counts.get("firefox").copied().unwrap_or(0);
+        assert!((1..=60).contains(&chrome), "{chrome} Chrome user agents");
+        assert!((1..=30).contains(&edge), "{edge} Edge user agents");
+        assert!((1..=20).contains(&firefox), "{firefox} Firefox user agents");
+        assert_eq!(catalog.total_weight(), 19 * chrome + 2 * edge + firefox);
+        let distinct: HashSet<_> = catalog.entries().map(|entry| entry.model).collect();
+        assert_eq!(
+            distinct.len(),
+            catalog.len(),
+            "{client:?} repeats a user agent"
+        );
+        assert_eq!(catalog.device_models().len(), catalog.len());
     }
-    for platform in [WEB_A, WEB_K] {
-        let got: Vec<_> = devices::catalog(platform)?
-            .entries()
-            .map(|e| (e.model.to_owned(), e.weight))
-            .collect();
-        assert_eq!(got, expected, "{platform:?}");
-    }
-    // Chrome 5088+1118+303, Edge 1200+264, Firefox 478+105+28, Safari 806.
-    assert_eq!(devices::catalog(WEB_A)?.total_weight(), 9390);
-    assert_eq!(devices::catalog(WEB_A)?.len(), 9);
     Ok(())
 }
 
-fn is_dotted_number(text: &str) -> bool {
-    !text.is_empty()
-        && text
-            .split('.')
-            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// The browser and OS of a catalog user agent, asserting the exact format
-/// each browser sends today, including Chromium's UA reduction.
-fn classify(ua: &str) -> (&'static str, &'static str) {
-    let rest = ua
-        .strip_prefix("Mozilla/5.0 (")
-        .unwrap_or_else(|| panic!("{ua}: no Mozilla/5.0 prefix"));
-    let (system, tail) = rest
-        .split_once(')')
-        .unwrap_or_else(|| panic!("{ua}: no platform token"));
-    if let Some((system, rv)) = system.split_once("; rv:") {
-        let os = match system {
-            "Windows NT 10.0; Win64; x64" => "windows",
-            "Macintosh; Intel Mac OS X 10.15" => "macos",
-            "X11; Linux x86_64" => "linux",
-            other => panic!("{ua}: unexpected Firefox platform {other:?}"),
-        };
-        assert!(is_dotted_number(rv) && rv.contains('.'), "{ua}");
-        assert_eq!(tail, format!(" Gecko/20100101 Firefox/{rv}"), "{ua}");
-        return ("firefox", os);
-    }
-    let os = match system {
-        "Windows NT 10.0; Win64; x64" => "windows",
-        "Macintosh; Intel Mac OS X 10_15_7" => "macos",
-        "X11; Linux x86_64" => "linux",
-        other => panic!("{ua}: platform {other:?} is not a frozen one"),
-    };
-    if let Some(version) = tail
-        .strip_prefix(" AppleWebKit/605.1.15 (KHTML, like Gecko) Version/")
-        .and_then(|t| t.strip_suffix(" Safari/605.1.15"))
-    {
-        assert_eq!(os, "macos", "{ua}");
-        assert!(is_dotted_number(version), "{ua}");
-        return ("safari", os);
-    }
-    let chromium = tail
-        .strip_prefix(" AppleWebKit/537.36 (KHTML, like Gecko) Chrome/")
-        .unwrap_or_else(|| panic!("{ua}: unknown browser"));
-    let (major, after) = chromium
-        .split_once(".0.0.0 Safari/537.36")
-        .unwrap_or_else(|| panic!("{ua}: Chrome version is not reduced to major.0.0.0"));
-    assert!(is_dotted_number(major) && !major.contains('.'), "{ua}");
-    if after.is_empty() {
-        ("chrome", os)
-    } else {
-        assert_eq!(after, format!(" Edg/{major}.0.0.0"), "{ua}");
-        ("edge", os)
-    }
-}
-
 #[test]
-fn web_user_agents_have_each_browsers_format() -> Result<()> {
-    let a: Vec<_> = devices::catalog(WEB_A)?.entries().collect();
-    let k: Vec<_> = devices::catalog(WEB_K)?.entries().collect();
+fn web_pool_systems_come_from_the_user_agent() -> Result<()> {
+    let versions = lagging_versions();
+    let a = devices::web_catalog_for(WebClient::A, &versions)?;
+    let k = devices::web_catalog_for(WebClient::K, &versions)?;
     assert_eq!(a.len(), k.len());
-    let mut browsers = HashSet::new();
-    for (a, k) in a.iter().zip(&k) {
-        assert_eq!(a.model, k.model);
-        assert_eq!(a.weight, k.weight);
-        let (browser, os) = classify(a.model);
-        browsers.insert((browser, os));
-        let (web_a, web_k) = match os {
-            "windows" => ("Windows", "Win32"),
-            "macos" => ("macOS", "MacIntel"),
-            _ => ("Linux", "Linux x86_64"),
-        };
-        assert_eq!(a.system_version, web_a, "{}", a.model);
-        assert_eq!(k.system_version, web_k, "{}", k.model);
-    }
-    let expected: HashSet<_> = [
-        ("chrome", "windows"),
-        ("chrome", "macos"),
-        ("chrome", "linux"),
-        ("edge", "windows"),
-        ("edge", "macos"),
-        ("firefox", "windows"),
-        ("firefox", "macos"),
-        ("firefox", "linux"),
-        ("safari", "macos"),
-    ]
-    .into_iter()
-    .collect();
-    assert_eq!(browsers, expected);
-    Ok(())
-}
-
-#[test]
-fn web_catalog_parses_the_embedded_text() -> Result<()> {
-    let text = web_json_text();
-    for (client, platform) in [(WebClient::A, WEB_A), (WebClient::K, WEB_K)] {
-        let parsed: Vec<_> = devices::web_catalog(&text, client)?
-            .entries()
-            .map(|e| (e.model.to_owned(), e.system_version.to_owned(), e.weight))
-            .collect();
-        let embedded: Vec<_> = devices::catalog(platform)?
-            .entries()
-            .map(|e| (e.model.to_owned(), e.system_version.to_owned(), e.weight))
-            .collect();
-        assert_eq!(parsed, embedded, "{client:?}");
-    }
-    Ok(())
-}
-
-#[test]
-fn web_catalog_rejects_an_unknown_schema() {
-    let text = web_json_text();
-    assert!(text.contains("\"schema\": 1,"));
-    for schema in ["0", "2", "100"] {
-        let changed = text.replacen("\"schema\": 1,", &format!("\"schema\": {schema},"), 1);
-        for client in [WebClient::A, WebClient::K] {
-            let error = devices::web_catalog(&changed, client).expect_err("unknown schema");
-            assert_eq!(error.code(), "IO");
-            assert!(
-                error
-                    .to_string()
-                    .contains(&format!("unknown schema {schema}")),
-                "{error}"
-            );
+    let web_a = ["Windows", "macOS", "Linux", "ChromeOS"];
+    let web_k = ["Win32", "MacIntel", "Linux x86_64", "Linux aarch64"];
+    for (a, k) in a.entries().zip(k.entries()) {
+        assert_eq!((a.model, a.weight), (k.model, k.weight));
+        assert!(web_a.contains(&a.system_version), "{a:?}");
+        assert!(web_k.contains(&k.system_version), "{k:?}");
+        let lower = a.model.to_lowercase();
+        if lower.contains("windows") {
+            assert_eq!((a.system_version, k.system_version), ("Windows", "Win32"));
+        } else if lower.contains("macintosh") {
+            assert_eq!((a.system_version, k.system_version), ("macOS", "MacIntel"));
         }
     }
-    let missing = text.replacen("\"schema\": 1,", "", 1);
-    assert!(devices::web_catalog(&missing, WebClient::A).is_err());
+    assert!(
+        a.system_versions()
+            .iter()
+            .all(|v| web_a.contains(&v.as_str()))
+    );
+    assert!(
+        k.system_versions()
+            .iter()
+            .all(|v| web_k.contains(&v.as_str()))
+    );
+    Ok(())
 }
 
 #[test]
-fn web_catalog_rejects_uncited_or_broken_entries() {
-    let text = web_json_text();
-    let cases = [
-        ("\"url\": \"https://", "\"url\": \"http://"),
-        ("\"os\": \"linux\",", "\"os\": \"bsd\","),
-        ("Version/{version} Safari", "Version/27.0 Safari"),
-    ];
-    for (from, to) in cases {
-        assert!(text.contains(from), "{from}");
-        let changed = text.replacen(from, to, 1);
-        let error = devices::web_catalog(&changed, WebClient::K).expect_err(to);
-        assert_eq!(error.code(), "IO", "{to}");
+fn web_pool_majors_follow_the_live_versions() -> Result<()> {
+    // Dataset newest: Chrome 149, Edge 148. Chrome 155 lags by six majors,
+    // so the drawn majors must have been shifted back above the dataset.
+    let catalog = devices::web_catalog_for(WebClient::A, &lagging_versions())?;
+    for entry in catalog.entries() {
+        let ua = entry.model;
+        let chrome = majors_after(ua, "Chrome/");
+        match browser(ua) {
+            "chrome" => {
+                assert_eq!(chrome.len(), 1, "{ua}");
+                // The window is [155 - randint(2, 4), 155].
+                assert!(chrome.iter().all(|m| (151..=155).contains(m)), "{ua}");
+                assert!(chrome.iter().all(|&m| m > 149), "{ua} was not shifted");
+            }
+            "edge" => {
+                let edge = majors_after(ua, "Edg/");
+                assert_eq!(edge.len(), 1, "{ua}");
+                assert_eq!(chrome, edge, "{ua}");
+                // The window is [chrome_min - 2, 155].
+                assert!(edge.iter().all(|m| (149..=155).contains(m)), "{ua}");
+                assert!(edge.iter().all(|&m| m > 148), "{ua} was not shifted");
+            }
+            _ => {
+                let firefox = majors_after(ua, "Firefox/");
+                assert_eq!(firefox.len(), 1, "{ua}");
+                assert_eq!(majors_after(ua, "rv:"), firefox, "{ua}");
+                // Firefox 150 is inside the dataset: [147, 150], unshifted.
+                assert!(firefox.iter().all(|m| (147..=150).contains(m)), "{ua}");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn web_pool_is_a_pure_function_of_the_versions() -> Result<()> {
+    let versions = lagging_versions();
+    let entries = |client, versions: &Versions| -> Result<Vec<devices::CatalogEntry>> {
+        Ok(devices::web_catalog_for(client, versions)?.to_entries())
+    };
+    for (client, platform) in [(WebClient::A, WEB_A), (WebClient::K, WEB_K)] {
+        let pool = entries(client, &versions)?;
+        assert_eq!(entries(client, &versions)?, pool, "{client:?}");
+        // The offline versions are Chrome 155 and Firefox 150: the same pool.
+        assert_eq!(devices::catalog(platform)?.to_entries(), pool, "{client:?}");
+        // Unrelated fields do not change the pool.
+        let mut other = versions.clone();
+        other.web_a_version = "99.0 A".to_owned();
+        other.set_chrome_version("155.0.7000.1");
+        assert_eq!(entries(client, &other)?, pool, "{client:?}");
+        // A new Chrome major draws a new pool.
+        let mut newer = versions.clone();
+        newer.set_chrome_version("156.0.0.0");
+        assert_ne!(entries(client, &newer)?, pool, "{client:?}");
+        let mut older = versions.clone();
+        older.set_chrome_version("154.0.0.0");
+        assert_ne!(entries(client, &older)?, pool, "{client:?}");
+    }
+    Ok(())
+}
+
+#[test]
+fn web_pool_rejects_a_version_without_a_major() {
+    for (chrome, firefox) in [("x.0.0.0", "150.0"), ("155.0.0.0", ""), ("", "150.0")] {
+        let mut versions = Versions::offline();
+        versions.chrome_version = chrome.to_owned();
+        versions.firefox_version = firefox.to_owned();
+        let error =
+            devices::web_catalog_for(WebClient::A, &versions).expect_err("no numeric major");
+        assert_eq!(error.code(), "IO", "{chrome:?} {firefox:?}");
     }
 }
 

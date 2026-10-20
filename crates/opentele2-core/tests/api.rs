@@ -518,6 +518,33 @@ fn web_generate_returns_the_profile_with_the_picked_device() -> Result<()> {
             );
         }
     }
+    // The device comes from the pool of the given Chrome and Firefox majors.
+    let mut older = versions.clone();
+    older.set_chrome_version("150.0.0.0");
+    older.firefox_version = "148.0".to_owned();
+    for (client, web) in clients {
+        let pool = devices::web_catalog_for(web, &older)?;
+        let mut differs = false;
+        for i in 0..64 {
+            let seed = format!("seed-{i}");
+            let generated = api::generate(client, Some(&seed), &older)?;
+            assert_eq!(
+                all_fields(&api::generate(client, Some(&seed), &older)?),
+                all_fields(&generated),
+                "{client:?} {seed:?}"
+            );
+            assert!(
+                pool.entries()
+                    .any(|entry| entry.model == generated.device_model
+                        && entry.system_version == generated.system_version),
+                "{client:?} {seed:?}: {} is not in the Chrome 150 pool",
+                generated.device_model
+            );
+            let offline = api::generate(client, Some(&seed), &versions)?;
+            differs |= offline.device_model != generated.device_model;
+        }
+        assert!(differs, "{client:?} ignores the versions");
+    }
     // The web profiles keep following the given versions.
     let mut changed = versions.clone();
     changed.web_a_version = "13.0 A".to_owned();

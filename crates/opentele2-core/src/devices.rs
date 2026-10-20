@@ -9,29 +9,37 @@
 //! The catalogs in `data/devices/` are embedded at build time and parsed once,
 //! on first use.
 //!
-//! The web catalog (`web.json`) replaces 1.5.0's browserforge fingerprints
-//! with a curated list of browser releases; its devices are picked with the
-//! same seed hash and cumulative weights as every other catalog.
+//! The web catalogs are 1.5.0's browserforge pool, drawn with the
+//! `opentele2-browser` port from a generator seeded by the Chrome and
+//! Firefox majors ([`web_catalog_for`]), so a pool is a pure function of the
+//! versions; its devices are picked with the same seed hash and cumulative
+//! weights as every other catalog.
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock, PoisonError};
 
+use opentele2_browser::{
+    Browser, Error as BrowserError, HeaderGenerator, HeaderOptions, HeaderOverrides, Rng,
+    get_user_agent,
+};
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
 
+use crate::api::Versions;
 use crate::{Error, Result};
 
 const ANDROID_JSON: &str = include_str!("../data/devices/android.json");
 const DESKTOP_JSON: &str = include_str!("../data/devices/desktop.json");
 const IOS_JSON: &str = include_str!("../data/devices/ios.json");
 const MAC_JSON: &str = include_str!("../data/devices/mac.json");
-const WEB_JSON: &str = include_str!("../data/devices/web.json");
 
-/// The only `web.json` schema this parser understands.
-const WEB_SCHEMA: u64 = 1;
+/// The fixed part of the web pool generator's seed; the Chrome and Firefox
+/// majors are appended to it.
+const WEB_POOL_SEED: &str = "opentele2/devices/web-pool/v1";
 
-/// The placeholder a `web.json` user agent template carries for the version.
-const WEB_VERSION_PLACEHOLDER: &str = "{version}";
+/// How many majors the browserforge dataset may trail the live release
+/// (1.5.0 `_max_dataset_lag`).
+const MAX_DATASET_LAG: u32 = 24;
 
 /// Seed hashes are reduced modulo 10^12, as in 1.5.0 `_strtohashid`.
 const HASH_MODULUS: u64 = 1_000_000_000_000;
@@ -67,15 +75,15 @@ pub enum Platform {
     },
 }
 
-/// A Telegram web client. Both share one browser catalog, so a seed picks the
+/// A Telegram web client. Both share one browser pool, so a seed picks the
 /// same user agent for either; they differ in the platform string they send.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WebClient {
-    /// Telegram Web A, which sends a platform name: `Windows`, `macOS` or
-    /// `Linux` (1.5.0 variant `z`).
+    /// Telegram Web A, which sends a platform name: `Windows`, `macOS`,
+    /// `Linux` or `ChromeOS` (1.5.0 variant `z`).
     A,
     /// Telegram Web K and Webogram, which send `navigator.platform`: `Win32`,
-    /// `MacIntel` or `Linux x86_64` (1.5.0 variant `k`).
+    /// `MacIntel`, `Linux x86_64` or `Linux aarch64` (1.5.0 variant `k`).
     K,
 }
 
@@ -113,12 +121,11 @@ pub struct CatalogEntry {
 }
 
 /// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`: the share 1.5.0 gave each
-/// browserforge browser, in its order. The web catalog weighs its user
-/// agents by the shares `web.json` cites instead; these are kept for
-/// bindings that expose the 1.5.0 attribute.
+/// browserforge browser, in its order: the weight of every user agent of
+/// that browser in the web catalogs.
 pub const WEB_BROWSER_WEIGHTS: [(&str, u64); 3] = [("chrome", 19), ("edge", 2), ("firefox", 1)];
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Slot {
     model: usize,
     version: usize,
@@ -126,7 +133,7 @@ struct Slot {
 }
 
 /// The weighted pairs of one platform, in 1.5.0's list order.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Catalog {
     models: Vec<String>,
     versions: Vec<String>,
@@ -301,7 +308,16 @@ pub fn desktop_system(seed: Option<&str>) -> Result<Platform> {
 /// [`Error::Io`] when no seed is given and the OS random source fails, or
 /// when the embedded catalog is malformed or empty after filtering.
 pub fn pick(platform: Platform, seed: Option<&str>) -> Result<Device> {
-    let catalog = catalog(platform)?;
+    pick_from(catalog(platform)?, platform, seed)
+}
+
+/// The device 1.5.0 picks from `catalog`, which holds `platform`'s pairs,
+/// for `seed`; without a seed the pick is random.
+pub(crate) fn pick_from(
+    catalog: &Catalog,
+    platform: Platform,
+    seed: Option<&str>,
+) -> Result<Device> {
     let hash = hash_for(seed)?;
     let picked = catalog
         .at(hash)
@@ -317,19 +333,20 @@ pub fn pick(platform: Platform, seed: Option<&str>) -> Result<Device> {
 }
 
 /// The weighted catalog of `platform`. Both [`Platform::MacOS`] variants
-/// share one catalog; the [`Platform::Web`] catalogs hold the same user
-/// agents in the same order and weights, with each client's platform string.
+/// share one catalog; the [`Platform::Web`] catalogs are the
+/// [`web_catalog_for`] pools of [`Versions::offline`].
 ///
 /// # Errors
 ///
 /// [`Error::Io`] when the embedded catalog is malformed or empty after
-/// filtering.
+/// filtering, or the web pool fails to generate.
 pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
     static DESKTOP: OnceLock<std::result::Result<DesktopCatalogs, String>> = OnceLock::new();
     static MAC: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
     static ANDROID: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
     static IOS: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
-    static WEB: OnceLock<std::result::Result<WebCatalogs, String>> = OnceLock::new();
+    static WEB_A: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
+    static WEB_K: OnceLock<std::result::Result<Catalog, String>> = OnceLock::new();
 
     let built = match platform {
         Platform::Windows | Platform::Linux => {
@@ -346,13 +363,12 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
         Platform::MacOS { .. } => MAC.get_or_init(build_mac),
         Platform::Android => ANDROID.get_or_init(build_android),
         Platform::Ios => IOS.get_or_init(build_ios),
-        Platform::Web { client } => {
-            let web = WEB
-                .get_or_init(|| build_web(WEB_JSON))
-                .as_ref()
-                .map_err(|message| catalog_error(message.clone()))?;
-            return Ok(web.get(client));
-        }
+        Platform::Web {
+            client: WebClient::A,
+        } => WEB_A.get_or_init(|| offline_web_catalog(WebClient::A)),
+        Platform::Web {
+            client: WebClient::K,
+        } => WEB_K.get_or_init(|| offline_web_catalog(WebClient::K)),
     };
     built
         .as_ref()
@@ -367,22 +383,6 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
 /// As [`catalog`].
 pub fn catalog_entries(platform: Platform) -> Result<Vec<CatalogEntry>> {
     Ok(catalog(platform)?.to_entries())
-}
-
-/// The web catalog of `client` built from the text of a `web.json`; the
-/// embedded one is what [`catalog`] returns for [`Platform::Web`].
-///
-/// # Errors
-///
-/// [`Error::Io`] with [`std::io::ErrorKind::InvalidData`] when `text` is not
-/// a `web.json` of schema 1, cites no sources, references an unknown OS, has
-/// a template without `{version}`, or yields no weighted entry.
-pub fn web_catalog(text: &str, client: WebClient) -> Result<Catalog> {
-    let built = build_web(text).map_err(catalog_error)?;
-    Ok(match client {
-        WebClient::A => built.a,
-        WebClient::K => built.k,
-    })
 }
 
 fn catalog_error(message: String) -> Error {
@@ -660,141 +660,285 @@ fn build_android() -> std::result::Result<Catalog, String> {
     catalog.finish("android")
 }
 
-#[derive(Deserialize)]
-struct WebSchema {
-    schema: u64,
+/// One browserforge browser of 1.5.0 `WebBrowserDevice.__gen__`.
+struct WebBrowserConfig {
+    /// The browserforge browser name.
+    name: &'static str,
+    /// The live major window, inclusive at both ends.
+    min: u32,
+    max: u32,
+    /// The browserforge operating systems.
+    os: &'static [&'static str],
+    /// How many user agents are drawn; duplicates are skipped.
+    count: usize,
+    /// The prefixes whose major is shifted back up after a slide
+    /// (1.5.0 `_UA_MAJOR_PATTERNS`).
+    major_prefixes: &'static [&'static str],
 }
 
-#[derive(Deserialize)]
-struct WebSource {
-    url: String,
-    accessed: String,
+/// The weight 1.5.0 `BROWSER_WEIGHTS.get(name, 1)` gives a browser.
+fn web_browser_weight(name: &str) -> u64 {
+    WEB_BROWSER_WEIGHTS
+        .iter()
+        .find(|(browser, _)| *browser == name)
+        .map_or(1, |&(_, weight)| weight)
 }
 
-#[derive(Deserialize)]
-struct WebPlatform {
-    os: String,
-    share_bp: u64,
-    web_a: String,
-    web_k: String,
+/// The major of a dotted version such as `155.0.0.0` or `150.0`.
+fn major_of(browser: &str, version: &str) -> Result<u32> {
+    version
+        .split('.')
+        .next()
+        .and_then(|major| major.trim().parse().ok())
+        .ok_or_else(|| {
+            catalog_error(format!(
+                "{browser} version {version:?} has no numeric major"
+            ))
+        })
 }
 
-#[derive(Deserialize)]
-struct WebUserAgent {
-    os: String,
-    template: String,
-}
-
-#[derive(Deserialize)]
-struct WebBrowser {
-    browser: String,
-    version: String,
-    share_bp: u64,
-    user_agents: Vec<WebUserAgent>,
-}
-
-#[derive(Deserialize)]
-struct WebFile {
-    sources: Vec<WebSource>,
-    platforms: Vec<WebPlatform>,
-    browsers: Vec<WebBrowser>,
-}
-
-struct WebCatalogs {
-    a: Catalog,
-    k: Catalog,
-}
-
-impl WebCatalogs {
-    fn get(&self, client: WebClient) -> &Catalog {
-        match client {
-            WebClient::A => &self.a,
-            WebClient::K => &self.k,
+/// 1.5.0 `_header_generator`: a generator for the window, slid down by the
+/// smallest offset (at most [`MAX_DATASET_LAG`]) at which the dataset has a
+/// sample, and that offset. A window without a sample raises `NoHeaders`
+/// (the generator is strict, so no option is relaxed into another browser);
+/// any other error drops the browser, as 1.5.0's `except Exception` does.
+fn web_generator(config: &WebBrowserConfig, rng: &mut Rng) -> Option<(HeaderGenerator, u32)> {
+    for offset in 0..=MAX_DATASET_LAG {
+        let (Some(min), Some(max)) = (
+            config.min.checked_sub(offset),
+            config.max.checked_sub(offset),
+        ) else {
+            break;
+        };
+        let options = HeaderOptions {
+            browsers: vec![Browser {
+                min_version: Some(min),
+                max_version: Some(max),
+                ..Browser::new(config.name)
+            }],
+            os: config.os.iter().map(|&os| os.to_owned()).collect(),
+            devices: vec!["desktop".to_owned()],
+            strict: true,
+            ..HeaderOptions::default()
+        };
+        let generator = HeaderGenerator::new(options).ok()?;
+        // 1.5.0 probes with one `generate()` call and discards the headers.
+        match generator.generate(rng, &HeaderOverrides::default()) {
+            Ok(_) => return Some((generator, offset)),
+            Err(BrowserError::NoHeaders) => {}
+            Err(_) => return None,
         }
     }
+    None
 }
 
-/// `round(share * os_share / os_total)`, halves rounded up: a browser's
-/// cited share split by the desktop share of the OSes it lists.
-fn web_weight(share: u64, os_share: u64, os_total: u64) -> std::result::Result<u64, String> {
-    if os_total == 0 {
-        return Err("web browser lists only OSes with a zero share".to_owned());
+/// 1.5.0 `_shift_ua_major`: every major following one of `prefixes` is
+/// raised by `offset`, prefix by prefix, as `re.sub(r"(prefix)(\d+)")`.
+fn shift_majors(user_agent: &str, prefixes: &[&str], offset: u32) -> String {
+    let mut shifted = user_agent.to_owned();
+    if offset == 0 {
+        return shifted;
     }
-    let total = u128::from(os_total);
-    let weight = (u128::from(share) * u128::from(os_share) + total / 2) / total;
-    u64::try_from(weight).map_err(|_| "web device weight overflows u64".to_owned())
+    for prefix in prefixes {
+        let mut out = String::with_capacity(shifted.len());
+        let mut rest = shifted.as_str();
+        while let Some(at) = rest.find(prefix) {
+            let (head, tail) = rest.split_at(at + prefix.len());
+            out.push_str(head);
+            let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
+            let (number, after) = tail.split_at(digits);
+            match number.parse::<u64>() {
+                Ok(major) => out.push_str(&major.saturating_add(u64::from(offset)).to_string()),
+                Err(_) => out.push_str(number),
+            }
+            rest = after;
+        }
+        out.push_str(rest);
+        shifted = out;
+    }
+    shifted
 }
 
-fn build_web(text: &str) -> std::result::Result<WebCatalogs, String> {
-    // The schema is read on its own first, so a future schema with other
-    // fields is reported as unknown rather than as malformed.
-    let WebSchema { schema } = parse("web.json", text)?;
-    if schema != WEB_SCHEMA {
-        return Err(format!(
-            "device catalog web.json has unknown schema {schema}"
+/// 1.5.0 `_parse_os_from_ua`: the platform name Web A sends.
+fn web_a_system(user_agent: &str) -> &'static str {
+    let ua = user_agent.to_lowercase();
+    if ua.contains("windows") {
+        "Windows"
+    } else if ua.contains("macintosh") || ua.contains("mac os") {
+        "macOS"
+    } else if ua.contains("cros") {
+        "ChromeOS"
+    } else if ua.contains("linux") {
+        "Linux"
+    } else {
+        "Windows"
+    }
+}
+
+/// 1.5.0 `_parse_platform_from_ua`: the `navigator.platform` Web K sends.
+fn web_k_system(user_agent: &str) -> &'static str {
+    let ua = user_agent.to_lowercase();
+    if ua.contains("win64") || ua.contains("windows") {
+        "Win32"
+    } else if ua.contains("macintosh") || ua.contains("mac os") {
+        "MacIntel"
+    } else if ua.contains("linux") {
+        if ua.contains("x86_64") || ua.contains("x64") {
+            "Linux x86_64"
+        } else if ua.contains("aarch64") || ua.contains("arm") {
+            "Linux aarch64"
+        } else {
+            "Linux x86_64"
+        }
+    } else {
+        "Win32"
+    }
+}
+
+/// 1.5.0 `WebBrowserDevice.__gen__` for live Chrome major `chrome` and
+/// Firefox major `firefox`: the distinct user agents in generation order,
+/// each with its browser's weight. Every draw comes from one generator
+/// seeded by [`WEB_POOL_SEED`] and both majors, so the pool is a pure
+/// function of them.
+fn web_pool(chrome: u32, firefox: u32) -> std::result::Result<Vec<(String, u64)>, String> {
+    let mut rng = Rng::from_seed(&format!(
+        "{WEB_POOL_SEED}/chrome/{chrome}/firefox/{firefox}"
+    ));
+    // 1.5.0 `max_v - random.randint(2, 4)`.
+    let spread = 2 + u32::try_from(rng.next_u64() % 3).unwrap_or(0);
+    let chrome_min = chrome.saturating_sub(spread);
+    let all_os: &[&str] = &["windows", "macos", "linux"];
+    let configs = [
+        WebBrowserConfig {
+            name: "chrome",
+            min: chrome_min,
+            max: chrome,
+            os: all_os,
+            count: 60,
+            major_prefixes: &["Chrome/"],
+        },
+        WebBrowserConfig {
+            name: "edge",
+            min: chrome_min.saturating_sub(2),
+            max: chrome,
+            os: &["windows", "macos"],
+            count: 30,
+            major_prefixes: &["Chrome/", "Edg/"],
+        },
+        WebBrowserConfig {
+            name: "firefox",
+            min: firefox.saturating_sub(3),
+            max: firefox,
+            os: all_os,
+            count: 20,
+            major_prefixes: &["rv:", "Firefox/"],
+        },
+    ];
+    let overrides = HeaderOverrides::default();
+    let mut seen = HashSet::new();
+    let mut pool = Vec::new();
+    for config in &configs {
+        let weight = web_browser_weight(config.name);
+        let Some((generator, offset)) = web_generator(config, &mut rng) else {
+            continue;
+        };
+        for _ in 0..config.count {
+            let headers = match generator.generate(&mut rng, &overrides) {
+                Ok(headers) => headers,
+                // 1.5.0 skips a draw that raises `ValueError`.
+                Err(BrowserError::NoHeaders) => continue,
+                Err(e) => return Err(format!("web pool {}: {e}", config.name)),
+            };
+            let Some(user_agent) = get_user_agent(&headers) else {
+                continue;
+            };
+            let user_agent = shift_majors(user_agent, config.major_prefixes, offset);
+            if seen.insert(user_agent.clone()) {
+                pool.push((user_agent, weight));
+            }
+        }
+    }
+    if pool.is_empty() {
+        pool.push((
+            format!(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                 (KHTML, like Gecko) Chrome/{chrome}.0.0.0 Safari/537.36"
+            ),
+            1,
         ));
     }
-    let file: WebFile = parse("web.json", text)?;
-    let cited = !file.sources.is_empty()
-        && file
-            .sources
+    Ok(pool)
+}
+
+/// The catalog of `pool` with `system` naming each user agent's platform;
+/// the system versions are the distinct names in first-seen order.
+fn web_pool_catalog(
+    pool: &[(String, u64)],
+    system: fn(&str) -> &'static str,
+    name: &str,
+) -> std::result::Result<Catalog, String> {
+    let mut versions: Vec<String> = Vec::new();
+    let mut slots = Vec::with_capacity(pool.len());
+    for (model, (user_agent, weight)) in pool.iter().enumerate() {
+        let platform = system(user_agent);
+        let version = versions
             .iter()
-            .all(|source| source.url.starts_with("https://") && !source.accessed.is_empty());
-    if !cited {
-        return Err("device catalog web.json must cite https sources with access dates".to_owned());
+            .position(|known| known == platform)
+            .unwrap_or_else(|| {
+                versions.push(platform.to_owned());
+                versions.len() - 1
+            });
+        slots.push((model, version, *weight));
     }
-    let mut models = Vec::new();
-    let mut slots = Vec::new();
-    for browser in &file.browsers {
-        let mut platforms = Vec::with_capacity(browser.user_agents.len());
-        for agent in &browser.user_agents {
-            let index = file
-                .platforms
-                .iter()
-                .position(|platform| platform.os == agent.os)
-                .ok_or_else(|| {
-                    format!(
-                        "web browser {} lists unknown OS {:?}",
-                        browser.browser, agent.os
-                    )
-                })?;
-            if !agent.template.contains(WEB_VERSION_PLACEHOLDER) {
-                return Err(format!(
-                    "web browser {} template for {} has no {WEB_VERSION_PLACEHOLDER}",
-                    browser.browser, agent.os
-                ));
-            }
-            platforms.push(index);
-        }
-        let os_total = platforms.iter().try_fold(0u64, |sum, &index| {
-            file.platforms
-                .get(index)
-                .and_then(|platform| sum.checked_add(platform.share_bp))
-                .ok_or_else(|| "web OS shares overflow u64".to_owned())
-        })?;
-        for (agent, &index) in browser.user_agents.iter().zip(&platforms) {
-            let os_share = file.platforms.get(index).map_or(0, |p| p.share_bp);
-            let weight = web_weight(browser.share_bp, os_share, os_total)?;
-            slots.push((models.len(), index, weight));
-            models.push(
-                agent
-                    .template
-                    .replace(WEB_VERSION_PLACEHOLDER, &browser.version),
-            );
-        }
+    let mut catalog = Catalog::new(pool.iter().map(|(ua, _)| ua.clone()).collect(), versions);
+    for (model, version, weight) in slots {
+        catalog.push(model, version, weight)?;
     }
-    let build = |name: &str, version: fn(&WebPlatform) -> &String| {
-        let mut catalog = Catalog::new(
-            models.clone(),
-            file.platforms.iter().map(|p| version(p).clone()).collect(),
-        );
-        for &(model, platform, weight) in &slots {
-            catalog.push(model, platform, weight)?;
-        }
-        catalog.finish(name)
+    catalog.finish(name)
+}
+
+/// The web catalog of `client` for `versions`: 1.5.0's browserforge pool of
+/// up to 60 Chrome, 30 Edge and 20 Firefox desktop user agents weighted by
+/// [`WEB_BROWSER_WEIGHTS`], drawn deterministically for the majors of
+/// [`Versions::chrome_version`] and [`Versions::firefox_version`].
+///
+/// When the dataset trails a live major, the browser's window slides down
+/// to the newest major the dataset has (by at most 24) and the drawn majors
+/// are shifted back up, as in 1.5.0. Both clients hold the same user agents
+/// in the same order and weights, with their own platform strings. Pools
+/// are cached per client and pair of majors.
+///
+/// # Errors
+///
+/// [`Error::Io`] with [`std::io::ErrorKind::InvalidData`] when either
+/// version has no numeric major or the browser dataset fails to generate.
+pub fn web_catalog_for(client: WebClient, versions: &Versions) -> Result<Catalog> {
+    /// A web client and the Chrome and Firefox majors of its pool.
+    type WebKey = (WebClient, u32, u32);
+    static CACHE: OnceLock<Mutex<HashMap<WebKey, Catalog>>> = OnceLock::new();
+
+    let chrome = major_of("Chrome", &versions.chrome_version)?;
+    let firefox = major_of("Firefox", &versions.firefox_version)?;
+    let mut cache = CACHE
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if let Some(cached) = cache.get(&(client, chrome, firefox)) {
+        return Ok(cached.clone());
+    }
+    let pool = web_pool(chrome, firefox).map_err(catalog_error)?;
+    let a = web_pool_catalog(&pool, web_a_system, "web A").map_err(catalog_error)?;
+    let k = web_pool_catalog(&pool, web_k_system, "web K").map_err(catalog_error)?;
+    let wanted = match client {
+        WebClient::A => a.clone(),
+        WebClient::K => k.clone(),
     };
-    Ok(WebCatalogs {
-        a: build("web A", |platform| &platform.web_a)?,
-        k: build("web K", |platform| &platform.web_k)?,
-    })
+    cache.insert((WebClient::A, chrome, firefox), a);
+    cache.insert((WebClient::K, chrome, firefox), k);
+    Ok(wanted)
+}
+
+/// [`web_catalog_for`] of the [`Versions::offline`] majors, for [`catalog`].
+fn offline_web_catalog(client: WebClient) -> std::result::Result<Catalog, String> {
+    web_catalog_for(client, &Versions::offline()).map_err(|e| e.to_string())
 }
