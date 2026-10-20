@@ -185,8 +185,8 @@ fn read_session_companion<'py>(
         // Only the profile read gives `Io`, after the text parsed as an
         // object with both required fields.
         Err(Error::Io(_)) => {
-            let data: serde_json::Map<String, serde_json::Value> =
-                serde_json::from_str(text).map_err(|error| {
+            let data: serde_json::Map<String, serde_json::Value> = serde_json::from_str(text)
+                .map_err(|error| {
                     companion_error(
                         py,
                         &Error::InvalidInput {
