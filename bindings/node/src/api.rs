@@ -1,5 +1,5 @@
 //! API profiles, device fingerprints and their catalogs, `PlatformVersions`
-//! and the session JSON of 1.5.0 `APIData`.
+//! and the session JSON of `APIData`.
 
 use std::convert::identity;
 
@@ -15,12 +15,13 @@ use opentele2_core::devices::{self, Platform};
 use crate::convert::{to_seed, with_text};
 use crate::error::{Result, check, core_error, invalid_arg, thrown};
 
-/// The TL schema layer opentele2 advertises (1.5.0 `LAYER`): the layer of
+/// The TL schema layer opentele2 advertises (`LAYER`): the layer of
 /// the `api.tl` shipped by Telegram Desktop 7.3.1.
 #[napi]
 pub const LAYER: i32 = api::LAYER;
 
-/// The client with the 1.5.0 class name `name`; an unknown name throws
+/// The client with the class name `name` (the Python package's `API`
+/// class names); an unknown name throws
 /// `ERR_INVALID_ARG_VALUE`.
 fn client(name: String) -> Result<Client> {
     Client::from_name(&name).ok_or_else(move || {
@@ -128,7 +129,7 @@ pub struct Versions {
     pub firefox_version: Option<String>,
 }
 
-/// Every field of 1.5.0 `PlatformVersions`.
+/// Every field of `PlatformVersions`.
 #[napi(object, object_from_js = false)]
 pub struct PlatformVersions {
     /// Telegram Android version, for example `"13.0.3"`.
@@ -171,7 +172,7 @@ pub struct PlatformVersions {
     /// The browser user agent the default web profiles report.
     pub user_agent: String,
     /// Stable Firefox version, for example `"150.0"`, whose major bounds the
-    /// Firefox user agents of the generated web devices; a 2.0.0 addition.
+    /// Firefox user agents of the generated web devices.
     pub firefox_version: String,
 }
 
@@ -246,14 +247,14 @@ pub(crate) fn versions(overrides: Option<Versions>) -> CoreVersions {
     versions
 }
 
-/// The offline `PlatformVersions` of 1.5.0 (`OPENTELE_NO_FETCH`), with the
+/// The offline `PlatformVersions` (`OPENTELE_NO_FETCH`), with the
 /// fields of `overrides` replaced.
 #[napi]
 pub fn platform_versions(overrides: Option<Versions>) -> PlatformVersions {
     versions(overrides).into()
 }
 
-/// The default API profile of `client` (a 1.5.0 class name such as
+/// The default API profile of `client` (an `API` class name such as
 /// `"TelegramDesktop"`), with `versions` overriding the offline
 /// `PlatformVersions` fields.
 #[napi]
@@ -268,7 +269,7 @@ pub fn profile(
     Ok(api::profile(client, &self::versions(versions)).into())
 }
 
-/// The profile 1.5.0 `API.<client>.Generate` returns: a device picked for
+/// The profile `API.<client>.Generate` returns: a device picked for
 /// `seed` (a string, or an integer `number` or `bigint` as its decimal
 /// text), random without one. `system` applies to `"TelegramDesktop"` only.
 /// Web clients get a browser user agent picked from the web catalog.
@@ -306,7 +307,7 @@ fn generated(
     Ok(check(generated)?.into())
 }
 
-/// The profile 1.5.0 `APIData.from_json` reads from session JSON, given as
+/// The profile `APIData.from_json` reads from session JSON, given as
 /// its text or as a parsed object. `app_id`, `app_hash`, `device`, `sdk` and
 /// `app_version` are required; `lang_code` defaults to `"en"`, `lang_pack`
 /// to `""`, and `system_lang_code` falls back to `system_lang_pack`, then
@@ -334,10 +335,11 @@ fn read_profile(json: Value) -> Result<ApiProfile> {
     Ok(check(CoreProfile::from_session_json(&data))?.into())
 }
 
-/// The session JSON 1.5.0 `APIData.to_json(extra)` writes, keys in its
+/// The session JSON `APIData.to_json(extra)` writes, keys in its
 /// order: the profile's keys, then the 19 account keys with their defaults.
 /// `extra` overrides those keys in place and appends its other keys in its
-/// own order. `JSON.stringify` of the result is 1.5.0's compact JSON.
+/// own order. `JSON.stringify` of the result is the compact JSON the Python
+/// package writes.
 #[napi(ts_return_type = "Record<string, unknown>")]
 pub fn profile_to_session_json(
     profile: ApiProfile,
@@ -348,7 +350,7 @@ pub fn profile_to_session_json(
     CoreProfile::from(profile).to_session_json(Some(&extra))
 }
 
-/// Whether `a` and `b` are the same client on the same device, as 1.5.0
+/// Whether `a` and `b` are the same client on the same device, as
 /// `APIData.__eq__`: `apiId`, `apiHash`, `deviceModel`, `systemVersion`
 /// and `appVersion` are compared; the language fields are not.
 #[napi]
@@ -356,7 +358,7 @@ pub fn profiles_equal(a: ApiProfile, b: ApiProfile) -> bool {
     CoreProfile::from(a) == CoreProfile::from(b)
 }
 
-/// 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+/// `format_app_version`: a packed Telegram Desktop version as
 /// `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
 /// `7003000` is `"7.3"`.
 #[napi]
@@ -369,9 +371,9 @@ pub fn format_app_version(version: u32) -> String {
 pub struct SessionJsonField {
     /// The JSON key.
     pub key: String,
-    /// The 1.5.0 `APIData` attribute the key reads into and writes from.
+    /// The `APIData` attribute the key reads into and writes from.
     pub attribute: String,
-    /// The value 1.5.0 `APIData.from_json` takes when the key is absent.
+    /// The value `APIData.from_json` takes when the key is absent.
     #[napi(js_name = "default", ts_type = "string | null")]
     pub default_value: Value,
     /// The key read instead when this key's value is falsy in Python's
@@ -379,7 +381,7 @@ pub struct SessionJsonField {
     pub fallback: Option<String>,
 }
 
-/// The profile keys of the session JSON, in the order 1.5.0
+/// The profile keys of the session JSON, in the order
 /// `APIData.to_json` writes them.
 #[napi]
 pub fn session_json_fields() -> Vec<SessionJsonField> {
@@ -394,7 +396,7 @@ pub fn session_json_fields() -> Vec<SessionJsonField> {
         .collect()
 }
 
-/// 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+/// `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
 /// `APIData.to_json` writes after the profile keys, with their defaults, as
 /// `[key, default]` pairs in order.
 #[napi(ts_return_type = "Array<[string, string | boolean | null]>")]
@@ -411,9 +413,9 @@ pub struct CatalogEntry {
     /// The device model.
     pub model: String,
     /// The system version as stored in the catalog; Mac versions are bare,
-    /// as in 1.5.0 `macOSDevice.deviceList`.
+    /// as in `macOSDevice.deviceList`.
     pub system_version: String,
-    /// How many times 1.5.0 repeats the pair in its expanded list.
+    /// How many times the pair repeats in the expanded `deviceList`.
     pub weight: u32,
 }
 
@@ -460,8 +462,8 @@ fn version_list(platform: &str) -> Result<Vec<String>> {
     Ok(catalog(platform)?.system_versions().to_vec())
 }
 
-/// The weighted device pairs of the `platform` catalog in 1.5.0's
-/// `deviceList` order; the weight is how many times 1.5.0 repeats the pair.
+/// The weighted device pairs of the `platform` catalog in `deviceList`
+/// order; the weight is how many times the expanded list repeats the pair.
 #[napi]
 pub fn catalog_entries(
     env: Env,
@@ -471,7 +473,7 @@ pub fn catalog_entries(
     thrown(env, with_text(platform, entries).and_then(identity))
 }
 
-/// The models of the `platform` catalog in file order: 1.5.0
+/// The models of the `platform` catalog in file order: the
 /// `device_models` of the desktop, Mac and iOS classes (empty for Android).
 #[napi]
 pub fn device_models(
@@ -482,7 +484,7 @@ pub fn device_models(
     thrown(env, with_text(platform, device_list).and_then(identity))
 }
 
-/// The system versions of the `platform` catalog in file order: 1.5.0
+/// The system versions of the `platform` catalog in file order: the
 /// `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
 /// `SDK 37` for Android, and the client's platform strings for the web.
 #[napi]
@@ -494,7 +496,7 @@ pub fn system_versions(
     thrown(env, with_text(platform, version_list).and_then(identity))
 }
 
-/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order.
+/// `WebBrowserDevice.BROWSER_WEIGHTS`, in its order.
 #[napi(ts_return_type = "Record<string, number>")]
 pub fn web_browser_weights() -> Value {
     Value::Object(

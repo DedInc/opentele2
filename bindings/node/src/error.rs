@@ -3,9 +3,9 @@
 //! A core failure becomes an `Error` whose `code` is `"OT_"` followed by
 //! [`opentele2_core::Error::code`], for example `"OT_TDATA_WRONG_PASSCODE"`,
 //! whose `message` is the core's human-readable text, and whose
-//! `legacyMessage` is the message 1.5.0 gave the matching exception
+//! `legacyMessage` is the message of the matching Python exception
 //! ([`opentele2_core::Error::legacy_message`]); an `"OT_"` error the core
-//! has no 1.5.0 message for, such as an SRP refusal, repeats its `message`
+//! has no such message for, such as an SRP refusal, repeats its `message`
 //! there. An argument the core never sees, such as an unknown client name,
 //! raises an `Error` with Node's `"ERR_INVALID_ARG_VALUE"` code and no
 //! `legacyMessage`.
@@ -25,7 +25,7 @@ const CODE_PREFIX: &str = "OT_";
 /// The `code` of an argument the binding rejects before reaching the core.
 const INVALID_ARG: &str = "ERR_INVALID_ARG_VALUE";
 
-/// The property holding the 1.5.0 message of an `"OT_"` error.
+/// The property holding the Python exception message of an `"OT_"` error.
 const LEGACY_MESSAGE: &str = "legacyMessage";
 
 /// A JavaScript error whose `code` is the string status.
@@ -37,7 +37,7 @@ pub(crate) type Result<T> = std::result::Result<T, CodedError>;
 
 /// `error` as an `Error` with `code` `"OT_<CODE>"`.
 ///
-/// Its 1.5.0 message travels as the `cause` until [`rejection`] builds the
+/// Its Python exception message travels as the `cause` until [`rejection`] builds the
 /// JavaScript object, which carries it as `legacyMessage` instead.
 pub(crate) fn core_error(error: &opentele2_core::Error) -> CodedError {
     let mut coded = CodedError::new(format!("{CODE_PREFIX}{}", error.code()), error.to_string());

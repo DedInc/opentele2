@@ -40,15 +40,15 @@ export declare class TData {
   /** Sets the active index the next save writes. */
   set activeIndex(value: number)
   /**
-   * 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
-   * files. Loading turns it on, the 1.5.0 default.
+   * `TDesktop.kPerformanceMode`: when on, saving writes no `configs`
+   * files. Loading turns it on, the default.
    */
   get performanceMode(): boolean
   /** Sets the performance mode of later saves. */
   set performanceMode(value: boolean)
   /**
    * Telegram Desktop version in the key file's `TDF$` header; saving
-   * always writes 1.5.0's 7003001.
+   * always writes 7003001.
    */
   get appVersion(): number
   /**
@@ -70,7 +70,7 @@ export declare class TData {
   get keyFile(): string
   /**
    * Renames the key file and the account files of later saves, as
-   * 1.5.0's `SaveTData(keyFile=...)` does; an empty name throws
+   * `SaveTData(keyFile=...)` does; an empty name throws
    * `OT_TDATA_SAVE_FAILED` and keeps the old one.
    */
   set keyFile(value: string)
@@ -104,8 +104,8 @@ export interface Account {
 
 /**
  * The endpoints of DC `dcId` (default the main DC) in the MTP config of
- * `account`, by address family and protocol (1.5.0
- * `MTP.Config.endpoints`); `null` when the config has no such DC. No
+ * `account`, by address family and protocol
+ * (`MTP.Config.endpoints`); `null` when the config has no such DC. No
  * account reads the production default, whose main DC is 0, a DC no
  * config lists.
  */
@@ -135,7 +135,7 @@ export interface AccountInput {
 }
 
 /**
- * The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
+ * The MTP config of `account` (`_readMtpConfig`): its stored
  * `config` parsed, or the production default when there is none or it
  * does not parse. No account, one never loaded, has the production
  * default.
@@ -144,7 +144,7 @@ export declare function accountMtpConfig(account?: AccountInput | undefined | nu
 
 /**
  * Adds an account to `tdata` with `authKey` as the key of `mainDc`, as
- * 1.5.0's `Account.FromTelethon` does, and returns its index: the lowest
+ * `Account.FromTelethon` does, and returns its index: the lowest
  * one below `TDATA_MAX_ACCOUNTS` no account holds. The active index is not
  * changed. A full folder throws `OT_MAX_ACCOUNT_LIMIT`, a key that is not
  * 256 bytes `OT_BAD_LENGTH`; `tdata` is then left as it was.
@@ -183,7 +183,7 @@ export interface ApiProfile {
 /**
  * `versions` (overrides of the offline `PlatformVersions`, a full
  * `PlatformVersions` included) with every field `patch` sets written onto
- * it, as 1.5.0 `_apply_fetched_versions`: each field lands on the field of
+ * it, as `_apply_fetched_versions`: each field lands on the field of
  * the same name, except `desktopAppVersion`, which stays bound to the
  * tdata version, and `chromeVersion`, which rebuilds `userAgent` too. A
  * wrongly typed patch value throws `ERR_INVALID_ARG_VALUE`.
@@ -322,8 +322,8 @@ export interface BrowserSpec {
 }
 
 /**
- * The weighted device pairs of the `platform` catalog in 1.5.0's
- * `deviceList` order; the weight is how many times 1.5.0 repeats the pair.
+ * The weighted device pairs of the `platform` catalog in `deviceList`
+ * order; the weight is how many times the expanded list repeats the pair.
  */
 export declare function catalogEntries(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<CatalogEntry>
 
@@ -333,10 +333,10 @@ export interface CatalogEntry {
   model: string
   /**
    * The system version as stored in the catalog; Mac versions are bare,
-   * as in 1.5.0 `macOSDevice.deviceList`.
+   * as in `macOSDevice.deviceList`.
    */
   systemVersion: string
-  /** How many times 1.5.0 repeats the pair in its expanded list. */
+  /** How many times the pair repeats in the expanded `deviceList`. */
   weight: number
 }
 
@@ -365,7 +365,7 @@ export interface CheckOutcome {
   raised?: string
 }
 
-/** One entry of a 1.5.0 `ConsistencyReport`. */
+/** One entry of a `ConsistencyReport`. */
 export interface CheckResult {
   /**
    * The check name, one of `consistencyChecks()` or the name of a check
@@ -374,22 +374,25 @@ export interface CheckResult {
   name: string
   /** Whether the check passed. */
   passed: boolean
-  /** The 1.5.0 detail text. */
+  /** The detail text. */
   detail: string
 }
 
 /**
- * The findings of 1.5.0 `_check_version_consistency` for `profile`, each
+ * The findings of `_check_version_consistency` for `profile`, each
  * an `'error'`: the app version major of `android`, `ios`, `tdesktop` and
  * `macos` profiles, and the Android SDK level range.
  */
 export declare function checkVersions(profile: ApiProfile, versions?: Versions | undefined | null): Array<Issue>
 
-/** The text in front of the summary 1.5.0 warns with when a check fails. */
+/**
+ * The text in front of the summary the consistency check warns with when
+ * a check fails.
+ */
 export declare const CONSISTENCY_WARNING_PREFIX: string
 
 /**
- * The names of the seven 1.5.0 `ConsistencyChecker.run_all` checks, in
+ * The names of the seven `ConsistencyChecker.run_all` checks, in
  * its order.
  */
 export declare function consistencyChecks(): Array<string>
@@ -401,7 +404,7 @@ export declare function consistencyChecks(): Array<string>
 export declare function consistencyExpectations(profile: ApiProfile, versions?: Versions | undefined | null): ConsistencyExpectations
 
 /**
- * What the seven 1.5.0 `ConsistencyChecker` checks expect from a session
+ * What the seven `ConsistencyChecker` checks expect from a session
  * that uses a profile.
  */
 export interface ConsistencyExpectations {
@@ -429,14 +432,14 @@ export interface ConsistencyExpectations {
 }
 
 /**
- * The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+ * The report `ConsistencyChecker.run_all` builds from `outcomes`,
  * one per check in `consistencyChecks()` order: every entry is named after
  * its check, and one that raised fails with the `checkException` detail.
  * Throws `ERR_INVALID_ARG_VALUE` unless there is one outcome per check.
  */
 export declare function consistencyReport(outcomes: Array<CheckOutcome>): ConsistencyReport
 
-/** A 1.5.0 `ConsistencyReport`, without the server responses. */
+/** A `ConsistencyReport`, without the server responses. */
 export interface ConsistencyReport {
   /** One entry per check, in `consistencyChecks()` order. */
   checks: Array<CheckResult>
@@ -445,21 +448,21 @@ export interface ConsistencyReport {
   /** The report text, `consistencySummary` of `checks`. */
   summary: string
   /**
-   * The warning 1.5.0 emits with `auto_warn` on:
+   * The warning emitted with `auto_warn` on:
    * `CONSISTENCY_WARNING_PREFIX` and `summary`; absent when all passed.
    */
   warning?: string
 }
 
 /**
- * 1.5.0 `ConsistencyReport.summary`: a count line, then one
+ * `ConsistencyReport.summary`: a count line, then one
  * `  [OK] name: detail` or `  [FAIL] name: detail` line per check.
  */
 export declare function consistencySummary(results: Array<CheckResult>): string
 
 /**
- * The 256-byte pre-1.x local key for `passcode` and `salt`
- * (`Storage::CreateLegacyLocalKey`).
+ * The 256-byte Telegram Desktop legacy local key for `passcode` and
+ * `salt` (`Storage::CreateLegacyLocalKey`).
  */
 export declare function createLegacyLocalKey(passcode: string | Uint8Array, salt: Uint8Array): Promise<Buffer>
 
@@ -495,14 +498,14 @@ export interface DcKeyInput {
 }
 
 /**
- * 1.5.0 `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
+ * `list(_DEFAULT_EXTRA_FIELDS.items())`: the account keys
  * `APIData.to_json` writes after the profile keys, with their defaults, as
  * `[key, default]` pairs in order.
  */
 export declare function defaultExtraFields(): Array<[string, string | boolean | null]>
 
 /**
- * The models of the `platform` catalog in file order: 1.5.0
+ * The models of the `platform` catalog in file order: the
  * `device_models` of the desktop, Mac and iOS classes (empty for Android).
  */
 export declare function deviceModels(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<string>
@@ -520,20 +523,21 @@ export declare function deviceModels(platform: 'windows' | 'linux' | 'macos' | '
 export declare function drawPlan(operation: 'new' | 'migrate' | 'save', target: TData | NewDrawPlan): Array<number>
 
 /**
- * The layer to invoke with (1.5.0 `get_effective_layer`): `layerOverride`
+ * The layer to invoke with (`get_effective_layer`): `layerOverride`
  * when set, otherwise `LAYER`. Pass the `MTProto` library's layer as the
- * override to follow 1.5.0, which answers with Telethon's layer.
+ * override to match the Python package, which answers with Telethon's
+ * layer.
  */
 export declare function effectiveLayer(config: FingerprintConfig): number
 
 /**
- * The 1.5.0 `_handleExistingSession` warning when the new client already
+ * The `_handleExistingSession` warning when the new client already
  * holds a session of the same `api_id`, which is kept.
  */
 export declare const EXISTING_SESSION_KEPT: string
 
 /**
- * The 1.5.0 `_handleExistingSession` warning when the new client already
+ * The `_handleExistingSession` warning when the new client already
  * holds a session of another `api_id`, which is replaced.
  */
 export declare const EXISTING_SESSION_REPLACED: string
@@ -557,14 +561,14 @@ export declare function factorizePq(pq: Uint8Array): [Buffer, Buffer]
 export declare function fetchVersions(timeoutMs?: number | undefined | null): Promise<VersionsPatch>
 
 /**
- * A 1.5.0 `FingerprintConfig` with its defaults (`'warn'`, auto
+ * A `FingerprintConfig` with its defaults (`'warn'`, auto
  * validation, `'obfuscated'`, layer mismatch warnings, no layer override,
  * a randomized offset), each replaced by the option given. Without
  * `msgIdOffset` the offset is drawn from the OS random source.
  */
 export declare function fingerprintConfig(options?: FingerprintConfigOptions | undefined | null): FingerprintConfig
 
-/** The fingerprint options of 1.5.0 `FingerprintConfig`. */
+/** The fingerprint options of `FingerprintConfig`. */
 export interface FingerprintConfig {
   /** How consistency issues are handled. */
   strictMode: 'off' | 'warn' | 'strict'
@@ -702,8 +706,8 @@ export interface FingerprintVideoCard {
 }
 
 /**
- * The class name of the exception 1.5.0 raised for each error code of the
- * client flows, by code: `OT_` and the core `FlowFailure::code` of every
+ * The class name of the exception the Python package raises for each
+ * error code of the client flows, by code: `OT_` and the core `FlowFailure::code` of every
  * flow failure to its `FlowFailure::legacy_class`, and `OT_` and the
  * `SrpError::code` of every `srpCheck` refusal to its
  * `SrpError::legacy_class`.
@@ -711,20 +715,20 @@ export interface FingerprintVideoCard {
 export declare function flowErrorClasses(): Record<string, string>
 
 /**
- * 1.5.0 `format_app_version`: a packed Telegram Desktop version as
+ * `format_app_version`: a packed Telegram Desktop version as
  * `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
  * `7003000` is `"7.3"`.
  */
 export declare function formatAppVersion(version: number): string
 
 /**
- * The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
+ * The table `PrintSessions` prints for `rows`, without a trailing
  * newline; with no rows, the header alone.
  */
 export declare function formatSessions(rows: Array<SessionRow>): string
 
 /**
- * 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+ * `PrettyTable(table, addSplit)` for a table with the columns
  * `headers`, in order, and the cells of `rows`, already strings; a splitter
  * line goes before every row whose index is in `addSplit`. Columns are as
  * wide as their longest cell plus two, text centred with the odd space on
@@ -734,13 +738,13 @@ export declare function formatSessions(rows: Array<SessionRow>): string
 export declare function formatTable(headers: Array<string>, rows: Array<Array<string>>, addSplit?: Array<number> | undefined | null): string
 
 /**
- * The 1.5.0 `FreshResetAuthorisationForbiddenError` message of
+ * The `FreshResetAuthorisationForbiddenError` message of
  * `TerminateSession`.
  */
 export declare const FRESH_RESET_FORBIDDEN: string
 
 /**
- * The profile 1.5.0 `API.<client>.Generate` returns: a device picked for
+ * The profile `API.<client>.Generate` returns: a device picked for
  * `seed` (a string, or an integer `number` or `bigint` as its decimal
  * text), random without one. `system` applies to `"TelegramDesktop"` only.
  * Web clients get a browser user agent picked from the web catalog.
@@ -795,7 +799,7 @@ export declare function gunzip(data: Uint8Array): Buffer
  */
 export declare function gzip(data: Uint8Array, maxSize?: number | undefined | null): Buffer | null
 
-/** The 1.5.0 `HashInvalidError` message of `TerminateSession`. */
+/** The `HashInvalidError` message of `TerminateSession`. */
 export declare const HASH_INVALID: string
 
 /**
@@ -807,29 +811,29 @@ export declare function hmacSha256(key: Uint8Array, data: Uint8Array): Buffer
 /** Whether `apiId` is the id of an official profile (`OFFICIAL_API_IDS`). */
 export declare function isOfficialApiId(apiId: number): boolean
 
-/** One fingerprint finding, with the message 1.5.0 reports for it. */
+/** One fingerprint finding, with the message reported for it. */
 export interface Issue {
   /** The check that failed. */
   kind: 'UnknownLangPack' | 'ShortLangCode' | 'MissingRegion' | 'EmptyDeviceModel' | 'EmptySystemVersion' | 'EmptyAppVersion' | 'ApiIdMismatch' | 'AppVersionMajor' | 'AndroidSdkRange'
   /**
-   * What 1.5.0 does with it: `'note'` is returned only (mode `'off'`),
+   * What is done with it: `'note'` is returned only (mode `'off'`),
    * `'warning'` is warned about (`'warn'`), `'error'` is raised
    * (`'strict'`).
    */
   severity: 'note' | 'warning' | 'error'
-  /** The 1.5.0 message, character for character. */
+  /** The message, character for character as the Python package words it. */
   message: string
 }
 
 /**
- * The message 1.5.0 `FingerprintConfig.validate_params` warns or raises
+ * The message `FingerprintConfig.validate_params` warns or raises
  * with: a header line, then one `  - ` line per issue.
  */
 export declare function issuesMessage(issues: Array<Issue>): string
 
 /**
- * Whether `msgId` is plausible at unix time `nowUnix` (1.5.0
- * `is_valid_msg_id`): positive, odd when `fromClient` and even otherwise,
+ * Whether `msgId` is plausible at unix time `nowUnix`
+ * (`is_valid_msg_id`): positive, odd when `fromClient` and even otherwise,
  * with its upper 32 bits within 300 seconds of `nowUnix`. `msgId` is a
  * `bigint`, or a `number` that is a safe integer. A fractional `nowUnix`
  * is truncated, as Python's `int(time.time())`.
@@ -846,7 +850,7 @@ export declare function langPackDetail(langPack: string, languages: number): str
 export declare function langPackError(langPack: string, error: string): string
 
 /**
- * The TL schema layer opentele2 advertises (1.5.0 `LAYER`): the layer of
+ * The TL schema layer opentele2 advertises (`LAYER`): the layer of
  * the `api.tl` shipped by Telegram Desktop 7.3.1.
  */
 export declare const LAYER: number
@@ -857,7 +861,7 @@ export declare const LAYER: number
  */
 export declare const LAYER_TOLERANCE: number
 
-/** The `layer_match` detail; 1.5.0 names the library layer after Telethon. */
+/** The `layer_match` detail; it names the library layer after Telethon. */
 export declare function layerDetail(libraryLayer: number, advertisedLayer?: number | undefined | null): string
 
 /**
@@ -914,7 +918,7 @@ export declare const MSG_ID_OFFSET_MAX: number
 
 /**
  * A random msg id offset in `0..=0xFFFF` from the operating system's
- * CSPRNG (1.5.0 `generate_msg_id_offset`).
+ * CSPRNG (`generate_msg_id_offset`).
  */
 export declare function msgIdOffset(): number
 
@@ -960,13 +964,13 @@ export interface NewDrawPlan {
 }
 
 /**
- * A new folder for `accounts` the way 1.5.0's `SaveTData` creates one, with
+ * A new folder for `accounts` the way `SaveTData` creates one, with
  * keys from the OS random source; `performanceMode` (default `true`) skips
- * the `configs` files on save, and `activeIndex` (default 1.5.0's `-1`) is
+ * the `configs` files on save, and `activeIndex` (default `-1`) is
  * the active index saves write. Account errors throw synchronously.
  *
  * `draws`, a testing hook, replaces the OS random source with exactly
- * these byte arrays in order, as 1.5.0's `os.urandom` calls were recorded;
+ * these byte arrays in order, as recorded `os.urandom` calls;
  * a draw of another size, a missing draw or an unused one rejects with
  * `ERR_INVALID_ARG_VALUE`.
  */
@@ -975,7 +979,7 @@ export declare function newTdata(accounts: Array<AccountInput>, passcode?: strin
 /** The `app_update` detail for `help.noAppUpdate`. */
 export declare const NO_APP_UPDATE: string
 
-/** The 1.5.0 `NoPasswordProvided` message of a QR login that needs 2FA. */
+/** The `NoPasswordProvided` message of a QR login that needs 2FA. */
 export declare const NO_PASSWORD_PROVIDED: string
 
 /** The `api_id` of every official profile, without repeats. */
@@ -990,12 +994,12 @@ export declare const OFFICIAL_API_IDS: number[]
 export declare function pbkdf2(password: string | Uint8Array, salt: Uint8Array, iterations: number, keyLen?: number | undefined | null, digest?: string | undefined | null): Promise<Buffer>
 
 /**
- * The offline `PlatformVersions` of 1.5.0 (`OPENTELE_NO_FETCH`), with the
+ * The offline `PlatformVersions` (`OPENTELE_NO_FETCH`), with the
  * fields of `overrides` replaced.
  */
 export declare function platformVersions(overrides?: Versions | undefined | null): PlatformVersions
 
-/** Every field of 1.5.0 `PlatformVersions`. */
+/** Every field of `PlatformVersions`. */
 export interface PlatformVersions {
   /** Telegram Android version, for example `"13.0.3"`. */
   androidAppVersion: string
@@ -1044,7 +1048,7 @@ export interface PlatformVersions {
   userAgent: string
   /**
    * Stable Firefox version, for example `"150.0"`, whose major bounds the
-   * Firefox user agents of the generated web devices; a 2.0.0 addition.
+   * Firefox user agents of the generated web devices.
    */
   firefoxVersion: string
 }
@@ -1059,7 +1063,7 @@ export declare const POST_LOGIN_APP_UPDATE_SOURCE: string
 export declare const POST_LOGIN_COUNTRIES_LANG_CODE: string
 
 /**
- * One step of the 1.5.0 post-login sequence: a random sleep in `delayMs`,
+ * One step of the post-login sequence: a random sleep in `delayMs`,
  * then the request.
  */
 export interface PostLoginStep {
@@ -1073,21 +1077,21 @@ export interface PostLoginStep {
 }
 
 /**
- * The 1.5.0 post-login steps (`_POST_LOGIN_STEPS`), in order: every one
- * without `langPack`, else those 1.5.0 runs for a client whose `lang_pack`
+ * The post-login steps (`_POST_LOGIN_STEPS`), in order: every one
+ * without `langPack`, else those that run for a client whose `lang_pack`
  * is `langPack` (`langpack.getLanguages` only for a non-empty one).
  */
 export declare function postLoginSteps(langPack?: string | undefined | null): Array<PostLoginStep>
 
 /**
- * The default API profile of `client` (a 1.5.0 class name such as
+ * The default API profile of `client` (an `API` class name such as
  * `"TelegramDesktop"`), with `versions` overriding the offline
  * `PlatformVersions` fields.
  */
 export declare function profile(client: 'TelegramDesktop' | 'TelegramAndroid' | 'TelegramAndroidX' | 'TelegramIOS' | 'TelegramMacOS' | 'TelegramWeb_A' | 'TelegramWeb_K' | 'Webogram', versions?: Versions | undefined | null): ApiProfile
 
 /**
- * The profile 1.5.0 `APIData.from_json` reads from session JSON, given as
+ * The profile `APIData.from_json` reads from session JSON, given as
  * its text or as a parsed object. `app_id`, `app_hash`, `device`, `sdk` and
  * `app_version` are required; `lang_code` defaults to `"en"`, `lang_pack`
  * to `""`, and `system_lang_code` falls back to `system_lang_pack`, then
@@ -1096,33 +1100,34 @@ export declare function profile(client: 'TelegramDesktop' | 'TelegramAndroid' | 
 export declare function profileFromSessionJson(json: string | Record<string, unknown>): ApiProfile
 
 /**
- * Whether `a` and `b` are the same client on the same device, as 1.5.0
+ * Whether `a` and `b` are the same client on the same device, as
  * `APIData.__eq__`: `apiId`, `apiHash`, `deviceModel`, `systemVersion`
  * and `appVersion` are compared; the language fields are not.
  */
 export declare function profilesEqual(a: ApiProfile, b: ApiProfile): boolean
 
 /**
- * The session JSON 1.5.0 `APIData.to_json(extra)` writes, keys in its
+ * The session JSON `APIData.to_json(extra)` writes, keys in its
  * order: the profile's keys, then the 19 account keys with their defaults.
  * `extra` overrides those keys in place and appends its other keys in its
- * own order. `JSON.stringify` of the result is 1.5.0's compact JSON.
+ * own order. `JSON.stringify` of the result is the compact JSON the Python
+ * package writes.
  */
 export declare function profileToSessionJson(profile: ApiProfile, extra?: Record<string, unknown> | null): Record<string, unknown>
 
 /**
- * How many seconds past a QR token's expiry 1.5.0 waits for it to be
- * accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+ * How many seconds past a QR token's expiry the QR login waits for it to
+ * be accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
  */
 export declare const QR_EXPIRE_SAFETY_SECONDS: number
 
 /**
- * How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+ * How many QR login attempts `_performQRLogin` makes by default
  * (`_DEFAULT_REQUEST_RETRIES`).
  */
 export declare const QR_LOGIN_ATTEMPTS: number
 
-/** The 1.5.0 `TimeoutError` message when no QR login attempt logged in. */
+/** The `TimeoutError` message when no QR login attempt logged in. */
 export declare const QR_LOGIN_TIMEOUT: string
 
 /** The scheme and query key in front of a QR login token. */
@@ -1135,13 +1140,13 @@ export declare const QR_LOGIN_URL_PREFIX: string
 export declare const QR_TIMEOUT_ERROR_TYPE: string
 
 /**
- * The 1.5.0 warning after QR login attempt `attemptNumber` (from 1)
+ * The warning after QR login attempt `attemptNumber` (from 1)
  * failed, emitted after `qrAttemptTimeoutWarning`.
  */
 export declare function qrAttemptRetryWarning(attemptNumber: number): string
 
 /**
- * The 1.5.0 warning of QR login attempt `attemptNumber` (from 1) that
+ * The warning of QR login attempt `attemptNumber` (from 1) that
  * timed out with an error whose Python `str(type(e))` is `errorType`
  * (default `QR_TIMEOUT_ERROR_TYPE`).
  */
@@ -1159,7 +1164,7 @@ export declare function randomBytes(size: number): Buffer
 
 /**
  * A random whole number of milliseconds in `minMs..=maxMs`, uniform, from
- * the OS random source: the sleep 1.5.0 takes as `random.randint(minMs,
+ * the OS random source: the range of Python `random.randint(minMs,
  * maxMs)`. Throws `OT_INVALID_INPUT` when `minMs > maxMs`.
  */
 export declare function randomDelayMs(minMs: number, maxMs: number): number
@@ -1194,19 +1199,19 @@ export interface RawAuthorization {
 }
 
 /**
- * Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+ * Reads `.json` companion text as `from_session_json` does: the
  * text must parse as a JSON object holding `app_id` and `app_hash`, not
  * null, else `OT_INVALID_INPUT`. The profile is then read as
  * `profileFromSessionJson` reads it, and is absent when a profile key is
- * missing or has the wrong type (1.5.0 reads those as `APIData.from_json`
- * does), as the Python binding's `read_session_companion` returns `None`;
+ * missing or has the wrong type (as `APIData.from_json` reads them), as the Python binding's `read_session_companion` returns `None`;
  * `json` is the whole object either way.
  */
 export declare function readSessionCompanion(text: string): SessionCompanion
 
 /**
  * Reads the sessions row of the version 8 file at `sessionPath(path)`,
- * written by 1.5.0, by `writeTelethonSessionFile`, or by Telethon itself,
+ * written by the Python package, by `writeTelethonSessionFile`, or by
+ * Telethon itself,
  * over the bundled SQLite; the file is opened read-only. Rejects with
  * `OT_TFILE_NOT_FOUND` for no file, `OT_IO` when it is not a database,
  * `OT_QDATASTREAM_FAILED` for another layout, version or column type,
@@ -1216,13 +1221,13 @@ export declare function readSessionCompanion(text: string): SessionCompanion
  */
 export declare function readTelethonSessionFile(path: string): Promise<TelethonFileRows>
 
-/** The RPC error of a QR login token accepted already; 1.5.0 re-raises it. */
+/** The RPC error of a QR login token accepted already; the flows re-raise it. */
 export declare const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: string
 
-/** The RPC error of an expired QR login token; 1.5.0 re-raises it. */
+/** The RPC error of an expired QR login token; the flows re-raise it. */
 export declare const RPC_AUTH_TOKEN_EXPIRED: string
 
-/** The RPC error of an invalid QR login token; 1.5.0 re-raises it. */
+/** The RPC error of an invalid QR login token; the flows re-raise it. */
 export declare const RPC_AUTH_TOKEN_INVALID: string
 
 /**
@@ -1269,7 +1274,7 @@ export interface ScreenConstraint {
   maxHeight?: number
 }
 
-/** The column labels of the 1.5.0 `PrintSessions` table, in order. */
+/** The column labels of the `PrintSessions` table, in order. */
 export declare const SESSION_COLUMNS: string[]
 
 /** The `.json` companion `readSessionCompanion` read. */
@@ -1287,15 +1292,15 @@ export interface SessionCompanion {
 }
 
 /**
- * The `.json` companion 1.5.0 `save_session_json` writes for `profile`
- * (`APIData.to_json(extra)`), keys in its order; 1.5.0's `extra` holds
- * `session_file` and, when known, `id`. 1.5.0 writes it with
+ * The `.json` companion `save_session_json` writes for `profile`
+ * (`APIData.to_json(extra)`), keys in its order; its `extra` holds
+ * `session_file` and, when known, `id`. It is written with
  * `JSON.stringify(json, null, 2)` indentation.
  */
 export declare function sessionCompanionJson(profile: ApiProfile, extra?: Record<string, unknown> | null): Record<string, unknown>
 
 /**
- * The `.json` companion text 1.5.0 `save_session_json` writes for
+ * The `.json` companion text `save_session_json` writes for
  * `profile` and `extra`, byte for byte: `sessionCompanionJson(profile,
  * extra)` as Python's `json.dump(..., indent=2, ensure_ascii=False)`
  * prints it, with no trailing newline. A `bigint` in `extra` prints its
@@ -1304,7 +1309,7 @@ export declare function sessionCompanionJson(profile: ApiProfile, extra?: Record
 export declare function sessionCompanionText(profile: ApiProfile, extra?: Record<string, unknown> | null): string
 
 /**
- * The `session_file` value 1.5.0 `save_session_json` writes for the pair at
+ * The `session_file` value `save_session_json` writes for the pair at
  * `base`: Python's `os.path.basename`, for the platform Node runs on, of the
  * pair's session path (`sessionPairPaths(base).session`) without its
  * `.session` suffix. On POSIX only `/` separates; on Windows `/` and `\`
@@ -1316,9 +1321,9 @@ export declare function sessionFileName(base: string): string
 export interface SessionJsonField {
   /** The JSON key. */
   key: string
-  /** The 1.5.0 `APIData` attribute the key reads into and writes from. */
+  /** The `APIData` attribute the key reads into and writes from. */
   attribute: string
-  /** The value 1.5.0 `APIData.from_json` takes when the key is absent. */
+  /** The value `APIData.from_json` takes when the key is absent. */
   default: string | null
   /**
    * The key read instead when this key's value is falsy in Python's
@@ -1328,13 +1333,13 @@ export interface SessionJsonField {
 }
 
 /**
- * The profile keys of the session JSON, in the order 1.5.0
+ * The profile keys of the session JSON, in the order
  * `APIData.to_json` writes them.
  */
 export declare function sessionJsonFields(): Array<SessionJsonField>
 
 /**
- * The pair paths of `base` (1.5.0 `_normalize_base_path`): one trailing
+ * The pair paths of `base` (`_normalize_base_path`): one trailing
  * `.session` is removed, then one trailing `.json`, and each suffix is
  * appended to what is left. The path is treated as text.
  */
@@ -1349,18 +1354,18 @@ export interface SessionPairPaths {
 }
 
 /**
- * The session file path of `path` (1.5.0 `write_session_file`): `path`
+ * The session file path of `path` (`write_session_file`): `path`
  * itself when it ends with `.session`, else `path` with it appended.
  */
 export declare function sessionPath(path: string): string
 
 /**
- * The `SessionRow` of `authorization` as 1.5.0 reads one: an absent
+ * The `SessionRow` of `authorization`: an absent
  * `current` or `officialApp` flag is `false`, every other field is copied.
  */
 export declare function sessionRow(authorization: RawAuthorization): SessionRow
 
-/** The fields of an `authorization` that 1.5.0 `PrintSessions` shows. */
+/** The fields of an `authorization` that `PrintSessions` shows. */
 export interface SessionRow {
   /** `current`; absent is `false`. */
   current?: boolean
@@ -1380,12 +1385,12 @@ export interface SessionRow {
   officialApp?: boolean
 }
 
-/** The 1.5.0 message of `PrintSessions` when the sessions cannot be fetched. */
+/** The message of `PrintSessions` when the sessions cannot be fetched. */
 export declare const SESSIONS_UNAVAILABLE: string
 
 /**
  * Replaces the accounts later saves of `tdata` write, keeping its local
- * key, key data and salts, as 1.5.0 writes an edited `accounts` list under
+ * key, key data and salts, so an edited `accounts` list is written under
  * the loaded local key. Up to `TDATA_MAX_ACCOUNTS` accounts are accepted,
  * or as many as were loaded when that is more. More throw
  * `OT_MAX_ACCOUNT_LIMIT`, two of one index `OT_TDATA_SAVE_FAILED`, and a bad
@@ -1476,20 +1481,20 @@ export interface SrpParams {
 }
 
 /**
- * The system versions of the `platform` catalog in file order: 1.5.0
+ * The system versions of the `platform` catalog in file order: the
  * `system_versions` of the desktop, Mac and iOS classes, `SDK 29` to
  * `SDK 37` for Android, and the client's platform strings for the web.
  */
 export declare function systemVersions(platform: 'windows' | 'linux' | 'macos' | 'android' | 'ios' | 'web_a' | 'web_k'): Array<string>
 
 /**
- * Most accounts one folder holds (1.5.0's `kMaxAccounts`);
+ * Most accounts one folder holds (`kMaxAccounts`);
  * `addTdataAccount` refuses more.
  */
 export declare const TDATA_MAX_ACCOUNTS: number
 
 /**
- * The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), as the
+ * The magic every `TDF$` file starts with (`TDF_MAGIC`), as the
  * text of its four ASCII bytes.
  */
 export declare const TDF_MAGIC: string
@@ -1516,7 +1521,10 @@ export declare const TELETHON_JSON_SUFFIX: string
 /** The suffix of a session file. */
 export declare const TELETHON_SESSION_SUFFIX: string
 
-/** The database version 1.5.0 stamps (Telethon's `CURRENT_VERSION`). */
+/**
+ * The database version the session file is stamped with (Telethon's
+ * `CURRENT_VERSION`).
+ */
 export declare const TELETHON_SESSION_VERSION: number
 
 /** The `sessions` row `readTelethonSessionFile` read. */
@@ -1533,13 +1541,13 @@ export interface TelethonFileRows {
   takeoutId?: bigint
 }
 
-/** The version 8 tables in 1.5.0's order (`_V8_SCHEMA`). */
+/** The version 8 tables in creation order (`_V8_SCHEMA`). */
 export declare function telethonSchema(): Array<TelethonTable>
 
 /**
- * The `sessions` row 1.5.0 saves for `account` (`ToTelethon`, then
+ * The `sessions` row saved for `account` (`ToTelethon`, then
  * `SaveSessionJson`): the endpoint and key `telethonStringSession` uses,
- * with the address text 1.5.0 writes (the stored config's IP text, else
+ * with the address text the row stores (the stored config's IP text, else
  * the built-in table's, IPv6 with all eight groups as four hex digits),
  * and no takeout id. Throws `OT_TDATA_BAD_CONFIG_DATA` when the main DC
  * has no endpoint.
@@ -1550,10 +1558,7 @@ export declare function telethonSessionRows(account: AccountInput, ipv6?: boolea
 export interface TelethonSessionRows {
   /** DC id (`dc_id`). */
   dcId: number
-  /**
-   * Server address text (`server_address`), as 1.5.0 passes it to
-   * `set_dc`.
-   */
+  /** Server address text (`server_address`), as passed to `set_dc`. */
   serverAddress: string
   /** Port (`port`). */
   port: number
@@ -1590,7 +1595,7 @@ export declare function telethonStringSession(account: AccountInput, ipv6?: bool
 export interface TelethonTable {
   /** Table name. */
   name: string
-  /** The `create table` statement 1.5.0 runs. */
+  /** The `create table` statement that creates the table. */
   ddl: string
   /** Column names in declaration order, as `pragma table_info` lists them. */
   columns: Array<string>
@@ -1601,7 +1606,7 @@ export declare const TERMS_OF_SERVICE_OK: string
 
 /**
  * The `tz_offset` Telegram Desktop sends in `initConnection` `params` for
- * a local UTC offset of `offsetSeconds` (1.5.0 `tdesktop_tz_offset`):
+ * a local UTC offset of `offsetSeconds` (`tdesktop_tz_offset`):
  * wrapped by whole days into -12 h..+14 h, then rounded to a multiple of
  * 900 seconds, halves away from zero. Pass
  * `-new Date().getTimezoneOffset() * 60` for the local offset.
@@ -1615,20 +1620,20 @@ export declare function tzOffset(offsetSeconds: number): number
 export declare function unsupportedPasswordAlgorithm(algorithm: string): string
 
 /**
- * The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+ * The `TelethonUnauthorized` message when the self user of a client
  * cannot be resolved.
  */
 export declare const USER_ID_UNRESOLVED: string
 
 /**
- * The issues 1.5.0 `FingerprintConfig.validate_params` warns about or
+ * The issues `FingerprintConfig.validate_params` warns about or
  * raises for `profile`: none with `autoValidate` off or mode `'off'`,
  * otherwise `validateInitParams` under the configured mode.
  */
 export declare function validateFingerprint(config: FingerprintConfig, profile: ApiProfile, versions?: Versions | undefined | null): Array<Issue>
 
 /**
- * The findings of 1.5.0 `validate_init_connection_params` for `profile`,
+ * The findings of `validate_init_connection_params` for `profile`,
  * with `strict` on exactly when `mode` is `'strict'` (default `'warn'`);
  * each finding has the severity of `mode`. `versions` overrides the
  * offline `PlatformVersions` the strict version check compares with.
@@ -1720,11 +1725,11 @@ export interface VersionsPatch {
   firefoxVersion?: string
 }
 
-/** 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, in its order. */
+/** `WebBrowserDevice.BROWSER_WEIGHTS`, in its order. */
 export declare function webBrowserWeights(): Record<string, number>
 
 /**
- * Writes `rows` as 1.5.0 `write_session_file` does, over the bundled
+ * Writes `rows` as `write_session_file` does, over the bundled
  * SQLite, and resolves to the file path (`sessionPath(path)`). A schema
  * that is not already the version 8 layout is dropped and rebuilt; a
  * current one keeps its tables and their other rows. The version row

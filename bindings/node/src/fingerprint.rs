@@ -1,4 +1,5 @@
-//! The `initConnection` fingerprint helpers of 1.5.0 `src/fingerprint.py`.
+//! The `initConnection` fingerprint helpers (the Python package's
+//! `opentele2.fingerprint`).
 
 use napi::bindgen_prelude::{BigInt, Either, Env};
 use napi_derive::napi;
@@ -16,7 +17,7 @@ use crate::error::{Result, check, invalid_arg, thrown};
 /// The TypeScript type of a strict mode.
 const STRICT_MODE_TS: &str = "'off' | 'warn' | 'strict'";
 
-/// One fingerprint finding, with the message 1.5.0 reports for it.
+/// One fingerprint finding, with the message reported for it.
 #[napi(object)]
 pub struct Issue {
     /// The check that failed.
@@ -24,12 +25,12 @@ pub struct Issue {
         ts_type = "'UnknownLangPack' | 'ShortLangCode' | 'MissingRegion' | 'EmptyDeviceModel' | 'EmptySystemVersion' | 'EmptyAppVersion' | 'ApiIdMismatch' | 'AppVersionMajor' | 'AndroidSdkRange'"
     )]
     pub kind: String,
-    /// What 1.5.0 does with it: `'note'` is returned only (mode `'off'`),
+    /// What is done with it: `'note'` is returned only (mode `'off'`),
     /// `'warning'` is warned about (`'warn'`), `'error'` is raised
     /// (`'strict'`).
     #[napi(ts_type = "'note' | 'warning' | 'error'")]
     pub severity: String,
-    /// The 1.5.0 message, character for character.
+    /// The message, character for character as the Python package words it.
     pub message: String,
 }
 
@@ -72,7 +73,7 @@ fn strict_mode(value: &str) -> Result<StrictMode> {
 }
 
 /// The `tz_offset` Telegram Desktop sends in `initConnection` `params` for
-/// a local UTC offset of `offsetSeconds` (1.5.0 `tdesktop_tz_offset`):
+/// a local UTC offset of `offsetSeconds` (`tdesktop_tz_offset`):
 /// wrapped by whole days into -12 h..+14 h, then rounded to a multiple of
 /// 900 seconds, halves away from zero. Pass
 /// `-new Date().getTimezoneOffset() * 60` for the local offset.
@@ -81,7 +82,7 @@ pub fn tz_offset(offset_seconds: i32) -> f64 {
     fingerprint::tz_offset(offset_seconds)
 }
 
-/// The findings of 1.5.0 `validate_init_connection_params` for `profile`,
+/// The findings of `validate_init_connection_params` for `profile`,
 /// with `strict` on exactly when `mode` is `'strict'` (default `'warn'`);
 /// each finding has the severity of `mode`. `versions` overrides the
 /// offline `PlatformVersions` the strict version check compares with.
@@ -101,7 +102,7 @@ pub fn validate_init_params(
     Ok(to_js_issues(issues))
 }
 
-/// The findings of 1.5.0 `_check_version_consistency` for `profile`, each
+/// The findings of `_check_version_consistency` for `profile`, each
 /// an `'error'`: the app version major of `android`, `ios`, `tdesktop` and
 /// `macos` profiles, and the Android SDK level range.
 #[napi]
@@ -112,7 +113,7 @@ pub fn check_versions(profile: ApiProfile, versions: Option<Versions>) -> Vec<Is
     ))
 }
 
-/// The message 1.5.0 `FingerprintConfig.validate_params` warns or raises
+/// The message `FingerprintConfig.validate_params` warns or raises
 /// with: a header line, then one `  - ` line per issue.
 #[napi]
 pub fn issues_message(issues: Vec<Issue>) -> Result<String> {
@@ -129,15 +130,15 @@ pub fn issues_message(issues: Vec<Issue>) -> Result<String> {
 pub const MSG_ID_OFFSET_MAX: u16 = u16::MAX;
 
 /// A random msg id offset in `0..=0xFFFF` from the operating system's
-/// CSPRNG (1.5.0 `generate_msg_id_offset`).
+/// CSPRNG (`generate_msg_id_offset`).
 #[napi]
 pub fn msg_id_offset(env: Env) -> napi::Result<u32> {
     let offset = check(fingerprint::msg_id_offset_for_os());
     thrown(env, offset.map(u32::from))
 }
 
-/// Whether `msgId` is plausible at unix time `nowUnix` (1.5.0
-/// `is_valid_msg_id`): positive, odd when `fromClient` and even otherwise,
+/// Whether `msgId` is plausible at unix time `nowUnix`
+/// (`is_valid_msg_id`): positive, odd when `fromClient` and even otherwise,
 /// with its upper 32 bits within 300 seconds of `nowUnix`. `msgId` is a
 /// `bigint`, or a `number` that is a safe integer. A fractional `nowUnix`
 /// is truncated, as Python's `int(time.time())`.
@@ -151,7 +152,7 @@ pub fn is_valid_msg_id(
     Ok(fingerprint::is_valid_msg_id(msg_id, from_client, now_unix))
 }
 
-/// The fingerprint options of 1.5.0 `FingerprintConfig`.
+/// The fingerprint options of `FingerprintConfig`.
 #[napi(object)]
 pub struct FingerprintConfig {
     /// How consistency issues are handled.
@@ -227,7 +228,7 @@ fn to_core_config(config: FingerprintConfig) -> Result<CoreConfig> {
     })
 }
 
-/// A 1.5.0 `FingerprintConfig` with its defaults (`'warn'`, auto
+/// A `FingerprintConfig` with its defaults (`'warn'`, auto
 /// validation, `'obfuscated'`, layer mismatch warnings, no layer override,
 /// a randomized offset), each replaced by the option given. Without
 /// `msgIdOffset` the offset is drawn from the OS random source.
@@ -268,7 +269,7 @@ fn configured(options: Option<FingerprintConfigOptions>) -> Result<FingerprintCo
     Ok(check(CoreConfig::from_options(options))?.into())
 }
 
-/// The issues 1.5.0 `FingerprintConfig.validate_params` warns about or
+/// The issues `FingerprintConfig.validate_params` warns about or
 /// raises for `profile`: none with `autoValidate` off or mode `'off'`,
 /// otherwise `validateInitParams` under the configured mode.
 #[napi]
@@ -285,9 +286,10 @@ pub fn validate_fingerprint(
     )))
 }
 
-/// The layer to invoke with (1.5.0 `get_effective_layer`): `layerOverride`
+/// The layer to invoke with (`get_effective_layer`): `layerOverride`
 /// when set, otherwise `LAYER`. Pass the `MTProto` library's layer as the
-/// override to follow 1.5.0, which answers with Telethon's layer.
+/// override to match the Python package, which answers with Telethon's
+/// layer.
 #[napi]
 pub fn effective_layer(config: FingerprintConfig) -> Result<i32> {
     Ok(to_core_config(config)?.effective_layer())

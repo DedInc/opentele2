@@ -185,8 +185,8 @@ impl TData {
         self.update(|folder| folder.active_index = value);
     }
 
-    /// 1.5.0's `kPerformanceMode`: when on, saving writes no `configs`
-    /// files. Loading turns it on, the 1.5.0 default.
+    /// `TDesktop.kPerformanceMode`: when on, saving writes no `configs`
+    /// files. Loading turns it on, the default.
     #[napi(getter)]
     pub fn performance_mode(&self) -> bool {
         self.folder().performance_mode
@@ -199,7 +199,7 @@ impl TData {
     }
 
     /// Telegram Desktop version in the key file's `TDF$` header; saving
-    /// always writes 1.5.0's 7003001.
+    /// always writes 7003001.
     #[napi(getter)]
     pub fn app_version(&self) -> u32 {
         self.folder().app_version
@@ -236,7 +236,7 @@ impl TData {
     }
 
     /// Renames the key file and the account files of later saves, as
-    /// 1.5.0's `SaveTData(keyFile=...)` does; an empty name throws
+    /// `SaveTData(keyFile=...)` does; an empty name throws
     /// `OT_TDATA_SAVE_FAILED` and keeps the old one.
     #[napi(setter)]
     pub fn set_key_file(&self, env: Env, value: String) -> napi::Result<()> {
@@ -494,13 +494,13 @@ pub fn migrate_tdata(tdata: &TData, draws: Option<Vec<Uint8Array>>) -> AsyncTask
     })
 }
 
-/// A new folder for `accounts` the way 1.5.0's `SaveTData` creates one, with
+/// A new folder for `accounts` the way `SaveTData` creates one, with
 /// keys from the OS random source; `performanceMode` (default `true`) skips
-/// the `configs` files on save, and `activeIndex` (default 1.5.0's `-1`) is
+/// the `configs` files on save, and `activeIndex` (default `-1`) is
 /// the active index saves write. Account errors throw synchronously.
 ///
 /// `draws`, a testing hook, replaces the OS random source with exactly
-/// these byte arrays in order, as 1.5.0's `os.urandom` calls were recorded;
+/// these byte arrays in order, as recorded `os.urandom` calls;
 /// a draw of another size, a missing draw or an unused one rejects with
 /// `ERR_INVALID_ARG_VALUE`.
 #[napi]
@@ -528,7 +528,7 @@ pub fn new_tdata(
     }))
 }
 
-/// Most accounts one folder holds (1.5.0's `kMaxAccounts`);
+/// Most accounts one folder holds (`kMaxAccounts`);
 /// `addTdataAccount` refuses more.
 #[napi]
 pub const TDATA_MAX_ACCOUNTS: u32 = 6;
@@ -536,7 +536,7 @@ pub const TDATA_MAX_ACCOUNTS: u32 = 6;
 // napi exports a literal; the build fails if the core limit moves.
 const _: () = assert!(CoreTData::MAX_ACCOUNTS == 6);
 
-/// The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), as the
+/// The magic every `TDF$` file starts with (`TDF_MAGIC`), as the
 /// text of its four ASCII bytes.
 #[napi]
 pub const TDF_MAGIC: &str = match std::str::from_utf8(&tdata::TDF_MAGIC) {
@@ -605,7 +605,7 @@ pub fn draw_plan(
 }
 
 /// Adds an account to `tdata` with `authKey` as the key of `mainDc`, as
-/// 1.5.0's `Account.FromTelethon` does, and returns its index: the lowest
+/// `Account.FromTelethon` does, and returns its index: the lowest
 /// one below `TDATA_MAX_ACCOUNTS` no account holds. The active index is not
 /// changed. A full folder throws `OT_MAX_ACCOUNT_LIMIT`, a key that is not
 /// 256 bytes `OT_BAD_LENGTH`; `tdata` is then left as it was.
@@ -627,7 +627,7 @@ pub fn add_tdata_account(
 }
 
 /// Replaces the accounts later saves of `tdata` write, keeping its local
-/// key, key data and salts, as 1.5.0 writes an edited `accounts` list under
+/// key, key data and salts, so an edited `accounts` list is written under
 /// the loaded local key. Up to `TDATA_MAX_ACCOUNTS` accounts are accepted,
 /// or as many as were loaded when that is more. More throw
 /// `OT_MAX_ACCOUNT_LIMIT`, two of one index `OT_TDATA_SAVE_FAILED`, and a bad
@@ -815,8 +815,8 @@ fn config_object<'env>(env: &'env Env, map: &Map<String, Value>) -> napi::Result
     Ok(object)
 }
 
-/// The MTP config of an account, or the production default 1.5.0 starts
-/// every account with (`StorageAccount.__init__`).
+/// The MTP config of an account, or the production default every account
+/// starts with (`StorageAccount.__init__`).
 fn config_of(account: Option<&CoreAccount>) -> CoreMtpConfig {
     account.map_or_else(
         || CoreMtpConfig::new(Environment::Production),
@@ -832,7 +832,7 @@ fn to_optional_account(
     thrown(env, account.map(to_account).transpose())
 }
 
-/// The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
+/// The MTP config of `account` (`_readMtpConfig`): its stored
 /// `config` parsed, or the production default when there is none or it
 /// does not parse. No account, one never loaded, has the production
 /// default.
@@ -843,8 +843,8 @@ pub fn account_mtp_config(env: &Env, account: Option<AccountInput>) -> napi::Res
 }
 
 /// The endpoints of DC `dcId` (default the main DC) in the MTP config of
-/// `account`, by address family and protocol (1.5.0
-/// `MTP.Config.endpoints`); `null` when the config has no such DC. No
+/// `account`, by address family and protocol
+/// (`MTP.Config.endpoints`); `null` when the config has no such DC. No
 /// account reads the production default, whose main DC is 0, a DC no
 /// config lists.
 #[napi(ts_return_type = "import('./tdata-types').Endpoints | null")]

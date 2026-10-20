@@ -46,7 +46,7 @@ export interface LoadedSessionPair {
 }
 
 /**
- * Writes `rows` as 1.5.0 `write_session_file` does and resolves to the file
+ * Writes `rows` as `write_session_file` does and resolves to the file
  * path (`sessionPath(path)`): a schema that is not the version 8 layout is
  * rebuilt, then the version and sessions rows are replaced in one
  * transaction, over the native module's bundled SQLite. Rejects with
@@ -57,7 +57,7 @@ export declare function writeSessionFile(path: string, rows: WriteSessionRows): 
 
 /**
  * Reads the sessions row of the version 8 file at `sessionPath(path)`,
- * written by 1.5.0, `writeSessionFile` or Telethon. Rejects with
+ * written by the Python package, `writeSessionFile` or Telethon. Rejects with
  * `OT_TFILE_NOT_FOUND` when the file is
  * missing, `OT_IO` when it is not a database, `OT_QDATASTREAM_FAILED` for
  * another layout, version or column type, `OT_TDATA_AUTH_KEY_NOT_FOUND`
@@ -68,9 +68,9 @@ export declare function writeSessionFile(path: string, rows: WriteSessionRows): 
 export declare function readSessionFile(path: string): Promise<ReadSessionRows>
 
 /**
- * Writes the `.session` + `.json` pair 1.5.0 `save_session_json` writes
+ * Writes the `.session` + `.json` pair `save_session_json` writes
  * and resolves to its paths: `telethonSessionRows(account, ipv6)` into the
- * session file and `sessionCompanionText(profile, extra)` (1.5.0's
+ * session file and `sessionCompanionText(profile, extra)` (Python's
  * two-space `json.dump` text) into the companion, `extra` starting with
  * `session_file`.
  */
@@ -82,7 +82,7 @@ export declare function saveSessionPair(
 ): Promise<SessionPairPaths>
 
 /**
- * Reads the pair at `sessionPairPaths(base)` back as 1.5.0
+ * Reads the pair at `sessionPairPaths(base)` back as
  * `from_session_json` does. Rejects with `OT_TFILE_NOT_FOUND` when either
  * file is missing, `OT_IO` when the companion is not a valid session JSON,
  * and the `readSessionFile` errors.

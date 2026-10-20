@@ -1,7 +1,7 @@
 // mtcute.mjs: the `opentele2/mtcute` entry point.
 //
-// Helpers that hand opentele2 data to mtcute, and the 1.5.0 client flows
-// over an mtcute client. Nothing here imports @mtcute/core or @mtcute/node
+// Helpers that hand opentele2 data to mtcute, and the opentele2 client
+// flows over an mtcute client. Nothing here imports @mtcute/core or @mtcute/node
 // at load time; the functions that need them load them on first call, so
 // both stay optional peers.
 //
@@ -117,43 +117,43 @@ async function importPeer(specifier, caller, pkg) {
 // and consistency report are the core's (`native`); this file only drives
 // the client.
 //
-// Gaps against 1.5.0, as in the grammers flows:
+// Limits, as in the grammers flows:
 // - `qrLoginToNewClient` takes a client the caller built (its storage, its
 //   initConnection). An already authorised one with another api_id has
 //   its session discarded locally (`disconnect()` and `storage.clear(true)`,
-//   nothing sent to Telegram) and is logged in again on the same client,
-//   where 1.5.0 deletes its session file and builds a new client.
+//   nothing sent to Telegram) and is logged in again on the same client;
+//   the Python package deletes its session file and builds a new client.
 // - Without an `onServerUpdate` emitter on the new client, the QR login
 //   exports the token again as soon as `auth.acceptLoginToken` returns
 //   instead of waiting for `updateLoginToken`.
-// - Error details are mtcute's error messages where 1.5.0 prints Telethon's.
+// - Error details are mtcute's error messages, not Telethon's.
 
-/** How many QR login attempts `qrLoginToNewClient` makes (1.5.0 `_DEFAULT_REQUEST_RETRIES`). */
+/** How many QR login attempts `qrLoginToNewClient` makes (`_DEFAULT_REQUEST_RETRIES`). */
 export const QR_LOGIN_ATTEMPTS = native.QR_LOGIN_ATTEMPTS
 
-/** The 1.5.0 `TimeoutError` message when no QR login attempt logged in. */
+/** The `TimeoutError` message when no QR login attempt logged in. */
 export const QR_LOGIN_TIMEOUT = native.QR_LOGIN_TIMEOUT
 
-/** The 1.5.0 `TelethonUnauthorized` message when the self user is unknown (the core `USER_ID_UNRESOLVED`). */
+/** The `TelethonUnauthorized` message when the self user is unknown (the core `USER_ID_UNRESOLVED`). */
 export const USER_ID_UNRESOLVED = native.USER_ID_UNRESOLVED
 
 /**
- * The delay range in milliseconds before each 1.5.0 post-login request,
+ * The delay range in milliseconds before each post-login request,
  * `null` for none, in `_POST_LOGIN_STEPS` order (the core `postLoginSteps()`).
  */
 export const POST_LOGIN_DELAYS_MS = Object.freeze(
   native.postLoginSteps().map((step) => (step.delayMs == null ? null : Object.freeze([...step.delayMs]))),
 )
 
-// 1.5.0 `_QR_EXPIRE_SAFETY_SECONDS`: how long past its expiry a QR token is
+// `_QR_EXPIRE_SAFETY_SECONDS`: how long past its expiry a QR token is
 // waited for.
 const QR_EXPIRE_SAFETY_MS = native.QR_EXPIRE_SAFETY_SECONDS * 1000
 
-// The 1.5.0 exception class of every flow error code, from the core
+// The Python exception class of every flow error code, from the core
 // `FlowFailure::legacy_class` and `SrpError::legacy_class`.
 const FLOW_ERROR_CLASSES = native.flowErrorClasses()
 
-/** An error with the `OT_` code `code`, named after its 1.5.0 exception class. */
+/** An error with the `OT_` code `code`, named after its Python exception class. */
 function flowError(code, message, cause) {
   const error = new Error(message, cause === undefined ? undefined : { cause })
   error.name = FLOW_ERROR_CLASSES[code] ?? 'Error'
@@ -174,7 +174,7 @@ function errorText(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
-// Python's warnings.warn; 1.5.0 warns with UserWarning.
+// Python's warnings.warn; the Python package warns with UserWarning.
 function warn(message) {
   process.emitWarning(message, 'UserWarning')
 }
@@ -233,7 +233,7 @@ async function onLogin(client, authorization) {
 /**
  * `auth.exportLoginToken` on `fresh` with no ignored ids, as Telethon
  * `qr_login()` sends it; an `auth.loginTokenMigrateTo` moves `fresh` to its
- * DC and is replaced by `auth.importLoginToken` there (1.5.0 `_switch_dc`,
+ * DC and is replaced by `auth.importLoginToken` there (`_switch_dc`,
  * then `ImportLoginTokenRequest`).
  */
 async function exportLoginToken(fresh, apiId, apiHash) {
@@ -280,7 +280,7 @@ function loginTokenWaiter(fresh) {
 }
 
 /**
- * One 1.5.0 QR login attempt: the `auth.authorization` it ended with, or
+ * One QR login attempt: the `auth.authorization` it ended with, or
  * `null` when the token was not accepted in time.
  */
 async function qrLoginAttempt(authorized, fresh, apiId, apiHash, onUrl) {
@@ -309,7 +309,7 @@ async function qrLoginAttempt(authorized, fresh, apiId, apiHash, onUrl) {
 }
 
 /**
- * 1.5.0 `_handle2FA`: `account.getPassword`, then `auth.checkPassword` with
+ * `_handle2FA`: `account.getPassword`, then `auth.checkPassword` with
  * the native `srpCheck` of `password`. A password without `srpId` or `srpB`
  * goes to `srpCheck` as the core `srpInputs` gives it, which rejects with
  * `OT_SRP_BAD_B`, as the Python binding does.
@@ -328,7 +328,7 @@ async function twoFactor(fresh, password) {
   try {
     check = await native.srpCheck({ srpId, g: algo.g, p: algo.p, salt1: algo.salt1, salt2: algo.salt2, srpB }, password)
   } catch (error) {
-    // A core SRP refusal is named after its 1.5.0 class, as Python raises it.
+    // A core SRP refusal is named after the class Python raises it as.
     if (typeof error?.code === 'string' && error.code in FLOW_ERROR_CLASSES) {
       error.name = FLOW_ERROR_CLASSES[error.code]
     }
@@ -350,7 +350,7 @@ async function twoFactor(fresh, password) {
   return onLogin(fresh, authorization)
 }
 
-/** 1.5.0 `_performQRLogin` with `_handle2FA`; resolves to the user id. */
+/** `_performQRLogin` with `_handle2FA`; resolves to the user id. */
 async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl) {
   for (let attempt = 0; attempt < QR_LOGIN_ATTEMPTS; attempt += 1) {
     let authorization
@@ -377,8 +377,8 @@ async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl
 }
 
 /**
- * Discards the session `fresh` holds on this side only, as 1.5.0 deletes
- * the session file: `disconnect()` closes its connections and
+ * Discards the session `fresh` holds on this side only, as the Python
+ * package deletes the session file: `disconnect()` closes its connections and
  * `storage.clear(true)` deletes its auth keys, self user, update state and
  * peers, so the next call reconnects with a new, unauthorised auth key.
  * Nothing is sent to Telegram and the old authorization stays on the
@@ -397,7 +397,7 @@ async function dropSession(fresh) {
 }
 
 /**
- * 1.5.0 `_handleExistingSession` for an already authorised new client: the
+ * `_handleExistingSession` for an already authorised new client: the
  * user id of a kept session, or `null` once a session of another api id is
  * dropped and has to be logged in again.
  */
@@ -414,7 +414,7 @@ async function existingSession(fresh, apiId) {
   return getMeId(fresh)
 }
 
-/** Moves `fresh` to the DC of `authorized` when both report one (1.5.0 `_switch_dc`). */
+/** Moves `fresh` to the DC of `authorized` when both report one (`_switch_dc`). */
 async function alignDc(authorized, fresh) {
   if (typeof authorized.getPrimaryDcId !== 'function' || typeof fresh.getPrimaryDcId !== 'function') {
     return
@@ -427,7 +427,7 @@ async function alignDc(authorized, fresh) {
 
 /**
  * Logs `fresh`, a client with empty storage, in through the authorised
- * client `authorized` by QR login, as 1.5.0 `QRLoginToNewClient`:
+ * client `authorized` by QR login, as `QRLoginToNewClient`:
  *
  * 1. `fresh` moves to the DC of `authorized`. When `fresh` is already
  *    authorised with the same api id, it is returned as is
@@ -440,7 +440,7 @@ async function alignDc(authorized, fresh) {
  *    wait for `updateLoginToken` and the export again.
  * 3. `SESSION_PASSWORD_NEEDED` runs `account.getPassword` and
  *    `auth.checkPassword` with the native `srpCheck` of `password`.
- * 4. The 1.5.0 post-login requests on `fresh` unless `postLogin` is
+ * 4. The post-login requests on `fresh` unless `postLogin` is
  *    `false`, each after `delay(minMs, maxMs)` (a random sleep by default).
  *
  * `apiId` and `apiHash` default to the profile's; `profile.langPack` is
@@ -483,19 +483,19 @@ const POST_LOGIN_REQUESTS = {
   'help.getCountriesList': () => ({ _: 'help.getCountriesList', langCode: native.POST_LOGIN_COUNTRIES_LANG_CODE, hash: 0 }),
 }
 
-// 1.5.0 sleeps a random whole number of milliseconds in the inclusive range
+// Sleeps a random whole number of milliseconds in the inclusive range
 // (the core `randomDelayMs`).
 function randomDelay(minMs, maxMs) {
   return new Promise((resolve) => setTimeout(resolve, native.randomDelayMs(minMs, maxMs)))
 }
 
 /**
- * 1.5.0 `_run_post_login_requests`: the core `postLoginSteps(langPack)`
+ * `_run_post_login_requests`: the core `postLoginSteps(langPack)`
  * (`help.getConfig`, `help.getNearestDc`, `account.updateStatus(offline=false)`,
  * `langpack.getLanguages` only for a non-empty `langPack`,
  * `help.getAppUpdate(source="")`, `help.getTermsOfServiceUpdate` and
  * `help.getCountriesList("en", 0)`), each after `delay` with its range.
- * Failures are ignored, as in 1.5.0; resolves to how many requests failed.
+ * Failures are ignored; resolves to how many requests failed.
  */
 export async function postLoginRequests(client, langPack = '', delay = randomDelay) {
   const pack = langPack || ''
@@ -515,7 +515,7 @@ export async function postLoginRequests(client, langPack = '', delay = randomDel
 }
 
 /**
- * Every session of the account, 1.5.0 `GetSessions`
+ * Every session of the account, `GetSessions`
  * (`account.getAuthorizations`). Rejects with code
  * `OT_SESSIONS_UNAVAILABLE` when the answer holds no list.
  */
@@ -527,17 +527,17 @@ export async function getSessions(client) {
   return sessions
 }
 
-/** The session flagged `current`, 1.5.0 `GetCurrentSession`; `null` without one. */
+/** The session flagged `current`, `GetCurrentSession`; `null` without one. */
 export async function getCurrentSession(client) {
   const sessions = await getSessions(client)
   return sessions.authorizations.find((authorization) => authorization.current) ?? null
 }
 
 /**
- * Ends the session `hash`, 1.5.0 `TerminateSession`
+ * Ends the session `hash`, `TerminateSession`
  * (`account.resetAuthorization`). `FRESH_RESET_AUTHORISATION_FORBIDDEN`
  * rejects with code `OT_FRESH_RESET_FORBIDDEN` and `HASH_INVALID` with
- * `OT_HASH_INVALID`, each with the 1.5.0 message and the RPC error as
+ * `OT_HASH_INVALID`, each with the Python package's message and the RPC error as
  * `cause`.
  */
 export async function terminateSession(client, hash) {
@@ -555,7 +555,7 @@ export async function terminateSession(client, hash) {
 }
 
 /**
- * Ends every session but the current one, in list order, 1.5.0
+ * Ends every session but the current one, in list order,
  * `TerminateAllSessions`, and resolves to how many were ended; the first
  * failure stops the loop.
  */
@@ -571,7 +571,7 @@ export async function terminateAllSessions(client) {
 }
 
 /**
- * The 1.5.0 `PrintSessions` fields of an mtcute `authorization`, the core
+ * The `PrintSessions` fields of an mtcute `authorization`, the core
  * `sessionRow`: an absent `current` or `officialApp` flag is `false`.
  */
 export function sessionRow(authorization) {
@@ -579,7 +579,7 @@ export function sessionRow(authorization) {
 }
 
 /**
- * The table 1.5.0 `PrintSessions` prints, for a client (whose sessions are
+ * The table `PrintSessions` prints, for a client (whose sessions are
  * fetched), an `account.authorizations` answer or a list of
  * `authorization`s.
  */
@@ -598,7 +598,7 @@ export async function formatSessions(source) {
 }
 
 /**
- * Whether the server flags the current session `official_app`, 1.5.0
+ * Whether the server flags the current session `official_app`,
  * `is_official_app`; `false` without a current session.
  */
 export async function isOfficialApp(client) {
@@ -679,7 +679,7 @@ async function checkTermsOfService(client) {
 }
 
 /**
- * The seven checks of 1.5.0 `ConsistencyChecker.run_all`, in
+ * The seven checks of `ConsistencyChecker.run_all`, in
  * `consistencyChecks()` order, with the native details:
  *
  * - `get_config`, `nearest_dc`, `app_update` and `terms_of_service` pass
@@ -694,7 +694,7 @@ async function checkTermsOfService(client) {
  * The results are the `checks` of the core `consistencyReport`: a check
  * that throws out of its own handling fails with the `checkException`
  * detail. With `autoWarn` (default `true`) a failing check emits the
- * report's 1.5.0 `warning`: `CONSISTENCY_WARNING_PREFIX` and
+ * report's `warning`: `CONSISTENCY_WARNING_PREFIX` and
  * `consistencySummary`.
  */
 export async function runConsistencyChecks(client, profile, versions, options = {}) {
@@ -730,12 +730,13 @@ export async function runConsistencyChecks(client, profile, versions, options = 
 
 /**
  * A new tdata folder holding the session of `client` as its only account
- * (index 0), as 1.5.0 `Account.FromTelethon` with `UseCurrentSession`
+ * (index 0), as `Account.FromTelethon` with `UseCurrentSession`
  * builds one without an owner: the main DC and its auth key from
  * `client.exportSession()`, the user id from `getMeId`, then `newTdata`
  * with `passcode` and `performanceMode` (default `true`).
  *
- * 1.5.0's `CreateNewSession` flag logs a new session in first; run
+ * The `CreateNewSession` flag of `Account.FromTelethon` logs a new
+ * session in first; for that, run
  * `qrLoginToNewClient` and pass the new client here.
  */
 export async function tdataFromClient(client, options = {}) {

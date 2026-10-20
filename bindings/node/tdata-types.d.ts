@@ -26,8 +26,8 @@ export interface ProtocolEndpoints {
 }
 
 /**
- * The endpoints of one DC by address family and protocol, as 1.5.0
- * `MTP.Config.endpoints` returns them.
+ * The endpoints of one DC by address family and protocol, as the Python
+ * package's `MTP.Config.endpoints` returns them.
  */
 export interface Endpoints {
   /** Endpoints without `MTP_FLAG_IPV6`. */
@@ -35,7 +35,7 @@ export interface Endpoints {
   /** Endpoints with `MTP_FLAG_IPV6`. */
   ipv6: ProtocolEndpoints
   /**
-   * The endpoint 1.5.0's session conversions connect to over IPv4: the
+   * The endpoint session conversions connect to over IPv4: the
    * first IPv4 TCP endpoint; absent without one.
    */
   selectedIpv4?: Endpoint

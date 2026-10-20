@@ -1,7 +1,8 @@
-//! The Telethon `.session` file and its `.json` companion (1.5.0
-//! `src/tl/session_io.py`): the `sessions` row, the SQL 1.5.0 runs, the
-//! pair paths, the file itself (the core's `telethon-sqlite` feature, a
-//! bundled SQLite) and the companion JSON, its text and its reading.
+//! The Telethon `.session` file and its `.json` companion (the Python
+//! package's `opentele2.tl.session_io`): the `sessions` row, the SQL it
+//! runs, the pair paths, the file itself (the core's `telethon-sqlite`
+//! feature, a bundled SQLite) and the companion JSON, its text and its
+//! reading.
 
 use std::path::PathBuf;
 
@@ -17,7 +18,8 @@ use crate::convert::{to_auth_key, with_text};
 use crate::error::{Result, check, core_error, invalid_arg, rejection, thrown};
 use crate::tdata::{AccountInput, to_account};
 
-/// The database version 1.5.0 stamps (Telethon's `CURRENT_VERSION`).
+/// The database version the session file is stamped with (Telethon's
+/// `CURRENT_VERSION`).
 #[napi]
 pub const TELETHON_SESSION_VERSION: i64 = telethon_file::VERSION;
 
@@ -52,13 +54,13 @@ pub const TELETHON_INSERT_SESSION: &str = telethon_file::INSERT_SESSION;
 pub struct TelethonTable {
     /// Table name.
     pub name: String,
-    /// The `create table` statement 1.5.0 runs.
+    /// The `create table` statement that creates the table.
     pub ddl: String,
     /// Column names in declaration order, as `pragma table_info` lists them.
     pub columns: Vec<String>,
 }
 
-/// The version 8 tables in 1.5.0's order (`_V8_SCHEMA`).
+/// The version 8 tables in creation order (`_V8_SCHEMA`).
 #[napi]
 pub fn telethon_schema() -> Vec<TelethonTable> {
     telethon_file::SCHEMA
@@ -80,8 +82,7 @@ pub fn telethon_schema() -> Vec<TelethonTable> {
 pub struct TelethonSessionRows {
     /// DC id (`dc_id`).
     pub dc_id: i32,
-    /// Server address text (`server_address`), as 1.5.0 passes it to
-    /// `set_dc`.
+    /// Server address text (`server_address`), as passed to `set_dc`.
     pub server_address: String,
     /// Port (`port`).
     pub port: u32,
@@ -91,9 +92,9 @@ pub struct TelethonSessionRows {
     pub takeout_id: Option<i64>,
 }
 
-/// The `sessions` row 1.5.0 saves for `account` (`ToTelethon`, then
+/// The `sessions` row saved for `account` (`ToTelethon`, then
 /// `SaveSessionJson`): the endpoint and key `telethonStringSession` uses,
-/// with the address text 1.5.0 writes (the stored config's IP text, else
+/// with the address text the row stores (the stored config's IP text, else
 /// the built-in table's, IPv6 with all eight groups as four hex digits),
 /// and no takeout id. Throws `OT_TDATA_BAD_CONFIG_DATA` when the main DC
 /// has no endpoint.
@@ -135,7 +136,7 @@ fn path_text(path: PathBuf) -> Result<String> {
         .map_err(|_| invalid_arg("the path is not valid Unicode"))
 }
 
-/// The pair paths of `base` (1.5.0 `_normalize_base_path`): one trailing
+/// The pair paths of `base` (`_normalize_base_path`): one trailing
 /// `.session` is removed, then one trailing `.json`, and each suffix is
 /// appended to what is left. The path is treated as text.
 #[napi]
@@ -147,16 +148,16 @@ pub fn session_pair_paths(base: String) -> Result<SessionPairPaths> {
     })
 }
 
-/// The session file path of `path` (1.5.0 `write_session_file`): `path`
+/// The session file path of `path` (`write_session_file`): `path`
 /// itself when it ends with `.session`, else `path` with it appended.
 #[napi]
 pub fn session_path(path: String) -> Result<String> {
     path_text(telethon_file::session_path(path))
 }
 
-/// The `.json` companion 1.5.0 `save_session_json` writes for `profile`
-/// (`APIData.to_json(extra)`), keys in its order; 1.5.0's `extra` holds
-/// `session_file` and, when known, `id`. 1.5.0 writes it with
+/// The `.json` companion `save_session_json` writes for `profile`
+/// (`APIData.to_json(extra)`), keys in its order; its `extra` holds
+/// `session_file` and, when known, `id`. It is written with
 /// `JSON.stringify(json, null, 2)` indentation.
 #[napi(ts_return_type = "Record<string, unknown>")]
 pub fn session_companion_json(
@@ -241,7 +242,7 @@ impl Task for WriteSessionFileTask {
     }
 }
 
-/// Writes `rows` as 1.5.0 `write_session_file` does, over the bundled
+/// Writes `rows` as `write_session_file` does, over the bundled
 /// SQLite, and resolves to the file path (`sessionPath(path)`). A schema
 /// that is not already the version 8 layout is dropped and rebuilt; a
 /// current one keeps its tables and their other rows. The version row
@@ -289,7 +290,8 @@ impl Task for ReadSessionFileTask {
 }
 
 /// Reads the sessions row of the version 8 file at `sessionPath(path)`,
-/// written by 1.5.0, by `writeTelethonSessionFile`, or by Telethon itself,
+/// written by the Python package, by `writeTelethonSessionFile`, or by
+/// Telethon itself,
 /// over the bundled SQLite; the file is opened read-only. Rejects with
 /// `OT_TFILE_NOT_FOUND` for no file, `OT_IO` when it is not a database,
 /// `OT_QDATASTREAM_FAILED` for another layout, version or column type,
@@ -339,7 +341,7 @@ fn integral_number(number: Number) -> Number {
     }
 }
 
-/// The `.json` companion text 1.5.0 `save_session_json` writes for
+/// The `.json` companion text `save_session_json` writes for
 /// `profile` and `extra`, byte for byte: `sessionCompanionJson(profile,
 /// extra)` as Python's `json.dump(..., indent=2, ensure_ascii=False)`
 /// prints it, with no trailing newline. A `bigint` in `extra` prints its
@@ -396,12 +398,11 @@ fn session_companion(text: &str) -> Result<SessionCompanion> {
     }
 }
 
-/// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+/// Reads `.json` companion text as `from_session_json` does: the
 /// text must parse as a JSON object holding `app_id` and `app_hash`, not
 /// null, else `OT_INVALID_INPUT`. The profile is then read as
 /// `profileFromSessionJson` reads it, and is absent when a profile key is
-/// missing or has the wrong type (1.5.0 reads those as `APIData.from_json`
-/// does), as the Python binding's `read_session_companion` returns `None`;
+/// missing or has the wrong type (as `APIData.from_json` reads them), as the Python binding's `read_session_companion` returns `None`;
 /// `json` is the whole object either way.
 #[napi]
 pub fn read_session_companion(env: Env, text: JsString<'_>) -> napi::Result<SessionCompanion> {
@@ -464,7 +465,7 @@ fn python_basename(path: &str) -> &str {
     path.rfind(is_separator).map_or(path, |at| &path[at + 1..])
 }
 
-/// The `session_file` value 1.5.0 `save_session_json` writes for the pair at
+/// The `session_file` value `save_session_json` writes for the pair at
 /// `base`: Python's `os.path.basename`, for the platform Node runs on, of the
 /// pair's session path (`sessionPairPaths(base).session`) without its
 /// `.session` suffix. On POSIX only `/` separates; on Windows `/` and `\`

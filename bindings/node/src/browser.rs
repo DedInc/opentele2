@@ -1,5 +1,5 @@
-//! Browser HTTP header and fingerprint generation from opentele2-browser, a
-//! Rust port of browserforge, as async tasks.
+//! Browser HTTP header and fingerprint generation from opentele2-browser,
+//! which is based on browserforge, as async tasks.
 //!
 //! The options mirror the crate's `HeaderOptions`, `HeaderOverrides`,
 //! `FingerprintOptions` and `Screen` in camelCase, with browserforge's

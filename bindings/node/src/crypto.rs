@@ -213,8 +213,8 @@ pub fn create_local_key(passcode: Either<String, Uint8Array>, salt: &[u8]) -> As
     kdf_task(Kdf::Local, passcode, salt)
 }
 
-/// The 256-byte pre-1.x local key for `passcode` and `salt`
-/// (`Storage::CreateLegacyLocalKey`).
+/// The 256-byte Telegram Desktop legacy local key for `passcode` and
+/// `salt` (`Storage::CreateLegacyLocalKey`).
 #[napi]
 pub fn create_legacy_local_key(
     passcode: Either<String, Uint8Array>,

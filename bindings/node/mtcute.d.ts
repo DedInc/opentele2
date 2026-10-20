@@ -84,21 +84,21 @@ export interface FlowClient {
 /** How many QR login attempts `qrLoginToNewClient` makes (5), the core `QR_LOGIN_ATTEMPTS`. */
 export declare const QR_LOGIN_ATTEMPTS: number
 
-/** The 1.5.0 message of the `OT_QR_LOGIN_TIMEOUT` rejection, the core `QR_LOGIN_TIMEOUT`. */
+/** The message of the `OT_QR_LOGIN_TIMEOUT` rejection, the core `QR_LOGIN_TIMEOUT`. */
 export declare const QR_LOGIN_TIMEOUT: string
 
-/** The 1.5.0 message of the `OT_USER_ID_UNRESOLVED` rejection, the core `USER_ID_UNRESOLVED`. */
+/** The message of the `OT_USER_ID_UNRESOLVED` rejection, the core `USER_ID_UNRESOLVED`. */
 export declare const USER_ID_UNRESOLVED: string
 
 /**
- * The delay range `[minMs, maxMs]` before each 1.5.0 post-login request,
+ * The delay range `[minMs, maxMs]` before each post-login request,
  * `null` for none, in request order (the core `postLoginSteps()`).
  */
 export declare const POST_LOGIN_DELAYS_MS: ReadonlyArray<readonly [number, number] | null>
 
 /**
  * Waits before a post-login request; by default a sleep of the core
- * `randomDelayMs(minMs, maxMs)`, as 1.5.0 sleeps a random whole ms in
+ * `randomDelayMs(minMs, maxMs)`, a random whole number of ms in
  * `[minMs, maxMs]`.
  */
 export type PostLoginDelay = (minMs: number, maxMs: number) => Promise<void>
@@ -113,7 +113,7 @@ export interface QrLoginOptions {
   password?: string
   /** The new client's profile; its `langPack` drives the post-login requests. */
   profile?: ApiProfile
-  /** Whether to send the 1.5.0 post-login requests; default `true`. */
+  /** Whether to send the post-login requests; default `true`. */
   postLogin?: boolean
   /** The wait before each post-login request; a random sleep by default. */
   delay?: PostLoginDelay
@@ -131,7 +131,7 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
 
 /**
  * Logs `fresh`, a client with empty storage, in through the authorised
- * `authorized` by QR login, as 1.5.0 `QRLoginToNewClient`: DC alignment,
+ * `authorized` by QR login, as `QRLoginToNewClient`: DC alignment,
  * `auth.exportLoginToken` on `fresh` (following `loginTokenMigrateTo` to
  * `auth.importLoginToken`), `auth.acceptLoginToken` on `authorized`, 2FA
  * through `account.getPassword` and the native `srpCheck`, then the
@@ -142,9 +142,9 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
  * `EXISTING_SESSION_REPLACED`, has its session discarded locally
  * (`fresh.disconnect()` and `fresh.storage.clear(true)`; the old
  * authorization is not terminated on the server) and is logged in again,
- * as 1.5.0 deletes the session file; without those two members it rejects
- * with a `TypeError`. It no longer rejects with `OT_SESSION_EXISTS`. Each
- * timed-out attempt warns `qrAttemptTimeoutWarning(n)` (the 1.5.0 text,
+ * as the Python package deletes the session file; without those two
+ * members it rejects with a `TypeError`. Each
+ * timed-out attempt warns `qrAttemptTimeoutWarning(n)` (the Python text,
  * `... failed because <class 'TimeoutError'>`) and
  * `qrAttemptRetryWarning(n)`.
  *
@@ -155,8 +155,7 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
  * or the mtcute `RpcError` (`AUTH_TOKEN_*` included). A password whose
  * `account.password` lacks `srpId` or `srpB` goes to `srpCheck` as the core
  * `srpInputs` gives it and rejects with the core `OT_SRP_BAD_B`, as the
- * Python binding does; it no longer rejects with
- * `OT_UNSUPPORTED_PASSWORD_ALGORITHM`. Each error's `name` is its 1.5.0
+ * Python binding does. Each error's `name` is its Python exception
  * class from `flowErrorClasses()` (`ValueError` for an unsupported
  * algorithm and every `OT_SRP_*` refusal).
  */
@@ -167,7 +166,7 @@ export declare function qrLoginToNewClient<C extends FlowClient>(
 ): Promise<QrLoginResult<C>>
 
 /**
- * 1.5.0 `_run_post_login_requests` on `client`; resolves to how many of
+ * `_run_post_login_requests` on `client`; resolves to how many of
  * the requests failed (failures are ignored).
  */
 export declare function postLoginRequests(client: FlowClient, langPack?: string, delay?: PostLoginDelay): Promise<number>
@@ -179,23 +178,23 @@ export declare function isAuthorized(client: FlowClient): Promise<boolean>
 export declare function getMeId(client: FlowClient): Promise<number>
 
 /**
- * 1.5.0 `GetSessions` (`account.getAuthorizations`); rejects with
+ * `GetSessions` (`account.getAuthorizations`); rejects with
  * `OT_SESSIONS_UNAVAILABLE` when the answer holds no list.
  */
 export declare function getSessions(client: FlowClient): Promise<tl.account.RawAuthorizations>
 
-/** 1.5.0 `GetCurrentSession`: the session flagged `current`, else `null`. */
+/** `GetCurrentSession`: the session flagged `current`, else `null`. */
 export declare function getCurrentSession(client: FlowClient): Promise<tl.RawAuthorization | null>
 
 /**
- * 1.5.0 `TerminateSession` (`account.resetAuthorization`). Rejects with
+ * `TerminateSession` (`account.resetAuthorization`). Rejects with
  * `OT_FRESH_RESET_FORBIDDEN` (message `FRESH_RESET_FORBIDDEN`) or
  * `OT_HASH_INVALID` (message `HASH_INVALID`), the RPC error as `cause`.
  */
 export declare function terminateSession(client: FlowClient, hash: tl.Long): Promise<void>
 
 /**
- * 1.5.0 `TerminateAllSessions`: ends every non-current session in list
+ * `TerminateAllSessions`: ends every non-current session in list
  * order and resolves to how many were ended.
  */
 export declare function terminateAllSessions(client: FlowClient): Promise<number>
@@ -207,26 +206,26 @@ export declare function terminateAllSessions(client: FlowClient): Promise<number
 export declare function sessionRow(authorization: tl.RawAuthorization): SessionRow & { current: boolean; officialApp: boolean }
 
 /**
- * The 1.5.0 `PrintSessions` table for a client (its sessions are fetched),
+ * The `PrintSessions` table for a client (its sessions are fetched),
  * an `account.authorizations` answer or a list of `authorization`s.
  */
 export declare function formatSessions(
   source: FlowClient | tl.account.RawAuthorizations | tl.RawAuthorization[],
 ): Promise<string>
 
-/** 1.5.0 `is_official_app`: whether the current session is `officialApp`. */
+/** `is_official_app`: whether the current session is `officialApp`. */
 export declare function isOfficialApp(client: FlowClient): Promise<boolean>
 
 /** Options of `runConsistencyChecks`. */
 export interface ConsistencyOptions {
   /** The library layer `layer_match` compares; default @mtcute/core's `tl.LAYER`. */
   layer?: number
-  /** Whether a failing check emits the 1.5.0 warning; default `true`. */
+  /** Whether a failing check emits the consistency warning; default `true`. */
   autoWarn?: boolean
 }
 
 /**
- * The seven 1.5.0 `ConsistencyChecker.run_all` results for `client` used
+ * The seven `ConsistencyChecker.run_all` results for `client` used
  * with `profile`, in `consistencyChecks()` order, with the native details:
  * the `checks` of the core `consistencyReport`, whose `warning` is emitted
  * with `autoWarn`; join them with `consistencySummary`.
@@ -249,6 +248,6 @@ export interface TdataFromClientOptions {
 /**
  * A new tdata folder with the session of `client` as its only account:
  * main DC and auth key from `client.exportSession()`, user id from
- * `getMeId` (1.5.0 `FromTelethon` with `UseCurrentSession`).
+ * `getMeId` (`FromTelethon` with `UseCurrentSession`).
  */
 export declare function tdataFromClient(client: FlowClient, options?: TdataFromClientOptions): Promise<TData>

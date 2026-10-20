@@ -75,7 +75,7 @@ pub(crate) fn to_user_id(value: &BigInt) -> Result<u64> {
 }
 
 /// A device seed: a string as given, and an integer `number` or a `bigint`
-/// as its decimal text, the way 1.5.0 hashes an `int` seed.
+/// as its decimal text, the way the Python package hashes an `int` seed.
 pub(crate) fn to_seed(value: Option<Seed>) -> Result<Option<String>> {
     match value {
         None => Ok(None),

@@ -1,5 +1,5 @@
-//! The client-independent login, session admin and consistency pieces of
-//! 1.5.0 (`src/tl/telethon.py`, `src/consistency.py`).
+//! The client-independent pieces of the login, session admin and
+//! consistency flows the client wrappers share.
 //!
 //! The SRP check runs PBKDF2 with 100000 iterations, so it is an async task;
 //! everything else is pure formatting and runs synchronously.
@@ -55,19 +55,19 @@ pub const RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN: &str =
 #[napi]
 pub const RPC_HASH_INVALID: &str = auth::RPC_HASH_INVALID;
 
-/// The RPC error of a QR login token accepted already; 1.5.0 re-raises it.
+/// The RPC error of a QR login token accepted already; the flows re-raise it.
 #[napi]
 pub const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: &str = auth::RPC_AUTH_TOKEN_ALREADY_ACCEPTED;
 
-/// The RPC error of an expired QR login token; 1.5.0 re-raises it.
+/// The RPC error of an expired QR login token; the flows re-raise it.
 #[napi]
 pub const RPC_AUTH_TOKEN_EXPIRED: &str = auth::RPC_AUTH_TOKEN_EXPIRED;
 
-/// The RPC error of an invalid QR login token; 1.5.0 re-raises it.
+/// The RPC error of an invalid QR login token; the flows re-raise it.
 #[napi]
 pub const RPC_AUTH_TOKEN_INVALID: &str = auth::RPC_AUTH_TOKEN_INVALID;
 
-/// The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+/// The `TelethonUnauthorized` message when the self user of a client
 /// cannot be resolved.
 #[napi]
 pub const USER_ID_UNRESOLVED: &str = auth::USER_ID_UNRESOLVED;
@@ -85,8 +85,8 @@ const EVERY_SRP_ERROR: [SrpError; 4] = [
     SrpError::RandomUnavailable,
 ];
 
-/// The class name of the exception 1.5.0 raised for each error code of the
-/// client flows, by code: `OT_` and the core `FlowFailure::code` of every
+/// The class name of the exception the Python package raises for each
+/// error code of the client flows, by code: `OT_` and the core `FlowFailure::code` of every
 /// flow failure to its `FlowFailure::legacy_class`, and `OT_` and the
 /// `SrpError::code` of every `srpCheck` refusal to its
 /// `SrpError::legacy_class`.
@@ -104,20 +104,20 @@ pub fn flow_error_classes() -> HashMap<String, &'static str> {
         .collect()
 }
 
-/// The 1.5.0 `NoPasswordProvided` message of a QR login that needs 2FA.
+/// The `NoPasswordProvided` message of a QR login that needs 2FA.
 #[napi]
 pub const NO_PASSWORD_PROVIDED: &str = auth::NO_PASSWORD_PROVIDED;
 
-/// The 1.5.0 `FreshResetAuthorisationForbiddenError` message of
+/// The `FreshResetAuthorisationForbiddenError` message of
 /// `TerminateSession`.
 #[napi]
 pub const FRESH_RESET_FORBIDDEN: &str = auth::FRESH_RESET_FORBIDDEN;
 
-/// The 1.5.0 `HashInvalidError` message of `TerminateSession`.
+/// The `HashInvalidError` message of `TerminateSession`.
 #[napi]
 pub const HASH_INVALID: &str = auth::HASH_INVALID;
 
-/// The 1.5.0 message of `PrintSessions` when the sessions cannot be fetched.
+/// The message of `PrintSessions` when the sessions cannot be fetched.
 #[napi]
 pub const SESSIONS_UNAVAILABLE: &str = auth::SESSIONS_UNAVAILABLE;
 
@@ -125,7 +125,7 @@ pub const SESSIONS_UNAVAILABLE: &str = auth::SESSIONS_UNAVAILABLE;
 #[napi]
 pub const OFFICIAL_API_IDS: [i32; 6] = auth::OFFICIAL_API_IDS;
 
-/// The column labels of the 1.5.0 `PrintSessions` table, in order.
+/// The column labels of the `PrintSessions` table, in order.
 #[napi]
 pub const SESSION_COLUMNS: [&str; 7] = auth::SESSION_COLUMNS;
 
@@ -150,7 +150,8 @@ pub const NO_APP_UPDATE: &str = auth::NO_APP_UPDATE;
 #[napi]
 pub const TERMS_OF_SERVICE_OK: &str = auth::TERMS_OF_SERVICE_OK;
 
-/// The text in front of the summary 1.5.0 warns with when a check fails.
+/// The text in front of the summary the consistency check warns with when
+/// a check fails.
 #[napi]
 pub const CONSISTENCY_WARNING_PREFIX: &str = auth::CONSISTENCY_WARNING_PREFIX;
 
@@ -158,13 +159,13 @@ pub const CONSISTENCY_WARNING_PREFIX: &str = auth::CONSISTENCY_WARNING_PREFIX;
 #[napi]
 pub const SRP_ALGORITHM: &str = auth::SRP_ALGORITHM;
 
-/// How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+/// How many QR login attempts `_performQRLogin` makes by default
 /// (`_DEFAULT_REQUEST_RETRIES`).
 #[napi]
 pub const QR_LOGIN_ATTEMPTS: u32 = auth::QR_LOGIN_ATTEMPTS;
 
-/// How many seconds past a QR token's expiry 1.5.0 waits for it to be
-/// accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+/// How many seconds past a QR token's expiry the QR login waits for it to
+/// be accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
 #[napi]
 pub const QR_EXPIRE_SAFETY_SECONDS: u32 = 5;
 
@@ -172,7 +173,7 @@ pub const QR_EXPIRE_SAFETY_SECONDS: u32 = 5;
 // `bigint`; the number above must stay equal to it.
 const _: () = assert!(QR_EXPIRE_SAFETY_SECONDS as u64 == auth::QR_EXPIRE_SAFETY_SECONDS);
 
-/// The 1.5.0 `TimeoutError` message when no QR login attempt logged in.
+/// The `TimeoutError` message when no QR login attempt logged in.
 #[napi]
 pub const QR_LOGIN_TIMEOUT: &str = auth::QR_LOGIN_TIMEOUT;
 
@@ -181,12 +182,12 @@ pub const QR_LOGIN_TIMEOUT: &str = auth::QR_LOGIN_TIMEOUT;
 #[napi]
 pub const QR_TIMEOUT_ERROR_TYPE: &str = auth::QR_TIMEOUT_ERROR_TYPE;
 
-/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// The `_handleExistingSession` warning when the new client already
 /// holds a session of the same `api_id`, which is kept.
 #[napi]
 pub const EXISTING_SESSION_KEPT: &str = auth::EXISTING_SESSION_KEPT;
 
-/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// The `_handleExistingSession` warning when the new client already
 /// holds a session of another `api_id`, which is replaced.
 #[napi]
 pub const EXISTING_SESSION_REPLACED: &str = auth::EXISTING_SESSION_REPLACED;
@@ -208,7 +209,7 @@ pub fn qr_login_url(token: &[u8]) -> String {
     auth::qr_login_url(token)
 }
 
-/// The 1.5.0 warning of QR login attempt `attemptNumber` (from 1) that
+/// The warning of QR login attempt `attemptNumber` (from 1) that
 /// timed out with an error whose Python `str(type(e))` is `errorType`
 /// (default `QR_TIMEOUT_ERROR_TYPE`).
 #[napi]
@@ -227,7 +228,7 @@ pub fn qr_attempt_timeout_warning(
     }
 }
 
-/// The 1.5.0 warning after QR login attempt `attemptNumber` (from 1)
+/// The warning after QR login attempt `attemptNumber` (from 1)
 /// failed, emitted after `qrAttemptTimeoutWarning`.
 #[napi]
 pub fn qr_attempt_retry_warning(attempt_number: u32) -> String {
@@ -241,7 +242,7 @@ pub fn unsupported_password_algorithm(algorithm: JsString<'_>) -> Result<String>
     with_text(algorithm, auth::unsupported_password_algorithm)
 }
 
-/// One step of the 1.5.0 post-login sequence: a random sleep in `delayMs`,
+/// One step of the post-login sequence: a random sleep in `delayMs`,
 /// then the request.
 #[napi(object, object_from_js = false)]
 pub struct PostLoginStep {
@@ -253,7 +254,7 @@ pub struct PostLoginStep {
 }
 
 /// A core delay bound in milliseconds as a JavaScript number; every bound
-/// of the 1.5.0 table is well below `u32::MAX`.
+/// of the post-login steps is well below `u32::MAX`.
 fn delay_bound(ms: u64) -> u32 {
     u32::try_from(ms).unwrap_or(u32::MAX)
 }
@@ -269,8 +270,8 @@ impl From<CorePostLoginStep> for PostLoginStep {
     }
 }
 
-/// The 1.5.0 post-login steps (`_POST_LOGIN_STEPS`), in order: every one
-/// without `langPack`, else those 1.5.0 runs for a client whose `lang_pack`
+/// The post-login steps (`_POST_LOGIN_STEPS`), in order: every one
+/// without `langPack`, else those that run for a client whose `lang_pack`
 /// is `langPack` (`langpack.getLanguages` only for a non-empty one).
 #[napi]
 pub fn post_login_steps(lang_pack: Option<JsString<'_>>) -> Result<Vec<PostLoginStep>> {
@@ -282,7 +283,7 @@ pub fn post_login_steps(lang_pack: Option<JsString<'_>>) -> Result<Vec<PostLogin
 }
 
 /// A random whole number of milliseconds in `minMs..=maxMs`, uniform, from
-/// the OS random source: the sleep 1.5.0 takes as `random.randint(minMs,
+/// the OS random source: the range of Python `random.randint(minMs,
 /// maxMs)`. Throws `OT_INVALID_INPUT` when `minMs > maxMs`.
 #[napi]
 pub fn random_delay_ms(env: Env, min_ms: u32, max_ms: u32) -> napi::Result<u32> {
@@ -492,7 +493,7 @@ pub fn is_official_api_id(api_id: i32) -> bool {
     auth::is_official_api_id(api_id)
 }
 
-/// The fields of an `authorization` that 1.5.0 `PrintSessions` shows.
+/// The fields of an `authorization` that `PrintSessions` shows.
 #[napi(object)]
 pub struct SessionRow {
     /// `current`; absent is `false`.
@@ -565,7 +566,7 @@ pub struct RawAuthorization {
     pub official_app: Option<bool>,
 }
 
-/// The `SessionRow` of `authorization` as 1.5.0 reads one: an absent
+/// The `SessionRow` of `authorization`: an absent
 /// `current` or `officialApp` flag is `false`, every other field is copied.
 #[napi]
 pub fn session_row(authorization: RawAuthorization) -> SessionRow {
@@ -592,7 +593,7 @@ pub fn session_row(authorization: RawAuthorization) -> SessionRow {
     CoreSessionRow::from_authorization(&raw).into()
 }
 
-/// The table 1.5.0 `PrintSessions` prints for `rows`, without a trailing
+/// The table `PrintSessions` prints for `rows`, without a trailing
 /// newline; with no rows, the header alone.
 #[napi]
 pub fn format_sessions(rows: Vec<SessionRow>) -> String {
@@ -608,7 +609,7 @@ fn texts(values: Vec<JsString<'_>>) -> Result<Vec<String>> {
         .collect()
 }
 
-/// 1.5.0 `PrettyTable(table, addSplit)` for a table with the columns
+/// `PrettyTable(table, addSplit)` for a table with the columns
 /// `headers`, in order, and the cells of `rows`, already strings; a splitter
 /// line goes before every row whose index is in `addSplit`. Columns are as
 /// wide as their longest cell plus two, text centred with the odd space on
@@ -630,7 +631,7 @@ pub fn format_table(
     Ok(auth::format_table(&headers, &rows, &add_split))
 }
 
-/// What the seven 1.5.0 `ConsistencyChecker` checks expect from a session
+/// What the seven `ConsistencyChecker` checks expect from a session
 /// that uses a profile.
 #[napi(object, object_from_js = false)]
 pub struct ConsistencyExpectations {
@@ -678,7 +679,7 @@ pub fn consistency_expectations(
     }
 }
 
-/// One entry of a 1.5.0 `ConsistencyReport`.
+/// One entry of a `ConsistencyReport`.
 #[napi(object)]
 pub struct CheckResult {
     /// The check name, one of `consistencyChecks()` or the name of a check
@@ -686,11 +687,11 @@ pub struct CheckResult {
     pub name: String,
     /// Whether the check passed.
     pub passed: bool,
-    /// The 1.5.0 detail text.
+    /// The detail text.
     pub detail: String,
 }
 
-/// The names of the seven 1.5.0 `ConsistencyChecker.run_all` checks, in
+/// The names of the seven `ConsistencyChecker.run_all` checks, in
 /// its order.
 #[napi]
 pub fn consistency_checks() -> Vec<&'static str> {
@@ -716,7 +717,7 @@ pub fn layer_result(library_layer: i32, advertised_layer: Option<i32>) -> CheckR
     }
 }
 
-/// 1.5.0 `ConsistencyReport.summary`: a count line, then one
+/// `ConsistencyReport.summary`: a count line, then one
 /// `  [OK] name: detail` or `  [FAIL] name: detail` line per check.
 #[napi]
 pub fn consistency_summary(results: Vec<CheckResult>) -> String {
@@ -760,7 +761,7 @@ impl TryFrom<CheckOutcome> for CoreCheckOutcome {
     }
 }
 
-/// A 1.5.0 `ConsistencyReport`, without the server responses.
+/// A `ConsistencyReport`, without the server responses.
 #[napi(object, object_from_js = false)]
 pub struct ConsistencyReport {
     /// One entry per check, in `consistencyChecks()` order.
@@ -769,12 +770,12 @@ pub struct ConsistencyReport {
     pub all_passed: bool,
     /// The report text, `consistencySummary` of `checks`.
     pub summary: String,
-    /// The warning 1.5.0 emits with `auto_warn` on:
+    /// The warning emitted with `auto_warn` on:
     /// `CONSISTENCY_WARNING_PREFIX` and `summary`; absent when all passed.
     pub warning: Option<String>,
 }
 
-/// The report 1.5.0 `ConsistencyChecker.run_all` builds from `outcomes`,
+/// The report `ConsistencyChecker.run_all` builds from `outcomes`,
 /// one per check in `consistencyChecks()` order: every entry is named after
 /// its check, and one that raised fails with the `checkException` detail.
 /// Throws `ERR_INVALID_ARG_VALUE` unless there is one outcome per check.
@@ -844,7 +845,7 @@ pub fn current_session_detail(row: SessionRow) -> String {
     auth::current_session_detail(&row.into())
 }
 
-/// The `layer_match` detail; 1.5.0 names the library layer after Telethon.
+/// The `layer_match` detail; it names the library layer after Telethon.
 #[napi]
 pub fn layer_detail(library_layer: i32, advertised_layer: Option<i32>) -> String {
     auth::layer_detail(library_layer, advertised_layer.unwrap_or(LAYER))

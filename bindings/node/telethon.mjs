@@ -1,7 +1,8 @@
 // telethon.mjs: the `opentele2/telethon` entry point.
 //
 // Telethon `SQLiteSession` files (database version 8) and the `.session` +
-// `.json` pair, written and read as 1.5.0 `src/tl/session_io.py` does. The
+// `.json` pair, written and read as the Python package's
+// `opentele2.tl.session_io` does. The
 // file, the companion text and its reading are the native module's
 // (crates/opentele2-core/src/session/telethon_file.rs over a bundled
 // SQLite), so this module works on every supported Node.
@@ -65,7 +66,7 @@ function sessionInput(rows) {
 }
 
 /**
- * Writes `rows` as 1.5.0 `write_session_file` does and resolves to the file
+ * Writes `rows` as `write_session_file` does and resolves to the file
  * path (`sessionPath(path)`). A schema that is not already the version 8
  * layout is dropped and rebuilt; a current one keeps its tables and their
  * other rows. The version row becomes 8 and the sessions row `rows`, with
@@ -83,7 +84,8 @@ function safeId(id) {
 
 /**
  * Reads the sessions row of the version 8 file at `sessionPath(path)`,
- * written by 1.5.0, by `writeSessionFile`, or by Telethon itself. Columns
+ * written by the Python package, by `writeSessionFile`, or by Telethon
+ * itself. Columns
  * are read by name and `tmp_auth_key` is not read. The file is opened
  * read-only; the error codes are those of the core's `read_session_file`.
  */
@@ -102,7 +104,7 @@ export async function readSessionFile(path) {
 }
 
 /**
- * Writes the pair 1.5.0 `save_session_json` writes for `account` and
+ * Writes the pair `save_session_json` writes for `account` and
  * `profile`, and resolves to its paths (`sessionPairPaths(base)`): the
  * `.session` file holds `telethonSessionRows(account, ipv6)` and the `.json`
  * companion is `sessionCompanionText(profile, extra)`, where `extra` starts
@@ -130,7 +132,7 @@ export async function saveSessionPair(base, account, profile, options = {}) {
 }
 
 /**
- * Reads back the pair at `sessionPairPaths(base)` as 1.5.0
+ * Reads back the pair at `sessionPairPaths(base)` as
  * `from_session_json` does: both files must exist (`OT_TFILE_NOT_FOUND`),
  * the companion is read with `readSessionCompanion` (`OT_IO` when it is not
  * a valid session JSON; `profile` is `null` when its profile keys are not
@@ -148,7 +150,7 @@ export async function loadSessionPair(base) {
   try {
     companion = native.readSessionCompanion(await readFile(paths.json, 'utf8'))
   } catch (cause) {
-    // Text that is not a session JSON object is OT_IO here, as before.
+    // Text that is not a session JSON object is OT_IO here.
     throw codedError('OT_IO', `I/O error: invalid JSON file ${paths.json}: ${cause?.message ?? cause}`, cause)
   }
   const rows = await readSessionFile(paths.session)
