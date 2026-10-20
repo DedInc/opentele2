@@ -26,9 +26,10 @@ A **Telegram API library** for converting between **tdata** and **telethon** ses
 
 ```bash
 pip install opentele2             # Python 3.8+
-npm install opentele2             # Node 18+; opentele2/telethon needs Node 22.5+
+npm install opentele2             # Node 18+, every entry point including opentele2/telethon
 cargo add opentele2-core          # Rust core: tdata, crypto, sessions, devices, API profiles
-cargo add opentele2-versions      # Rust: fetch the current official client versions
+cargo add opentele2-browser       # Rust: browser headers and fingerprints, a port of browserforge
+cargo add opentele2-versions      # Rust: fetch the current official client and browser versions
 cargo add opentele2-grammers      # Rust: grammers 0.11 bridge; client flows behind feature `client`
 ```
 
@@ -40,19 +41,30 @@ including 7.3 passcode-locked tdata (Argon2id and scrypt key wraps).
 2.0.0 moves the tdata formats and crypto into one Rust core, `opentele2-core`, shared by one
 package per ecosystem.
 
-- **Rust core**: tdata read and write, PBKDF2, Argon2id and scrypt key derivation, AES-256-IGE,
-  Telethon and mtcute string sessions, Telethon `.session` rows, device catalogs and fingerprint
-  checks live in `crates/opentele2-core`.
+- **Rust core**: tdata read and write, PBKDF2, Argon2id and scrypt key derivation, AES-256-IGE
+  and -CTR, SHA-1, SHA-256, HMAC, PQ factorisation, gzip, one OS random source, Telethon and
+  mtcute string sessions, Telethon `.session` files, device catalogs and fingerprint checks live
+  in `crates/opentele2-core`.
 - **Faster**: the core loads a real one-account tdata folder in 0.24 ms against 1.08 ms for the
   pure-Python 1.x `TDesktop` loader (best of 3 x 200 loads, one machine), about 4.6x.
-- **Native AES-IGE for Telethon**: when the real `cryptg` is not installed, `import opentele2`
-  registers `opentele2._native.cryptg` as `cryptg`, so Telethon uses the core's AES-IGE. Import
-  `opentele2` before `telethon` for this to apply.
+- **Client crypto on the core**: `import opentele2` (before `telethon`) registers
+  `opentele2._native.cryptg` (AES-IGE) when the real `cryptg` is absent, and always rebinds Telethon's
+  AES-CTR (obfuscated, CDN, MTProxy; 1 MiB in 0.9 ms against 3.6 s for pyaes, one machine), PQ
+  factorisation, SHA-1/256 and password hashing; DH/RSA `pow` and `os.urandom` stay Telethon's.
+  mtcute's `createCryptoProvider()` covers every `ICryptoProvider` member; DH/RSA bigint maths stay mtcute's.
 - **Python 3.8+**: the `opentele2` wheel is abi3 for CPython 3.8 and newer.
 - **No C crypto dependencies**: `TgCrypto-pyrofork` and `argon2-cffi` are gone; the dependencies are
   `telethon` and, below Python 3.10, `typing_extensions`.
-- **Deterministic web fingerprints**: web devices come from a curated catalog and are seeded by
-  `unique_id` like every other platform; `browserforge` is no longer used.
+- **Telethon `.session` on every Node**: `opentele2/telethon` uses the core's bundled SQLite (Node 18+).
+- **Browser fingerprints without browserforge**: `opentele2-browser` (Apache-2.0) ports browserforge
+  to Rust over the embedded `apify_fingerprint_datapoints` 0.15.0 networks with a seeded
+  xoshiro256** RNG, and fixes seven browserforge defects (Sec-Fetch values, OS relaxation, HTTP/1
+  fallback, Edge detection, user-agent constraint, locale cap, request-dependent headers). Python
+  `opentele2.browser` and Node `generateHeaders` / `generateFingerprint` expose it; the same seed and
+  options give byte-identical output in Python and Node.
+- **Web devices**: the curated web catalog was replaced by 1.5.0's pool drawn from
+  `opentele2-browser` (Chrome, Edge, Firefox weighted 19/2/1 around the live majors), deterministic
+  per seed and per Chrome/Firefox major; `opentele2-versions` fetches the Chrome and Firefox versions.
 - **Full parity**: Python, Node and Rust cover the same conversions, device generation,
   fingerprint checks, QR login with 2FA, session admin and consistency checks, each over its own
   client (Telethon, mtcute, grammers).
@@ -68,6 +80,7 @@ The 1.x API is unchanged.
 import asyncio
 
 from opentele2.api import API, UseCurrentSession
+from opentele2.browser import FingerprintGenerator, HeaderGenerator, Screen
 from opentele2.td import TDesktop
 
 
@@ -81,6 +94,9 @@ async def main():
     tdesk2.SaveTData("tdata_new")
 
 
+# browserforge's API, reproducible by seed; the same output as Node for the same seed.
+headers = HeaderGenerator(browser="chrome", os="windows").generate(seed="my-id")
+print(FingerprintGenerator(screen=Screen(max_width=1920)).generate(seed=42).navigator.userAgent)
 asyncio.run(main())
 ```
 
@@ -88,7 +104,7 @@ asyncio.run(main())
 
 ```js
 import { TelegramClient } from '@mtcute/node'
-import { loadTdata, profile } from 'opentele2'
+import { generateFingerprint, generateHeaders, loadTdata, profile } from 'opentele2'
 import { createCryptoProvider, initConnectionOptions, toStringSession } from 'opentele2/mtcute'
 import { saveSessionPair } from 'opentele2/telethon'
 
@@ -99,12 +115,16 @@ const client = new TelegramClient({
   apiId: desktop.apiId,
   apiHash: desktop.apiHash,
   initConnectionOptions: initConnectionOptions(desktop),
-  crypto: await createCryptoProvider(), // AES-IGE from the core
+  crypto: await createCryptoProvider(), // every ICryptoProvider member on the core
 })
 await client.importSession(toStringSession(tdata.mainAccount))
 
-// Telethon: the .session + .json pair 1.5.0 writes (node:sqlite, Node 22.5+).
+// Telethon: the .session + .json pair 1.5.0 writes (the core's bundled SQLite).
 const { session, json } = await saveSessionPair('telethon', tdata.mainAccount, desktop)
+
+// Browser headers and fingerprints, the same as opentele2.browser for the same seed.
+const headers = await generateHeaders({ browsers: 'chrome', os: 'windows' }, 'my-id')
+const { navigator } = await generateFingerprint({ screen: { maxWidth: 1920 } }, 42)
 ```
 
 `opentele2/mtcute` also has the 1.5.0 client flows over an mtcute client: `qrLoginToNewClient`
@@ -117,6 +137,7 @@ const { session, json } = await saveSessionPair('telethon', tdata.mainAccount, d
 
 ```rust
 use grammers_client::Client;
+use opentele2_browser::{Browser, FingerprintOptions, HeaderOptions, Screen};
 use opentele2_core::api::{self, Versions};
 use opentele2_core::session::{mtcute, telethon};
 use opentele2_core::tdata::TData;
@@ -138,12 +159,24 @@ async fn show_sessions(client: &Client) -> Result<(), ClientError> {
     println!("{}", client::sessions_table(client).await?); // 1.5.0 PrintSessions
     Ok(())
 }
+
+fn browser() -> opentele2_browser::Result<()> {
+    let options = HeaderOptions { browsers: vec![Browser::new("chrome")], ..HeaderOptions::default() };
+    for (name, value) in opentele2_browser::generate_headers(Some("my-id"), &options)?.iter() {
+        println!("{name}: {value}");
+    }
+    let screen = Some(Screen { max_width: Some(1920), ..Screen::default() });
+    let options = FingerprintOptions { screen, ..FingerprintOptions::default() };
+    let fingerprint = opentele2_browser::generate_fingerprint(Some("42"), &options)?;
+    println!("{}", fingerprint.navigator.user_agent);
+    Ok(())
+}
 ```
 
 `client::qr_login`, `client::run_consistency_checks` and `client::tdata_from_client` cover QR
 login with 2FA, the consistency checks and tdata from a client session. The Telethon `.session`
 file is written by the core's `session::telethon_file::write_session_file` with its
-default-off feature `telethon-sqlite`.
+default-off feature `telethon-sqlite`, the same writer the Python and Node packages use.
 
 ## Documentation
 

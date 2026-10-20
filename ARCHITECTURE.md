@@ -20,25 +20,32 @@ README.md, ARCHITECTURE.md, LICENSE, .gitignore
 opentele.png                  README logo; stays at the root (see below)
 .github/workflows/            maintainer-owned; agents stage edits in refs/github-workflows/
 crates/opentele2-core/        pure core: no async, no network, no FFI, unsafe_code forbidden
-  src/                        qt, tdf, crypto, kdf, tdata (incl. mtp_config, migrate, add_account,
+  src/                        qt, tdf, crypto (SHA-1/256, HMAC, PBKDF2, AES-IGE/CTR, PQ, random_fill),
+                              compress (gzip), kdf, tdata (incl. mtp_config, migrate, add_account,
                               set_accounts), session (incl. telethon_file), devices, api,
                               fingerprint, auth, batch
-  data/devices/               android, desktop, ios, mac, web.json; the only catalog copy
-  tests/                      Rust tests + fixtures/
+  data/devices/               android, desktop, ios, mac (JSON); the only catalog copy; the web
+                              pool is drawn from opentele2-browser (M2)
+  tests/                      Rust tests + fixtures/; no_suppressions.rs bans lint suppressions
   tests/vectors/              frozen 1.5.0 oracle + gen_core_vectors.py (--source <1.5.0 checkout>)
   features                    parallel (default, rayon), telethon-sqlite (default off, rusqlite bundled)
-crates/opentele2-versions/    network version fetchers (7 sources), blocking HTTP (ureq 3.4), no tokio
+crates/opentele2-browser/     Apache-2.0 Rust port of browserforge over the embedded
+                              apify_fingerprint_datapoints 0.15.0 networks, seeded xoshiro256** Rng
+crates/opentele2-versions/    network version fetchers (7 Telegram sources + Chrome, Firefox),
+                              blocking HTTP (ureq 3.4), no tokio
 crates/opentele2-grammers/    grammers 0.11 bridge + client flows behind feature `client`
 bindings/python/              the one PyPI package `opentele2` (maturin, mixed layout)
   Cargo.toml, src/            PyO3 0.29 abi3-py38 cdylib, module `opentele2._native`
   pyproject.toml              name opentele2, version from Cargo, requires-python >=3.8, telethon>=1.45.0
-  python/opentele2/           _native.pyi, facades api, devices, exception, fingerprint,
-                              consistency, td/, tl/; private _compat.py, _version_fetcher.py
+  python/opentele2/           _native.pyi, browser.py, facades api, devices, exception, fingerprint,
+                              consistency, td/, tl/; private _compat.py, _telethon_crypto.py,
+                              _version_fetcher.py
   tests/                      binding + public-API tests (pytest, `live` marker)
 bindings/node/                npm `opentele2` 2.0.0, Node-API, engines >=18
   src/, index.js, index.d.ts  native addon `opentele2`
   mtcute.mjs, mtcute.d.ts     `opentele2/mtcute`: session, crypto provider, client flows
-  telethon.mjs, telethon.d.ts `opentele2/telethon`: Telethon .session + .json over node:sqlite
+  telethon.mjs, telethon.d.ts `opentele2/telethon`: Telethon .session + .json over the core's
+                              bundled SQLite
   npm/, __test__/             per-platform packages; node --test suites
 src/, tests/ (tracked files)  1.x implementation and tests: removed by the maintainer's `git rm`
                               (P4-02, pending); the agent kernel's untracked tests/ files stay
@@ -89,23 +96,52 @@ v1 Known gap "catalogs exist twice" is closed by Removal.
 - cryptg: `import opentele2` registers `opentele2._native.cryptg` as
   `sys.modules["cryptg"]` when no real `cryptg` imports
   (bindings/python/python/opentele2/__init__.py:7-13).
+- Telethon crypto bridge: `opentele2/_telethon_crypto.py`, imported by
+  `__init__.py`, rebinds Telethon's `AESModeCTR` (obfuscated, CDN and MTProxy
+  transports), `Factorization.factorize`, `sha1`/`sha256` and the password
+  and MTProxy `hashlib` to the core. AES-CTR on 1 MiB: 0.9 ms against 3.6 s
+  for pyaes (one machine). DH and RSA `pow` and `os.urandom` stay Telethon's.
 - Errors: `_native` raises one `CoreError(code, message)`; `opentele2.exception`
-  maps `code` to the 1.x subclasses in one table.
+  maps `code` to the 1.x subclasses through the core's `core_error_classes()`
+  table (bindings/python/python/opentele2/exception.py:228).
 - Cost accepted: every pure-Python fix ships as a full wheel matrix.
 
-### M2. Deterministic web fingerprints (maintainer decision, recorded)
-- `crates/opentele2-core/data/devices/web.json` lists browser, version, OS,
-  UA template and weights; `devices::generate(Platform::Web, unique_id)` seeds
-  like the other platforms (sha1 mod 10^12, JSON-order weight expansion).
-- browserforge and the Chrome/Firefox version probes of 1.5.0 are dropped.
-  The catalog has a top-level `"schema": 1`; the parser rejects unknown
-  schema numbers.
+### M2. Deterministic web devices and browser fingerprints (maintainer decision, recorded)
+- `crates/opentele2-browser` (Apache-2.0, as the datapoints it embeds;
+  crates/opentele2-browser/Cargo.toml:9-11) ports browserforge over the
+  embedded `apify_fingerprint_datapoints` 0.15.0 networks. Every draw comes
+  from the seeded xoshiro256** `Rng` and set operations keep first-seen
+  order, so a seed reproduces its output on any platform
+  (crates/opentele2-browser/src/lib.rs:1-9).
+- Seven browserforge defects are fixed, each marked `Defect (n)` in
+  crates/opentele2-browser/src/headers.rs: Sec-Fetch values, OS relaxation,
+  HTTP/1 fallback, Edge before Chrome in User-Agent detection, the
+  user-agent constraint, the ten-locale cap, request-dependent headers;
+  fingerprint.rs adds trimmed languages and a bounded retry.
+- Web devices are 1.5.0's browserforge pool, drawn with `opentele2-browser`
+  from a generator seeded by the Chrome and Firefox majors (`web_catalog_for`,
+  crates/opentele2-core/src/devices.rs:12-16): 60 Chrome, 30 Edge and 20
+  Firefox desktop user agents weighted 19/2/1 around the live majors, the
+  version window shifted by the dataset lag (at most `MAX_DATASET_LAG` = 24).
+  `devices::generate(Platform::Web, unique_id)` picks from the pool with the
+  same seed hash and cumulative weights as the other platforms. The curated
+  web catalog of P1-01 was deleted.
+- `api::Versions` carries `chrome_version` and `firefox_version`;
+  opentele2-versions fetches both (D10).
+- Bindings: Python `opentele2.browser` (`HeaderGenerator`,
+  `FingerprintGenerator`, `Browser`, `Screen`, browserforge's arguments plus
+  `seed=`); Node `generateHeaders(options, seed)` and
+  `generateFingerprint(options, seed)`. Both give byte-identical output for
+  the same seed and options.
 
 ### D10. Network version fetching is a separate crate
 - `crates/opentele2-versions` ports the 7 sources of 1.5.0
   `version_fetcher.py` (tdesktop, Android, Telegram X, iOS, macOS, WebK, WebA)
-  and returns a `VersionsPatch` applied to core `api::Versions`
-  (crates/opentele2-versions/src/lib.rs:52,109,164). Blocking HTTP with
+  plus the stable Chrome and Firefox versions 1.5.0 fetched for its web
+  fingerprints, and returns a `VersionsPatch` applied to core `api::Versions`
+  (`fetch_all`, `apply`, crates/opentele2-versions/src/lib.rs:204,265). The
+  bindings convert the patch through its field map (`VersionsPatch::FIELDS`,
+  `to_map`, `from_map`). Blocking HTTP with
   rustls (`ureq`), parallel per source, per-call timeout; parsers are pure
   functions tested on stored HTML fixtures, live fetches are `#[ignore]`.
 - Rejected: fetching in the core (breaks the no-network rule) and `reqwest`
@@ -134,21 +170,33 @@ v1 Known gap "catalogs exist twice" is closed by Removal.
 - Saving a folder with a legacy key file migrates it in the core, as 1.5.0
   does, instead of failing.
 - Telethon `.session` sqlite v8: the core builds the rows and the `.json`
-  companion; Python writes the file with stdlib `sqlite3`, npm with
-  `node:sqlite`, Rust with the default-off core feature `telethon-sqlite`
-  (crates/opentele2-core/Cargo.toml features; Q6).
+  companion and writes and reads the file with its default-off feature
+  `telethon-sqlite` (bundled SQLite), which Python, npm (every Node >= 18)
+  and Rust all use (bindings/python/Cargo.toml:24,
+  bindings/node/Cargo.toml:21; Q6).
 
 ## Parity
 
-Shared by core, Rust, Python and npm: tdata read/write, KDFs, AES-IGE,
-Telethon and mtcute string sessions, grammers SessionData, device generation
-(web included), API profiles, batch load. Every row of the 1.x Python-only
-matrix below has shipped.
+Shared by core, Rust, Python and npm: tdata read/write, KDFs, AES-IGE and
+AES-CTR, SHA-1/256, HMAC, PBKDF2, PQ factorisation, gzip, the OS random
+source (`crypto::random_fill`, the single entry point), Telethon and mtcute
+string sessions, the Telethon `.session` file, grammers SessionData, device
+generation (web included), browser headers and fingerprints, API profiles,
+batch load. The bindings take name tables, MTP config marshalling, flow
+constants and texts, the consistency report, session JSON shaping and error
+classes from core items instead of keeping copies. Python registers the
+Telethon crypto bridge (M1); mtcute's `createCryptoProvider()` implements
+every `ICryptoProvider` member on the core, while mtcute's DH and RSA bigint
+maths stay mtcute's. No Rust source holds a lint suppression
+(crates/opentele2-core/tests/no_suppressions.rs). Every row of the 1.x
+Python-only matrix below has shipped.
 
 | Capability (1.x source) | Core | Rust API | Python | npm |
 |---|---|---|---|---|
-| Web fingerprints (src/devices.py) | `devices` + web.json (M2) | core | facade `WebBrowserDevice` | `generate('TelegramWeb_A' / 'TelegramWeb_K')` |
-| Version fetchers, 7 sources (src/version_fetcher.py) | no (pure patch type only) | opentele2-versions | `_native` + import-time fetch | `fetchVersions()` Promise |
+| Web fingerprints (src/devices.py) | `devices` web pool over opentele2-browser (M2) | core | facade `WebBrowserDevice` | `generate('TelegramWeb_A' / 'TelegramWeb_K')` |
+| browserforge headers and fingerprints (1.5.0 dependency) | no (opentele2-browser) | `generate_headers`, `generate_fingerprint` | `opentele2.browser` | `generateHeaders`, `generateFingerprint` |
+| Client protocol crypto (Telethon cryptg, pyaes, hashlib; mtcute ICryptoProvider) | `crypto`, `compress` | core | `_native.cryptg` + `_telethon_crypto` (M1) | `createCryptoProvider` (mtcute) |
+| Version fetchers, 7 sources + Chrome, Firefox (src/version_fetcher.py) | no (pure patch type only) | opentele2-versions | `_native` + import-time fetch | `fetchVersions()` Promise |
 | PlatformVersions extra fields, LAYER (src/fingerprint.py) | `api::Versions`, `api::LAYER` = 230 | core | facade `PlatformVersions` | `platformVersions`, `LAYER` |
 | Advertised layer | no (client property) | `grammers_tl_types::LAYER` | Telethon layer | mtcute TL layer |
 | tdesktop_tz_offset | `fingerprint` tz offset | core | facade (local offset) | `tzOffset` |
@@ -158,7 +206,7 @@ matrix below has shipped.
 | TransportRecommendation | no (Telethon classes) | n/a | Python only | n/a |
 | msg_id offset/validity | `fingerprint` | core | facade | `msgIdOffset`, `isValidMsgId` |
 | APIData from_json/to_json, extra fields, eq/hash (src/api.py) | `api::ApiProfile` session JSON | core | `APIData` facade | `profileFromSessionJson`, `profileToSessionJson`, `profilesEqual` |
-| Telethon .session v8 + .json pair (src/tl/session_io.py) | `session::telethon_file` rows + JSON companion | feature `telethon-sqlite` | Python sqlite3 writer | `opentele2/telethon` over `node:sqlite` |
+| Telethon .session v8 + .json pair (src/tl/session_io.py) | `session::telethon_file` rows, file + JSON companion | feature `telethon-sqlite` | core writer (`_native.write_session_file`) | `opentele2/telethon` over the core writer |
 | Legacy dbi, MTP.Config/DcOptions, endpoints from config (src/td/mtp.py) | `tdata::mtp_config`, `session` endpoint choice (D12) | core | facade `MtpConfigView` | `accountMtpConfig`, `accountEndpoints` |
 | Legacy key file migration on save (src/td/tdesktop.py) | `TData::save` / `TData::migrate` (D12) | core | facade | `migrateTdata`, `saveTdata` |
 | QR login + 2FA, CreateNewSession (src/tl/telethon.py) | `auth` URL + SRP | `client::qr_login` | Telethon | `qrLoginToNewClient` |
@@ -177,7 +225,7 @@ Nothing was deleted before its replacement passed its gate (P4 after P3).
 | bindings/python/opentele2_core.pyi | delete | deleted; python/opentele2/_native.pyi |
 | PyPI `opentele2-core` | no further releases | `opentele2._native`; only a pre-release ever existed (Q4) |
 | src/__init__.py | port | python/opentele2/__init__.py, same cryptg rule |
-| src/api.py, src/exception.py, src/devices.py, src/fingerprint.py, src/consistency.py | facade / port | python/opentele2/, same names; catalogs only in crates/opentele2-core/data/devices |
+| src/api.py, src/exception.py, src/devices.py, src/fingerprint.py, src/consistency.py | facade / port | python/opentele2/, same names; catalogs only in crates/opentele2-core/data/devices, the web pool from opentele2-browser |
 | src/version_fetcher.py | delete | opentele2-versions via `_native`; private `_version_fetcher.py` |
 | src/td/tdesktop.py, account.py, auth.py | facade | `TDesktop`, `Account`, `AuthKey`, `AuthKeyType` over `_native.TData` |
 | src/td/storage.py, storage_account.py, map_data.py, mtp.py, key_data.py, configs.py, shared.py | delete | core `tdata`, `kdf`, `crypto`; `td/__init__.py` exports the facades only |
@@ -210,8 +258,12 @@ Deliberately not kept as public names: `td.MTP`, `td.MapData`, `td.Serialize`,
 
 Recorded by three review passes of bindings/python against 1.5.0.
 
-- Web fingerprints are deterministic per `unique_id` (M2); browserforge is
-  dropped.
+- Web devices and browser fingerprints are deterministic per seed (M2): a
+  web device per `unique_id` and per Chrome/Firefox major, `opentele2.browser`
+  and `generateHeaders`/`generateFingerprint` output per `seed`.
+- msg_id offsets and flow delays come from the OS random source, so
+  `random.seed` no longer reproduces them
+  (bindings/python/python/opentele2/fingerprint.py:378-379).
 - Dropped dependencies: `browserforge`, `selectolax`, `tgcrypto`
   (`TgCrypto-pyrofork`) and `argon2-cffi`; the package depends on `telethon`
   and, below Python 3.10, `typing_extensions` (bindings/python/pyproject.toml).
@@ -238,24 +290,36 @@ Recorded by three review passes of bindings/python against 1.5.0.
 - `deviceList` and the other catalog lists return fresh read-only copies
   (bindings/python/python/opentele2/devices.py:60).
 - SRP failures carry the core's error text.
-- Node below 22.5 has no Telethon `.session` support: `opentele2/telethon`
-  rejects with `OT_NODE_SQLITE_UNAVAILABLE` (bindings/node/telethon.mjs:39).
+- Node: when the new mtcute client already holds a session of another
+  `api_id`, that session is replaced locally, as 1.5.0 Python does
+  (`EXISTING_SESSION_REPLACED`, bindings/node/index.d.ts:535-539).
+- Node: a 2FA password without SRP inputs (`srpId`, `srpB`) ends in
+  `OT_SRP_BAD_B`, as in Python (bindings/node/mtcute.d.ts:155-159).
+- Node: `initConnection` sends `params` with `tz_offset` for the tdesktop
+  profile (bindings/node/mtcute.d.ts:18-36).
+- Node: `accountMtpConfig` and `accountEndpoints` return the production
+  default without an account (bindings/node/index.d.ts:139-140).
+- Node: `fetchVersions` rejects a `timeoutMs` that is not a positive number
+  (bindings/node/index.d.ts:551-552).
+- Node: a loosely typed `.json` companion loads with `profile` `null`
+  (bindings/node/telethon.d.ts:40-43).
+- grammers: `client::run_consistency_checks` returns the core
+  `ConsistencyReport` (crates/opentele2-grammers/src/client.rs:799-802).
 - grammers 0.11 sends an empty `lang_pack` and no `params` or `proxy` in
   `initConnection`, and its QR login does not wait for `updateLoginToken`
   (crates/opentele2-grammers/src/client.rs:22-30).
 
 ## Known debts
 
-- `BadAccountsCount` is recognised in the facade by its message text
-  (`legacy_message.startswith("Bad accounts count ")`,
-  bindings/python/python/opentele2/td/tdesktop.py:145-150), not by an error
-  code of its own.
-- `fingerprint.py` patches two core issue texts for display (`ShortLangCode`
-  and `ApiIdMismatch`, bindings/python/python/opentele2/fingerprint.py:264-270).
-- The agent-kernel guard let a few heredoc writes through.
-- The staged workflows in refs/github-workflows/ still build the hatchling
-  package and call `scripts/gen_core_vectors.py` (P4-07 open), and so does
-  .github/workflows/test.yml:82.
+- Telethon's DH and RSA arithmetic (Python `pow`) and its `os.urandom`
+  calls stay Telethon's; the bridge covers the rest of its protocol crypto
+  (bindings/python/python/opentele2/_telethon_crypto.py:23-24).
+- grammers 0.11 sends an empty `lang_pack` and no `params` in
+  `initConnection` (D11).
+- On its error path the Python session companion reader parses the `.json`
+  once more, since the core's `read_companion`
+  (crates/opentele2-core/src/session/telethon_file.rs:260) shares one `what`
+  across its errors.
 
 ## Phases
 
@@ -267,7 +331,7 @@ CI changes go only to refs/github-workflows/; the maintainer copies them to
 
 | Id | Title | Shipped |
 |---|---|---|
-| P1-01 | Web catalog, schema 1, seeded Web generate | 8fdf1f4 |
+| P1-01 | Web catalog, schema 1, seeded Web generate (catalog replaced by P5-02) | 8fdf1f4 |
 | P1-02, P1-03 | Versions extra fields, layer; APIData JSON with extras, Eq/Hash | 69c3cb4 |
 | P1-04 | `fingerprint` module | cfe0379 |
 | P1-05 | MTP config, DcOptions, legacy dbi; endpoints from config | 98f6aeb |
@@ -278,7 +342,7 @@ CI changes go only to refs/github-workflows/; the maintainer copies them to
 | P2-01 | grammers client flows (feature `client`) | e5dbeae |
 | P2-02, P2-03 | Node exports of P1 and `fetchVersions` | 2204c62 |
 | P2-04 | mtcute flows: QR + 2FA, sessions admin, consistency | b690f48 |
-| P2-05 | Telethon .session + .json via `node:sqlite` | 14c5818 |
+| P2-05 | Telethon .session + .json for Node (writer moved to the core in P5-04) | 14c5818 |
 | P3-01 | Mixed layout: `opentele2._native`, name `opentele2`, cryptg rule | 9b626af |
 | P3-02 | `_native` exports of P1 and versions | 04df576 |
 | P3-03 | Facades: exception, api, devices, fingerprint | 65e575e, 4471f04 |
@@ -290,12 +354,17 @@ CI changes go only to refs/github-workflows/; the maintainer copies them to
 | P4-04, P4-05 | Version 2.0.0 in Cargo and npm manifests | 3090cbc |
 | P4-06 | README and this file for the stable 2.0.0 | OT-209-docs-stable |
 | P4-07 | Staged workflows: one maturin package, versions crate, 1.5.0 vector job | open |
+| P5-01 | Core crypto: SHA-1/256, HMAC, PBKDF2, AES-CTR, PQ, `random_fill`, gzip | 1f89b8f..d393d81 |
+| P5-02 | opentele2-browser; web devices drawn from it; Chrome/Firefox fetch, `firefox_version` | 1f89b8f..d393d81 |
+| P5-03 | `opentele2.browser`, `generateHeaders`/`generateFingerprint`; Telethon crypto bridge; mtcute `createCryptoProvider` on the core | 1f89b8f..d393d81 |
+| P5-04 | Telethon .session through the core's bundled SQLite in every binding; binding tables and texts from the core; no Rust lint suppressions | 1f89b8f..d393d81 |
+| P5-05 | README and this file for the Rust-everywhere core | OT-290-docs-core-everywhere |
 
 ## Resolved questions
 
-- Q1. web.json is a curated list of real stable Chrome, Edge, Firefox and
-  Safari releases per OS, weighted by market share, with its sources in the
-  catalog's `"sources"` field. browserforge is not used as a source.
+- Q1. Web devices are 1.5.0's browserforge pool, drawn by opentele2-browser
+  from the embedded `apify_fingerprint_datapoints` 0.15.0 networks (M2); the
+  curated web catalog of P1-01 was replaced and no hand-kept list remains.
 - Q2. P1-06 uses a synthetic legacy (pre-7.3, no trailer) folder written by
   the vector generator from 1.5.0 primitives
   (crates/opentele2-core/tests/vectors/tdata_legacy/); tests/test_profile3.8
