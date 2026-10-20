@@ -23,6 +23,7 @@
 pub mod api;
 pub mod auth;
 pub mod batch;
+pub mod compress;
 pub mod crypto;
 pub mod devices;
 mod error;
