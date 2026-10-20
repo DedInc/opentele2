@@ -1,9 +1,0 @@
-[report]
-omit =
-    tests/*
-    setup.py
-    src/debug.py
-exclude_also =
-    if TYPE_CHECKING:
-    @overload
-    raise NotImplementedError

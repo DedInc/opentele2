@@ -1,26 +1,36 @@
+# Real accounts used by the test suite; must never be committed.
+tests/data/
+
+# Local-only material: reference checkouts and working notes.
+refs/
+docs/
+
+# Editor settings.
 .vscode/*
-src/tests.py
-tests.py
-test.py
-__pycache__/
-*.pyc
+
+# Python virtual environments.
 .venv/
 .venv*/
 venv/
-build/*
-pydoc-markdown.yml
-build_script*
-.generated-files.txt
-dist/*
-*.egg-info/*
 
-tests/sessions/
-tests/tdatas/
-refs/
-docs/
+# Python bytecode and tool caches.
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
 .coverage
-tests/data/
+
+# Rust build output; the workspace lockfile stays tracked.
 /target/
+bindings/python/target/
 !/Cargo.lock
+
+# Python packaging output from bindings/python.
+dist/
+*.egg-info/
+*.whl
+
+# Node binding dependencies, native addons and packed tarballs.
 node_modules/
 *.node
+*.tgz

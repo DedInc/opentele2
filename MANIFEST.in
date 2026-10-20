@@ -1,3 +1,0 @@
-global-exclude *test.py
-global-exclude *tests.py
-include requirements.txt
