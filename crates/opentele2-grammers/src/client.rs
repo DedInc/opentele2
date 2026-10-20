@@ -99,7 +99,7 @@ impl Invoker for Client {
 }
 
 /// The 1.5.0 `TelethonUnauthorized` message when the self user is unknown.
-pub const USER_ID_UNRESOLVED: &str = "Could not resolve the account's user id";
+pub use opentele2_core::auth::USER_ID_UNRESOLVED;
 
 /// Why a flow failed, named after the 1.5.0 exception it raises.
 #[derive(Debug)]
@@ -155,9 +155,7 @@ impl fmt::Display for ClientError {
                 f.write_str(&auth::unsupported_password_algorithm(algorithm))
             }
             Self::Srp(error) => write!(f, "{error}"),
-            Self::SignUpRequired => {
-                f.write_str("the server asked to sign up instead of logging in")
-            }
+            Self::SignUpRequired => f.write_str(auth::SIGN_UP_REQUIRED),
             Self::UserIdUnresolved => f.write_str(USER_ID_UNRESOLVED),
             Self::Invocation(error) => write!(f, "{error}"),
             Self::Core(error) => write!(f, "{error}"),
@@ -365,17 +363,14 @@ fn password_check(
             ));
         }
     };
-    let (srp_id, srp_b) = match (info.srp_id, &info.srp_b) {
-        (Some(srp_id), Some(srp_b)) => (srp_id, srp_b.as_slice()),
-        _ => (0, &[][..]),
-    };
+    let (srp_id, srp_b) = auth::srp_inputs(info.srp_id, info.srp_b.as_deref());
     let params = SrpParams {
         srp_id,
         g: algo.g,
         p: &algo.p,
         salt1: &algo.salt1,
         salt2: &algo.salt2,
-        srp_b,
+        srp_b: &srp_b,
     };
     let check = auth::srp_check_random(&params, password).map_err(ClientError::Srp)?;
     Ok(tl::enums::InputCheckPasswordSrp::Srp(
@@ -404,7 +399,7 @@ where
         .await
     {
         Ok(authorization) => on_login(session, &authorized_user(authorization)?).await,
-        Err(error) => Err(match rpc_named(&error, "PASSWORD_HASH_INVALID") {
+        Err(error) => Err(match rpc_named(&error, auth::RPC_PASSWORD_HASH_INVALID) {
             Some(rpc) => ClientError::PasswordIncorrect(rpc),
             None => error.into(),
         }),
@@ -467,16 +462,16 @@ where
                 return on_login(new_session, &authorized_user(authorization)?).await;
             }
             Ok(None) => {}
-            Err(error) if rpc_named(&error, "SESSION_PASSWORD_NEEDED").is_some() => {
+            Err(error) if rpc_named(&error, auth::RPC_SESSION_PASSWORD_NEEDED).is_some() => {
                 return two_factor(new, new_session, password).await;
             }
-            Err(InvocationError::Rpc(rpc)) if rpc.is("AUTH_TOKEN_ALREADY_ACCEPTED") => {
+            Err(InvocationError::Rpc(rpc)) if rpc.is(auth::RPC_AUTH_TOKEN_ALREADY_ACCEPTED) => {
                 return Err(ClientError::AuthTokenAlreadyAccepted(rpc));
             }
-            Err(InvocationError::Rpc(rpc)) if rpc.is("AUTH_TOKEN_EXPIRED") => {
+            Err(InvocationError::Rpc(rpc)) if rpc.is(auth::RPC_AUTH_TOKEN_EXPIRED) => {
                 return Err(ClientError::AuthTokenExpired(rpc));
             }
-            Err(InvocationError::Rpc(rpc)) if rpc.is("AUTH_TOKEN_INVALID") => {
+            Err(InvocationError::Rpc(rpc)) if rpc.is(auth::RPC_AUTH_TOKEN_INVALID) => {
                 return Err(ClientError::AuthTokenInvalid(rpc));
             }
             Err(error) => return Err(error.into()),
@@ -614,9 +609,9 @@ pub async fn terminate_session<I: Invoker>(invoker: &I, hash: i64) -> Result<(),
     {
         Ok(_) => Ok(()),
         Err(error) => Err(
-            if let Some(rpc) = rpc_named(&error, "FRESH_RESET_AUTHORISATION_FORBIDDEN") {
+            if let Some(rpc) = rpc_named(&error, auth::RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN) {
                 ClientError::FreshResetAuthorisationForbidden(rpc)
-            } else if let Some(rpc) = rpc_named(&error, "HASH_INVALID") {
+            } else if let Some(rpc) = rpc_named(&error, auth::RPC_HASH_INVALID) {
                 ClientError::HashInvalid(rpc)
             } else {
                 error.into()

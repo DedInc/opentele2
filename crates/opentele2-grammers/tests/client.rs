@@ -735,6 +735,7 @@ async fn get_me_id_reads_the_self_user() {
     let error = client::get_me_id(&fake).await.expect_err("no user");
     assert!(matches!(error, ClientError::UserIdUnresolved));
     assert_eq!(error.to_string(), USER_ID_UNRESOLVED);
+    assert_eq!(error.to_string(), auth::USER_ID_UNRESOLVED);
 }
 
 #[tokio::test]
