@@ -414,6 +414,102 @@ impl BayesianNetwork {
         false
     }
 
+    /// [`BayesianNetwork::sample`] in which every node named in `restrictions`
+    /// (and not in `fixed`) takes one of its listed values.
+    ///
+    /// Without restrictions the draws, and so the result, are exactly those
+    /// of [`BayesianNetwork::sample`]. With restrictions the search is depth
+    /// first in sampling order, banning a value whose subtree has no
+    /// completion and backtracking, as [`BayesianNetwork::consistent_sample`]
+    /// does; unrestricted nodes draw from their full distribution and, as in
+    /// `sample`, stay out of the result when it is empty. `None` when no
+    /// sample satisfies the restrictions.
+    #[must_use]
+    pub fn restricted_sample(
+        &self,
+        rng: &mut Rng,
+        fixed: &Values,
+        restrictions: &Restrictions,
+    ) -> Option<Values> {
+        let allowed: Vec<Option<Vec<Id>>> = self
+            .nodes
+            .iter()
+            .map(|node| {
+                if fixed.contains_key(&node.name) {
+                    return None;
+                }
+                restrictions
+                    .get(&node.name)
+                    .map(|values| values.iter().filter_map(|v| self.interner.get(v)).collect())
+            })
+            .collect();
+        let mut chosen: Vec<Option<Id>> = self
+            .nodes
+            .iter()
+            .map(|node| fixed.get(&node.name).and_then(|v| self.interner.get(v)))
+            .collect();
+        if !self.restricted_from(rng, fixed, &allowed, &mut chosen, 0) {
+            return None;
+        }
+        let mut sample = fixed.clone();
+        for (node, id) in self.nodes.iter().zip(chosen) {
+            if fixed.contains_key(&node.name) {
+                continue;
+            }
+            if let Some(id) = id {
+                sample.insert(&*node.name, self.interner.resolve(id).to_owned());
+            }
+        }
+        Some(sample)
+    }
+
+    fn restricted_from(
+        &self,
+        rng: &mut Rng,
+        fixed: &Values,
+        allowed: &[Option<Vec<Id>>],
+        chosen: &mut [Option<Id>],
+        depth: usize,
+    ) -> bool {
+        let Some(node) = self.nodes.get(depth) else {
+            return true;
+        };
+        if fixed.contains_key(&node.name) {
+            return self.restricted_from(rng, fixed, allowed, chosen, depth + 1);
+        }
+        // A parent outside the network is looked up by name among the fixed
+        // values, as `sample` does.
+        let level = node.level(|position| match node.parents[position] {
+            Some(i) => chosen[i],
+            None => fixed
+                .get(&node.parent_names[position])
+                .and_then(|v| self.interner.get(v)),
+        });
+        let mut banned = Vec::new();
+        loop {
+            let drawn = match (&allowed[depth], level) {
+                (_, None) => None,
+                (Some(list), Some(level)) => draw_restricted(rng, level, list, &banned),
+                (None, Some(level)) => draw(rng, level.leaf().filter(|(v, _)| !banned.contains(v))),
+            };
+            let Some(value) = drawn else {
+                // An unrestricted node with an empty distribution stays out
+                // of the sample; anything else has run out of values.
+                if allowed[depth].is_none() && banned.is_empty() {
+                    chosen[depth] = None;
+                    return self.restricted_from(rng, fixed, allowed, chosen, depth + 1);
+                }
+                return false;
+            };
+            chosen[depth] = Some(value);
+            if self.restricted_from(rng, fixed, allowed, chosen, depth + 1) {
+                return true;
+            }
+            banned.push(value);
+            chosen[depth] = None;
+        }
+    }
+
     /// browserforge's `get_possible_values`: extends the constraints with the
     /// values they induce on the parents of each constrained node, then
     /// intersects the constraints that meet on a node.

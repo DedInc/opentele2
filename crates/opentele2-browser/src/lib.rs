@@ -10,17 +10,25 @@
 //!
 //! [browserforge]: https://github.com/daijro/browserforge
 
+pub mod headers;
 mod map;
 pub mod network;
 pub mod rng;
 mod zip;
 
+pub use headers::{
+    Browser, HeaderGenerator, HeaderOptions, HeaderOverrides, Headers, HttpVersion, browser_of,
+    get_user_agent, pascalize,
+};
 pub use map::{OrderedMap, Restrictions, Values};
 pub use network::{BayesianNetwork, Node, fingerprint_network, header_network, input_network};
 pub use rng::Rng;
 
 /// The message browserforge raises for an unsatisfiable constraint closure.
 const TOO_RESTRICTIVE: &str = "The current constraints are too restrictive. No possible values can be found for the given constraints.";
+
+/// The message browserforge raises when no headers fit the options.
+const NO_HEADERS: &str = "No headers based on this input can be generated. Please relax or change some of the requirements you specified.";
 
 /// Errors of the crate.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -38,6 +46,23 @@ pub enum Error {
     /// A network definition is not valid network JSON.
     #[error("malformed network definition: {0}")]
     Network(String),
+    /// Header generator options that browserforge rejects, such as a browser
+    /// whose minimum version exceeds its maximum or more than ten locales.
+    #[error("invalid header options: {0}")]
+    InvalidOptions(String),
+    /// No input sample satisfies the options, even after the permitted
+    /// relaxations.
+    #[error("{NO_HEADERS}")]
+    NoHeaders,
+    /// The generated headers carry no `User-Agent`.
+    #[error("Failed to find User-Agent in generated response")]
+    MissingUserAgent,
+    /// The generated `User-Agent` names no known browser.
+    #[error("Failed to find browser in User-Agent {0:?}")]
+    UnknownBrowser(String),
+    /// An embedded JSON data file is malformed.
+    #[error("malformed embedded data: {0}")]
+    Data(String),
     /// The operating system could not provide entropy.
     #[error("operating system entropy unavailable: {0}")]
     Entropy(#[source] getrandom::Error),
