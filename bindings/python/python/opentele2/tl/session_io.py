@@ -1,17 +1,14 @@
 """1.5.0 ``src/tl/session_io.py``: a Telethon ``.session`` file and its
-``.json`` companion. The schema, the statements, the path rules and the JSON
-come from :mod:`opentele2._native`; the file itself is written with
-:mod:`sqlite3`."""
+``.json`` companion. The path rules, the file and the companion text are
+written and read by :mod:`opentele2._native`."""
 
 from __future__ import annotations
 
 import asyncio
 import contextvars
 import functools
-import json
 import logging
 import os
-import sqlite3
 import typing
 from typing import TYPE_CHECKING
 
@@ -39,9 +36,6 @@ _T = typing.TypeVar("_T")
 
 SESSION_VERSION = _native.TELETHON_SESSION_VERSION
 
-# The version 8 tables in 1.5.0's order: name, DDL and columns.
-_V8_SCHEMA = _native.telethon_schema()
-
 
 async def _to_thread(func: typing.Callable[..., _T], *args: typing.Any) -> _T:
     """``asyncio.to_thread`` (3.9+): the default executor, current context."""
@@ -57,32 +51,28 @@ def _pair_paths(path: str) -> tuple[str, str, str]:
     return base, session_file, json_file
 
 
-def _read_json(path: str) -> typing.Any:
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def _read_companion(path: str) -> dict[str, typing.Any]:
+    """The object of the ``.json`` companion at ``path``, its ``app_id`` and
+    ``app_hash`` present; anything else raises SessionFileInvalid with
+    1.5.0's message."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except UnicodeDecodeError as e:
+        raise SessionFileInvalid(f"Invalid JSON file: {e}") from e
+    try:
+        _profile, data = _native.read_session_companion(text)
+    except _native.CoreError as e:
+        if e.code != "INVALID_INPUT":
+            raise
+        raise SessionFileInvalid(e.legacy_message) from e
+    return data
 
 
-def _write_json(path: str, data: typing.Any) -> None:
+def _write_companion(path: str, text: str) -> None:
+    # Text mode, as 1.5.0 wrote the companion: newlines are the platform's.
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-
-def _schema_is_current(c: sqlite3.Cursor) -> bool:
-    """True only when every table owned here already has the version 8 layout.
-
-    A pre-v8 file keeps a narrower ``sessions`` table. Stamping version 8 over
-    it makes Telethon skip ``_upgrade_database``, after which the six-value
-    INSERT fails or the ``select *`` unpack raises ``ValueError``.
-    """
-    c.execute("select name from sqlite_master where type='table'")
-    present = {row[0] for row in c.fetchall()}
-    if not {table["name"] for table in _V8_SCHEMA} <= present:
-        return False
-    for table in _V8_SCHEMA:
-        c.execute(f"pragma table_info({table['name']})")
-        if [row[1] for row in c.fetchall()] != table["columns"]:
-            return False
-    return True
+        f.write(text)
 
 
 def write_session_file(
@@ -100,26 +90,7 @@ def write_session_file(
     ``select *`` in the opposite order to its own DDL while 1.45.0 follows the
     DDL, and NULL in both columns reads back the same under either order.
     """
-    full_path = _native.session_path(path)
-    conn = sqlite3.connect(full_path)
-    try:
-        c = conn.cursor()
-        if not _schema_is_current(c):
-            for table in _V8_SCHEMA:
-                c.execute(f"drop table if exists {table['name']}")
-            for table in _V8_SCHEMA:
-                c.execute(table["ddl"])
-        c.execute(_native.TELETHON_DELETE_VERSION)
-        c.execute(_native.TELETHON_INSERT_VERSION, (SESSION_VERSION,))
-        c.execute(_native.TELETHON_DELETE_SESSIONS)
-        c.execute(
-            _native.TELETHON_INSERT_SESSION,
-            (dc_id, server_address, port, auth_key_bytes, None, None),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return full_path
+    return _native.write_session_file(path, dc_id, server_address, port, auth_key_bytes)
 
 
 async def from_session_json(
@@ -148,17 +119,7 @@ async def from_session_json(
         exception=SessionFileNotFound(f"JSON file not found: {json_file}"),
     )
 
-    try:
-        data = await _to_thread(_read_json, json_file)
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        raise SessionFileInvalid(f"Invalid JSON file: {e}") from e
-
-    required = ["app_id", "app_hash"]
-    for field in required:
-        Expects(
-            field in data and data[field] is not None,
-            exception=SessionFileInvalid(f"Missing required field '{field}' in JSON"),
-        )
+    data = await _to_thread(_read_companion, json_file)
 
     api_data = APIData.from_json(data)
     session = SQLiteSession(base)
@@ -214,8 +175,13 @@ async def save_session_json(
     if client.UserId and "id" not in extra:
         extra["id"] = client.UserId
 
-    json_data = api_data.to_json(extra)
-    await _to_thread(_write_json, json_file, json_data)
+    profile = api_data._profile()
+    if profile is None:
+        raise TypeError(
+            "the session JSON needs every APIData field set, api_id an int and the rest str"
+        )
+    text = _native.session_companion_text(profile, extra)
+    await _to_thread(_write_companion, json_file, text)
 
     return (session_file, json_file)
 

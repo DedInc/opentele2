@@ -384,6 +384,20 @@ def session_path(path: _Path) -> str: ...
 def session_companion_json(
     profile: ApiProfile, extra: dict[str, Any] | None = None
 ) -> dict[str, Any]: ...
+def session_companion_text(profile: ApiProfile, extra: dict[str, Any] | None = None) -> str: ...
+
+# Raises CoreError INVALID_INPUT, legacy_message 1.5.0's SessionFileInvalid
+# text; the profile is None when its keys are not the strict typed form.
+def read_session_companion(text: str) -> tuple[ApiProfile | None, dict[str, Any]]: ...
+def write_session_file(
+    path: _Path,
+    dc_id: int,
+    server_address: str,
+    port: int,
+    auth_key: _Bytes,
+    takeout_id: int | None = None,
+) -> str: ...
+def read_session_file(path: _Path) -> TelethonSessionRows: ...
 
 # fingerprints
 
