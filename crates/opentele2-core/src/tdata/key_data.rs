@@ -1,7 +1,7 @@
 //! The `key_<dataName>` file of Telegram Desktop 7.3 (`Storage::Domain`).
 //!
 //! The file is a `TDF$` container (see [`crate::tdf`]) whose payload is a
-//! `QDataStream` of `QByteArray` blobs, as in 1.5.0 (`src/td/key_data.py`):
+//! `QDataStream` of `QByteArray` blobs:
 //!
 //! 1. the open salt, [`LOCAL_ENCRYPT_SALT_SIZE`] bytes;
 //! 2. the local key wrapped under `create_local_key("", salt)` (or, before
@@ -49,7 +49,7 @@ pub const ARGON2_MEMORY_KIB: u32 = 65_536;
 pub const ARGON2_TIME: u32 = 8;
 /// Argon2id lane count [`default_passcode_kdf`] writes.
 pub const ARGON2_LANES: u32 = 1;
-/// Generation [`default_passcode_kdf`] gives a fresh wrap, as 1.5.0 does.
+/// Generation [`default_passcode_kdf`] gives a fresh wrap.
 pub const DEFAULT_WRAP_GENERATION: u32 = 1;
 
 /// The name of the key file for `key_file`, for example `key_data`.
@@ -333,8 +333,7 @@ impl KeyData {
     }
 }
 
-/// The local key recovered from a key file and the key that unwrapped it
-/// (1.5.0's `(localKey, wrapKey)`).
+/// The local key recovered from a key file and the key that unwrapped it.
 #[derive(Debug, Clone)]
 pub struct OpenedKey {
     /// The local key every other tdata file is encrypted with.
@@ -546,8 +545,8 @@ impl AccountsInfo {
         })
     }
 
-    /// Encodes `count: i32`, the indices as `i32`, and `active: i32`, as
-    /// 1.5.0's `__writeAccounts` does before encrypting.
+    /// Encodes `count: i32`, the indices as `i32`, and `active: i32`, the
+    /// plaintext [`TData::save`](super::TData::save) encrypts.
     ///
     /// # Errors
     /// [`Error::QDataStreamFailed`] when the count does not fit an `i32`.
@@ -590,16 +589,16 @@ pub fn decrypt_accounts_info(
     AccountsInfo::parse(&info)
 }
 
-/// 1.5.0's `ExpectStreamStatus` message after the three key file blobs.
+/// The `ExpectStreamStatus` message after the three key file blobs.
 const KEY_DATA_STREAM_FAILED: &str = "Could not stream the key data";
-/// 1.5.0's message when the trailer blob is cut short.
+/// The message when the trailer blob is cut short.
 const TRAILER_STREAM_FAILED: &str = "Could not stream the key data trailer";
-/// 1.5.0's message when the trailer header is cut short.
+/// The message when the trailer header is cut short.
 const TRAILER_HEADER_STREAM_FAILED: &str = "Could not stream the key data trailer header";
-/// 1.5.0's message when a passcode wrap is cut short.
+/// The message when a passcode wrap is cut short.
 const WRAP_STREAM_FAILED: &str = "Could not stream a key data wrap";
 
-/// `result` with a stream failure named by the 1.5.0 `context` of the
+/// `result` with a stream failure named by the `context` of the
 /// reads it covers; other errors pass through.
 fn streamed<T>(result: Result<T>, context: &'static str) -> Result<T> {
     result.map_err(|error| match error {

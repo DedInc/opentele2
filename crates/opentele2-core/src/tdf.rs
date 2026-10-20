@@ -1,13 +1,13 @@
 //! The `TDF$` container that wraps every Telegram Desktop `tdata` file.
 //!
-//! Layout, as in 1.5.0 (`src/td/storage.py`):
+//! Layout:
 //!
 //! ```text
 //! b"TDF$" | version: u32 LE | payload | md5(payload | len(payload): u32 LE | version: u32 LE | b"TDF$")
 //! ```
 //!
 //! On disk a file named `name` is stored as `name` plus one of the suffixes
-//! `s`, `1`, `0`. [`read`] tries them in that order and [`write`] always
+//! `s`, `1`, `0`. [`read`] tries them in that order and [`write()`] always
 //! writes the `s` variant.
 
 use std::fs;
@@ -23,7 +23,7 @@ pub const MAGIC: [u8; 4] = *b"TDF$";
 /// File name suffixes [`read`] tries, in order.
 pub const READ_SUFFIXES: [&str; 3] = ["s", "1", "0"];
 
-/// File name suffix [`write`] uses.
+/// File name suffix [`write()`] uses.
 pub const WRITE_SUFFIX: &str = "s";
 
 const HEADER_LEN: usize = MAGIC.len() + 4;
@@ -119,13 +119,13 @@ impl TdfFile {
 /// When no suffix yields a valid file: the error of the last file that exists
 /// but failed to parse ([`Error::InvalidMagic`], [`Error::InvalidCheckSum`],
 /// or [`Error::QDataStreamFailed`]), else [`Error::FileNotFound`]. The
-/// magic, checksum and not-found errors carry `name`, as 1.5.0's messages
-/// do.
+/// magic, checksum and not-found errors carry `name`, so their messages name
+/// the file.
 pub fn read(dir: impl AsRef<Path>, name: &str) -> Result<TdfFile> {
     let dir = dir.as_ref();
     let mut failure = None;
     for suffix in READ_SUFFIXES {
-        // 1.5.0 treats any file it cannot open or read as absent.
+        // Any file that cannot be opened or read counts as absent.
         let Ok(data) = fs::read(dir.join(format!("{name}{suffix}"))) else {
             continue;
         };

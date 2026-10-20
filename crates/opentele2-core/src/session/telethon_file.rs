@@ -1,13 +1,13 @@
 //! Telethon `SQLiteSession` files (database `CURRENT_VERSION = 8`,
-//! `refs/telethon/telethon/sessions/sqlite.py`) as 1.5.0 writes them
-//! (`src/tl/session_io.py`, `write_session_file`), and the `.session` +
-//! `.json` pair of its `SaveSessionJson` / `FromSessionJson`.
+//! `refs/telethon/telethon/sessions/sqlite.py`) as `write_session_file`
+//! writes them, and the `.session` + `.json` pair of `SaveSessionJson` /
+//! `FromSessionJson`.
 //!
 //! Everything here is pure: [`SessionRows`] holds the one `sessions` row,
-//! [`SCHEMA`] and the statement constants hold the SQL 1.5.0 runs,
+//! [`SCHEMA`] and the statement constants hold the SQL the writer runs,
 //! [`pair_paths`] and [`session_path`] apply its suffix rules, and
 //! [`companion_json`] builds the `.json` companion, [`companion_text`]
-//! prints it as 1.5.0 writes it and [`read_companion`] reads it back. The
+//! prints it byte for byte and [`read_companion`] reads it back. The
 //! optional feature
 //! `telethon-sqlite` (off by default; rusqlite with a bundled SQLite, so the
 //! default build links no C code) adds `write_session_file` and
@@ -25,8 +25,8 @@ use crate::session::codecs::account_target;
 use crate::tdata::account::Account;
 use crate::{Error, Result};
 
-/// The database version 1.5.0 stamps (`SESSION_VERSION`, Telethon's
-/// `CURRENT_VERSION`).
+/// The database version a session file is stamped with (`SESSION_VERSION`,
+/// Telethon's `CURRENT_VERSION`).
 pub const VERSION: i64 = 8;
 
 /// The suffix of a session file (Telethon's `EXTENSION`).
@@ -40,14 +40,14 @@ pub const JSON_SUFFIX: &str = ".json";
 pub struct Table {
     /// Table name.
     pub name: &'static str,
-    /// The `create table` statement 1.5.0 runs (`"create table " + ddl`).
+    /// The `create table` statement the writer runs.
     pub ddl: &'static str,
     /// Column names in declaration order, as `pragma table_info` lists them.
     pub columns: &'static [&'static str],
 }
 
-/// The version 8 tables in 1.5.0's order (`_V8_SCHEMA`); Telethon creates
-/// the same columns in the same order.
+/// The version 8 tables, in creation order; Telethon creates the same
+/// columns in the same order.
 pub const SCHEMA: [Table; 5] = [
     Table {
         name: "version",
@@ -103,7 +103,7 @@ pub const INSERT_SESSION: &str = "insert into sessions values (?, ?, ?, ?, ?, ?)
 
 /// The `sessions` row of a version 8 file.
 ///
-/// 1.5.0 writes `takeout_id` and `tmp_auth_key` as NULL: Telethon 1.44.0
+/// `takeout_id` and `tmp_auth_key` are written as NULL: Telethon 1.44.0
 /// unpacks `select *` in the opposite order to its DDL while 1.45.0 follows
 /// the DDL, and NULL in both reads back the same under either order. A
 /// `takeout_id` other than `None` keeps that symmetry only for 1.45.0.
@@ -122,10 +122,10 @@ pub struct SessionRows {
 }
 
 impl SessionRows {
-    /// The row 1.5.0 saves for `account` (`ToTelethon`, then
+    /// The row saved for `account` (`ToTelethon`, then
     /// `SaveSessionJson`): the endpoint and key of
     /// [`crate::session::telethon::StringSession::from_account`], with the
-    /// address text 1.5.0 passes to `set_dc` (the stored config's IP text
+    /// address text passed to `set_dc` (the stored config's IP text
     /// verbatim, else the built-in table's text, IPv6 with all eight groups
     /// as four hex digits), and no takeout id.
     ///
@@ -177,8 +177,8 @@ fn with_suffix(base: &OsStr, suffix: &str) -> PathBuf {
 }
 
 /// The session file path of `path`: `path` itself when it ends with
-/// [`SESSION_SUFFIX`], else `path` with the suffix appended (1.5.0
-/// `write_session_file`, Telethon `SQLiteSession`).
+/// [`SESSION_SUFFIX`], else `path` with the suffix appended
+/// (`write_session_file`, Telethon `SQLiteSession`).
 #[must_use]
 pub fn session_path(path: impl AsRef<Path>) -> PathBuf {
     let path = path.as_ref().as_os_str();
@@ -189,10 +189,10 @@ pub fn session_path(path: impl AsRef<Path>) -> PathBuf {
     }
 }
 
-/// The `(session, json)` paths of `base` (1.5.0 `_normalize_base_path`):
-/// one trailing [`SESSION_SUFFIX`] is removed, then one trailing
-/// [`JSON_SUFFIX`], and each suffix is appended to what is left. The path is
-/// treated as text, with no separator handling, as in 1.5.0.
+/// The `(session, json)` paths of `base`: one trailing [`SESSION_SUFFIX`]
+/// is removed, then one trailing [`JSON_SUFFIX`], and each suffix is
+/// appended to what is left. The path is treated as text, with no
+/// separator handling.
 #[must_use]
 pub fn pair_paths(base: impl AsRef<Path>) -> (PathBuf, PathBuf) {
     let mut stem = base.as_ref().as_os_str().to_os_string();
@@ -207,9 +207,9 @@ pub fn pair_paths(base: impl AsRef<Path>) -> (PathBuf, PathBuf) {
     )
 }
 
-/// The `.json` companion 1.5.0 `save_session_json` writes
+/// The `.json` companion `save_session_json` writes
 /// (`APIData.to_json(extra)`), built by [`ApiProfile::to_session_json`].
-/// 1.5.0's `extra` holds `session_file`, the file name of the pair's base
+/// Its `extra` holds `session_file`, the file name of the pair's base
 /// path, and `id` when the user id is known; it is written with two-space
 /// indentation and non-ASCII text kept.
 #[must_use]
@@ -217,7 +217,7 @@ pub fn companion_json(profile: &ApiProfile, extra: Option<&Map<String, Value>>) 
     profile.to_session_json(extra)
 }
 
-/// The `.json` companion text 1.5.0 `save_session_json` writes, byte for
+/// The `.json` companion text `save_session_json` writes, byte for
 /// byte: [`companion_json`] as Python's `json.dump(data, f,
 /// ensure_ascii=False, indent=2)` prints it, through [`py_json_text`].
 #[must_use]
@@ -242,7 +242,7 @@ pub fn py_json_text(value: &Value) -> String {
     text
 }
 
-/// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+/// Reads `.json` companion text as `from_session_json` does: the
 /// text must parse as JSON, and `app_id` and `app_hash` must be present
 /// and not `null`. The profile is then read by
 /// [`ApiProfile::from_session_json`], and the whole object is returned
@@ -250,11 +250,11 @@ pub fn py_json_text(value: &Value) -> String {
 ///
 /// # Errors
 /// - [`Error::InvalidInput`] with `what` `JSON file` when the text is not
-///   JSON (`reason` is the parser's message, so the legacy message is
-///   1.5.0's `Invalid JSON file: {e}` shape, with the parser's wording), or
+///   JSON (`reason` is the parser's message, so [`Error::legacy_message`]
+///   has the `Invalid JSON file: {e}` shape, with the parser's wording), or
 ///   when a required field is missing or `null`, or the JSON is not an
-///   object (`reason` is 1.5.0's `Missing required field '{field}' in
-///   JSON`, `app_id` checked first).
+///   object (`reason` is `Missing required field '{field}' in JSON`,
+///   `app_id` checked first).
 /// - [`Error::Io`] as [`ApiProfile::from_session_json`] gives it, when a
 ///   profile key is missing or has the wrong type.
 pub fn read_companion(text: &str) -> Result<(ApiProfile, Map<String, Value>)> {
@@ -450,8 +450,7 @@ mod file {
         Error::Io(std::io::Error::other(error))
     }
 
-    /// Whether every table of [`SCHEMA`] exists with its version 8 columns
-    /// (1.5.0 `_schema_is_current`).
+    /// Whether every table of [`SCHEMA`] exists with its version 8 columns.
     fn schema_is_current(conn: &Connection) -> Result<bool> {
         let mut statement = conn
             .prepare("select name from sqlite_master where type='table'")
@@ -484,8 +483,8 @@ mod file {
         Ok(true)
     }
 
-    /// Writes `rows` as 1.5.0 `write_session_file` does and returns the file
-    /// path ([`session_path`] of `path`).
+    /// Writes `rows` to a session file and returns the file path
+    /// ([`session_path`] of `path`).
     ///
     /// The file is created when missing. A schema that is not already the
     /// version 8 layout is dropped and rebuilt with [`SCHEMA`]; a current
@@ -531,7 +530,7 @@ mod file {
     }
 
     /// Reads the sessions row of a version 8 file at [`session_path`] of
-    /// `path`, written by 1.5.0, by [`write_session_file`], or by Telethon
+    /// `path`, written by [`write_session_file`] or by Telethon
     /// itself (whose multi-line DDL and empty `tmp_auth_key` are accepted).
     /// Columns are read by name, so the 1.44.0 / 1.45.0 order question of
     /// [`SessionRows`] does not arise; `tmp_auth_key` is not read. The file

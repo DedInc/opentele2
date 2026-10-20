@@ -1,11 +1,11 @@
 //! The `<folder>/maps` file of one account (`Storage::Account::readMap`).
 //!
 //! The file is a `TDF$` container (see [`crate::tdf`]) whose payload is three
-//! `QByteArray`s, as in 1.5.0 (`src/td/map_data.py`): the legacy salt, the
-//! legacy local key wrap, and the map encrypted under the local key. The
-//! decrypted map is a stream of entries, each a `u32` key type followed by a
-//! payload whose shape the type decides. 1.5.0 stops at the first type it
-//! does not know and keeps what it read so far; so does [`MapData::parse`].
+//! `QByteArray`s: the legacy salt, the legacy local key wrap, and the map
+//! encrypted under the local key. The decrypted map is a stream of entries,
+//! each a `u32` key type followed by a payload whose shape the type decides.
+//! [`MapData::parse_entries`] stops at the first type it does not know and
+//! keeps what it read so far.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -15,7 +15,7 @@ use crate::qt::{QReader, QWriter};
 use crate::tdata::{APP_VERSION, FillRandom, encrypt, write_tdf};
 use crate::{Error, MapReadFailure, Result, tdf};
 
-/// The 1.5.0 message of a `maps` file whose three arrays are cut short.
+/// The message of a `maps` file whose three arrays are cut short.
 const MAP_STREAM_FAILED: &str = "Could not stream data from mapData";
 
 /// Name of the map file inside an account folder; on disk `maps`.
@@ -43,11 +43,11 @@ pub const LSK_BOT_STORAGES: u32 = 0x1D;
 pub const LSK_WALLET_ENGINE_STORAGES: u32 = 0x21;
 
 /// User settings file key in the map of a new account
-/// (`MapData._HARDCODED_SETTINGS_KEY`).
+/// ([`MapData::new_account`]).
 pub const NEW_ACCOUNT_SETTINGS_KEY: u64 = 1_851_671_142_505_648_812;
 
 /// Number of `u64` file keys stored after `kind`, for the key types that hold
-/// only file keys (1.5.0's `_LSK_KEY_MAP`, `_LSK_SKIP_TYPES`, and the two
+/// only file keys (the slotted types, the three old skip types, and the two
 /// legacy wallet keys); `None` for every other type.
 #[must_use]
 pub fn file_key_count(kind: u32) -> Option<usize> {
@@ -57,8 +57,8 @@ pub fn file_key_count(kind: u32) -> Option<usize> {
         // report spam statuses (old), saved gifs (old), saved gifs, trusted
         // bots, faved stickers, export settings, search suggestions, round
         // placeholder, inline bots downloads, media playback positions,
-        // prefs, wallet key, wallet engine key. 1.5.0 reads and drops the
-        // three old skip types and the two wallet keys.
+        // prefs, wallet key, wallet engine key. The three old skip types and
+        // the two wallet keys are read and dropped.
         0x04 | 0x07..=0x0F | 0x11..=0x13 | 0x18 | 0x1A..=0x1C | 0x1E..=0x20 => Some(1),
         // Background (old): day and night.
         0x14 => Some(2),
@@ -88,8 +88,8 @@ pub enum MapEntry {
         pairs: Vec<(u64, u64)>,
     },
     /// [`LSK_LEGACY_IMAGES`], [`LSK_LEGACY_STICKER_IMAGES`], or
-    /// [`LSK_LEGACY_AUDIOS`]: three `u64` and an `i32` per item, which 1.5.0
-    /// reads and drops.
+    /// [`LSK_LEGACY_AUDIOS`]: three `u64` and an `i32` per item, which
+    /// [`MapData::encode_entries`] drops.
     LegacyLocations {
         /// The `lsk` key type.
         kind: u32,
@@ -121,8 +121,8 @@ pub struct MapData {
     pub legacy_key_encrypted: Option<Vec<u8>>,
     /// The decoded entries in file order.
     pub entries: Vec<MapEntry>,
-    /// The unknown key type the entries stopped at, if any; 1.5.0 ignores
-    /// everything after it.
+    /// The unknown key type the entries stopped at, if any; everything after
+    /// it is ignored.
     pub stopped_at: Option<u32>,
 }
 
@@ -131,7 +131,7 @@ impl MapData {
     /// its entries and the unknown key type they stopped at.
     ///
     /// A key type that cannot be read in full ends the entries like an
-    /// unknown one, since 1.5.0 reads a short value as 0 (`lskUserMap`).
+    /// unknown one, since a short value reads as 0 (`lskUserMap`).
     ///
     /// # Errors
     /// [`Error::QDataStreamFailed`] when an entry of a known type is cut
@@ -188,7 +188,7 @@ impl MapData {
         })
     }
 
-    /// The map 1.5.0 gives a new account (`MapData.__init__`): only the
+    /// The map of a new account: only the
     /// [`NEW_ACCOUNT_SETTINGS_KEY`] user settings key, [`APP_VERSION`], and
     /// no legacy arrays.
     #[must_use]
@@ -205,9 +205,8 @@ impl MapData {
         }
     }
 
-    /// Encodes the decrypted map the way 1.5.0 writes it
-    /// (`MapData._writeMapEntries`), which is not a copy of the entries: they
-    /// are first folded into 1.5.0's `MapData` fields.
+    /// Encodes the decrypted map, which is not a copy of the entries: they
+    /// are first folded into one field per file key slot.
     ///
     /// - File keys land in their named slots, a later entry overwriting an
     ///   earlier one; `lskStickersOld` fills the installed stickers key and
@@ -222,7 +221,7 @@ impl MapData {
     ///   keep the last entry; wallet entries are written sorted by name, a
     ///   null name as an empty one.
     ///
-    /// The output follows 1.5.0's fixed type order and writes a key type
+    /// The output follows a fixed type order and writes a key type
     /// only when one of its keys is non-zero, the self user only when it is
     /// non-empty, the web view tokens only when one is non-empty, and the
     /// wallet engine storages only when there is one.
@@ -255,14 +254,14 @@ impl MapData {
     pub(crate) fn plaintext(&self) -> Result<Vec<u8>> {
         let entries = self.encode_entries()?;
         if entries.is_empty() {
-            // 1.5.0 builds no buffer for an empty map and fails to encrypt.
+            // An empty map has no buffer to encrypt.
             return Err(Error::SaveFailed);
         }
         Ok(entries)
     }
 }
 
-/// File key slots of 1.5.0's `MapData`, one per `_KEY_TO_ATTR` attribute.
+/// File key slots of the folded map, one per named file key.
 mod slot {
     pub const PREFS: usize = 0;
     pub const LOCATIONS: usize = 1;
@@ -292,8 +291,8 @@ mod slot {
     pub const COUNT: usize = 25;
 }
 
-/// The slots a file-key type reads into, in stream order (1.5.0's
-/// `_LSK_KEY_MAP`); empty for the types 1.5.0 drops.
+/// The slots a file-key type reads into, in stream order; empty for the
+/// types that are dropped.
 fn key_slots(kind: u32) -> &'static [usize] {
     match kind {
         0x1E => &[slot::PREFS],
@@ -384,7 +383,8 @@ impl PeerMap {
     }
 }
 
-/// The fields of 1.5.0's `MapData` after `_parseMapStream`.
+/// The map folded into one field per file key slot, as
+/// [`MapData::encode_entries`] writes it.
 struct MapState<'a> {
     keys: [u64; slot::COUNT],
     self_serialized: Option<&'a [u8]>,
@@ -519,7 +519,7 @@ fn owned(blob: Option<&[u8]>) -> Option<Vec<u8>> {
     blob.map(<[u8]>::to_vec)
 }
 
-/// Reads the payload of one entry; `None` for a key type 1.5.0 does not know.
+/// Reads the payload of one entry; `None` for an unknown key type.
 fn read_entry(reader: &mut QReader<'_>, kind: u32) -> Result<Option<MapEntry>> {
     let entry = match kind {
         LSK_DRAFT | LSK_DRAFT_POSITION | LSK_BOT_STORAGES => MapEntry::PeerKeys {

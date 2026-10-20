@@ -1,19 +1,18 @@
-//! The official Telegram client API profiles of opentele2 1.5.0.
+//! The official Telegram client API profiles.
 //!
-//! 1.5.0 (`src/api.py`) defines one class per official client with its
-//! `api_id`, `api_hash`, default device and version fields, then rewrites the
-//! app versions from `PlatformVersions` (`src/fingerprint.py`) on import in
-//! `_sync_api_versions`. [`profile`] returns a class's values after that
-//! rewrite for a given [`Versions`]; [`generate`] and [`generate_desktop`]
-//! reproduce the classes' `Generate`, which keeps those values and replaces
-//! the device with one picked by [`crate::devices`].
+//! Every official client has an `api_id`, an `api_hash`, a default device
+//! and version fields, and its app versions come from `PlatformVersions`.
+//! [`profile`] returns a client's values with the app versions of a given
+//! [`Versions`]; [`generate`] and [`generate_desktop`] implement the
+//! clients' `Generate`, which keeps those values and replaces the device
+//! with one picked by [`crate::devices`].
 //!
-//! 1.5.0 may override [`Versions`] with versions fetched from the network;
+//! A host may replace [`Versions`] with versions fetched from the network;
 //! the core never fetches, so the host passes them in. [`Versions::offline`]
-//! is the set 1.5.0 uses when fetching is off (`OPENTELE_NO_FETCH`).
+//! is the set used when fetching is off (`OPENTELE_NO_FETCH`).
 //!
 //! [`ApiProfile::from_session_json`] and [`ApiProfile::to_session_json`]
-//! read and write the session JSON of 1.5.0 `APIData.from_json` and
+//! read and write the session JSON of `APIData.from_json` and
 //! `APIData.to_json`; [`session_json`] holds the same rules untyped, for
 //! bindings. [`format_app_version`] spells a packed desktop version.
 
@@ -24,14 +23,13 @@ use serde_json::{Map, Value};
 use crate::devices::{self, Platform, WebClient};
 use crate::{Error, Result};
 
-/// The TL schema layer opentele2 advertises to Telegram (1.5.0 `LAYER`,
-/// `_ADVERTISED_LAYER`): the `// LAYER 230` of the `api.tl` shipped by
+/// The TL schema layer opentele2 advertises to Telegram: the `// LAYER 230` of the `api.tl` shipped by
 /// Telegram Desktop 7.3.1. It is a fixed property of the targeted schema,
 /// independent of the layer any `MTProto` library in use was built for.
 pub const LAYER: i32 = 230;
 
 /// The browser user agent of Chrome `chrome_version` on 64-bit Windows, the
-/// shape of 1.5.0 `PlatformVersions.user_agent` and `_DEFAULT_WEB_USER_AGENT`.
+/// shape of [`Versions::user_agent`] and of the default web user agent.
 fn windows_chrome_user_agent(chrome_version: &str) -> String {
     format!(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
@@ -43,7 +41,7 @@ fn windows_chrome_user_agent(chrome_version: &str) -> String {
 const WEB_API_ID: i32 = 2496;
 const WEB_API_HASH: &str = "8da85b0d5bfe62527e5b244c209159c3";
 
-/// An official Telegram client whose API profile 1.5.0 ships.
+/// An official Telegram client whose API profile opentele2 ships.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Client {
     /// Telegram Desktop (`API.TelegramDesktop`).
@@ -65,7 +63,7 @@ pub enum Client {
 }
 
 impl Client {
-    /// Every client, in 1.5.0's declaration order.
+    /// Every client, in declaration order.
     pub const ALL: [Self; 8] = [
         Self::Desktop,
         Self::Android,
@@ -84,7 +82,7 @@ impl Client {
         matches!(self, Self::WebA | Self::WebK | Self::Webogram)
     }
 
-    /// The 1.5.0 class name of the client, as the bindings name it:
+    /// The class name of the client, as the bindings name it:
     /// `TelegramDesktop`, `TelegramAndroid`, `TelegramAndroidX`,
     /// `TelegramIOS`, `TelegramMacOS`, `TelegramWeb_A`, `TelegramWeb_K` or
     /// `Webogram`.
@@ -103,7 +101,7 @@ impl Client {
     }
 
     /// The client whose [`Client::name`] is exactly `name`; `None` for any
-    /// other text, including other cases and the 1.5.0 alias
+    /// other text, including other cases and the alias
     /// `TelegramWeb_Z`, which the bindings do not accept.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
@@ -111,7 +109,7 @@ impl Client {
     }
 }
 
-/// Every field of 1.5.0 `PlatformVersions`, in its declaration order.
+/// Every field of `PlatformVersions`, in its declaration order.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Versions {
     /// Telegram Android version, for example `13.0.3`.
@@ -163,10 +161,10 @@ pub struct Versions {
 }
 
 impl Versions {
-    /// The offline defaults of 1.5.0 `PlatformVersions`.
+    /// The offline defaults of `PlatformVersions`.
     ///
     /// The user agent is Chrome [`Versions::chrome_version`] on 64-bit
-    /// Windows, which is 1.5.0's default user agent.
+    /// Windows, the default user agent.
     #[must_use]
     pub fn offline() -> Self {
         let chrome_version = "155.0.0.0".to_owned();
@@ -202,7 +200,7 @@ impl Versions {
     }
 }
 
-/// 1.5.0 `format_app_version` (`src/utils.py`): a packed Telegram Desktop
+/// A packed Telegram Desktop
 /// version as `major.minor.patch`, without a zero patch, so `7003001` is
 /// `7.3.1` and `7003000` is `7.3`.
 #[must_use]
@@ -220,8 +218,7 @@ pub fn format_app_version(version: u32) -> String {
 /// The values a client sends in `initConnection`.
 ///
 /// Equality and hashing use `api_id`, `api_hash`, `device_model`,
-/// `system_version` and `app_version` only, as 1.5.0 `APIData.__eq__` and
-/// `__hash__` do. The language fields are excluded on purpose: profiles
+/// `system_version` and `app_version` only. The language fields are excluded on purpose: profiles
 /// that differ only in language are the same client on the same device.
 #[derive(Debug, Clone)]
 pub struct ApiProfile {
@@ -244,7 +241,7 @@ pub struct ApiProfile {
 }
 
 impl ApiProfile {
-    /// The fields 1.5.0 compares and hashes.
+    /// The fields equality and hashing use.
     fn identity(&self) -> (i32, &str, &str, &str, &str) {
         (
             self.api_id,
@@ -255,7 +252,7 @@ impl ApiProfile {
         )
     }
 
-    /// Reads a profile from session JSON as 1.5.0 `APIData.from_json` does.
+    /// Reads a profile from session JSON by the rules of `APIData.from_json`.
     ///
     /// `app_id`, `app_hash`, `device`, `sdk` and `app_version` give the
     /// credentials, device and versions. `lang_code` defaults to `en` and
@@ -264,9 +261,10 @@ impl ApiProfile {
     /// which defaults to `en`. A JSON `null` counts as an absent key; every
     /// other key is ignored.
     ///
-    /// Unlike 1.5.0, which leaves a missing `sdk` or `app_version` unset and
-    /// fills a missing `device` from the local machine, those keys are
-    /// required here.
+    /// `device`, `sdk` and `app_version` are required here, unlike in
+    /// [`session_json::read`], which passes a missing key through as `null`
+    /// and leaves filling a missing `device` from the local machine to the
+    /// caller.
     ///
     /// # Errors
     ///
@@ -290,7 +288,7 @@ impl ApiProfile {
             optional_text(data, key)?
                 .ok_or_else(|| invalid_session_json(&format!("{key} is missing")))
         };
-        // 1.5.0 reads `system_lang_code or system_lang_pack`: an empty code
+        // The rule is `system_lang_code or system_lang_pack`: an empty code
         // falls back too.
         let system_lang_code = match optional_text(data, "system_lang_code")? {
             Some(code) if !code.is_empty() => code,
@@ -308,13 +306,13 @@ impl ApiProfile {
         })
     }
 
-    /// The session JSON 1.5.0 `APIData.to_json(extra)` writes, keys in its
+    /// The session JSON `APIData.to_json(extra)` writes, keys in its
     /// order.
     ///
     /// The profile's keys come first: `app_id`, `app_hash`, `device`, `sdk`,
     /// `app_version`, `system_lang_pack` and `system_lang_code` (both the
     /// system language code), `lang_pack`, `lang_code`. The 19 account keys
-    /// of 1.5.0 `_DEFAULT_EXTRA_FIELDS` follow with their default values.
+    /// of [`session_json::DEFAULT_EXTRA_FIELDS`] follow with their default values.
     /// `extra` overrides those values in place and appends its other keys in
     /// its own order; an `extra` key naming a profile key overrides that key
     /// in place too.
@@ -360,18 +358,18 @@ impl Hash for ApiProfile {
     }
 }
 
-/// 1.5.0 `_DEFAULT_EXTRA_FIELDS`, in its order.
+/// [`session_json::DEFAULT_EXTRA_FIELDS`], in its order.
 fn default_extra_fields() -> Map<String, Value> {
     session_json::default_extra_fields()
 }
 
-/// The untyped session JSON rules of 1.5.0 `APIData.from_json` and
-/// `APIData.to_json` (`src/api.py`), for bindings that keep the values as
-/// their own dynamic objects.
+/// The untyped session JSON rules of `APIData.from_json` and
+/// `APIData.to_json`, for bindings that keep the values as their own
+/// dynamic objects.
 ///
 /// [`ApiProfile::from_session_json`] and [`ApiProfile::to_session_json`]
 /// are the typed, strict forms of the same rules. Here values pass through
-/// unchanged, whatever their JSON type, as they do in 1.5.0.
+/// unchanged, whatever their JSON type.
 pub mod session_json {
     use serde_json::{Map, Value};
 
@@ -414,7 +412,7 @@ pub mod session_json {
         pub fallback: Option<&'static str>,
     }
 
-    /// The profile keys, in the order [`write`] puts them first.
+    /// The profile keys, in the order [`write()`] puts them first.
     ///
     /// `system_lang_pack` and `system_lang_code` both write the
     /// `system_lang_code` attribute; on read, `system_lang_pack` is only the
@@ -438,7 +436,7 @@ pub mod session_json {
         field("lang_code", "lang_code", JsonDefault::Str("en")),
     ];
 
-    /// The `APIData` attributes in 1.5.0's declaration order, the order
+    /// The `APIData` attributes in declaration order, the order
     /// [`read`] returns them in.
     pub const ATTRIBUTES: [&str; 8] = [
         "api_id",
@@ -451,7 +449,7 @@ pub mod session_json {
         "lang_pack",
     ];
 
-    /// 1.5.0 `_DEFAULT_EXTRA_FIELDS`: the account keys [`write`] appends
+    /// The account keys [`write()`] appends
     /// after the profile keys, with their default values, in order.
     pub const DEFAULT_EXTRA_FIELDS: [(&str, JsonDefault); 19] = [
         ("twoFA", JsonDefault::Null),
@@ -511,10 +509,10 @@ pub mod session_json {
             .unwrap_or_else(|| field.default.to_value())
     }
 
-    /// The `APIData` attributes 1.5.0 `APIData.from_json(data)` sets, in
+    /// The `APIData` attributes `APIData.from_json(data)` sets, in
     /// [`ATTRIBUTES`] order, values passed through untyped.
     ///
-    /// 1.5.0 then raises `NoInstanceMatched` when `api_id` or `api_hash` is
+    /// `APIData.from_json` then raises `NoInstanceMatched` when `api_id` or `api_hash` is
     /// `null`, and replaces a `null` `device_model` with the local machine's
     /// model (`PC 64bit`, `PC 32bit`, or the machine name); both are left
     /// to the caller, as the core does not inspect the machine.
@@ -539,7 +537,7 @@ pub mod session_json {
             .collect()
     }
 
-    /// The session JSON 1.5.0 `APIData.to_json(extra)` writes for an
+    /// The session JSON `APIData.to_json(extra)` writes for an
     /// object whose attributes are `attributes`, keys in its order.
     ///
     /// The [`FIELDS`] keys come first, each with its attribute's value
@@ -587,10 +585,9 @@ fn invalid_session_json(reason: &str) -> Error {
     ))
 }
 
-/// The default profile of `client` after 1.5.0 `_sync_api_versions` applied
-/// `versions`.
+/// The default profile of `client` with the app versions of `versions`.
 ///
-/// iOS and macOS app versions end in a space, as in 1.5.0.
+/// iOS and macOS app versions end in a space.
 #[must_use]
 pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
     let (api_id, api_hash, device_model, system_version, app_version, lang_pack) = match client {
@@ -658,7 +655,7 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
             versions.web_a_version.clone(),
             "",
         ),
-        // 1.5.0 gives Web K the `macos` language pack.
+        // Web K uses the `macos` language pack.
         Client::WebK => (
             WEB_API_ID,
             WEB_API_HASH,
@@ -667,7 +664,7 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
             versions.web_k_version.clone(),
             "macos",
         ),
-        // `_sync_api_versions` leaves Webogram's version alone.
+        // Webogram's version is fixed; `versions` does not change it.
         Client::Webogram => (
             WEB_API_ID,
             WEB_API_HASH,
@@ -689,11 +686,11 @@ pub fn profile(client: Client, versions: &Versions) -> ApiProfile {
     }
 }
 
-/// The profile 1.5.0 `API.<client>.Generate(seed)` returns: the default
+/// The profile `API.<client>.Generate(seed)` returns: the default
 /// profile with a device picked for `seed`, or a random device without one.
 ///
 /// [`Client::Desktop`] behaves as [`generate_desktop`] without a system.
-/// The web clients pick a browser from 1.5.0's browserforge pool for the
+/// The web clients pick a browser from the browserforge pool for the
 /// Chrome and Firefox majors of `versions` ([`devices::web_catalog_for`]),
 /// so the same seed and versions always give the same device: the user
 /// agent becomes the device model and the client's platform string the
@@ -729,8 +726,8 @@ pub fn generate(client: Client, seed: Option<&str>, versions: &Versions) -> Resu
     })
 }
 
-/// The platform names 1.5.0 `API.TelegramDesktop.Generate` accepts, matched
-/// case-sensitively (`_DESKTOP_SYSTEMS`).
+/// The platform names `API.TelegramDesktop.Generate` accepts, matched
+/// case-sensitively.
 fn desktop_platform(system: &str) -> Option<Platform> {
     match system {
         "windows" => Some(Platform::Windows),
@@ -740,10 +737,10 @@ fn desktop_platform(system: &str) -> Option<Platform> {
     }
 }
 
-/// The profile 1.5.0 `API.TelegramDesktop.Generate(system, seed)` returns.
+/// The profile `API.TelegramDesktop.Generate(system, seed)` returns.
 ///
-/// `system` is `windows`, `macos` or `linux`. As in 1.5.0, a `system` that is
-/// none of these is taken as the seed when no seed is given, and the
+/// `system` is `windows`, `macos` or `linux`. A `system` that is none of
+/// these is taken as the seed when no seed is given, and the
 /// platform is then chosen from the seed's hash, as it is when `system` is
 /// absent or unknown. The app version gets the architecture the platform's
 /// builds report: ` x64` on Windows, ` arm64` on macOS, none on Linux.

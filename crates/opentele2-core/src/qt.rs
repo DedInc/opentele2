@@ -2,7 +2,7 @@
 //!
 //! [`QReader`] borrows its input and hands out slices of it, so reading a
 //! `QByteArray` copies nothing; [`QWriter`] appends to an owned buffer. Both
-//! follow the 1.5.0 encoding (`src/qt_compat.py`): integers are big-endian,
+//! use Qt's encoding: integers are big-endian,
 //! a `QByteArray` is a `u32` byte count followed by the bytes, a `QString` is
 //! a `u32` byte count followed by UTF-16BE code units, and the count
 //! `0xFFFF_FFFF` marks a null value.

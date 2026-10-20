@@ -1,8 +1,8 @@
 //! Passcode key derivation: the PBKDF2 local keys and the Argon2id / scrypt
 //! passcode wraps of the v2 `key_data` file.
 //!
-//! The read caps mirror `storage_file_utilities.cpp` (and the stricter scrypt
-//! caps of opentele2 1.5.0): a crafted `key_data` must not make a read cost
+//! The read caps mirror `storage_file_utilities.cpp`, with stricter scrypt
+//! caps: a crafted `key_data` must not make a read cost
 //! unbounded memory or CPU. A parameter above a cap, a salt shorter than
 //! [`PASSCODE_SALT_MIN_SIZE`], or an empty passcode is [`Error::BadLength`];
 //! parameters inside the caps that the KDF still rejects are
@@ -64,7 +64,7 @@ pub fn create_local_key(passcode: &[u8], salt: &[u8]) -> AuthKey {
     AuthKey::new(key)
 }
 
-/// Derives a pre-1.x local key (`Storage::CreateLegacyLocalKey`):
+/// Derives a Telegram Desktop legacy local key (`Storage::CreateLegacyLocalKey`):
 /// PBKDF2-HMAC-SHA1 over `passcode` with `salt`, [`LEGACY_PBKDF2_ITERATIONS`]
 /// rounds (or [`LEGACY_PBKDF2_ITERATIONS_EMPTY`] for an empty passcode),
 /// 256 bytes of output.

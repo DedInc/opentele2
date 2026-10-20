@@ -1,16 +1,17 @@
-//! Device fingerprints picked exactly as opentele2 1.5.0 picks them.
+//! Device fingerprints, picked from weighted catalogs by a seed hash.
 //!
-//! 1.5.0 (`src/devices.py`) expands each catalog into a list in which every
-//! (model, system version) pair is repeated by its weight, then indexes that
-//! list with a hash of the seed. This module keeps one slot per pair with a
-//! cumulative weight instead and finds the slot by binary search, which
-//! lands on the same pair as the expanded list without materialising it.
+//! A catalog stands for an expanded list (the bindings' `deviceList`) in
+//! which every (model, system version) pair is repeated by its weight, and
+//! a pick indexes that list with a hash of the seed. This module keeps one
+//! slot per pair with a cumulative weight and finds the slot by binary
+//! search, which lands on the same pair as the expanded list without
+//! materialising it.
 //!
 //! The catalogs in `data/devices/` are embedded at build time and parsed once,
 //! on first use.
 //!
-//! The web catalogs are 1.5.0's browserforge pool, drawn with the
-//! `opentele2-browser` port from a generator seeded by the Chrome and
+//! The web catalogs are a browserforge pool, drawn with
+//! `opentele2-browser` from a generator seeded by the Chrome and
 //! Firefox majors ([`web_catalog_for`]), so a pool is a pure function of the
 //! versions; its devices are picked with the same seed hash and cumulative
 //! weights as every other catalog.
@@ -37,14 +38,13 @@ const MAC_JSON: &str = include_str!("../data/devices/mac.json");
 /// majors are appended to it.
 const WEB_POOL_SEED: &str = "opentele2/devices/web-pool/v1";
 
-/// How many majors the browserforge dataset may trail the live release
-/// (1.5.0 `_max_dataset_lag`).
+/// How many majors the browserforge dataset may trail the live release.
 const MAX_DATASET_LAG: u32 = 24;
 
-/// Seed hashes are reduced modulo 10^12, as in 1.5.0 `_strtohashid`.
+/// Seed hashes are reduced modulo 10^12.
 const HASH_MODULUS: u64 = 1_000_000_000_000;
 
-/// The Android API levels 1.5.0 maps to a release (`_SDK_TO_ANDROID`).
+/// The Android API levels the Android catalog maps to a release.
 const ANDROID_SDKS: std::ops::RangeInclusive<i64> = 29..=37;
 
 /// Android 12L, emitted only for devices that reported it.
@@ -132,10 +132,10 @@ impl Platform {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WebClient {
     /// Telegram Web A, which sends a platform name: `Windows`, `macOS`,
-    /// `Linux` or `ChromeOS` (1.5.0 variant `z`).
+    /// `Linux` or `ChromeOS` (variant `z`).
     A,
     /// Telegram Web K and Webogram, which send `navigator.platform`: `Win32`,
-    /// `MacIntel`, `Linux x86_64` or `Linux aarch64` (1.5.0 variant `k`).
+    /// `MacIntel`, `Linux x86_64` or `Linux aarch64` (variant `k`).
     K,
 }
 
@@ -148,7 +148,7 @@ pub struct Device {
     pub system_version: String,
 }
 
-/// One catalog pair and the number of times 1.5.0 repeats it.
+/// One catalog pair and the number of times the expanded list repeats it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WeightedDevice<'a> {
     /// The device model.
@@ -156,7 +156,7 @@ pub struct WeightedDevice<'a> {
     /// The system version as stored in the catalog. Mac versions are bare;
     /// [`pick`] adds the `macOS ` prefix for Telegram Desktop.
     pub system_version: &'a str,
-    /// How many times the pair occurs in 1.5.0's expanded list; never zero.
+    /// How many times the pair occurs in the expanded list; never zero.
     pub weight: u64,
 }
 
@@ -166,15 +166,15 @@ pub struct CatalogEntry {
     /// The device model.
     pub model: String,
     /// The system version as stored in the catalog; Mac versions are bare,
-    /// as in 1.5.0 `macOSDevice.deviceList`.
+    /// as in `macOSDevice.deviceList`.
     pub system_version: String,
-    /// How many times the pair occurs in 1.5.0's expanded list; never zero.
+    /// How many times the pair occurs in the expanded list; never zero.
     pub weight: u64,
 }
 
-/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`: the share 1.5.0 gave each
-/// browserforge browser, in its order: the weight of every user agent of
-/// that browser in the web catalogs.
+/// `WebBrowserDevice.BROWSER_WEIGHTS`: the share of each browserforge
+/// browser, in its order: the weight of every user agent of that browser
+/// in the web catalogs.
 pub const WEB_BROWSER_WEIGHTS: [(&str, u64); 3] = [("chrome", 19), ("edge", 2), ("firefox", 1)];
 
 #[derive(Debug, Clone)]
@@ -184,7 +184,7 @@ struct Slot {
     weight: u64,
 }
 
-/// The weighted pairs of one platform, in 1.5.0's list order.
+/// The weighted pairs of one platform, in expanded-list order.
 #[derive(Debug, Clone)]
 pub struct Catalog {
     models: Vec<String>,
@@ -248,18 +248,18 @@ impl Catalog {
         self.slots.is_empty()
     }
 
-    /// Sum of all weights: the length of 1.5.0's expanded list.
+    /// Sum of all weights: the length of the expanded list.
     #[must_use]
     pub fn total_weight(&self) -> u64 {
         self.ends.last().copied().unwrap_or(0)
     }
 
-    /// The weighted pairs in 1.5.0's list order.
+    /// The weighted pairs in expanded-list order.
     pub fn entries(&self) -> impl ExactSizeIterator<Item = WeightedDevice<'_>> + '_ {
         self.slots.iter().map(|slot| self.view(slot))
     }
 
-    /// The weighted pairs in 1.5.0's list order, owned, for bindings.
+    /// The weighted pairs in expanded-list order, owned, for bindings.
     #[must_use]
     pub fn to_entries(&self) -> Vec<CatalogEntry> {
         self.entries()
@@ -272,15 +272,15 @@ impl Catalog {
     }
 
     /// The catalog's models in file order, before any pair is weighted or
-    /// filtered: 1.5.0 `device_models` of the desktop, Mac and iOS classes
-    /// (1.5.0's `AndroidDevice` keeps that list empty). Desktop models are
+    /// filtered: `device_models` of the desktop, Mac and iOS classes
+    /// (`AndroidDevice` keeps that list empty). Desktop models are
     /// already cleaned, which leaves every embedded one unchanged.
     #[must_use]
     pub fn device_models(&self) -> &[String] {
         &self.models
     }
 
-    /// The catalog's system versions in file order: 1.5.0 `system_versions`
+    /// The catalog's system versions in file order: `system_versions`
     /// of the desktop, Mac and iOS classes; `SDK 29` to `SDK 37` for
     /// Android, and the client's platform strings for the web.
     #[must_use]
@@ -308,10 +308,10 @@ impl Catalog {
     }
 }
 
-/// The 1.5.0 seed hash: the full 160-bit SHA-1 digest of the UTF-8 seed,
+/// The seed hash: the full 160-bit SHA-1 digest of the UTF-8 seed,
 /// read as a big-endian integer, modulo 10^12.
 ///
-/// Integer seeds are hashed as their decimal string, as 1.5.0 does.
+/// Integer seeds are hashed as their decimal string.
 #[must_use]
 pub fn seed_hash(seed: &str) -> u64 {
     digest_hash(seed.as_bytes())
@@ -324,8 +324,7 @@ fn digest_hash(bytes: &[u8]) -> u64 {
     })
 }
 
-/// The hash for `seed`, or for 32 random bytes when there is no seed, as
-/// 1.5.0 uses `os.urandom(32)`.
+/// The hash for `seed`, or for 32 random bytes when there is no seed.
 fn hash_for(seed: Option<&str>) -> Result<u64> {
     if let Some(seed) = seed {
         return Ok(seed_hash(seed));
@@ -335,11 +334,11 @@ fn hash_for(seed: Option<&str>) -> Result<u64> {
     Ok(digest_hash(&bytes))
 }
 
-/// The platform 1.5.0 `API.TelegramDesktop.Generate` chooses when no system
+/// The platform `API.TelegramDesktop.Generate` chooses when no system
 /// is given: `("windows", "macos", "linux")[hash % 3]`.
 ///
 /// Without a seed the choice is random, drawn independently of the device
-/// [`pick`] makes afterwards, as in 1.5.0.
+/// [`pick`] makes afterwards.
 ///
 /// # Errors
 ///
@@ -352,7 +351,7 @@ pub fn desktop_system(seed: Option<&str>) -> Result<Platform> {
     })
 }
 
-/// The device 1.5.0 picks for `platform` and `seed`; without a seed the pick
+/// The device picked for `platform` and `seed`; without a seed the pick
 /// is random.
 ///
 /// # Errors
@@ -363,7 +362,7 @@ pub fn pick(platform: Platform, seed: Option<&str>) -> Result<Device> {
     pick_from(catalog(platform)?, platform, seed)
 }
 
-/// The device 1.5.0 picks from `catalog`, which holds `platform`'s pairs,
+/// The device picked from `catalog`, which holds `platform`'s pairs,
 /// for `seed`; without a seed the pick is random.
 pub(crate) fn pick_from(
     catalog: &Catalog,
@@ -427,7 +426,7 @@ pub fn catalog(platform: Platform) -> Result<&'static Catalog> {
         .map_err(|message| catalog_error(message.clone()))
 }
 
-/// The weighted pairs of `platform`'s [`catalog`], owned, in 1.5.0's list
+/// The weighted pairs of `platform`'s [`catalog`], owned, in expanded-list
 /// order; the [`Platform::Web`] catalogs included.
 ///
 /// # Errors
@@ -528,7 +527,7 @@ fn parse<'a, T: Deserialize<'a>>(name: &str, text: &'a str) -> std::result::Resu
     serde_json::from_str(text).map_err(|e| format!("device catalog {name} is malformed: {e}"))
 }
 
-/// 1.5.0 `_version_tuple`: dot-separated integers, compared element-wise.
+/// A version as dot-separated integers, compared element-wise.
 fn version_key(version: &str) -> std::result::Result<Vec<i64>, String> {
     version
         .split('.')
@@ -539,8 +538,8 @@ fn version_key(version: &str) -> std::result::Result<Vec<i64>, String> {
         .collect()
 }
 
-/// The entry 1.5.0 reads for `item`'s key: its catalogs index weights and
-/// limits by name in a dict, so the last entry with a name wins.
+/// The entry that holds `item`'s key: weights and limits are indexed by
+/// name, so the last entry with a name wins.
 fn last_with<'a, T>(items: &'a [T], item: &'a T, key: impl Fn(&T) -> &str) -> &'a T {
     items
         .iter()
@@ -549,7 +548,7 @@ fn last_with<'a, T>(items: &'a [T], item: &'a T, key: impl Fn(&T) -> &str) -> &'
         .unwrap_or(item)
 }
 
-/// The weight 1.5.0 gives each version: `{version: weight}`, last one wins.
+/// The weight of each version: `{version: weight}`, last one wins.
 fn version_weights(versions: &[WeightedVersion]) -> Vec<u64> {
     versions
         .iter()
@@ -574,8 +573,8 @@ fn clean_and_simplify(text: &str) -> String {
 
 fn build_desktop() -> std::result::Result<DesktopCatalogs, String> {
     let file: DesktopFile = parse("desktop.json", DESKTOP_JSON)?;
-    // 1.5.0 `_gen_desktop`: models lose underscores and extra spaces; a
-    // cleaned name takes the weight of the last model that cleans to it.
+    // Models lose underscores and extra spaces; a cleaned name takes the
+    // weight of the last model that cleans to it.
     let cleaned: Vec<String> = file
         .models
         .iter()
@@ -660,7 +659,8 @@ fn build_ios() -> std::result::Result<Catalog, String> {
                 .versions
                 .get(version)
                 .map_or("", |v| v.version.as_str());
-            // 1.5.0 `_model_gets_version`.
+            // A model gets a version inside its range and the version's
+            // `only` and `except` lists.
             let too_old = *key < minimum;
             let too_new = key.first().is_some_and(|&major| major > entry.max_major);
             let not_only = file
@@ -712,7 +712,7 @@ fn build_android() -> std::result::Result<Catalog, String> {
     catalog.finish("android")
 }
 
-/// One browserforge browser of 1.5.0 `WebBrowserDevice.__gen__`.
+/// One browserforge browser of the web pool ([`web_pool`]).
 struct WebBrowserConfig {
     /// The browserforge browser name.
     name: &'static str,
@@ -723,12 +723,11 @@ struct WebBrowserConfig {
     os: &'static [&'static str],
     /// How many user agents are drawn; duplicates are skipped.
     count: usize,
-    /// The prefixes whose major is shifted back up after a slide
-    /// (1.5.0 `_UA_MAJOR_PATTERNS`).
+    /// The prefixes whose major is shifted back up after a slide.
     major_prefixes: &'static [&'static str],
 }
 
-/// The weight 1.5.0 `BROWSER_WEIGHTS.get(name, 1)` gives a browser.
+/// The weight of a browser: its [`WEB_BROWSER_WEIGHTS`] entry, else 1.
 fn web_browser_weight(name: &str) -> u64 {
     WEB_BROWSER_WEIGHTS
         .iter()
@@ -755,15 +754,15 @@ enum WebProbe {
     Drawn(HeaderGenerator),
     /// The dataset has no sample for the options (`NoHeaders`).
     Empty,
-    /// Any other error, which drops the browser as 1.5.0's
-    /// `except Exception` does.
+    /// Any other error, which drops the browser from the pool.
     Failed,
 }
 
 /// A strict desktop generator for `config`'s browser and operating systems
 /// with majors from `min` to `max` (unbounded when `None`), probed with one
-/// `generate()` call whose headers are discarded, as 1.5.0 does. The
-/// generator is strict, so no option is relaxed into another browser.
+/// `generate()` call whose headers are discarded. The probe advances `rng`
+/// like a real draw. The generator is strict, so no option is relaxed into
+/// another browser.
 fn web_probe(config: &WebBrowserConfig, min: u32, max: Option<u32>, rng: &mut Rng) -> WebProbe {
     let options = HeaderOptions {
         browsers: vec![Browser {
@@ -810,15 +809,14 @@ fn web_dataset_lag(config: &WebBrowserConfig) -> Option<u32> {
     None
 }
 
-/// 1.5.0 `_header_generator`: a generator for the window slid down so its
-/// top is the dataset's newest major, and that offset ([`web_dataset_lag`]).
-/// The window keeps its full width, so once the caller shifts the drawn
-/// majors back up by the offset the pool spans the whole live window
-/// rather than collapsing onto the dataset's newest major: the intent
-/// 1.5.0's `_header_generator` docstring states.
+/// A generator for the window slid down so its top is the dataset's newest
+/// major, and that offset ([`web_dataset_lag`]). The window keeps its full
+/// width, so once the caller shifts the drawn majors back up by the offset
+/// the pool spans the whole live window rather than collapsing onto the
+/// dataset's newest major.
 ///
-/// When even the slid window has no sample, this falls back to 1.5.0's
-/// loop: the smallest offset (at most [`MAX_DATASET_LAG`]) at which the
+/// When even the slid window has no sample, this falls back to the
+/// smallest offset (at most [`MAX_DATASET_LAG`]) at which the
 /// window has a sample. Any error but `NoHeaders` drops the browser.
 fn web_generator(config: &WebBrowserConfig, rng: &mut Rng) -> Option<(HeaderGenerator, u32)> {
     if let Some(offset) = web_dataset_lag(config)
@@ -849,8 +847,8 @@ fn web_generator(config: &WebBrowserConfig, rng: &mut Rng) -> Option<(HeaderGene
     None
 }
 
-/// 1.5.0 `_shift_ua_major`: every major following one of `prefixes` is
-/// raised by `offset`, prefix by prefix, as `re.sub(r"(prefix)(\d+)")`.
+/// `user_agent` with every major following one of `prefixes` raised by
+/// `offset`, prefix by prefix, as `re.sub(r"(prefix)(\d+)")`.
 fn shift_majors(user_agent: &str, prefixes: &[&str], offset: u32) -> String {
     let mut shifted = user_agent.to_owned();
     if offset == 0 {
@@ -876,7 +874,7 @@ fn shift_majors(user_agent: &str, prefixes: &[&str], offset: u32) -> String {
     shifted
 }
 
-/// 1.5.0 `_parse_os_from_ua`: the platform name Web A sends.
+/// The platform name Web A sends for `user_agent`.
 fn web_a_system(user_agent: &str) -> &'static str {
     let ua = user_agent.to_lowercase();
     if ua.contains("windows") {
@@ -892,7 +890,7 @@ fn web_a_system(user_agent: &str) -> &'static str {
     }
 }
 
-/// 1.5.0 `_parse_platform_from_ua`: the `navigator.platform` Web K sends.
+/// The `navigator.platform` Web K sends for `user_agent`.
 fn web_k_system(user_agent: &str) -> &'static str {
     let ua = user_agent.to_lowercase();
     if ua.contains("win64") || ua.contains("windows") {
@@ -912,8 +910,8 @@ fn web_k_system(user_agent: &str) -> &'static str {
     }
 }
 
-/// 1.5.0 `WebBrowserDevice.__gen__` for live Chrome major `chrome` and
-/// Firefox major `firefox`: the distinct user agents in generation order,
+/// The web pool for live Chrome major `chrome` and Firefox major
+/// `firefox`: the distinct user agents in generation order,
 /// each with its browser's weight. Every draw comes from one generator
 /// seeded by [`WEB_POOL_SEED`] and both majors, so the pool is a pure
 /// function of them.
@@ -921,7 +919,7 @@ fn web_pool(chrome: u32, firefox: u32) -> std::result::Result<Vec<(String, u64)>
     let mut rng = Rng::from_seed(&format!(
         "{WEB_POOL_SEED}/chrome/{chrome}/firefox/{firefox}"
     ));
-    // 1.5.0 `max_v - random.randint(2, 4)`.
+    // Chrome's window starts 2 to 4 majors below the live one.
     let spread = 2 + u32::try_from(rng.next_u64() % 3).unwrap_or(0);
     let chrome_min = chrome.saturating_sub(spread);
     let all_os: &[&str] = &["windows", "macos", "linux"];
@@ -962,7 +960,7 @@ fn web_pool(chrome: u32, firefox: u32) -> std::result::Result<Vec<(String, u64)>
         for _ in 0..config.count {
             let headers = match generator.generate(&mut rng, &overrides) {
                 Ok(headers) => headers,
-                // 1.5.0 skips a draw that raises `ValueError`.
+                // A draw without a sample is skipped.
                 Err(BrowserError::NoHeaders) => continue,
                 Err(e) => return Err(format!("web pool {}: {e}", config.name)),
             };
@@ -1014,7 +1012,7 @@ fn web_pool_catalog(
     catalog.finish(name)
 }
 
-/// The web catalog of `client` for `versions`: 1.5.0's browserforge pool of
+/// The web catalog of `client` for `versions`: a browserforge pool of
 /// up to 60 Chrome, 30 Edge and 20 Firefox desktop user agents weighted by
 /// [`WEB_BROWSER_WEIGHTS`], drawn deterministically for the majors of
 /// [`Versions::chrome_version`] and [`Versions::firefox_version`].
@@ -1022,7 +1020,7 @@ fn web_pool_catalog(
 /// When the dataset trails a live major, the browser's window slides down
 /// (by at most 24) until its top is the newest major the dataset has,
 /// keeping its width, and the drawn majors are shifted back up, so the
-/// spread is kept instead of collapsing to one major, as 1.5.0 intends.
+/// spread is kept instead of collapsing to one major.
 /// Both clients hold the same user agents
 /// in the same order and weights, with their own platform strings. Pools
 /// are cached per client and pair of majors.

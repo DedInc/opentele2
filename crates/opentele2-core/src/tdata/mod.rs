@@ -8,8 +8,8 @@
 //! - [`map`]: the per-account `maps` file.
 //! - [`mtp_config`]: the MTP config and DC options of the per-account
 //!   `configs` file.
-//! - [`TData`]: a whole folder, loaded and saved the way 1.5.0's `TDesktop`
-//!   does; [`draw_plan`] lists the random draws its writers make, and
+//! - [`TData`]: a whole folder, loaded and saved the way the bindings'
+//!   `TDesktop` does; [`draw_plan`] lists the random draws its writers make, and
 //!   [`DrawSource`] serves them from the OS or replays recorded ones.
 
 pub mod account;
@@ -30,23 +30,20 @@ use crate::tdata::key_data::{
 use crate::tdf::TdfFile;
 use crate::{Error, Result, tdf};
 
-/// Telegram Desktop version 1.5.0 writes into the `TDF$` header of every
-/// file it saves (`APP_VERSION` in `src/utils.py`), whatever version the
-/// folder was read with.
+/// Telegram Desktop version written into the `TDF$` header of every saved
+/// file (`APP_VERSION`), whatever version the folder was read with.
 pub const APP_VERSION: u32 = 7_003_001;
 
-/// The magic every `TDF$` file starts with (1.5.0 `TDF_MAGIC`), re-exported
-/// from [`crate::tdf::MAGIC`] next to [`APP_VERSION`], as 1.5.0 keeps both
-/// in `src/utils.py`.
+/// The magic every `TDF$` file starts with (`TDF_MAGIC`), re-exported
+/// from [`crate::tdf::MAGIC`] next to [`APP_VERSION`].
 pub use crate::tdf::MAGIC as TDF_MAGIC;
 
-/// Index 1.5.0 stores as the active account of a folder it creates
-/// (`TDesktop.__active_index` before any load); loading it falls back to the
-/// first account.
+/// Index stored as the active account of a newly created folder; loading
+/// it falls back to the first account.
 pub const NEW_FOLDER_ACTIVE_INDEX: i32 = -1;
 
 /// A fallible fill of a buffer with random bytes; the writers draw padding,
-/// salts, and generated keys through it in 1.5.0's `os.urandom` order.
+/// salts, and generated keys through it in a fixed order ([`draw_plan`]).
 pub(crate) type FillRandom<'a> = dyn FnMut(&mut [u8]) -> Result<()> + 'a;
 
 /// Decodes a lowercase hex literal at compile time; a bad literal fails the
@@ -70,11 +67,9 @@ pub(crate) const fn hex_bytes<const N: usize>(hex: &str) -> [u8; N] {
     out
 }
 
-// The four performance-mode constants are copied from 1.5.0
-// src/td/tdesktop.py:44-82 (_PERF_LOCAL_KEY, _PERF_PASSCODE_KEY_SALT,
-// _PERF_PASSCODE_KEY, _PERF_PASSCODE_KEY_ENCRYPTED). 1.5.0 uses them instead
-// of a fresh PBKDF2 local key when performance mode is on and no passcode is
-// set, so such folders are written without key derivation.
+// The four performance-mode constants replace a fresh PBKDF2 local key when
+// performance mode is on and no passcode is set, so such folders are
+// written without key derivation.
 const PERF_LOCAL_KEY: [u8; AuthKey::SIZE] = hex_bytes(concat!(
     "d8745944519e0d2d71309d6c8d272dc64948f5e3eba7685324d5c691ad810c20",
     "3b31d19d29aed6ac33c014be6e09843293f6fa32dbe42b6a04e00481fae99511",
@@ -119,7 +114,7 @@ pub(crate) fn random_bytes(rng: &mut FillRandom<'_>, len: usize) -> Result<Vec<u
     Ok(bytes)
 }
 
-/// [`crypto::encrypt_local`] with padding from `rng`; like 1.5.0's
+/// [`crypto::encrypt_local`] with padding from `rng`; like tdesktop's
 /// `PrepareEncrypted`, no draw is made when no padding is needed.
 pub(crate) fn encrypt(
     data: &[u8],
@@ -147,9 +142,8 @@ pub(crate) fn write_tdf(dir: &Path, name: &str, payload: Vec<u8>) -> Result<()> 
     )
 }
 
-/// The local passcode a [`TData`] was loaded or created with (1.5.0's
-/// `TDesktop.__passcodeBytes`). It has no `Debug`, and its bytes are
-/// overwritten when it is dropped.
+/// The local passcode a [`TData`] was loaded or created with. It has no
+/// `Debug`, and its bytes are overwritten when it is dropped.
 #[derive(Clone)]
 struct Passcode(Vec<u8>);
 
@@ -167,13 +161,13 @@ impl Drop for Passcode {
 #[derive(Clone)]
 pub struct TData {
     /// Telegram Desktop version stored in the key file's `TDF$` header;
-    /// [`TData::save`] always writes [`APP_VERSION`], as 1.5.0 does.
+    /// [`TData::save`] always writes [`APP_VERSION`].
     pub app_version: u32,
     /// The data name of the key file, for example [`DEFAULT_KEY_FILE`];
     /// [`TData::set_key_file`] changes it after checking the name.
     pub key_file: String,
-    /// The parsed key file; as in 1.5.0 only the live passcode wraps are
-    /// kept, so stale wraps are not written back. [`TData::save`] writes it
+    /// The parsed key file; only the live passcode wraps are kept, so stale
+    /// wraps are not written back. [`TData::save`] writes it
     /// with a freshly encrypted accounts info, migrated first when it has
     /// the legacy layout.
     pub key_data: KeyData,
@@ -185,8 +179,8 @@ pub struct TData {
     pub accounts: Vec<Account>,
     /// The active index stored in the accounts info, 0 when absent.
     pub active_index: i32,
-    /// 1.5.0's `TDesktop.kPerformanceMode`: when on, [`TData::save`] writes
-    /// no `configs` file. [`TData::load`] turns it on, the 1.5.0 default.
+    /// `TDesktop.kPerformanceMode`: when on, [`TData::save`] writes no
+    /// `configs` file. [`TData::load`] turns it on, the default.
     pub performance_mode: bool,
     /// The passcode given to [`TData::new`] or [`TData::load`]; a legacy
     /// key file is migrated under it on [`TData::save`].
@@ -213,16 +207,16 @@ impl fmt::Debug for TData {
 }
 
 impl TData {
-    /// Most accounts one folder holds (1.5.0's `TDesktop.kMaxAccounts`);
-    /// [`TData::add_account`] refuses more. [`TData::load`] reads a folder
-    /// that lists more, as 1.5.0 does.
+    /// Most accounts one folder holds (`TDesktop.kMaxAccounts`);
+    /// [`TData::add_account`] refuses more. [`TData::load`] still reads a
+    /// folder that lists more.
     pub const MAX_ACCOUNTS: usize = 6;
 
-    /// Creates a folder for `accounts` the way 1.5.0's `SaveTData` does for a
+    /// Creates a folder for `accounts` the way `SaveTData` does for a
     /// `TDesktop` that was not loaded (`__generateLocalKey`), drawing random
-    /// bytes from `rng` in 1.5.0's `os.urandom` order.
+    /// bytes from `rng` in [`draw_plan`] order.
     ///
-    /// - Performance mode on and an empty passcode: the fixed 1.5.0
+    /// - Performance mode on and an empty passcode: the fixed
     ///   performance-mode local key and open wrap; nothing is drawn.
     /// - Otherwise: a 256-byte random pass and a 32-byte salt make the local
     ///   key (`create_local_key(pass, salt)`), then a 32-byte open salt is
@@ -291,8 +285,8 @@ impl TData {
         })
     }
 
-    /// Writes the folder into `dir` the way 1.5.0's `__writeAccounts` does,
-    /// drawing every padding from `rng` in 1.5.0's `os.urandom` order.
+    /// Writes the folder into `dir`, drawing every padding from `rng` in
+    /// [`draw_plan`] order.
     ///
     /// Per account, in order: `<folder>/maps` (two null arrays and the
     /// encrypted map, see [`map::MapData::encode_entries`]), then, with
@@ -303,19 +297,18 @@ impl TData {
     /// under the local key, and the 7.3 trailer. Every file carries
     /// [`APP_VERSION`].
     ///
-    /// A legacy key file (no trailer) is migrated first, as 1.5.0's
-    /// `SaveTData` does (`__installKeyData`): before any other draw, the same
+    /// A legacy key file (no trailer) is migrated first: before any other
+    /// draw, the same
     /// local key is wrapped in a fresh 7.3 key file under the passcode this
     /// [`TData`] was loaded or created with, as [`TData::new`] describes
     /// after the local key (open salt, then wrap salt with a passcode, then
     /// the wrap padding). The account files stay valid. `self` is not
     /// changed, so every save of a still-legacy [`TData`] migrates afresh;
-    /// [`TData::migrate`] first keeps one migration for every later save,
-    /// as 1.5.0 keeps the key data its first save installed.
+    /// [`TData::migrate`] first keeps one migration for every later save.
     ///
     /// # Errors
     /// - [`Error::SaveFailed`] when there is no account, or when an account
-    ///   map encodes to nothing (1.5.0 cannot encrypt it either).
+    ///   map encodes to nothing, which cannot be encrypted.
     /// - As [`key_data::create_passcode_key`] when migrating under a
     ///   passcode.
     /// - [`Error::Io`] when a directory or file cannot be written.
@@ -341,7 +334,7 @@ impl TData {
     }
 
     /// [`TData::new`] with its draws from `draws`, storing `active_index`
-    /// (1.5.0's [`NEW_FOLDER_ACTIVE_INDEX`] when the caller has none).
+    /// ([`NEW_FOLDER_ACTIVE_INDEX`] when the caller has none).
     ///
     /// A failed or mismatched draw leaves the keys unspecified, so the folder
     /// is discarded and the draw failure is returned, before any failure of
@@ -468,7 +461,7 @@ impl TData {
         if self.accounts.is_empty() {
             return Err(Error::SaveFailed);
         }
-        // tdesktop 7.3 migrates a pre-7.3 key file on start; 1.5.0 writes
+        // tdesktop 7.3 migrates a pre-7.3 key file on start; the save writes
         // the migrated shape directly, before the accounts draw padding.
         let migrated = if self.key_data.trailer.is_none() {
             Some(key_data::install(&self.local_key, &self.passcode.0, rng)?.0)
@@ -495,7 +488,7 @@ impl TData {
     ///
     /// `key_file` defaults to [`DEFAULT_KEY_FILE`]. Each listed index is
     /// loaded once; negative indices are skipped, and an account whose files
-    /// fail to read is skipped silently, as in 1.5.0.
+    /// fail to read is skipped silently.
     ///
     /// # Errors
     /// - As [`tdf::read`] and [`KeyData::parse`] for the key file.
@@ -541,12 +534,12 @@ impl TData {
     }
 
     /// Replaces the accounts later saves write, keeping the local key, the
-    /// key data with its salts, and the active index, as 1.5.0 writes an
-    /// edited `accounts` list under the loaded local key.
+    /// key data with its salts, and the active index, so an edited
+    /// `accounts` list is written under the loaded local key.
     ///
     /// Up to [`TData::MAX_ACCOUNTS`] accounts are accepted, or as many as
-    /// [`TData::load`] loaded when that is more: 1.5.0 loads a folder that
-    /// lists more than six and saves it back under the same local key.
+    /// [`TData::load`] loaded when that is more, so a folder that lists more
+    /// than six saves back under the same local key.
     ///
     /// # Errors
     /// - [`Error::MaxAccountLimit`] for more accounts than that limit.
@@ -566,7 +559,7 @@ impl TData {
         Ok(())
     }
 
-    /// Adds an account with `auth_key` as the key of `main_dc`, as 1.5.0's
+    /// Adds an account with `auth_key` as the key of `main_dc`, as
     /// `Account.FromTelethon` adds one to an owner: it gets the map of
     /// [`MapData::new_account`](map::MapData::new_account) and no config,
     /// and it is appended (`_addSingleAccount`). The active index is not
@@ -574,16 +567,16 @@ impl TData {
     /// folder that had none. Returns the new index.
     ///
     /// The index is the lowest one in `0..MAX_ACCOUNTS` that no account
-    /// holds, tdesktop's own rule. This deliberately differs from 1.5.0,
-    /// which uses the account count: with loaded indices `[0, 2]` the count
-    /// gives a second account 2, whose files would overwrite the first; here
-    /// the new account gets 1. Without gaps both rules agree.
+    /// holds, tdesktop's own rule. The account count is not used as the
+    /// index: with loaded indices `[0, 2]` it would give the new account 2,
+    /// whose files would overwrite an existing one; here the new account
+    /// gets 1. Without gaps both rules agree.
     ///
     /// # Errors
     /// [`Error::MaxAccountLimit`] when the folder already holds
     /// [`TData::MAX_ACCOUNTS`] accounts or every index below it is taken
-    /// (1.5.0: `You can't have more than 6 accounts in one TDesktop
-    /// client`); `self` is then unchanged.
+    /// (`You can't have more than 6 accounts in one TDesktop client`);
+    /// `self` is then unchanged.
     pub fn add_account(&mut self, user_id: u64, main_dc: i32, auth_key: AuthKey) -> Result<i32> {
         if self.accounts.len() >= Self::MAX_ACCOUNTS {
             return Err(Error::MaxAccountLimit);
@@ -597,7 +590,7 @@ impl TData {
         Ok(index)
     }
 
-    /// Changes the data name of the key file, as 1.5.0's
+    /// Changes the data name of the key file, as
     /// `SaveTData(keyFile=name)` does: [`TData::save`] then writes
     /// `key_<name>s` and every account under the data name
     /// [`account::data_name`]`(name, index)`.
@@ -631,8 +624,8 @@ struct Replay {
 
 /// The random source of [`TData::new_with_draws`],
 /// [`TData::save_with_draws`] and [`TData::migrate_with_draws`]: the
-/// operating system's CSPRNG, or, as a testing hook, recorded draws (1.5.0's
-/// `os.urandom` calls, sized by [`draw_plan`]) replayed in order.
+/// operating system's CSPRNG, or, as a testing hook, recorded draws (sized
+/// by [`draw_plan`]) replayed in order.
 ///
 /// The first failure is kept and every later draw is zero-filled, so the
 /// caller discards whatever was built; [`DrawSource::finish`] reports it.

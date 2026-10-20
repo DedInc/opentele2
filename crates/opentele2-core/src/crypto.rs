@@ -330,7 +330,7 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; 32] {
     mac.finalize().into_bytes().into()
 }
 
-/// Hash function of the HMAC that [`pbkdf2`] runs.
+/// Hash function of the HMAC that [`pbkdf2()`] runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Digest {
     /// SHA-1.

@@ -42,9 +42,9 @@ fn endpoint_addr(endpoint: &Endpoint) -> Result<SocketAddr> {
     Ok(SocketAddr::new(ip, port))
 }
 
-/// The endpoint 1.5.0 connects an account to (`src/tl/telethon.py`,
-/// `FromTDesktop`), whether it is a test server, and the main DC key, in the
-/// order 1.5.0 checks them (endpoints first, then the key).
+/// The endpoint an account connects to (`TelegramClient.FromTDesktop`),
+/// whether it is a test server, and the main DC key, checked in that order
+/// (endpoints first, then the key).
 ///
 /// With a stored config the endpoint is
 /// [`crate::tdata::mtp_config::Endpoints::select`] of the main DC's
@@ -54,11 +54,10 @@ fn account_endpoint(account: &Account, ipv6: bool) -> Result<(SocketAddr, bool, 
     Ok((addr, test, key))
 }
 
-/// [`account_endpoint`] with the address text 1.5.0 hands Telethon's
+/// [`account_endpoint`] with the address text handed to Telethon's
 /// `set_dc` (`auth_session.set_dc(endpoint.id, endpoint.ip, endpoint.port)`):
 /// the stored config's IP text verbatim, or the text of the built-in table
-/// (`src/td/configs.py`: dotted IPv4, IPv6 with all eight groups as four
-/// lowercase hex digits).
+/// (dotted IPv4, IPv6 with all eight groups as four lowercase hex digits).
 pub(super) fn account_target(
     account: &Account,
     ipv6: bool,
@@ -86,7 +85,8 @@ pub(super) fn account_target(
     Ok((addr, ip_text, test, key))
 }
 
-/// An address of the built-in table as 1.5.0 spells it.
+/// An address of the built-in table as its text spells it: dotted IPv4,
+/// IPv6 with all eight groups as four lowercase hex digits.
 fn table_text(ip: IpAddr) -> String {
     match ip {
         IpAddr::V4(ip) => ip.to_string(),
@@ -181,7 +181,7 @@ pub mod telethon {
     }
 
     impl StringSession {
-        /// The session 1.5.0 builds for `account` (`TelegramClient.FromTDesktop`):
+        /// The session built for `account` (`TelegramClient.FromTDesktop`):
         /// the first TCP endpoint of the main DC, IPv6 when `ipv6` is set
         /// (`use_ipv6`) and the DC has one, and the main DC key. The
         /// endpoints come from the account's stored config
@@ -190,7 +190,9 @@ pub mod telethon {
         ///
         /// # Errors
         /// - [`Error::BadConfigData`] when the main DC has no usable
-        ///   endpoint (see the [module docs](super)).
+        ///   endpoint: outside the built-in table, missing from the stored
+        ///   config or without a TCP endpoint there, or with an IP or port
+        ///   that does not parse.
         /// - [`Error::AuthKeyNotFound`] when the account has no main DC key.
         pub fn from_account(account: &Account, ipv6: bool) -> Result<Self> {
             let (addr, _, key) = account_endpoint(account, ipv6)?;
@@ -295,6 +297,14 @@ pub mod telethon {
 /// are rejected. Two legacy inputs decode but do not re-encode verbatim: a
 /// DC option of version 1 and the session flag [`FLAG_TEST_MODE_OLD`] both
 /// re-encode as version 2 with the test mode in the DC option flags.
+///
+/// [`FLAG_SELF`]: mtcute::FLAG_SELF
+/// [`FLAG_MEDIA_DC`]: mtcute::FLAG_MEDIA_DC
+/// [`FLAG_TEST_MODE_OLD`]: mtcute::FLAG_TEST_MODE_OLD
+/// [`DC_OPTION_VERSION`]: mtcute::DC_OPTION_VERSION
+/// [`DC_IPV6`]: mtcute::DC_IPV6
+/// [`DC_MEDIA_ONLY`]: mtcute::DC_MEDIA_ONLY
+/// [`DC_TEST_MODE`]: mtcute::DC_TEST_MODE
 pub mod mtcute {
     use std::net::SocketAddr;
 
@@ -430,7 +440,9 @@ pub mod mtcute {
         ///
         /// # Errors
         /// - [`Error::BadConfigData`] when the main DC has no usable
-        ///   endpoint (see the [module docs](super)).
+        ///   endpoint: outside the built-in table, missing from the stored
+        ///   config or without a TCP endpoint there, or with an IP or port
+        ///   that does not parse.
         /// - [`Error::AuthKeyNotFound`] when the account has no main DC key.
         pub fn from_account(account: &Account, ipv6: bool) -> Result<Self> {
             let (addr, test_mode, key) = account_endpoint(account, ipv6)?;
@@ -608,8 +620,9 @@ pub mod grammers {
             .collect()
     }
 
-    /// Every DC of `config` whose endpoints, chosen as 1.5.0 chooses them
-    /// with and without IPv6, are an IPv4 and an IPv6 address.
+    /// Every DC of `config` whose endpoints, chosen as
+    /// [`crate::tdata::mtp_config::Endpoints::select`] chooses them with and
+    /// without IPv6, are an IPv4 and an IPv6 address.
     fn config_options(config: &MtpConfig) -> HashMap<i32, (SocketAddrV4, SocketAddrV6)> {
         config
             .dc_options

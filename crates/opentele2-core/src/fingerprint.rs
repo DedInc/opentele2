@@ -1,35 +1,33 @@
-//! The pure `initConnection` fingerprint helpers of opentele2 1.5.0
-//! (`src/fingerprint.py`).
+//! The pure `initConnection` fingerprint helpers.
 //!
 //! - [`tz_offset`] is `tdesktop_tz_offset`, the `tz_offset` Telegram Desktop
 //!   puts into `initConnection` `params`. The caller passes the local UTC
 //!   offset, so results do not depend on the machine's clock or zone.
 //! - [`validate_init_params`] is `validate_init_connection_params`, and
-//!   [`check_versions`] is its strict version check
-//!   `_check_version_consistency`. Versions come from a [`Versions`] the
-//!   caller passes, where 1.5.0 reads its global `PLATFORM_VERSIONS`.
+//!   [`check_versions`] is its strict version check. Versions come from a
+//!   [`Versions`] the caller passes, such as the Python binding's global
+//!   `PLATFORM_VERSIONS`.
 //!   [`validate_raw_init_params`] takes the arguments as the caller gave
 //!   them ([`RawInitParams`], `None` and an `api_id` of any type included)
-//!   and words each message as 1.5.0 shows it.
+//!   and words each message as the Python binding shows it.
 //! - [`layer_mismatch_warning`] is the `get_recommended_layer` warning.
-//! - [`StrictMode`] and [`FingerprintConfig`] are the 1.5.0 types of the same
-//!   names.
+//! - [`StrictMode`] and [`FingerprintConfig`] are the Python types of the
+//!   same names.
 //! - [`msg_id_offset`] is `generate_msg_id_offset` with randomness from the
-//!   caller, and [`is_valid_msg_id`] takes the current unix time where 1.5.0
-//!   reads `time.time()`.
+//!   caller, and [`is_valid_msg_id`] takes the current unix time instead of
+//!   reading the clock.
 //!
-//! 1.5.0 returns findings as strings and leaves warning or raising to
-//! `FingerprintConfig.validate_params`. Here every finding is an [`Issue`]
-//! with the 1.5.0 message and a [`Severity`] that says what 1.5.0 does with
-//! it under the [`StrictMode`] in force:
+//! Every finding is an [`Issue`] with its message and a [`Severity`] that
+//! says what `FingerprintConfig.validate_params` does with it under the
+//! [`StrictMode`] in force:
 //!
-//! | 1.5.0 behaviour | Mode | Severity |
+//! | Python behaviour | Mode | Severity |
 //! |---|---|---|
 //! | returned in the list, never warned or raised | [`StrictMode::Off`] | [`Severity::Note`] |
 //! | `warnings.warn(msg)` | [`StrictMode::Warn`] | [`Severity::Warning`] |
 //! | `raise ValueError(msg)` | [`StrictMode::Strict`] | [`Severity::Error`] |
 //!
-//! [`issues_message`] builds the `msg` 1.5.0 warns or raises with.
+//! [`issues_message`] builds the `msg` that is warned or raised with.
 //!
 //! `TransportRecommendation` needs Telethon connection classes and stays in
 //! the Python binding.
@@ -41,7 +39,7 @@ use crate::Result;
 use crate::api::{ApiProfile, LAYER, Versions};
 
 /// The `tz_offset` Telegram Desktop sends in `initConnection` `params` for a
-/// local UTC offset of `utc_offset_seconds` (1.5.0 `tdesktop_tz_offset`,
+/// local UTC offset of `utc_offset_seconds` (`tdesktop_tz_offset`,
 /// mirroring `SessionPrivate::prepareInitParams`).
 ///
 /// The offset is wrapped by whole days into -12 h..+14 h: an offset below
@@ -49,15 +47,15 @@ use crate::api::{ApiProfile, LAYER, Versions};
 /// days until it is at most +14 h. It is then rounded to a multiple of 900
 /// seconds with halves away from zero (`std::round`).
 ///
-/// 1.5.0 reads the offset from a `datetime`, which bounds it to under 24 h
-/// either way; any `i32` is accepted here and wrapped the same way.
+/// An offset read from a Python `datetime` is under 24 h either way; any
+/// `i32` is accepted here and wrapped the same way.
 #[must_use]
 pub fn tz_offset(utc_offset_seconds: i32) -> f64 {
     const DAY: i32 = 24 * 3600;
     const LOW: i32 = -12 * 3600;
     const HIGH: i32 = 14 * 3600;
     let mut sliced = utc_offset_seconds;
-    // Closed forms of the 1.5.0 `while` loops, safe at the `i32` extremes:
+    // Closed forms of tdesktop's `while` loops, safe at the `i32` extremes:
     // `sliced + 43200` and `50400 - sliced` cannot overflow in their branch.
     if sliced < LOW {
         sliced = LOW + (sliced - LOW).rem_euclid(DAY);
@@ -71,7 +69,7 @@ pub fn tz_offset(utc_offset_seconds: i32) -> f64 {
     f64::from(if sliced < 0 { -rounded } else { rounded })
 }
 
-/// How 1.5.0 handles fingerprint consistency issues (`StrictMode`).
+/// How fingerprint consistency issues are handled (`StrictMode`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StrictMode {
     /// `OFF`: no extra checks; findings are neither warned nor raised.
@@ -83,10 +81,10 @@ pub enum StrictMode {
 }
 
 impl StrictMode {
-    /// Every mode, in 1.5.0's declaration order.
+    /// Every mode, in declaration order.
     pub const ALL: [Self; 3] = [Self::Off, Self::Warn, Self::Strict];
 
-    /// The 1.5.0 enum value: `off`, `warn` or `strict`.
+    /// The enum value: `off`, `warn` or `strict`.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -96,14 +94,14 @@ impl StrictMode {
         }
     }
 
-    /// The mode whose 1.5.0 enum value is `value`, as `StrictMode(value)`;
+    /// The mode whose enum value is `value`, as `StrictMode(value)`;
     /// `None` for any other string, including other cases.
     #[must_use]
     pub fn from_value(value: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|mode| mode.as_str() == value)
     }
 
-    /// The severity 1.5.0 gives a finding under this mode.
+    /// The severity a finding gets under this mode.
     #[must_use]
     pub fn severity(self) -> Severity {
         match self {
@@ -114,7 +112,8 @@ impl StrictMode {
     }
 }
 
-/// What 1.5.0 does with a finding; see the module documentation.
+/// What the Python binding does with a finding; see the module
+/// documentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Severity {
     /// Returned in the list only.
@@ -212,14 +211,14 @@ impl IssueKind {
     }
 }
 
-/// One finding, with the message 1.5.0 reports for it.
+/// One finding, with the message reported for it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Issue {
     /// The check that failed.
     pub kind: IssueKind,
-    /// What 1.5.0 does with the finding.
+    /// What the Python binding does with the finding.
     pub severity: Severity,
-    /// The 1.5.0 message, character for character.
+    /// The message, character for character as the bindings show it.
     pub message: String,
 }
 
@@ -229,7 +228,7 @@ impl fmt::Display for Issue {
     }
 }
 
-/// The message 1.5.0 `FingerprintConfig.validate_params` warns or raises
+/// The message `FingerprintConfig.validate_params` warns or raises
 /// with: a header line, then one `  - ` line per issue.
 #[must_use]
 pub fn issues_message(issues: &[Issue]) -> String {
@@ -241,10 +240,10 @@ pub fn issues_message(issues: &[Issue]) -> String {
     message
 }
 
-/// 1.5.0 `_VALID_LANG_PACKS`, as its `sorted()` list renders in messages.
+/// The official `lang_pack` values, sorted as messages list them.
 const VALID_LANG_PACKS: [&str; 5] = ["", "android", "ios", "macos", "tdesktop"];
 
-/// 1.5.0 `_LANG_PACK_API_ID_MAP`.
+/// The official `api_id` of each `lang_pack` that has one.
 fn official_api_id(lang_pack: &str) -> Option<i32> {
     match lang_pack {
         "tdesktop" => Some(2040),
@@ -255,7 +254,7 @@ fn official_api_id(lang_pack: &str) -> Option<i32> {
     }
 }
 
-/// The findings of 1.5.0 `validate_init_connection_params` for `profile`,
+/// The findings of `validate_init_connection_params` for `profile`,
 /// in its order, with `strict` on exactly when `mode` is
 /// [`StrictMode::Strict`]. Each finding has `mode`'s [`Severity`].
 ///
@@ -276,9 +275,9 @@ pub fn validate_init_params(
     validate_raw_init_params(&RawInitParams::from_profile(profile), versions, mode)
 }
 
-/// An `api_id` as a caller of 1.5.0 `validate_init_connection_params` gave
-/// it, before any conversion: 1.5.0 compares it with the official id of the
-/// `lang_pack` by Python `!=` and shows it with Python `str()`.
+/// An `api_id` as a caller of `validate_init_connection_params` gave it,
+/// before any conversion: it is compared with the official id of the
+/// `lang_pack` by Python `!=` and shown with Python `str()`.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum RawApiId<'a> {
     /// An integer: equal to an official id of the same value, shown in
@@ -299,8 +298,8 @@ pub enum RawApiId<'a> {
 }
 
 impl RawApiId<'_> {
-    /// Whether 1.5.0 finds the value equal to the official id `id` (Python
-    /// `==` between the value and an `int`).
+    /// Whether the value equals the official id `id` (Python `==` between
+    /// the value and an `int`).
     #[must_use]
     pub fn equals_id(&self, id: i32) -> bool {
         match *self {
@@ -375,15 +374,14 @@ fn py_float_repr(value: f64) -> String {
     }
 }
 
-/// The arguments of 1.5.0 `validate_init_connection_params` as the caller
+/// The arguments of `validate_init_connection_params` as the caller
 /// gave them, `None` standing for Python `None`.
 ///
-/// 1.5.0 tests a `None` text as empty and shows it as `None` where it
+/// A `None` text is tested as empty and shown as `None` where a message
 /// formats it: `lang_code 'None'`, and a `lang_pack` of `None` is the
-/// unknown pack `'None'`. Where 1.5.0 raises on `None` (a missing
-/// `system_lang_code` of an Android or iOS pack, a missing `app_version` or
-/// `system_version` in strict mode) it is tested and shown as empty text,
-/// as the 2.0 Python facade does.
+/// unknown pack `'None'`. A missing `system_lang_code` of an Android or iOS
+/// pack, and a missing `app_version` or `system_version` in strict mode,
+/// are tested and shown as empty text.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RawInitParams<'a> {
     /// `api_id`.
@@ -419,9 +417,9 @@ impl<'a> RawInitParams<'a> {
     }
 }
 
-/// [`validate_init_params`] of the values a caller gave 1.5.0
+/// [`validate_init_params`] of the values a caller gave
 /// `validate_init_connection_params`, with every message in the form the
-/// Python facade shows: `None` values and an `api_id` of any type are shown
+/// Python binding shows: `None` values and an `api_id` of any type are shown
 /// as Python `str()` shows them (see [`RawInitParams`] and [`RawApiId`]).
 #[must_use]
 pub fn validate_raw_init_params(
@@ -438,7 +436,7 @@ pub fn validate_raw_init_params(
             message,
         });
     };
-    // 1.5.0 looks a `None` pack up as its `str()`.
+    // A `None` pack is looked up as its `str()`.
     let lang_pack = params.lang_pack.unwrap_or("None");
     let lang_code = params.lang_code.unwrap_or("");
     let system_lang_code = params.system_lang_code.unwrap_or("");
@@ -516,14 +514,13 @@ pub fn validate_raw_init_params(
     issues
 }
 
-/// The findings of 1.5.0 `_check_version_consistency` for `profile`
-/// against `versions`, each with [`Severity::Error`]: 1.5.0 runs this check
-/// only in strict mode, where findings are raised.
+/// The strict version findings for `profile` against `versions`, each with
+/// [`Severity::Error`]: the check runs only in strict mode, where findings
+/// are raised.
 ///
 /// - For `android`, `ios`, `tdesktop` and `macos`: `app_version` must start
 ///   with the major (the text before the first `.`) of the latest known app
-///   version. It is a prefix test, as in 1.5.0, so `130.0` passes for a
-///   known `13.0.3`.
+///   version. It is a prefix test, so `130.0` passes for a known `13.0.3`.
 /// - For `android`: a system version containing `SDK` has every `SDK `
 ///   removed and the rest read as a Python `int()`; any other system version
 ///   must match `^\d+(?:\.\d+)?\s*\((\d+)\)$` (Python `re`, Unicode digits
@@ -740,7 +737,7 @@ impl fmt::Display for PyInt {
     }
 }
 
-/// The fingerprint options of 1.5.0 `FingerprintConfig`, with its defaults
+/// The fingerprint options of `FingerprintConfig`, with its defaults
 /// from [`FingerprintConfig::new`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FingerprintConfig {
@@ -759,13 +756,13 @@ pub struct FingerprintConfig {
     pub layer_override: Option<i32>,
     /// Whether msg ids get a small random offset; default on.
     pub randomize_msg_id_offset: bool,
-    /// The msg id offset (1.5.0 `_msg_id_offset`), drawn by
+    /// The msg id offset (`_msg_id_offset`), drawn by
     /// [`msg_id_offset`] on construction.
     pub msg_id_offset: u16,
 }
 
 impl FingerprintConfig {
-    /// The 1.5.0 defaults, drawing [`FingerprintConfig::msg_id_offset`] from
+    /// The defaults, drawing [`FingerprintConfig::msg_id_offset`] from
     /// `rng` as [`msg_id_offset`] does.
     #[must_use]
     pub fn new(rng: &mut dyn FnMut(&mut [u8])) -> Self {
@@ -792,12 +789,11 @@ impl FingerprintConfig {
         Ok(Self::new(&mut |buf| buf.copy_from_slice(&bytes)))
     }
 
-    /// The layer to invoke with (1.5.0 `get_effective_layer`):
-    /// [`FingerprintConfig::layer_override`] when set, otherwise
-    /// [`LAYER`].
+    /// The layer to invoke with: [`FingerprintConfig::layer_override`] when
+    /// set, otherwise [`LAYER`].
     ///
-    /// Without an override 1.5.0 returns the layer of the installed Telethon
-    /// (`get_recommended_layer`). That is a property of the `MTProto`
+    /// Without an override the Python `get_effective_layer` returns the
+    /// layer of the installed Telethon ([`FingerprintConfig::effective_layer_for`]). That is a property of the `MTProto`
     /// library, which the core does not have; the core answers with the
     /// layer it advertises, and bindings pass their library's layer as the
     /// override.
@@ -806,14 +802,13 @@ impl FingerprintConfig {
         self.layer_override.unwrap_or(LAYER)
     }
 
-    /// 1.5.0 `get_effective_layer` for an `MTProto` library built for
-    /// `library_layer`: the layer to invoke with, and the warning 1.5.0
+    /// `get_effective_layer` for an `MTProto` library built for
+    /// `library_layer`: the layer to invoke with, and the warning
     /// `get_recommended_layer` emits on the way.
     ///
     /// With [`FingerprintConfig::layer_override`] set, that layer and no
     /// warning. Otherwise `library_layer` and [`layer_mismatch_warning`] of
-    /// it; 1.5.0 warns here whatever
-    /// [`FingerprintConfig::warn_on_layer_mismatch`] says.
+    /// it, whatever [`FingerprintConfig::warn_on_layer_mismatch`] says.
     #[must_use]
     pub fn effective_layer_for(&self, library_layer: i32) -> (i32, Option<String>) {
         match self.layer_override {
@@ -822,11 +817,11 @@ impl FingerprintConfig {
         }
     }
 
-    /// The issues 1.5.0 `validate_params` warns about or raises for
+    /// The issues `validate_params` warns about or raises for
     /// `profile` (render them with [`issues_message`]).
     ///
     /// Empty when [`FingerprintConfig::auto_validate`] is off, and under
-    /// [`StrictMode::Off`], where 1.5.0 surfaces nothing. Otherwise
+    /// [`StrictMode::Off`], where nothing is surfaced. Otherwise
     /// [`validate_init_params`] under the configured mode: warnings under
     /// [`StrictMode::Warn`], errors under [`StrictMode::Strict`].
     #[must_use]
@@ -834,7 +829,7 @@ impl FingerprintConfig {
         self.validate_raw(&RawInitParams::from_profile(profile), versions)
     }
 
-    /// [`FingerprintConfig::validate`] of the values the caller gave 1.5.0
+    /// [`FingerprintConfig::validate`] of the values the caller gave
     /// `validate_params`, through [`validate_raw_init_params`], so the
     /// messages are in their final display form.
     #[must_use]
@@ -846,10 +841,10 @@ impl FingerprintConfig {
     }
 }
 
-/// The warning 1.5.0 `get_recommended_layer` emits when the `MTProto`
+/// The warning `get_recommended_layer` emits when the `MTProto`
 /// library's layer `library_layer` is more than
 /// [`crate::auth::LAYER_TOLERANCE`] layers from [`LAYER`]; `None` within
-/// it. 1.5.0 names the library after Telethon.
+/// it. The warning names the library after Telethon.
 #[must_use]
 pub fn layer_mismatch_warning(library_layer: i32) -> Option<String> {
     let diff = library_layer.abs_diff(LAYER);
@@ -887,7 +882,7 @@ pub struct FingerprintConfigOptions {
 }
 
 impl FingerprintConfig {
-    /// The 1.5.0 defaults with every option that is set in `options`
+    /// The defaults with every option that is set in `options`
     /// replacing its default. Without
     /// [`FingerprintConfigOptions::msg_id_offset`] the offset is drawn from
     /// `rng` as [`FingerprintConfig::new`] draws it; with it, `rng` is not
@@ -970,7 +965,7 @@ pub fn msg_id_offset_for_os() -> Result<u16> {
     Ok(msg_id_offset(&mut |buf| buf.copy_from_slice(&bytes)))
 }
 
-/// A random msg id offset in `0..=0xFFFF`, as 1.5.0
+/// A random msg id offset in `0..=0xFFFF`, the range of
 /// `generate_msg_id_offset` (`random.randint(0, 0xFFFF)`), from two bytes
 /// of `rng` read little-endian.
 #[must_use]
@@ -980,8 +975,8 @@ pub fn msg_id_offset(rng: &mut dyn FnMut(&mut [u8])) -> u16 {
     u16::from_le_bytes(bytes)
 }
 
-/// Whether `msg_id` is plausible at unix time `now_unix` (1.5.0
-/// `is_valid_msg_id`, which reads `int(time.time())`).
+/// Whether `msg_id` is plausible at unix time `now_unix` (`is_valid_msg_id`,
+/// whose Python form reads `int(time.time())`).
 ///
 /// It must be positive and odd when `from_client`, even otherwise, and its
 /// upper 32 bits must be within 300 seconds of `now_unix`, exclusive.

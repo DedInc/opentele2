@@ -7,9 +7,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MagicContext {
-    /// A `TDF$` file started with other bytes (1.5.0 `Storage.ReadFile`).
+    /// A `TDF$` file started with other bytes (`Storage.ReadFile`).
     File {
-        /// The file name without its suffix, as 1.5.0 reports it.
+        /// The file name without its suffix, as the message reports it.
         file: String,
         /// The bytes found where the magic belongs, at most four.
         magic: Vec<u8>,
@@ -21,8 +21,7 @@ pub enum MagicContext {
     },
 }
 
-/// What an [`Error::ReadMapDataFailed`] was raised for (1.5.0
-/// `MapData.read`).
+/// What an [`Error::ReadMapDataFailed`] was raised for (`MapData.read`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MapReadFailure {
@@ -37,8 +36,8 @@ pub enum MapReadFailure {
     Decrypt,
 }
 
-/// What an [`Error::KeyDataInvalid`] was raised for (1.5.0
-/// `src/td/key_data.py` and `TDesktop.__loadFromTData`).
+/// What an [`Error::KeyDataInvalid`] was raised for ([`crate::tdata::key_data`]
+/// and [`crate::tdata::TData::load`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KeyDataFailure {
@@ -83,7 +82,7 @@ pub enum KeyDataFailure {
     },
     /// The accounts info does not decrypt under the local key.
     AccountsInfoDecrypt,
-    /// The accounts info lists no account (1.5.0 raises a plain
+    /// The accounts info lists no account (raised as a plain
     /// `OpenTeleException` with this text).
     BadAccountsCount {
         /// The count found.
@@ -91,9 +90,9 @@ pub enum KeyDataFailure {
     },
 }
 
-/// What an [`Error::BadConfigData`] was raised for: the 1.5.0 checks of
-/// `src/td/mtp.py`, and the endpoint, session and self-user checks that
-/// report the same code.
+/// What an [`Error::BadConfigData`] was raised for: the MTP config checks,
+/// and the endpoint, session and self-user checks that report the same
+/// code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ConfigFailure {
@@ -109,16 +108,15 @@ pub enum ConfigFailure {
         /// The secret size found.
         size: i32,
     },
-    /// A serialized DC options IP holds a byte outside ASCII (1.5.0 raises
-    /// `UnicodeDecodeError`).
+    /// A serialized DC options IP holds a byte outside ASCII (reported with
+    /// the Python `UnicodeDecodeError` text).
     NonAsciiIp {
         /// The first byte outside ASCII.
         byte: u8,
         /// Its offset within the IP.
         position: usize,
     },
-    /// An endpoint IP to serialize is not ASCII (1.5.0 raises
-    /// `UnicodeEncodeError`).
+    /// An endpoint IP to serialize is not ASCII.
     UnencodableIp,
     /// A serialized config has a version other than 1
     /// (`MTP.Config.FromSerialized`).
@@ -126,19 +124,18 @@ pub enum ConfigFailure {
         /// The version found.
         version: i32,
     },
-    /// A serialized config has an environment other than 0 and 1 (1.5.0
-    /// raises `ValueError`).
+    /// A serialized config has an environment other than 0 and 1 (reported
+    /// with the Python `ValueError` text).
     BadEnvironment {
         /// The environment code found.
         code: i32,
     },
-    /// A DC id has no endpoints in the config or the built-in table (1.5.0
-    /// `TDataDcIdNotFound`).
+    /// A DC id has no endpoints in the config or the built-in table.
     DcNotFound {
         /// The DC id looked for.
         dc_id: i32,
     },
-    /// The main DC has no TCP endpoint (1.5.0 `FromTDesktop`).
+    /// The main DC has no TCP endpoint (`FromTDesktop`).
     NoTcpEndpoint,
     /// An endpoint IP does not parse as an IPv4 or IPv6 address.
     BadEndpointIp,
@@ -171,12 +168,12 @@ pub enum ConfigFailure {
 /// Every failure the core can report.
 ///
 /// Variants map 1:1 onto the tdata exceptions of the Python package
-/// (`src/exception.py`), plus [`Error::BadLength`], [`Error::InvalidInput`]
+/// (`opentele2.exception`), plus [`Error::BadLength`], [`Error::InvalidInput`]
 /// and [`Error::Io`]. Bindings
 /// dispatch on [`Error::code`], which is stable across releases; the
 /// `Display` text is for humans and may change. [`Error::legacy_message`]
-/// is the message 1.5.0 gave the matching exception, built from the context
-/// the variants carry.
+/// is the message of the matching exception, built from the context the
+/// variants carry.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
@@ -246,8 +243,8 @@ pub enum Error {
     /// A `QDataStream` read or write failed (`QDataStreamFailed`).
     #[error("QDataStream operation failed")]
     QDataStreamFailed {
-        /// The 1.5.0 message of the failed read, when the read is one 1.5.0
-        /// names; `None` gives its default `Could not stream data`.
+        /// The message of the failed read, when the read has a message of
+        /// its own; `None` gives the default `Could not stream data`.
         context: Option<&'static str>,
     },
 
@@ -342,7 +339,7 @@ impl Error {
     /// [`Error::code`], else `None`. It never changes once given.
     ///
     /// - `"BAD_ACCOUNTS_COUNT"`: [`Error::KeyDataInvalid`] with
-    ///   [`KeyDataFailure::BadAccountsCount`], which 1.5.0 raised as a plain
+    ///   [`KeyDataFailure::BadAccountsCount`], which is raised as a plain
     ///   `OpenTeleException` rather than `TDataKeyDataInvalid`.
     ///
     /// Every other error has no detail code.
@@ -356,8 +353,8 @@ impl Error {
         }
     }
 
-    /// The message 1.5.0 gave the matching exception (its `message`
-    /// attribute, without the class name and caller `str()` adds), for
+    /// The message of the matching exception (its `message` attribute,
+    /// without the class name and caller `str()` adds), for
     /// example `Invalid magic b'ABCD' in file maps`.
     ///
     /// - [`Error::FileNotFound`]: `Could not open {file}`.
@@ -368,9 +365,9 @@ impl Error {
     ///   {file}`.
     /// - [`Error::BadEncryptedDataSize`] and [`Error::BadDecryptedDataSize`]:
     ///   the `Storage.DecryptLocal` messages with their sizes.
-    /// - [`Error::BadDecryptKey`]: the `Storage.DecryptLocal` message, which
-    ///   is also given where 1.5.0 named a key-data step instead.
-    /// - [`Error::QDataStreamFailed`]: the context, else 1.5.0's default
+    /// - [`Error::BadDecryptKey`]: the `Storage.DecryptLocal` message, for
+    ///   key-data steps too.
+    /// - [`Error::QDataStreamFailed`]: the context, else the default
     ///   `Could not stream data`.
     /// - [`Error::ReadMapDataFailed`], [`Error::ReadMapDataIncorrectPasscode`],
     ///   [`Error::AuthKeyNotFound`] and [`Error::MaxAccountLimit`]: the
@@ -378,14 +375,15 @@ impl Error {
     /// - [`Error::KeyDataInvalid`]: the `read_key_data`,
     ///   `create_passcode_key` and `__loadFromTData` message of its context.
     /// - [`Error::SaveFailed`]: `Could not save tdata, something went wrong`,
-    ///   the one message 1.5.0's `SaveTData` raised.
+    ///   the one message of `SaveTData`.
     /// - [`Error::BadConfigData`]: the `constructFromSerialized`,
     ///   `MTP.Config.FromSerialized`, `MTP.Config.endpoints` and
     ///   `FromTDesktop` message of its context (for the IP and environment
     ///   checks the Python 3.8 `UnicodeDecodeError` and `ValueError` text),
-    ///   and a plain description for the checks 1.5.0 does not make.
+    ///   and a plain description for the endpoint, session and self-user
+    ///   checks.
     ///
-    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadLength`],
+    /// [`Error::WrongPasscode`], [`Error::BadLength`],
     /// [`Error::InvalidInput`] (`Invalid {what}: {reason}`) and [`Error::Io`]
     /// give their `Display` text.
     #[must_use]
@@ -447,18 +445,18 @@ impl Error {
         }
     }
 
-    /// The class name of the exception 1.5.0 raised for the failure, the
+    /// The class name of the exception raised for the failure, the
     /// single source the bindings name their errors after (the Python
     /// `CORE_ERROR_TYPES` table, the Node error `name`).
     ///
-    /// Each tdata variant gives the `src/exception.py` class its doc names,
-    /// for example `TDataWrongPasscode`; [`Error::KeyDataInvalid`] with
+    /// Each tdata variant gives the `opentele2.exception` class its doc
+    /// names, for example `TDataWrongPasscode`; [`Error::KeyDataInvalid`] with
     /// [`KeyDataFailure::BadAccountsCount`] ([`Error::detail_code`]
-    /// `BAD_ACCOUNTS_COUNT`) gives `OpenTeleException`, the class 1.5.0
-    /// raised it as. The variants with no 1.5.0 class of their own give the
-    /// builtin 1.5.0 raised: `ValueError` for [`Error::BadLength`] (its
-    /// AES-IGE backend) and [`Error::InvalidInput`] (as `hashlib` does),
-    /// `OSError` for [`Error::Io`].
+    /// `BAD_ACCOUNTS_COUNT`) gives `OpenTeleException`. The variants with no
+    /// opentele2 class of their own give a Python builtin: `ValueError` for
+    /// [`Error::BadLength`] (as an AES-IGE backend raises) and
+    /// [`Error::InvalidInput`] (as `hashlib` does), `OSError` for
+    /// [`Error::Io`].
     #[must_use]
     pub fn legacy_class(&self) -> &'static str {
         match self {
@@ -486,7 +484,7 @@ impl Error {
     }
 }
 
-/// The 1.5.0 message of an [`Error::BadConfigData`].
+/// The message of an [`Error::BadConfigData`].
 fn config_message(context: ConfigFailure) -> String {
     match context {
         ConfigFailure::BadIpSize { .. } => "Bad ipSize data".to_owned(),
@@ -518,7 +516,7 @@ fn config_message(context: ConfigFailure) -> String {
     }
 }
 
-/// The 1.5.0 message of an [`Error::KeyDataInvalid`].
+/// The message of an [`Error::KeyDataInvalid`].
 fn key_data_message(context: KeyDataFailure) -> String {
     match context {
         KeyDataFailure::UnusableWrapParameters {
@@ -702,10 +700,10 @@ mod tests {
         assert_eq!(Error::WrongPasscode.code(), "TDATA_WRONG_PASSCODE");
     }
 
-    /// The codes and `Display` texts bindings dispatch on and show stay
-    /// what they were before the variants carried context.
+    /// The codes and `Display` texts bindings dispatch on and show are fixed
+    /// per variant, whatever context the variant carries.
     #[test]
-    fn codes_and_display_texts_are_unchanged() {
+    fn codes_and_display_texts_are_fixed() {
         let expected = [
             ("TFILE_NOT_FOUND", "tdata file not found"),
             ("TDATA_INVALID_MAGIC", "tdata file has an invalid magic"),
@@ -752,8 +750,7 @@ mod tests {
         }
     }
 
-    /// Variants without a 1.5.0 message of their own give their `Display`
-    /// text.
+    /// Variants without a message of their own give their `Display` text.
     #[test]
     fn legacy_message_falls_back_to_display() {
         let error = Error::WrongPasscode;

@@ -1,18 +1,18 @@
 //! Session formats of other Telegram libraries, built from tdata accounts.
 //!
-//! - [`dc`]: the built-in DC table of 1.5.0 and its first-endpoint choice.
+//! - [`dc`]: the built-in DC table and its first-endpoint choice.
 //! - [`telethon`]: Telethon `StringSession` (version `'1'`).
 //! - [`mtcute`]: mtcute string session version 3.
 //! - [`grammers`]: plain structs shaped like grammers 0.11 `SessionData`,
 //!   with no grammers dependency.
 //! - [`telethon_file`]: Telethon `SQLiteSession` (version 8) rows and the
-//!   `.session` + `.json` pair of 1.5.0; the file itself is written and read
+//!   `.session` + `.json` pair; the file itself is written and read
 //!   only with the optional feature `telethon-sqlite`.
 //!
 //! Every `from_account` takes the endpoints of the account's stored MTP
 //! config ([`crate::tdata::account::Account::mtp_config`]) when the account
-//! has config bytes, as 1.5.0 does with performance mode off, and the
-//! built-in production table of [`dc`] otherwise, as 1.5.0 does in
+//! has config bytes, as `TDesktop` does with performance mode off, and the
+//! built-in production table of [`dc`] otherwise, as `TDesktop` does in
 //! performance mode (its default, where the stored config is never read).
 //! The production default config holds the same endpoints as the table.
 //!
@@ -24,13 +24,13 @@ pub mod telethon_file;
 
 pub use codecs::{grammers, mtcute, telethon};
 
-/// The built-in DC options of 1.5.0 (`src/td/configs.py`, `BuiltInDc`) and
-/// the endpoint choice of its Telethon conversion (`src/tl/telethon.py`).
+/// The built-in DC options (`BuiltInDc`) and the endpoint choice of the
+/// Telethon conversion.
 ///
-/// 1.5.0 builds the DC options from these lists in order, IPv4 then IPv6,
+/// The DC options are built from these lists in order, IPv4 then IPv6,
 /// every entry a static TCP endpoint. A session takes the first TCP endpoint
 /// of the main DC: from the IPv6 list when IPv6 is asked for and the DC has
-/// an IPv6 endpoint, else from the IPv4 list (`_select_endpoint_address`).
+/// an IPv6 endpoint, else from the IPv4 list.
 pub mod dc {
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 
@@ -56,7 +56,7 @@ pub mod dc {
         )
     }
 
-    /// Production IPv4 options as (DC id, address), in 1.5.0 order; DC 2 is
+    /// Production IPv4 options as (DC id, address), in table order; DC 2 is
     /// listed twice (`kBuiltInDcs`).
     pub const PRODUCTION_IPV4: [(i32, SocketAddr); 6] = [
         v4(1, 149, 154, 175, 50),
@@ -113,8 +113,8 @@ pub mod dc {
     }
 
     /// The first production endpoint of `dc_id`, IPv6 when `ipv6` is set and
-    /// the DC has one; `None` for a DC outside the table (1.5.0 raises
-    /// `TDataDcIdNotFound`).
+    /// the DC has one; `None` for a DC outside the table (the Python binding
+    /// raises `TDataDcIdNotFound`).
     #[must_use]
     pub fn production(dc_id: i32, ipv6: bool) -> Option<SocketAddr> {
         select(&PRODUCTION_IPV4, &PRODUCTION_IPV6, dc_id, ipv6)

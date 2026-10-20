@@ -1,20 +1,18 @@
 //! One account of a tdata folder (`Main::Account` and `Storage::Account`).
 //!
 //! Account `index` of a folder whose key file is `key_file` has the data name
-//! [`data_name`]; its files live under [`folder_name`] of that data name, as
-//! in 1.5.0 (`src/td/storage.py`, `src/td/storage_account.py`):
+//! [`data_name`]; its files live under [`folder_name`] of that data name:
 //!
 //! - `<folder>s`: the MTP data, a `TDF$` file whose payload is one
 //!   `QByteArray` encrypted under the local key. The decrypted stream is a
 //!   list of `u32` dbi blocks: [`DBI_MTP_AUTHORIZATION`] and the legacy
-//!   blocks 1.5.0's `Storage.ReadSetting` reads (see
-//!   [`Account::parse_mtp_data`]).
+//!   blocks `Storage.ReadSetting` reads (see [`Account::parse_mtp_data`]).
 //! - `<folder>/maps`: the account map (see [`crate::tdata::map`]).
 //! - `<folder>/configs`: the serialized MTP config, written only when
 //!   performance mode is off; kept as raw bytes and parsed by
 //!   [`Account::mtp_config`].
 //!
-//! The `MtpAuthorization` blob (`src/td/account.py`) is the wide-ids tag
+//! The `MtpAuthorization` blob is the wide-ids tag
 //! `i64 -1`, `i64` user id, `i32` main DC, then the keys and the keys to
 //! destroy, each an `i32` count followed by `i32` DC id and 256 raw key bytes
 //! per key.
@@ -30,11 +28,11 @@ use crate::tdata::mtp_config::{DcOptions, Environment, MtpConfig};
 use crate::tdata::{FillRandom, encrypt, hex_bytes, write_tdf};
 use crate::{Error, MagicContext, Result, tdf};
 
-/// The 1.5.0 message of an `MtpAuthorization` blob cut short in its user id
-/// and main DC.
+/// The message of an `MtpAuthorization` blob cut short in its user id and
+/// main DC.
 const MTP_MAIN_FIELDS_FAILED: &str = "Could not read main fields from mtp authorization.";
 
-/// The 1.5.0 message of an `MtpAuthorization` blob cut short in a key count.
+/// The message of an `MtpAuthorization` blob cut short in a key count.
 const MTP_KEY_COUNT_FAILED: &str = "Could not read keys count from mtp authorization.";
 
 /// dbi block id of the `MtpAuthorization` blob in the MTP data.
@@ -66,8 +64,8 @@ pub const DBI_STICKERS_FAVED_LIMIT_OLD: u32 = 0x50;
 /// dbi block `dbiApplicationSettings`: a `QByteArray`.
 pub const DBI_APPLICATION_SETTINGS: u32 = 0x5E;
 
-/// The serialized default MTP config: the exact bytes of 1.5.0's
-/// `td.MTP.Config(td.MTP.Environment.Production).Serialize()` (production DC
+/// The serialized default MTP config: the exact bytes of
+/// `MTP.Config(MTP.Environment.Production).Serialize()` (production DC
 /// options and the default config fields), which
 /// [`MtpConfig::new`] for [`Environment::Production`] serializes to.
 /// [`crate::tdata::TData::save`] writes it into `configs` for an account
@@ -151,8 +149,8 @@ pub fn folder_name(data_name: &str) -> String {
 /// Reads the first `QByteArray` of the `TDF$` file `name` in `dir` and
 /// decrypts it under `local_key` (`ReadEncryptedFile`).
 ///
-/// As in 1.5.0 a blob that cannot be read is treated as empty, which fails
-/// decryption with [`Error::BadEncryptedDataSize`].
+/// A blob that cannot be read is treated as empty, which fails decryption
+/// with [`Error::BadEncryptedDataSize`].
 fn read_encrypted(dir: &Path, name: &str, local_key: &AuthKey) -> Result<Vec<u8>> {
     let file = tdf::read(dir, name)?;
     let encrypted = QReader::new(&file.payload)
@@ -221,8 +219,8 @@ impl<'a> RawReader<'a> {
     }
 
     fn keys(&mut self) -> Result<Vec<(i32, AuthKey)>> {
-        // A negative count reads no key, as in 1.5.0; the count is never
-        // preallocated, so a forged one fails at the first short key.
+        // A negative count reads no key; the count is never preallocated,
+        // so a forged one fails at the first short key.
         let count = self.i32().map_err(|_| Error::QDataStreamFailed {
             context: Some(MTP_KEY_COUNT_FAILED),
         })?;
@@ -235,7 +233,7 @@ impl<'a> RawReader<'a> {
     }
 }
 
-/// What 1.5.0 keeps from the dbi blocks of the MTP data
+/// What is kept from the dbi blocks of the MTP data
 /// (`Storage.ReadSettingsContext`); the legacy DC options and limits are
 /// read and dropped, as `_applyReadContext` never uses them.
 #[derive(Default)]
@@ -291,7 +289,7 @@ impl<'a> MtpData<'a> {
                     })?;
                 }
                 DBI_DC_OPTIONS_OLD => {
-                    // 1.5.0 parses the blob into a throwaway DcOptions, so a
+                    // The blob is parsed into a throwaway DcOptions, so a
                     // malformed one fails the read.
                     let blob = reader.with(QReader::read_bytearray)?.unwrap_or_default();
                     DcOptions::parse(blob)?;
@@ -351,7 +349,7 @@ pub struct Account {
 }
 
 impl Account {
-    /// A new account the way 1.5.0 builds one before saving
+    /// A new account as it is built before saving
     /// (`Account(owner, index)` then `_setMtpAuthorizationCustom`): the given
     /// keys, no keys to destroy, the map of [`MapData::new_account`], and no
     /// config.
@@ -488,8 +486,8 @@ impl Account {
     /// `_applyReadContext`) for account `index`, with an empty map and no
     /// config.
     ///
-    /// Besides [`DBI_MTP_AUTHORIZATION`] the stream may hold the legacy
-    /// blocks 1.5.0 reads: [`DBI_KEY`] and [`DBI_USER`], whose keys, user id
+    /// Besides [`DBI_MTP_AUTHORIZATION`] the stream may hold these legacy
+    /// blocks: [`DBI_KEY`] and [`DBI_USER`], whose keys, user id
     /// and main DC make the account when no `MtpAuthorization` blob is
     /// present (the last blob wins; an empty or null one counts as none),
     /// and [`DBI_DC_OPTION_OLD_OLD`], [`DBI_DC_OPTION_OLD`],
@@ -500,8 +498,8 @@ impl Account {
     ///
     /// # Errors
     /// - [`Error::QDataStreamFailed`] when a block is cut short.
-    /// - [`Error::InvalidMagic`] for any other block id, the error 1.5.0
-    ///   names for an unsupported block.
+    /// - [`Error::InvalidMagic`] for any other block id, the error of an
+    ///   unsupported block.
     /// - As [`DcOptions::parse`] for a [`DBI_DC_OPTIONS_OLD`] blob.
     /// - As [`Account::parse_mtp_authorization`] for the blob.
     /// - [`Error::AuthKeyNotFound`] when there is neither a blob nor a legacy
@@ -561,12 +559,10 @@ impl Account {
 
     /// The account's MTP config: [`Account::config`] parsed with
     /// [`MtpConfig::parse`], or the production default
-    /// ([`MtpConfig::new`]) when there is none or it does not parse, as
-    /// 1.5.0's `_readMtpConfig` falls back to it.
+    /// ([`MtpConfig::new`]) when there is none or it does not parse.
     ///
-    /// 1.5.0 catches only its own exceptions there, so a config whose IP is
-    /// not ASCII or whose environment is unknown fails its whole load; here
-    /// it falls back like any other bad config.
+    /// A config whose IP is not ASCII or whose environment is unknown falls
+    /// back like any other bad config.
     #[must_use]
     pub fn mtp_config(&self) -> MtpConfig {
         self.config

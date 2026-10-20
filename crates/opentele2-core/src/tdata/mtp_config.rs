@@ -1,6 +1,6 @@
 //! The MTP config of an account (`MTP::Config`, `MTP::ConfigFields` and
-//! `MTP::DcOptions`), as 1.5.0 reads and writes it (`src/td/mtp.py`, after
-//! tdesktop's `mtproto_config.cpp` and `mtproto_dc_options.cpp`).
+//! `MTP::DcOptions`), read and written after tdesktop's
+//! `mtproto_config.cpp` and `mtproto_dc_options.cpp`.
 //!
 //! A serialized config is the `i32` version [`CONFIG_VERSION`], the `i32`
 //! environment, the serialized [`DcOptions`] as a `QByteArray`, the 30 fields
@@ -20,9 +20,10 @@
 //! dropped (`applyOneGuarded`), so re-serializing a config tdesktop wrote
 //! gives back the same bytes.
 //!
-//! Reads mirror 1.5.0's `QDataStream`: a read past the end yields zero or
-//! empty values and fails the stream, which is checked where 1.5.0 checks it,
-//! so a cut-short config fails with the same error as in 1.5.0.
+//! Reads mirror Qt's `QDataStream`: a read past the end yields zero or empty
+//! values and fails the stream, which is checked after each group of reads
+//! (`ExpectStreamStatus`), so a cut-short config fails with the message of
+//! the group it was cut in.
 //!
 //! Every type converts to a JSON object map keyed by the `snake_case` field
 //! names the Python binding exposes (`to_map`), and the owned types back
@@ -75,8 +76,8 @@ const PORT: i32 = 443;
 /// A built-in DC list as (DC id, IP address).
 type BuiltInDcs = &'static [(i32, &'static str)];
 
-// The built-in DC lists of 1.5.0 (`src/td/configs.py`, `BuiltInDc`), the
-// IPv6 addresses in the long form 1.5.0 serializes.
+// The built-in DC lists (`BuiltInDc`), the IPv6 addresses in the long form
+// the config serializes.
 const BUILT_IN_DCS: [(i32, &str); 6] = [
     (1, "149.154.175.50"),
     (2, "149.154.167.51"),
@@ -129,8 +130,7 @@ impl Environment {
         }
     }
 
-    /// The environment stored as `code`; `None` for any other value (1.5.0
-    /// raises `ValueError`).
+    /// The environment stored as `code`; `None` for any other value.
     #[must_use]
     pub const fn from_code(code: i32) -> Option<Self> {
         match code {
@@ -161,7 +161,7 @@ impl Environment {
     }
 }
 
-/// A big-endian reader that behaves like 1.5.0's `QDataStream`: a read past
+/// A big-endian reader that behaves like Qt's `QDataStream`: a read past
 /// the end takes what is left, yields zero or empty values, and marks the
 /// stream failed for a later [`Stream::status`].
 struct Stream<'a> {
@@ -225,10 +225,10 @@ impl<'a> Stream<'a> {
         self.raw(usize::try_from(len).unwrap_or(usize::MAX))
     }
 
-    /// A `QString`; a null one reads as empty, as in 1.5.0.
+    /// A `QString`; a null one reads as empty.
     ///
     /// Code units that are not UTF-16BE fail at once with
-    /// [`Error::QDataStreamFailed`] (1.5.0 raises `UnicodeDecodeError`).
+    /// [`Error::QDataStreamFailed`].
     fn qstring(&mut self) -> Result<String> {
         let (units, rest) = self.block().as_chunks::<2>();
         if !rest.is_empty() {
@@ -239,8 +239,8 @@ impl<'a> Stream<'a> {
             .map_err(|_| Error::QDataStreamFailed { context: None })
     }
 
-    /// `ExpectStreamStatus(stream, context)`, `context` being the 1.5.0
-    /// message of the reads it covers.
+    /// `ExpectStreamStatus(stream, context)`, `context` being the message of
+    /// the reads it covers.
     const fn status(&self, context: &'static str) -> Result<()> {
         if self.failed {
             Err(Error::QDataStreamFailed {
@@ -252,7 +252,7 @@ impl<'a> Stream<'a> {
     }
 }
 
-/// `n` as the `i32` length prefix 1.5.0 writes.
+/// `n` as an `i32` length prefix.
 fn len_i32(n: usize) -> Result<i32> {
     i32::try_from(n).map_err(|_| Error::QDataStreamFailed { context: None })
 }
@@ -359,7 +359,7 @@ impl DcOptions {
     /// # Errors
     /// - [`Error::BadConfigData`] for an IP size outside 1 to
     ///   [`MAX_IP_SIZE`], a secret size outside 0 to [`MAX_SECRET_SIZE`], or
-    ///   an IP that is not ASCII (1.5.0 raises `UnicodeDecodeError`).
+    ///   an IP that is not ASCII.
     /// - [`Error::QDataStreamFailed`] when an endpoint or CDN key is cut
     ///   short.
     pub fn parse(serialized: &[u8]) -> Result<Self> {
@@ -477,7 +477,7 @@ pub struct ProtocolEndpoints {
     pub http: Vec<Endpoint>,
 }
 
-/// The endpoints of one DC by address family and protocol, as 1.5.0's
+/// The endpoints of one DC by address family and protocol, as
 /// `MTP.Config.endpoints` returns them.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Endpoints {
@@ -488,9 +488,8 @@ pub struct Endpoints {
 }
 
 impl Endpoints {
-    /// The endpoint 1.5.0's Telethon conversion connects to
-    /// (`src/tl/telethon.py`, `_select_endpoint_address` then the first
-    /// TCP endpoint): the IPv6 family when `ipv6` is set and it has a TCP
+    /// The endpoint the Telethon conversion connects to (the first TCP
+    /// endpoint of the chosen family): the IPv6 family when `ipv6` is set and it has a TCP
     /// endpoint, else the IPv4 family; `None` when that family has no TCP
     /// endpoint.
     #[must_use]
@@ -504,8 +503,8 @@ impl Endpoints {
     }
 }
 
-/// The config fields (`MTP.ConfigFields`), each named after its 1.5.0
-/// attribute and listed in serialization order.
+/// The config fields (`MTP.ConfigFields`), each named after its
+/// `ConfigFields` attribute and listed in serialization order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConfigFields {
     /// `chatSizeMax`.
@@ -754,8 +753,7 @@ impl MtpConfig {
     ///
     /// # Errors
     /// - [`Error::BadConfigData`] when the version is not
-    ///   [`CONFIG_VERSION`] or the environment is neither 0 nor 1 (1.5.0
-    ///   raises `OpenTeleException` and `ValueError`), and as
+    ///   [`CONFIG_VERSION`] or the environment is neither 0 nor 1, and as
     ///   [`DcOptions::parse`].
     /// - [`Error::QDataStreamFailed`] when the config is cut short or a
     ///   string is not UTF-16, and as [`DcOptions::parse`].
@@ -782,7 +780,7 @@ impl MtpConfig {
         })
     }
 
-    /// Serializes the config as 1.5.0's `MTP.Config.Serialize` does.
+    /// Serializes the config as `MTP.Config.Serialize` does.
     ///
     /// # Errors
     /// As [`DcOptions::serialize`], and [`Error::QDataStreamFailed`] when a
@@ -799,7 +797,7 @@ impl MtpConfig {
 
     /// The endpoints of DC `dc_id` by address family and protocol
     /// (`MTP.Config.endpoints`), in insertion order; `None` when the config
-    /// has no such DC (1.5.0 raises `TDataDcIdNotFound`).
+    /// has no such DC (the Python binding raises `TDataDcIdNotFound`).
     #[must_use]
     pub fn endpoints(&self, dc_id: i32) -> Option<Endpoints> {
         let list = self.dc_options.dc(dc_id)?;

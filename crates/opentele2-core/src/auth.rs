@@ -1,5 +1,5 @@
 //! The client-independent parts of login, session admin and consistency
-//! checks of opentele2 1.5.0 (`src/tl/telethon.py`, `src/consistency.py`).
+//! checks.
 //!
 //! The flows themselves run on each ecosystem's own client; this module
 //! holds the pure pieces they share:
@@ -8,8 +8,8 @@
 //!   `QRLogin.url`, and [`srp_check`] computes the `InputCheckPasswordSRP`
 //!   values of Telethon `password.compute_check` over
 //!   [`grammers_crypto::two_factor_auth::calculate_2fa`].
-//! - Session admin: [`format_sessions`] is the table 1.5.0 `PrintSessions`
-//!   prints, drawn by [`format_table`] (1.5.0 `PrettyTable`),
+//! - Session admin: [`format_sessions`] is the table `PrintSessions`
+//!   prints, drawn by [`format_table`] (`PrettyTable`),
 //!   [`OFFICIAL_API_IDS`] the api ids of the official profiles, and
 //!   the `TerminateSession` and `_handle2FA` messages are constants.
 //!   [`SessionRow::from_authorization`] maps a client's raw fields.
@@ -18,11 +18,11 @@
 //!   ([`QR_LOGIN_ATTEMPTS`], [`qr_attempt_timeout_warning`]) and the 2FA
 //!   algorithm name ([`SRP_ALGORITHM`]), the `srp_id`/`srp_B` rule
 //!   ([`srp_inputs`]), the RPC error names the flows match (`RPC_*`), and
-//!   the code and 1.5.0 class of each flow failure ([`FlowFailure`]).
+//!   the code and exception class of each flow failure ([`FlowFailure`]).
 //! - Consistency: [`ConsistencyExpectations`] says what each of the seven
-//!   1.5.0 `ConsistencyChecker` checks ([`Check`]) expects for a profile, and
+//!   `ConsistencyChecker` checks ([`Check`]) expects for a profile, and
 //!   [`CheckResult`] with [`consistency_summary`] and the detail builders
-//!   reproduce its report text; [`consistency_report`] builds the report
+//!   produce its report text; [`consistency_report`] builds the report
 //!   from each check's [`CheckOutcome`].
 
 use std::fmt;
@@ -143,7 +143,7 @@ impl SrpError {
         }
     }
 
-    /// The class name of the exception 1.5.0 raised for the refusal, in the
+    /// The class name of the exception raised for the refusal, in the
     /// style of [`crate::Error::legacy_class`] and the single source the
     /// bindings use: `ValueError` for every refusal (Telethon
     /// `compute_check` raises it).
@@ -176,7 +176,7 @@ pub fn srp_inputs(srp_id: Option<i64>, srp_b: Option<&[u8]>) -> (i64, Vec<u8>) {
 pub const RPC_PASSWORD_HASH_INVALID: &str = "PASSWORD_HASH_INVALID";
 
 /// The RPC error of a QR login step on an account with 2FA; the flows then
-/// run 1.5.0 `_handle2FA`.
+/// run `_handle2FA`.
 pub const RPC_SESSION_PASSWORD_NEEDED: &str = "SESSION_PASSWORD_NEEDED";
 
 /// The RPC error `account.resetAuthorization` fails with within 24 hours of
@@ -187,16 +187,16 @@ pub const RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN: &str = "FRESH_RESET_AUTHORISA
 /// hash ([`FlowFailure::HashInvalid`]).
 pub const RPC_HASH_INVALID: &str = "HASH_INVALID";
 
-/// The RPC error of a QR login token accepted already; 1.5.0 re-raises it.
+/// The RPC error of a QR login token accepted already; the flows re-raise it.
 pub const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: &str = "AUTH_TOKEN_ALREADY_ACCEPTED";
 
-/// The RPC error of an expired QR login token; 1.5.0 re-raises it.
+/// The RPC error of an expired QR login token; the flows re-raise it.
 pub const RPC_AUTH_TOKEN_EXPIRED: &str = "AUTH_TOKEN_EXPIRED";
 
-/// The RPC error of an invalid QR login token; 1.5.0 re-raises it.
+/// The RPC error of an invalid QR login token; the flows re-raise it.
 pub const RPC_AUTH_TOKEN_INVALID: &str = "AUTH_TOKEN_INVALID";
 
-/// The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+/// The `TelethonUnauthorized` message when the self user of a client
 /// cannot be resolved.
 pub const USER_ID_UNRESOLVED: &str = "Could not resolve the account's user id";
 
@@ -275,14 +275,14 @@ impl FlowFailure {
         }
     }
 
-    /// The class name of the exception 1.5.0 raised for the failure, the
+    /// The class name of the exception raised for the failure, the
     /// single source the bindings name their flow errors after: an
     /// opentele2 class (`NoPasswordProvided`, `PasswordIncorrect`,
     /// `TelethonUnauthorized`, `OpenTeleException`), a Telethon RPC error
     /// class (`AuthTokenExpiredError`, `HashInvalidError`, ...) or a builtin
     /// (`TimeoutError`, and `ValueError` from Telethon `compute_check` for
-    /// an unsupported algorithm). 1.5.0 has no class for a sign-up answer;
-    /// [`FlowFailure::SignUpRequired`] gives `SignUpRequired`.
+    /// an unsupported algorithm). A sign-up answer,
+    /// [`FlowFailure::SignUpRequired`], gives `SignUpRequired`.
     #[must_use]
     pub fn legacy_class(self) -> &'static str {
         match self {
@@ -450,20 +450,20 @@ fn is_good_mod_exp_first(value: &[u8; SRP_NUMBER_SIZE], p: &[u8; SRP_NUMBER_SIZE
     bit_length(&diff) >= MIN_BITS && bit_length(value) >= MIN_BITS
 }
 
-/// The 1.5.0 `NoPasswordProvided` message of a QR login that needs 2FA
+/// The `NoPasswordProvided` message of a QR login that needs 2FA
 /// when no password was given.
 pub const NO_PASSWORD_PROVIDED: &str = "Two-step verification is enabled for this account.\n\
      You need to provide the `password` to argument";
 
-/// The 1.5.0 `FreshResetAuthorisationForbiddenError` message of
+/// The `FreshResetAuthorisationForbiddenError` message of
 /// `TerminateSession`.
 pub const FRESH_RESET_FORBIDDEN: &str = "You can't logout other sessions if less than 24 hours \
      have passed since you logged on the current session.";
 
-/// The 1.5.0 `HashInvalidError` message of `TerminateSession`.
+/// The `HashInvalidError` message of `TerminateSession`.
 pub const HASH_INVALID: &str = "The provided hash is invalid.";
 
-/// The 1.5.0 `OpenTeleException` message of `PrintSessions` when the
+/// The `OpenTeleException` message of `PrintSessions` when the
 /// sessions cannot be fetched.
 pub const SESSIONS_UNAVAILABLE: &str = "Could not fetch the account's sessions";
 
@@ -479,23 +479,23 @@ pub fn unsupported_password_algorithm(algorithm: &str) -> String {
     format!("unsupported password algorithm {algorithm}")
 }
 
-/// How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+/// How many QR login attempts `_performQRLogin` makes by default
 /// (`_DEFAULT_REQUEST_RETRIES`; a client's integer `request_retries`
 /// replaces it).
 pub const QR_LOGIN_ATTEMPTS: u32 = 5;
 
-/// How many seconds past a QR token's expiry 1.5.0 waits for it to be
-/// accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+/// How many seconds past a QR token's expiry the QR login waits for it to
+/// be accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
 pub const QR_EXPIRE_SAFETY_SECONDS: u64 = 5;
 
-/// The 1.5.0 `TimeoutError` message when no QR login attempt logged in.
+/// The `TimeoutError` message when no QR login attempt logged in.
 pub const QR_LOGIN_TIMEOUT: &str = "Something went wrong, i couldn't perform the QR login";
 
 /// Python 3.11+ `str(type(e))` of the timeout a QR login wait raises, as
 /// [`qr_attempt_timeout_warning`] shows it.
 pub const QR_TIMEOUT_ERROR_TYPE: &str = "<class 'TimeoutError'>";
 
-/// The 1.5.0 warning of QR login attempt `attempt_number` (from 1) that
+/// The warning of QR login attempt `attempt_number` (from 1) that
 /// timed out with an error whose Python `str(type(e))` is `error_type`
 /// ([`QR_TIMEOUT_ERROR_TYPE`] on Python 3.11 and later).
 #[must_use]
@@ -503,25 +503,25 @@ pub fn qr_attempt_timeout_warning(attempt_number: u32, error_type: &str) -> Stri
     format!("\nQRLoginToNewClient attempt {attempt_number} failed because {error_type}")
 }
 
-/// The 1.5.0 warning after QR login attempt `attempt_number` (from 1)
+/// The warning after QR login attempt `attempt_number` (from 1)
 /// failed, emitted after [`qr_attempt_timeout_warning`].
 #[must_use]
 pub fn qr_attempt_retry_warning(attempt_number: u32) -> String {
     format!("\nQRLoginToNewClient attempt {attempt_number} failed. Retrying..")
 }
 
-/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// The `_handleExistingSession` warning when the new client already
 /// holds a session of the same `api_id`, which is returned.
 pub const EXISTING_SESSION_KEPT: &str = "\nCreateNewSession - a session file with the same name \
      is already existed, returning the old session";
 
-/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// The `_handleExistingSession` warning when the new client already
 /// holds a session of another `api_id`, which is deleted and logged in again.
 pub const EXISTING_SESSION_REPLACED: &str = "\nCreateNewSession - a session file with the same \
      name is already existed, but its api_id is different from the current one, it will be \
      overwritten";
 
-/// A request of the 1.5.0 post-login sequence (`_POST_LOGIN_STEPS`).
+/// A request of the post-login sequence ([`POST_LOGIN_STEPS`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PostLoginRequest {
     /// `help.getConfig`.
@@ -563,7 +563,7 @@ pub const POST_LOGIN_APP_UPDATE_SOURCE: &str = "";
 /// is 0.
 pub const POST_LOGIN_COUNTRIES_LANG_CODE: &str = "en";
 
-/// One step of the 1.5.0 post-login sequence: a random sleep in
+/// One step of the post-login sequence: a random sleep in
 /// `delay_ms`, then the request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PostLoginStep {
@@ -575,7 +575,7 @@ pub struct PostLoginStep {
 }
 
 impl PostLoginStep {
-    /// Whether 1.5.0 runs the step, sleep included, for a client whose
+    /// Whether the step runs, sleep included, for a client whose
     /// `lang_pack` is `lang_pack`: `langpack.getLanguages` only runs for a
     /// non-empty one.
     #[must_use]
@@ -584,8 +584,7 @@ impl PostLoginStep {
     }
 }
 
-/// The 1.5.0 post-login sequence (`_POST_LOGIN_STEPS`), in order; a failed
-/// request is skipped.
+/// The post-login sequence, in order; a failed request is skipped.
 pub const POST_LOGIN_STEPS: [PostLoginStep; 7] = [
     PostLoginStep {
         request: PostLoginRequest::GetConfig,
@@ -617,7 +616,7 @@ pub const POST_LOGIN_STEPS: [PostLoginStep; 7] = [
     },
 ];
 
-/// The [`POST_LOGIN_STEPS`] 1.5.0 runs for `lang_pack`
+/// The [`POST_LOGIN_STEPS`] that run for `lang_pack`
 /// ([`PostLoginStep::runs_for`]), in order.
 #[must_use]
 pub fn post_login_steps(lang_pack: &str) -> Vec<PostLoginStep> {
@@ -629,7 +628,7 @@ pub fn post_login_steps(lang_pack: &str) -> Vec<PostLoginStep> {
 
 /// A random whole number of milliseconds in `min_ms..=max_ms`, uniform,
 /// from the operating system's CSPRNG ([`crate::crypto::random_fill`]): the
-/// sleep 1.5.0 takes as `random.randint(min_ms, max_ms)`.
+/// range of Python `random.randint(min_ms, max_ms)`.
 ///
 /// # Errors
 /// - [`crate::Error::InvalidInput`] when `min_ms > max_ms`, where
@@ -700,7 +699,7 @@ pub fn is_official_api_id(api_id: i32) -> bool {
     OFFICIAL_API_IDS.contains(&api_id)
 }
 
-/// The fields of an `authorization` that 1.5.0 `PrintSessions` shows.
+/// The fields of an `authorization` that `PrintSessions` shows.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct SessionRow {
     /// `current`; an absent flag is `false`.
@@ -721,7 +720,7 @@ pub struct SessionRow {
     pub official_app: bool,
 }
 
-/// The column labels of the 1.5.0 `PrintSessions` table, in order.
+/// The column labels of the `PrintSessions` table, in order.
 pub const SESSION_COLUMNS: [&str; 7] = [
     " ",
     "Device",
@@ -755,7 +754,7 @@ pub struct RawAuthorization<'a> {
 }
 
 impl SessionRow {
-    /// The row of an `authorization`, as 1.5.0 reads one: an absent
+    /// The row of an `authorization`: an absent
     /// `current` or `official_app` flag is `false` (Python `bool(None)`),
     /// every other field is copied.
     #[must_use]
@@ -793,12 +792,12 @@ impl SessionRow {
     }
 }
 
-/// The table 1.5.0 `PrintSessions` prints for `rows`, without the trailing
+/// The table `PrintSessions` prints for `rows`, without the trailing
 /// newline `print` adds: [`format_table`] of [`SESSION_COLUMNS`] and
 /// [`SessionRow::cells`] with a split before row 1 (`PrettyTable(table,
 /// [1])`).
 ///
-/// With no rows the table is the header alone, where 1.5.0 raises.
+/// With no rows the table is the header alone.
 #[must_use]
 pub fn format_sessions(rows: &[SessionRow]) -> String {
     let cells: Vec<[String; 7]> = rows
@@ -809,7 +808,7 @@ pub fn format_sessions(rows: &[SessionRow]) -> String {
     format_table(&SESSION_COLUMNS, &cells, &[1])
 }
 
-/// 1.5.0 `PrettyTable(table, addSplit)` (`src/utils.py`) for a table whose
+/// `PrettyTable(table, addSplit)` for a table whose
 /// first row has the keys `headers`, in order, and whose rows hold the
 /// cells under them, already converted with `str()`.
 ///
@@ -820,8 +819,7 @@ pub fn format_sessions(rows: &[SessionRow]) -> String {
 /// index is in `add_split`. Lines end in `\n` except the last.
 ///
 /// A row shorter than `headers` gets empty cells and cells past the last
-/// header are ignored, where 1.5.0 raises `KeyError`; with no rows the
-/// table is the header alone, where 1.5.0 raises `IndexError`.
+/// header are ignored; with no rows the table is the header alone.
 #[must_use]
 pub fn format_table<H, R, C>(headers: &[H], rows: &[R], add_split: &[usize]) -> String
 where
@@ -864,7 +862,7 @@ where
     out
 }
 
-/// One 1.5.0 `PrettyTable` line: each text centred in its width plus two,
+/// One `PrettyTable` line: each text centred in its width plus two,
 /// the odd space on the right.
 fn table_line<'a>(texts: impl Iterator<Item = &'a str>, widths: &[usize]) -> String {
     let padded: Vec<String> = texts
@@ -878,7 +876,7 @@ fn table_line<'a>(texts: impl Iterator<Item = &'a str>, widths: &[usize]) -> Str
     format!("|{}|\n", padded.join("|"))
 }
 
-/// The seven checks of 1.5.0 `ConsistencyChecker.run_all`, in its order.
+/// The seven checks of `ConsistencyChecker.run_all`, in its order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Check {
     /// `help.getConfig` succeeds.
@@ -899,7 +897,7 @@ pub enum Check {
 }
 
 impl Check {
-    /// Every check, in 1.5.0's order.
+    /// Every check, in `run_all` order.
     pub const ALL: [Self; 7] = [
         Self::GetConfig,
         Self::NearestDc,
@@ -910,7 +908,7 @@ impl Check {
         Self::TermsOfService,
     ];
 
-    /// The 1.5.0 check name, as in the report.
+    /// The check name, as in the report.
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
@@ -941,7 +939,7 @@ pub const NO_APP_UPDATE: &str = "No update available (app_version accepted)";
 /// The `terms_of_service` detail on success.
 pub const TERMS_OF_SERVICE_OK: &str = "ToS check OK";
 
-/// The text in front of the summary 1.5.0 warns with when a check fails
+/// The text in front of the summary the checker warns with when a check fails
 /// and `auto_warn` is on.
 pub const CONSISTENCY_WARNING_PREFIX: &str = "opentele2 consistency check issues:\n";
 
@@ -1018,18 +1016,18 @@ impl ConsistencyExpectations {
     }
 }
 
-/// One entry of a 1.5.0 `ConsistencyReport`, without the server response.
+/// One entry of a `ConsistencyReport`, without the server response.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CheckResult {
     /// The check name, [`Check::name`] or the name of a check that raised.
     pub name: String,
     /// Whether the check passed.
     pub passed: bool,
-    /// The 1.5.0 detail text.
+    /// The detail text.
     pub detail: String,
 }
 
-/// 1.5.0 `ConsistencyReport.summary`: a count line, then one
+/// `ConsistencyReport.summary`: a count line, then one
 /// `  [OK] name: detail` or `  [FAIL] name: detail` line per check.
 #[must_use]
 pub fn consistency_summary(results: &[CheckResult]) -> String {
@@ -1076,7 +1074,7 @@ impl CheckOutcome {
     }
 }
 
-/// A 1.5.0 `ConsistencyReport`, without the server responses: one entry
+/// A `ConsistencyReport`, without the server responses: one entry
 /// per [`Check`], in [`Check::ALL`] order.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConsistencyReport {
@@ -1097,7 +1095,7 @@ impl ConsistencyReport {
         consistency_summary(&self.checks)
     }
 
-    /// The warning 1.5.0 `run_all` emits with `auto_warn` on:
+    /// The warning `run_all` emits with `auto_warn` on:
     /// [`CONSISTENCY_WARNING_PREFIX`] and the summary when a check failed,
     /// `None` when all passed.
     #[must_use]
@@ -1106,7 +1104,7 @@ impl ConsistencyReport {
     }
 }
 
-/// The report 1.5.0 `ConsistencyChecker.run_all` builds from the outcome of
+/// The report `ConsistencyChecker.run_all` builds from the outcome of
 /// each check, `outcomes[i]` being that of `Check::ALL[i]`: every entry is
 /// named after its check, and a check that raised fails with the
 /// [`check_exception`] detail.
@@ -1167,7 +1165,7 @@ pub fn current_session_detail(row: &SessionRow) -> String {
     )
 }
 
-/// The `layer_match` detail; 1.5.0 names the library layer after Telethon.
+/// The `layer_match` detail; it names the library layer after Telethon.
 #[must_use]
 pub fn layer_detail(library_layer: i32, advertised_layer: i32) -> String {
     format!(
