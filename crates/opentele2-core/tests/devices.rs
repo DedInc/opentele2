@@ -354,38 +354,86 @@ fn web_pool_systems_come_from_the_user_agent() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn web_pool_majors_follow_the_live_versions() -> Result<()> {
-    // Dataset newest: Chrome 149, Edge 148. Chrome 155 lags by six majors,
-    // so the drawn majors must have been shifted back above the dataset.
-    let catalog = devices::web_catalog_for(WebClient::A, &lagging_versions())?;
+/// The low end of the pool's Chrome window, `chrome - randint(2, 4)`: the
+/// first draw of the pool generator, seeded as `devices::web_pool` seeds it.
+fn chrome_min(chrome: u32, firefox: u32) -> u32 {
+    let mut rng = opentele2_browser::Rng::from_seed(&format!(
+        "opentele2/devices/web-pool/v1/chrome/{chrome}/firefox/{firefox}"
+    ));
+    let spread = 2 + u32::try_from(rng.next_u64() % 3).expect("below 3");
+    chrome - spread
+}
+
+/// The majors of each browser in the Web A pool for `versions`, checking
+/// that every user agent carries one major per prefix.
+fn pool_majors(versions: &Versions) -> Result<HashMap<&'static str, Vec<u32>>> {
+    let catalog = devices::web_catalog_for(WebClient::A, versions)?;
+    let mut majors: HashMap<&str, Vec<u32>> = HashMap::new();
     for entry in catalog.entries() {
         let ua = entry.model;
         let chrome = majors_after(ua, "Chrome/");
-        match browser(ua) {
-            "chrome" => {
-                assert_eq!(chrome.len(), 1, "{ua}");
-                // The window is [155 - randint(2, 4), 155].
-                assert!(chrome.iter().all(|m| (151..=155).contains(m)), "{ua}");
-                assert!(chrome.iter().all(|&m| m > 149), "{ua} was not shifted");
-            }
+        let name = browser(ua);
+        let major = match name {
+            "chrome" => chrome.clone(),
             "edge" => {
                 let edge = majors_after(ua, "Edg/");
-                assert_eq!(edge.len(), 1, "{ua}");
                 assert_eq!(chrome, edge, "{ua}");
-                // The window is [chrome_min - 2, 155].
-                assert!(edge.iter().all(|m| (149..=155).contains(m)), "{ua}");
-                assert!(edge.iter().all(|&m| m > 148), "{ua} was not shifted");
+                edge
             }
             _ => {
                 let firefox = majors_after(ua, "Firefox/");
-                assert_eq!(firefox.len(), 1, "{ua}");
                 assert_eq!(majors_after(ua, "rv:"), firefox, "{ua}");
-                // Firefox 150 is inside the dataset: [147, 150], unshifted.
-                assert!(firefox.iter().all(|m| (147..=150).contains(m)), "{ua}");
+                firefox
             }
-        }
+        };
+        assert_eq!(major.len(), 1, "{ua}");
+        majors.entry(name).or_default().extend(major);
     }
+    Ok(majors)
+}
+
+fn distinct(majors: &[u32]) -> usize {
+    majors.iter().collect::<HashSet<_>>().len()
+}
+
+#[test]
+fn web_pool_majors_follow_the_live_versions() -> Result<()> {
+    // Dataset newest: Chrome 149, Edge 148, Firefox 151. Chrome 155 lags by
+    // six majors: the window slides down until its top is 149, keeps its
+    // width, and the drawn majors are shifted back up into [chrome_min, 155].
+    let low = chrome_min(155, 150);
+    let majors = pool_majors(&lagging_versions())?;
+    let chrome = majors.get("chrome").expect("Chrome user agents");
+    assert!(distinct(chrome) >= 3, "Chrome majors {chrome:?}");
+    assert!(chrome.iter().all(|m| (low..=155).contains(m)), "{chrome:?}");
+    assert!(
+        chrome.iter().all(|&m| m > 149),
+        "{chrome:?} was not shifted"
+    );
+    let edge = majors.get("edge").expect("Edge user agents");
+    assert!(edge.iter().all(|m| (low - 2..=155).contains(m)), "{edge:?}");
+    assert!(edge.iter().all(|&m| m > 148), "{edge:?} was not shifted");
+    // Firefox 150 is inside the dataset: [147, 150], unshifted.
+    let firefox = majors.get("firefox").expect("Firefox user agents");
+    assert!(
+        firefox.iter().all(|m| (147..=150).contains(m)),
+        "{firefox:?}"
+    );
+    Ok(())
+}
+
+#[test]
+fn web_pool_is_unshifted_when_chrome_is_the_dataset_newest() -> Result<()> {
+    // Chrome 149 is the dataset's newest: offset 0 (the `devices` unit test
+    // `dataset_lag_is_the_distance_to_the_newest_major` checks the offset),
+    // so the window [chrome_min, 149] is drawn as is. Its top is rare on
+    // desktop in the dataset, so only the bounds are checked.
+    let mut versions = lagging_versions();
+    versions.set_chrome_version("149.0.0.0");
+    let low = chrome_min(149, 150);
+    let majors = pool_majors(&versions)?;
+    let chrome = majors.get("chrome").expect("Chrome user agents");
+    assert!(chrome.iter().all(|m| (low..=149).contains(m)), "{chrome:?}");
     Ok(())
 }
 

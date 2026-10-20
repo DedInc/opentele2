@@ -697,12 +697,90 @@ fn major_of(browser: &str, version: &str) -> Result<u32> {
         })
 }
 
-/// 1.5.0 `_header_generator`: a generator for the window, slid down by the
-/// smallest offset (at most [`MAX_DATASET_LAG`]) at which the dataset has a
-/// sample, and that offset. A window without a sample raises `NoHeaders`
-/// (the generator is strict, so no option is relaxed into another browser);
-/// any other error drops the browser, as 1.5.0's `except Exception` does.
+/// One probing `generate()` call of a strict generator.
+enum WebProbe {
+    /// The generator drew headers.
+    Drawn(HeaderGenerator),
+    /// The dataset has no sample for the options (`NoHeaders`).
+    Empty,
+    /// Any other error, which drops the browser as 1.5.0's
+    /// `except Exception` does.
+    Failed,
+}
+
+/// A strict desktop generator for `config`'s browser and operating systems
+/// with majors from `min` to `max` (unbounded when `None`), probed with one
+/// `generate()` call whose headers are discarded, as 1.5.0 does. The
+/// generator is strict, so no option is relaxed into another browser.
+fn web_probe(config: &WebBrowserConfig, min: u32, max: Option<u32>, rng: &mut Rng) -> WebProbe {
+    let options = HeaderOptions {
+        browsers: vec![Browser {
+            min_version: Some(min),
+            max_version: max,
+            ..Browser::new(config.name)
+        }],
+        os: config.os.iter().map(|&os| os.to_owned()).collect(),
+        devices: vec!["desktop".to_owned()],
+        strict: true,
+        ..HeaderOptions::default()
+    };
+    let Ok(generator) = HeaderGenerator::new(options) else {
+        return WebProbe::Failed;
+    };
+    match generator.generate(rng, &HeaderOverrides::default()) {
+        Ok(_) => WebProbe::Drawn(generator),
+        Err(BrowserError::NoHeaders) => WebProbe::Empty,
+        Err(_) => WebProbe::Failed,
+    }
+}
+
+/// How far the dataset trails `config`'s live window:
+/// `max(0, config.max - newest)`, where `newest` is the newest major the
+/// dataset has for the browser over HTTP/2 on `config`'s desktop operating
+/// systems; `None` when that lag exceeds [`MAX_DATASET_LAG`] or the probe
+/// fails.
+///
+/// `opentele2-browser` has no accessor for its helper data, so the lag is
+/// the smallest offset at which a generator for majors of at least
+/// `config.max - offset` draws. The search is exhaustive, so whether a draw
+/// exists does not depend on the generator state; a fixed per-browser seed
+/// keeps the probes off the pool's generator.
+fn web_dataset_lag(config: &WebBrowserConfig) -> Option<u32> {
+    let mut rng = Rng::from_seed(&format!("{WEB_POOL_SEED}/dataset-lag/{}", config.name));
+    for offset in 0..=MAX_DATASET_LAG {
+        let floor = config.max.checked_sub(offset)?;
+        match web_probe(config, floor, None, &mut rng) {
+            WebProbe::Drawn(_) => return Some(offset),
+            WebProbe::Empty => {}
+            WebProbe::Failed => return None,
+        }
+    }
+    None
+}
+
+/// 1.5.0 `_header_generator`: a generator for the window slid down so its
+/// top is the dataset's newest major, and that offset ([`web_dataset_lag`]).
+/// The window keeps its full width, so once the caller shifts the drawn
+/// majors back up by the offset the pool spans the whole live window
+/// rather than collapsing onto the dataset's newest major: the intent
+/// 1.5.0's `_header_generator` docstring states.
+///
+/// When even the slid window has no sample, this falls back to 1.5.0's
+/// loop: the smallest offset (at most [`MAX_DATASET_LAG`]) at which the
+/// window has a sample. Any error but `NoHeaders` drops the browser.
 fn web_generator(config: &WebBrowserConfig, rng: &mut Rng) -> Option<(HeaderGenerator, u32)> {
+    if let Some(offset) = web_dataset_lag(config)
+        && let (Some(min), Some(max)) = (
+            config.min.checked_sub(offset),
+            config.max.checked_sub(offset),
+        )
+    {
+        match web_probe(config, min, Some(max), rng) {
+            WebProbe::Drawn(generator) => return Some((generator, offset)),
+            WebProbe::Empty => {}
+            WebProbe::Failed => return None,
+        }
+    }
     for offset in 0..=MAX_DATASET_LAG {
         let (Some(min), Some(max)) = (
             config.min.checked_sub(offset),
@@ -710,23 +788,10 @@ fn web_generator(config: &WebBrowserConfig, rng: &mut Rng) -> Option<(HeaderGene
         ) else {
             break;
         };
-        let options = HeaderOptions {
-            browsers: vec![Browser {
-                min_version: Some(min),
-                max_version: Some(max),
-                ..Browser::new(config.name)
-            }],
-            os: config.os.iter().map(|&os| os.to_owned()).collect(),
-            devices: vec!["desktop".to_owned()],
-            strict: true,
-            ..HeaderOptions::default()
-        };
-        let generator = HeaderGenerator::new(options).ok()?;
-        // 1.5.0 probes with one `generate()` call and discards the headers.
-        match generator.generate(rng, &HeaderOverrides::default()) {
-            Ok(_) => return Some((generator, offset)),
-            Err(BrowserError::NoHeaders) => {}
-            Err(_) => return None,
+        match web_probe(config, min, Some(max), rng) {
+            WebProbe::Drawn(generator) => return Some((generator, offset)),
+            WebProbe::Empty => {}
+            WebProbe::Failed => return None,
         }
     }
     None
@@ -903,8 +968,10 @@ fn web_pool_catalog(
 /// [`Versions::chrome_version`] and [`Versions::firefox_version`].
 ///
 /// When the dataset trails a live major, the browser's window slides down
-/// to the newest major the dataset has (by at most 24) and the drawn majors
-/// are shifted back up, as in 1.5.0. Both clients hold the same user agents
+/// (by at most 24) until its top is the newest major the dataset has,
+/// keeping its width, and the drawn majors are shifted back up, so the
+/// spread is kept instead of collapsing to one major, as 1.5.0 intends.
+/// Both clients hold the same user agents
 /// in the same order and weights, with their own platform strings. Pools
 /// are cached per client and pair of majors.
 ///
@@ -941,4 +1008,61 @@ pub fn web_catalog_for(client: WebClient, versions: &Versions) -> Result<Catalog
 /// [`web_catalog_for`] of the [`Versions::offline`] majors, for [`catalog`].
 fn offline_web_catalog(client: WebClient) -> std::result::Result<Catalog, String> {
     web_catalog_for(client, &Versions::offline()).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WebBrowserConfig, web_dataset_lag};
+
+    const ALL_OS: &[&str] = &["windows", "macos", "linux"];
+
+    fn config(
+        name: &'static str,
+        min: u32,
+        max: u32,
+        os: &'static [&'static str],
+    ) -> WebBrowserConfig {
+        WebBrowserConfig {
+            name,
+            min,
+            max,
+            os,
+            count: 1,
+            major_prefixes: &[],
+        }
+    }
+
+    /// The dataset's newest HTTP/2 desktop majors are Chrome 149, Edge 148
+    /// and Firefox 151; the lag is how far the window's top is above them.
+    #[test]
+    fn dataset_lag_is_the_distance_to_the_newest_major() {
+        assert_eq!(
+            web_dataset_lag(&config("chrome", 152, 155, ALL_OS)),
+            Some(6)
+        );
+        assert_eq!(
+            web_dataset_lag(&config("chrome", 146, 149, ALL_OS)),
+            Some(0)
+        );
+        assert_eq!(
+            web_dataset_lag(&config("chrome", 140, 143, ALL_OS)),
+            Some(0)
+        );
+        let edge_os: &[&str] = &["windows", "macos"];
+        assert_eq!(web_dataset_lag(&config("edge", 150, 155, edge_os)), Some(7));
+        assert_eq!(web_dataset_lag(&config("edge", 143, 148, edge_os)), Some(0));
+        assert_eq!(
+            web_dataset_lag(&config("firefox", 147, 150, ALL_OS)),
+            Some(0)
+        );
+        assert_eq!(
+            web_dataset_lag(&config("firefox", 152, 155, ALL_OS)),
+            Some(4)
+        );
+    }
+
+    #[test]
+    fn dataset_lag_beyond_the_limit_is_none() {
+        assert_eq!(web_dataset_lag(&config("chrome", 200, 200, ALL_OS)), None);
+    }
 }
