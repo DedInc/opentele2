@@ -6,21 +6,24 @@
 //! Everything here is pure: [`SessionRows`] holds the one `sessions` row,
 //! [`SCHEMA`] and the statement constants hold the SQL 1.5.0 runs,
 //! [`pair_paths`] and [`session_path`] apply its suffix rules, and
-//! [`companion_json`] builds the `.json` companion. The optional feature
+//! [`companion_json`] builds the `.json` companion, [`companion_text`]
+//! prints it as 1.5.0 writes it and [`read_companion`] reads it back. The
+//! optional feature
 //! `telethon-sqlite` (off by default; rusqlite with a bundled SQLite, so the
 //! default build links no C code) adds `write_session_file` and
 //! `read_session_file`.
 
 use std::ffi::{OsStr, OsString};
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 
-use crate::Result;
 use crate::api::ApiProfile;
 use crate::crypto::AuthKey;
 use crate::session::codecs::account_target;
 use crate::tdata::account::Account;
+use crate::{Error, Result};
 
 /// The database version 1.5.0 stamps (`SESSION_VERSION`, Telethon's
 /// `CURRENT_VERSION`).
@@ -212,6 +215,208 @@ pub fn pair_paths(base: impl AsRef<Path>) -> (PathBuf, PathBuf) {
 #[must_use]
 pub fn companion_json(profile: &ApiProfile, extra: Option<&Map<String, Value>>) -> Value {
     profile.to_session_json(extra)
+}
+
+/// The `.json` companion text 1.5.0 `save_session_json` writes, byte for
+/// byte: [`companion_json`] as Python's `json.dump(data, f,
+/// ensure_ascii=False, indent=2)` prints it.
+///
+/// Objects and arrays open a line per item, indented two spaces per level,
+/// items separated by `,` and keys by `: `; an empty array is `[]` and an
+/// empty object `{}`. Strings escape `"`, `\`, `\n`, `\r`, `\t`, `\b`, `\f`
+/// and other control characters as `\u00xx`, and keep every other
+/// character, non-ASCII included. Integers print in full and floats as
+/// Python's `repr`. There is no trailing newline.
+#[must_use]
+pub fn companion_text(profile: &ApiProfile, extra: Option<&Map<String, Value>>) -> String {
+    let mut text = String::new();
+    push_py_json(&mut text, &companion_json(profile, extra), 0);
+    text
+}
+
+/// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
+/// text must parse as JSON, and `app_id` and `app_hash` must be present
+/// and not `null`. The profile is then read by
+/// [`ApiProfile::from_session_json`], and the whole object is returned
+/// beside it, so the caller can read the account keys (`id` and the rest).
+///
+/// # Errors
+/// - [`Error::InvalidInput`] with `what` `JSON file` when the text is not
+///   JSON (`reason` is the parser's message, so the legacy message is
+///   1.5.0's `Invalid JSON file: {e}` shape, with the parser's wording), or
+///   when a required field is missing or `null`, or the JSON is not an
+///   object (`reason` is 1.5.0's `Missing required field '{field}' in
+///   JSON`, `app_id` checked first).
+/// - [`Error::Io`] as [`ApiProfile::from_session_json`] gives it, when a
+///   profile key is missing or has the wrong type.
+pub fn read_companion(text: &str) -> Result<(ApiProfile, Map<String, Value>)> {
+    let data: Value = serde_json::from_str(text).map_err(|error| Error::InvalidInput {
+        what: "JSON file",
+        reason: error.to_string(),
+    })?;
+    for field in ["app_id", "app_hash"] {
+        let present = data
+            .as_object()
+            .and_then(|object| object.get(field))
+            .is_some_and(|value| !value.is_null());
+        if !present {
+            return Err(Error::InvalidInput {
+                what: "JSON file",
+                reason: format!("Missing required field '{field}' in JSON"),
+            });
+        }
+    }
+    let profile = ApiProfile::from_session_json(&data)?;
+    let Value::Object(object) = data else {
+        unreachable!("the required fields were found in an object");
+    };
+    Ok((profile, object))
+}
+
+fn push_py_indent(out: &mut String, depth: usize) {
+    out.push('\n');
+    for _ in 0..depth {
+        out.push_str("  ");
+    }
+}
+
+/// `value` as Python's `json.dump(..., ensure_ascii=False, indent=2)`
+/// prints it at nesting `depth`.
+fn push_py_json(out: &mut String, value: &Value, depth: usize) {
+    match value {
+        Value::Null => out.push_str("null"),
+        Value::Bool(flag) => out.push_str(if *flag { "true" } else { "false" }),
+        Value::Number(number) => push_py_number(out, number),
+        Value::String(text) => push_py_string(out, text),
+        Value::Array(items) => {
+            if items.is_empty() {
+                out.push_str("[]");
+                return;
+            }
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                push_py_indent(out, depth + 1);
+                push_py_json(out, item, depth + 1);
+            }
+            push_py_indent(out, depth);
+            out.push(']');
+        }
+        Value::Object(entries) => {
+            if entries.is_empty() {
+                out.push_str("{}");
+                return;
+            }
+            out.push('{');
+            for (index, (key, item)) in entries.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                push_py_indent(out, depth + 1);
+                push_py_string(out, key);
+                out.push_str(": ");
+                push_py_json(out, item, depth + 1);
+            }
+            push_py_indent(out, depth);
+            out.push('}');
+        }
+    }
+}
+
+/// A string as Python's `encode_basestring` (the `ensure_ascii=False`
+/// encoder) prints it.
+fn push_py_string(out: &mut String, text: &str) {
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            // Python writes `\u{0:04x}`: lowercase hex.
+            '\0'..='\u{1f}' => {
+                // Writing to a `String` cannot fail.
+                let _ = write!(out, "\\u{:04x}", u32::from(ch));
+            }
+            _ => out.push(ch),
+        }
+    }
+    out.push('"');
+}
+
+fn push_py_number(out: &mut String, number: &serde_json::Number) {
+    if let Some(int) = number.as_i64() {
+        out.push_str(&int.to_string());
+    } else if let Some(int) = number.as_u64() {
+        out.push_str(&int.to_string());
+    } else if let Some(float) = number.as_f64() {
+        push_py_float(out, float);
+    } else {
+        out.push_str(&number.to_string());
+    }
+}
+
+/// A float as Python's `float.__repr__` prints it: the shortest digits that
+/// round-trip, in positional form when the decimal exponent is in
+/// `-5 < e < 16`, else as `d.ddde±XX`. `json.dump` prints non-finite
+/// values as `NaN`, `Infinity` and `-Infinity`.
+fn push_py_float(out: &mut String, value: f64) {
+    if value.is_nan() {
+        out.push_str("NaN");
+        return;
+    }
+    if value.is_infinite() {
+        out.push_str(if value > 0.0 { "Infinity" } else { "-Infinity" });
+        return;
+    }
+    if value.is_sign_negative() {
+        out.push('-');
+    }
+    // `{:e}` gives the same shortest round-trip digits as Python's repr.
+    let scientific = format!("{:e}", value.abs());
+    let (mantissa, exponent) = scientific
+        .split_once('e')
+        .unwrap_or((scientific.as_str(), "0"));
+    let exponent: i64 = exponent.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(|&c| c != '.').collect();
+    // The decimal point sits `point` digits into `digits` (Python's `decpt`).
+    let point = exponent + 1;
+    if !(-4 < point && point <= 16) {
+        let (first, rest) = digits.split_at(1);
+        out.push_str(first);
+        if !rest.is_empty() {
+            out.push('.');
+            out.push_str(rest);
+        }
+        let sign = if exponent < 0 { '-' } else { '+' };
+        // Writing to a `String` cannot fail.
+        let _ = write!(out, "e{sign}{:02}", exponent.unsigned_abs());
+    } else if point <= 0 {
+        out.push_str("0.");
+        for _ in point..0 {
+            out.push('0');
+        }
+        out.push_str(&digits);
+    } else {
+        let point = usize::try_from(point).unwrap_or(0);
+        if point >= digits.len() {
+            out.push_str(&digits);
+            for _ in digits.len()..point {
+                out.push('0');
+            }
+            out.push_str(".0");
+        } else {
+            let (whole, fraction) = digits.split_at(point);
+            out.push_str(whole);
+            out.push('.');
+            out.push_str(fraction);
+        }
+    }
 }
 
 #[cfg(feature = "telethon-sqlite")]

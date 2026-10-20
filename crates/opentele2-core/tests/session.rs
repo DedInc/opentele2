@@ -1060,6 +1060,323 @@ fn telethon_file_companion_json_is_the_session_json() {
     );
 }
 
+fn companion_profile() -> api::ApiProfile {
+    api::ApiProfile {
+        api_id: 2040,
+        api_hash: "b18441a1ff607e10a989891a5462e627".to_owned(),
+        device_model: "Desktop".to_owned(),
+        system_version: "Windows 11 x64".to_owned(),
+        app_version: "6.1.3 x64".to_owned(),
+        lang_code: "en".to_owned(),
+        system_lang_code: "en-US".to_owned(),
+        lang_pack: "tdesktop".to_owned(),
+    }
+}
+
+/// The profile keys of [`companion_profile`] as 1.5.0 prints them, with the
+/// opening brace.
+const COMPANION_HEAD: &str = r#"{
+  "app_id": 2040,
+  "app_hash": "b18441a1ff607e10a989891a5462e627",
+  "device": "Desktop",
+  "sdk": "Windows 11 x64",
+  "app_version": "6.1.3 x64",
+  "system_lang_pack": "en-US",
+  "system_lang_code": "en-US",
+  "lang_pack": "tdesktop",
+  "lang_code": "en",
+"#;
+
+fn object(value: Value) -> serde_json::Map<String, Value> {
+    match value {
+        Value::Object(map) => map,
+        other => panic!("expected an object, got {other}"),
+    }
+}
+
+#[test]
+fn companion_text_with_default_extras_matches_1_5_0() {
+    let want = r#"{
+  "app_id": 2040,
+  "app_hash": "b18441a1ff607e10a989891a5462e627",
+  "device": "Desktop",
+  "sdk": "Windows 11 x64",
+  "app_version": "6.1.3 x64",
+  "system_lang_pack": "en-US",
+  "system_lang_code": "en-US",
+  "lang_pack": "tdesktop",
+  "lang_code": "en",
+  "twoFA": null,
+  "role": "",
+  "id": null,
+  "phone": null,
+  "username": null,
+  "date_of_birth": null,
+  "date_of_birth_integrity": null,
+  "is_premium": false,
+  "has_profile_pic": false,
+  "spamblock": null,
+  "register_time": null,
+  "last_check_time": null,
+  "avatar": null,
+  "first_name": "",
+  "last_name": "",
+  "sex": null,
+  "proxy": null,
+  "ipv6": false,
+  "session_file": ""
+}"#;
+    let profile = companion_profile();
+    assert_eq!(telethon_file::companion_text(&profile, None), want);
+    let empty = serde_json::Map::new();
+    assert_eq!(telethon_file::companion_text(&profile, Some(&empty)), want);
+}
+
+#[test]
+fn companion_text_with_user_extras_matches_1_5_0() {
+    // The extras 1.5.0 `save_session_json` sets after `get_me`, inserted in
+    // its order; defaults keep their positions, unknown keys go last.
+    let extra = object(serde_json::json!({
+        "session_file": "acc",
+        "id": 123_456_789,
+        "phone": "79991234567",
+        "username": "durov",
+        "first_name": "Павел",
+        "last_name": "Дуров 🚀",
+        "is_premium": true,
+        "note": "日本語",
+    }));
+    let want = COMPANION_HEAD.to_owned()
+        + r#"  "twoFA": null,
+  "role": "",
+  "id": 123456789,
+  "phone": "79991234567",
+  "username": "durov",
+  "date_of_birth": null,
+  "date_of_birth_integrity": null,
+  "is_premium": true,
+  "has_profile_pic": false,
+  "spamblock": null,
+  "register_time": null,
+  "last_check_time": null,
+  "avatar": null,
+  "first_name": "Павел",
+  "last_name": "Дуров 🚀",
+  "sex": null,
+  "proxy": null,
+  "ipv6": false,
+  "session_file": "acc",
+  "note": "日本語"
+}"#;
+    assert_eq!(
+        telethon_file::companion_text(&companion_profile(), Some(&extra)),
+        want
+    );
+}
+
+#[test]
+fn companion_text_prints_i64_max_and_escapes_as_python() {
+    let extra = object(serde_json::json!({
+        "id": i64::MAX,
+        "spamblock": i64::MIN,
+        "avatar": u64::MAX,
+        "about": "q\"b\\n\n\r\t\u{8}\u{c}\u{1}\u{1f}\u{7f}é",
+    }));
+    let text = telethon_file::companion_text(&companion_profile(), Some(&extra));
+    assert!(text.starts_with(COMPANION_HEAD));
+    assert!(text.contains("\n  \"id\": 9223372036854775807,\n"));
+    assert!(text.contains("\n  \"spamblock\": -9223372036854775808,\n"));
+    assert!(text.contains("\n  \"avatar\": 18446744073709551615,\n"));
+    assert!(text.ends_with(
+        "\n  \"session_file\": \"\",\n  \"about\": \
+         \"q\\\"b\\\\n\\n\\r\\t\\b\\f\\u0001\\u001f\u{7f}é\"\n}"
+    ));
+}
+
+#[test]
+fn companion_text_indents_a_nested_proxy_as_python() {
+    let extra = object(serde_json::json!({
+        "proxy": {
+            "type": "socks5",
+            "addr": "127.0.0.1",
+            "port": 1080,
+            "rdns": true,
+            "auth": [],
+            "opts": {},
+            "list": [1, -2, null, ["x"], {"k": "в"}],
+        },
+    }));
+    let text = telethon_file::companion_text(&companion_profile(), Some(&extra));
+    let want_proxy = r#"
+  "sex": null,
+  "proxy": {
+    "type": "socks5",
+    "addr": "127.0.0.1",
+    "port": 1080,
+    "rdns": true,
+    "auth": [],
+    "opts": {},
+    "list": [
+      1,
+      -2,
+      null,
+      [
+        "x"
+      ],
+      {
+        "k": "в"
+      }
+    ]
+  },
+  "ipv6": false,
+  "session_file": ""
+}"#;
+    assert!(text.starts_with(COMPANION_HEAD));
+    assert!(text.ends_with(want_proxy), "{text}");
+}
+
+#[test]
+fn companion_text_prints_floats_as_python_repr() {
+    let floats = [
+        1.0,
+        0.1,
+        1e16,
+        1_234_567_890_123_456.0,
+        1e-5,
+        0.0001,
+        -0.0,
+        123_456_789.125,
+        1.5e300,
+        5e-324,
+        100.0,
+        -2.5e-7,
+    ];
+    let extra = object(serde_json::json!({ "proxy": floats }));
+    let text = telethon_file::companion_text(&companion_profile(), Some(&extra));
+    let want = r#"
+  "proxy": [
+    1.0,
+    0.1,
+    1e+16,
+    1234567890123456.0,
+    1e-05,
+    0.0001,
+    -0.0,
+    123456789.125,
+    1.5e+300,
+    5e-324,
+    100.0,
+    -2.5e-07
+  ],
+"#;
+    assert!(text.contains(want), "{text}");
+}
+
+#[test]
+fn read_companion_reads_what_companion_text_writes() {
+    let profile = companion_profile();
+    let extra = object(serde_json::json!({
+        "session_file": "acc",
+        "id": i64::MAX,
+        "first_name": "Павел",
+        "proxy": {"port": 1080, "list": [1.5, null]},
+    }));
+    let text = telethon_file::companion_text(&profile, Some(&extra));
+    let (got, data) = telethon_file::read_companion(&text).expect("read companion");
+    assert_eq!(
+        (
+            got.api_id,
+            got.api_hash.as_str(),
+            got.device_model.as_str(),
+            got.system_version.as_str(),
+            got.app_version.as_str(),
+            got.lang_code.as_str(),
+            got.system_lang_code.as_str(),
+            got.lang_pack.as_str(),
+        ),
+        (
+            2040,
+            "b18441a1ff607e10a989891a5462e627",
+            "Desktop",
+            "Windows 11 x64",
+            "6.1.3 x64",
+            "en",
+            "en-US",
+            "tdesktop",
+        )
+    );
+    assert_eq!(
+        data,
+        object(telethon_file::companion_json(&profile, Some(&extra)))
+    );
+    assert_eq!(data["id"], i64::MAX);
+    let keys: Vec<&str> = data.keys().map(String::as_str).collect();
+    assert_eq!(keys.first(), Some(&"app_id"));
+    assert_eq!(keys.last(), Some(&"session_file"));
+}
+
+#[test]
+fn read_companion_rejects_bad_json_with_the_1_5_0_message() {
+    for text in ["not json", "", "{\"app_id\": 1,}"] {
+        let parser = serde_json::from_str::<Value>(text)
+            .expect_err("invalid JSON")
+            .to_string();
+        match telethon_file::read_companion(text) {
+            Err(ref error @ Error::InvalidInput { what, ref reason }) => {
+                assert_eq!(what, "JSON file");
+                assert_eq!(reason, &parser);
+                assert_eq!(error.code(), "INVALID_INPUT");
+                assert_eq!(
+                    error.legacy_message(),
+                    format!("Invalid JSON file: {parser}")
+                );
+            }
+            other => panic!("{text:?}: expected InvalidInput, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn read_companion_requires_app_id_and_app_hash() {
+    let cases = [
+        (
+            r#"{"app_hash": "h", "device": "d", "sdk": "s", "app_version": "v"}"#,
+            "app_id",
+        ),
+        (r#"{"app_id": null, "app_hash": "h"}"#, "app_id"),
+        (r#"{"device": "d"}"#, "app_id"),
+        (
+            r#"{"app_id": 1, "device": "d", "sdk": "s", "app_version": "v"}"#,
+            "app_hash",
+        ),
+        (r#"{"app_id": 1, "app_hash": null}"#, "app_hash"),
+        ("[]", "app_id"),
+        ("\"app_id\"", "app_id"),
+        ("null", "app_id"),
+    ];
+    for (text, field) in cases {
+        match telethon_file::read_companion(text) {
+            Err(Error::InvalidInput { what, reason }) => {
+                assert_eq!(what, "JSON file", "{text}");
+                assert_eq!(
+                    reason,
+                    format!("Missing required field '{field}' in JSON"),
+                    "{text}"
+                );
+            }
+            other => panic!("{text}: expected InvalidInput, got {other:?}"),
+        }
+    }
+    // Past the required fields, the profile keys follow
+    // `ApiProfile::from_session_json`.
+    assert_eq!(
+        code_of(telethon_file::read_companion(
+            r#"{"app_id": 1, "app_hash": "h"}"#
+        )),
+        "IO"
+    );
+}
+
 #[cfg(feature = "telethon-sqlite")]
 mod telethon_sqlite {
     use super::{Path, PathBuf, SessionRows, code_of, counting_key, fs, same_key, telethon_file};
