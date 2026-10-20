@@ -269,15 +269,20 @@ class StrictMode(Enum):
     server-side."""
 
 
+# The core's 1.5.0 defaults; the dataclass defaults below.
+_CONFIG_DEFAULTS = _native.FINGERPRINT_CONFIG_DEFAULTS
+_DEFAULT_STRICT_MODE = StrictMode(_CONFIG_DEFAULTS["strict_mode"])
+
+
 @dataclass
 class FingerprintConfig:
-    strict_mode: StrictMode = StrictMode.WARN
+    strict_mode: StrictMode = _DEFAULT_STRICT_MODE
     """How to handle consistency issues."""
 
-    auto_validate: bool = True
+    auto_validate: bool = _CONFIG_DEFAULTS["auto_validate"]
     """Automatically validate initConnection parameters on connect."""
 
-    preferred_transport: str = "obfuscated"
+    preferred_transport: str = _CONFIG_DEFAULTS["preferred_transport"]
     """Preferred transport type.  Official clients in 2025-2026 use
     ''obfuscated'' (intermediate padded with obfuscation) by default.
     Telethon supports ``ConnectionTcpObfuscated``.
@@ -285,14 +290,15 @@ class FingerprintConfig:
     Valid values: 'full', 'intermediate', 'abridged', 'obfuscated'.
     """
 
-    warn_on_layer_mismatch: bool = True
-    """Warn when Telethon layer differs from official by >5 layers."""
+    warn_on_layer_mismatch: bool = _CONFIG_DEFAULTS["warn_on_layer_mismatch"]
+    """Warn when Telethon layer differs from official by more than the
+    core's ``LAYER_TOLERANCE`` layers."""
 
-    layer_override: int | None = None
+    layer_override: int | None = _CONFIG_DEFAULTS["layer_override"]
     """If set, override the layer used in ``invokeWithLayer``.
     Use with caution — mismatched layers cause deserialization errors."""
 
-    randomize_msg_id_offset: bool = True
+    randomize_msg_id_offset: bool = _CONFIG_DEFAULTS["randomize_msg_id_offset"]
     """Add a small random offset to msg_id generation to avoid
     predictability.  Official clients do this."""
 

@@ -43,10 +43,10 @@ __all__ = [
     "VideoCard",
 ]
 
-SUPPORTED_BROWSERS = ("chrome", "firefox", "safari", "edge")
-SUPPORTED_OPERATING_SYSTEMS = ("windows", "macos", "linux", "android", "ios")
-SUPPORTED_DEVICES = ("desktop", "mobile")
-SUPPORTED_HTTP_VERSIONS = ("1", "2")
+SUPPORTED_BROWSERS = _native.SUPPORTED_BROWSERS
+SUPPORTED_OPERATING_SYSTEMS = _native.SUPPORTED_OPERATING_SYSTEMS
+SUPPORTED_DEVICES = _native.SUPPORTED_DEVICES
+SUPPORTED_HTTP_VERSIONS = _native.SUPPORTED_HTTP_VERSIONS
 
 
 @dataclass
@@ -62,15 +62,7 @@ class Browser:
     def __post_init__(self) -> None:
         if isinstance(self.http_version, int):
             self.http_version = str(self.http_version)
-        if (
-            self.min_version is not None
-            and self.max_version is not None
-            and self.min_version > self.max_version
-        ):
-            raise ValueError(
-                f"Browser min version constraint ({self.min_version}) cannot exceed max "
-                f"version ({self.max_version})"
-            )
+        _native.validate_browser(self.min_version, self.max_version)
 
 
 @dataclass
@@ -84,13 +76,7 @@ class Screen:
     max_height: int | None = None
 
     def __post_init__(self) -> None:
-        def inverted(low: int | None, high: int | None) -> bool:
-            return low is not None and high is not None and low > high
-
-        if inverted(self.min_width, self.max_width) or inverted(self.min_height, self.max_height):
-            raise ValueError(
-                "Invalid screen constraints: min values cannot be greater than max values"
-            )
+        _native.validate_screen(self.min_width, self.max_width, self.min_height, self.max_height)
 
     def is_set(self) -> bool:
         """Whether any bound is set."""
@@ -200,23 +186,12 @@ def _tuplify(value: Any) -> tuple[Any, ...]:
     return tuple(value)
 
 
-def _http(value: object) -> Literal["1", "2"]:
-    """An HTTP version as browserforge spells it; another raises
-    ``ValueError``."""
-    text = str(value)
-    if text == "1":
-        return "1"
-    if text == "2":
-        return "2"
-    raise ValueError(f"http_version must be 1 or 2, not {value!r}")
-
-
 def _browser_spec(browser: Browser) -> BrowserSpec:
     return {
         "name": browser.name,
         "min_version": browser.min_version,
         "max_version": browser.max_version,
-        "http_version": _http(browser.http_version),
+        "http_version": _native.http_version(browser.http_version),
     }
 
 
@@ -285,25 +260,18 @@ class HeaderGenerator:
         http: str = str(http_version) if http_version else self.options["http_version"]
         if browser is not None:
             browsers = self._prepare_browsers(_tuplify(browser), http)
-        elif http != self.options["http_version"]:
-            # A new HTTP version applies to every configured browser.
-            browsers = [
-                Browser(
-                    name=known.name,
-                    min_version=known.min_version,
-                    max_version=known.max_version,
-                    http_version=http,
-                )
-                for known in self.options["browsers"]
-            ]
+            specs = [_browser_spec(known) for known in browsers]
         else:
-            browsers = self.options["browsers"]
+            specs = [_browser_spec(known) for known in self.options["browsers"]]
+            if http != self.options["http_version"]:
+                # A new HTTP version applies to every configured browser.
+                specs = _native.browsers_with_http_version(specs, http)
         return {
-            "browser": [_browser_spec(known) for known in browsers],
+            "browser": specs,
             "os": _tuplify(_first(os, self.options["os"])),
             "device": _tuplify(_first(device, self.options["devices"])),
             "locale": _tuplify(_first(locale, self.options["locales"])),
-            "http_version": _http(http),
+            "http_version": _native.http_version(http),
             "strict": bool(_first(strict, self.options["strict"])),
             "user_agent": None if user_agent is None else _tuplify(user_agent),
             "request_dependent_headers": request_dependent_headers,

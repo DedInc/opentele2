@@ -5,6 +5,9 @@ use pyo3::exceptions::{PyOSError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyModule, PyString, PyTuple};
 
+use opentele2_browser::headers::{
+    SUPPORTED_BROWSERS, SUPPORTED_DEVICES, SUPPORTED_OPERATING_SYSTEMS,
+};
 use opentele2_browser::{
     Browser, FingerprintGenerator, FingerprintOptions, FingerprintOverrides, HeaderGenerator,
     HeaderOptions, HeaderOverrides, Headers, HttpVersion, Rng, Screen,
@@ -464,6 +467,15 @@ fn browser_error(error: &opentele2_browser::Error) -> PyErr {
     }
 }
 
+/// An option error of the browser crate as browserforge raises it: its
+/// bare text for invalid options, otherwise as `browser_error`.
+fn options_error(error: opentele2_browser::Error) -> PyErr {
+    match error {
+        opentele2_browser::Error::InvalidOptions(text) => PyValueError::new_err(text),
+        other => browser_error(&other),
+    }
+}
+
 /// Raises `TypeError` naming `what` for a key of `dict` outside `keys`.
 fn check_keys(dict: &Bound<'_, PyDict>, keys: &[&str], what: &str) -> PyResult<()> {
     for key in dict.keys() {
@@ -636,6 +648,87 @@ fn headers_dict<'py>(py: Python<'py>, headers: &Headers) -> PyResult<Bound<'py, 
     Ok(dict)
 }
 
+/// `browser` as a browser dict, its HTTP version as browserforge spells it.
+fn browser_dict<'py>(py: Python<'py>, browser: &Browser) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    dict.set_item("name", &browser.name)?;
+    dict.set_item("min_version", browser.min_version)?;
+    dict.set_item("max_version", browser.max_version)?;
+    dict.set_item("http_version", browser.http_version.as_str())?;
+    Ok(dict)
+}
+
+/// The HTTP version `value` (`1`, `2`, `"1"` or `"2"`) as browserforge
+/// spells it, `"1"` or `"2"`; another value raises `ValueError`.
+#[pyfunction]
+#[pyo3(name = "http_version")]
+fn http_version_text(value: &Bound<'_, PyAny>) -> PyResult<&'static str> {
+    Ok(http_version(value)?.as_str())
+}
+
+/// The browsers of a `browser` option (names or browser dicts, as
+/// `generate_headers` takes them), each switched to `http_version`, as
+/// browserforge's `generate` applies a new HTTP version to every
+/// configured browser. Returns browser dicts.
+#[pyfunction]
+fn browsers_with_http_version<'py>(
+    py: Python<'py>,
+    browsers: &Bound<'py, PyAny>,
+    http_version: &Bound<'py, PyAny>,
+) -> PyResult<Vec<Bound<'py, PyDict>>> {
+    let http = self::http_version(http_version)?;
+    let options = HeaderOptions {
+        browsers: self::browsers(browsers, http)?,
+        ..HeaderOptions::default()
+    }
+    .with_http_version(http);
+    options
+        .browsers
+        .iter()
+        .map(|browser| browser_dict(py, browser))
+        .collect()
+}
+
+/// Checks the version bounds of a browser as browserforge's
+/// `Browser.__post_init__`: a minimum above the maximum raises `ValueError`
+/// with the header generator's text.
+#[pyfunction]
+#[pyo3(signature = (min_version = None, max_version = None))]
+fn validate_browser(min_version: Option<u32>, max_version: Option<u32>) -> PyResult<()> {
+    // The header generator owns the check; the name plays no part in it.
+    let browser = Browser {
+        min_version,
+        max_version,
+        ..Browser::new(SUPPORTED_BROWSERS[0])
+    };
+    HeaderGenerator::new(HeaderOptions {
+        browsers: vec![browser],
+        ..HeaderOptions::default()
+    })
+    .map(drop)
+    .map_err(options_error)
+}
+
+/// Checks the bounds of a screen constraint as browserforge's
+/// `Screen.__post_init__`: a minimum above its maximum raises `ValueError`.
+#[pyfunction]
+#[pyo3(signature = (min_width = None, max_width = None, min_height = None, max_height = None))]
+fn validate_screen(
+    min_width: Option<u32>,
+    max_width: Option<u32>,
+    min_height: Option<u32>,
+    max_height: Option<u32>,
+) -> PyResult<()> {
+    Screen {
+        min_width,
+        max_width,
+        min_height,
+        max_height,
+    }
+    .validate()
+    .map_err(options_error)
+}
+
 /// One set of browser HTTP headers, name to value in sending order, as
 /// browserforge's `HeaderGenerator(...).generate(...)`. The options (a dict,
 /// updated by the keyword arguments) are browserforge's: `browser` (names or
@@ -738,11 +831,39 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(msg_id_offset, module)?)?;
     module.add_function(wrap_pyfunction!(is_valid_msg_id, module)?)?;
     module.add_function(wrap_pyfunction!(fingerprint_config, module)?)?;
+    // The 1.5.0 FingerprintConfig defaults, without the drawn offset.
+    let defaults = config_dict(
+        module.py(),
+        &undrawn_config(FingerprintConfigOptions::default()),
+    )?;
+    defaults.del_item("msg_id_offset")?;
+    module.add("FINGERPRINT_CONFIG_DEFAULTS", defaults)?;
     module.add_function(wrap_pyfunction!(validate_fingerprint, module)?)?;
     module.add_function(wrap_pyfunction!(validate_raw_fingerprint, module)?)?;
     module.add_function(wrap_pyfunction!(effective_layer, module)?)?;
     module.add_function(wrap_pyfunction!(effective_layer_for, module)?)?;
     module.add_function(wrap_pyfunction!(layer_mismatch_warning, module)?)?;
+    module.add(
+        "SUPPORTED_BROWSERS",
+        PyTuple::new(module.py(), SUPPORTED_BROWSERS)?,
+    )?;
+    module.add(
+        "SUPPORTED_OPERATING_SYSTEMS",
+        PyTuple::new(module.py(), SUPPORTED_OPERATING_SYSTEMS)?,
+    )?;
+    module.add(
+        "SUPPORTED_DEVICES",
+        PyTuple::new(module.py(), SUPPORTED_DEVICES)?,
+    )?;
+    let http_versions = [HttpVersion::One, HttpVersion::Two].map(HttpVersion::as_str);
+    module.add(
+        "SUPPORTED_HTTP_VERSIONS",
+        PyTuple::new(module.py(), http_versions)?,
+    )?;
+    module.add_function(wrap_pyfunction!(http_version_text, module)?)?;
+    module.add_function(wrap_pyfunction!(browsers_with_http_version, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_browser, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_screen, module)?)?;
     module.add_function(wrap_pyfunction!(generate_headers, module)?)?;
     module.add_function(wrap_pyfunction!(generate_fingerprint, module)?)?;
     Ok(())

@@ -145,14 +145,20 @@ fn py_json_text(obj: &Bound<'_, PyAny>) -> PyResult<String> {
     Ok(telethon_file::py_json_text(&to_json(obj)?))
 }
 
-/// The `CoreError` of a companion that `read_session_companion` rejects,
-/// its `legacy_message` the `SessionFileInvalid` text of 1.5.0
+/// The `CoreError` of a companion `text` that `read_session_companion`
+/// rejects, its `legacy_message` the `SessionFileInvalid` text of 1.5.0
 /// `from_session_json`: `Invalid JSON file: {e}` when the text is not JSON
 /// (the `INVALID_INPUT` message), the bare `Missing required field '{f}'
 /// in JSON` when `app_id` or `app_hash` is missing or null.
-fn companion_error(py: Python<'_>, error: &Error) -> PyErr {
-    if let Error::InvalidInput { reason, .. } = error
-        && reason.starts_with("Missing required field ")
+///
+/// The core rejects both as `InvalidInput` of the `JSON file`, parsing
+/// first; one for text that is JSON is therefore a missing field.
+fn companion_error(py: Python<'_>, text: &str, error: &Error) -> PyErr {
+    if let Error::InvalidInput {
+        what: "JSON file",
+        reason,
+    } = error
+        && serde_json::from_str::<serde_json::Value>(text).is_ok()
     {
         let value = core_error_type(py)
             .and_then(|class| class.call1((error.code(), error.to_string(), reason.as_str())));
@@ -183,11 +189,12 @@ fn read_session_companion<'py>(
             from_json_object(py, &data)?,
         )),
         // Only the profile read gives `Io`, after the text parsed as an
-        // object with both required fields.
+        // object with both required fields; the core returns no object
+        // with it, so the object is read here.
         Err(Error::Io(_)) => {
             let data: serde_json::Map<String, serde_json::Value> = serde_json::from_str(text)
                 .map_err(|error| {
-                    companion_error(
+                    core_error(
                         py,
                         &Error::InvalidInput {
                             what: "JSON file",
@@ -197,7 +204,7 @@ fn read_session_companion<'py>(
                 })?;
             Ok((None, from_json_object(py, &data)?))
         }
-        Err(error) => Err(companion_error(py, &error)),
+        Err(error) => Err(companion_error(py, text, &error)),
     }
 }
 

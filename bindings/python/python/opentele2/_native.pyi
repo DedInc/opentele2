@@ -475,6 +475,17 @@ class FingerprintConfig(TypedDict):
     randomize_msg_id_offset: bool
     msg_id_offset: int
 
+# The FingerprintConfig defaults, without the drawn msg_id_offset.
+class FingerprintConfigDefaults(TypedDict):
+    strict_mode: StrictMode
+    auto_validate: bool
+    preferred_transport: str
+    warn_on_layer_mismatch: bool
+    layer_override: int | None
+    randomize_msg_id_offset: bool
+
+FINGERPRINT_CONFIG_DEFAULTS: FingerprintConfigDefaults
+
 def tz_offset(offset_seconds: int) -> float: ...
 def validate_init_params(
     profile: ApiProfile, versions: _VersionsArg | None = None, mode: StrictMode = "warn"
@@ -600,6 +611,27 @@ class NavigatorData(TypedDict):
 class VideoCardData(TypedDict):
     renderer: str
     vendor: str
+
+SUPPORTED_BROWSERS: tuple[str, ...]
+SUPPORTED_OPERATING_SYSTEMS: tuple[str, ...]
+SUPPORTED_DEVICES: tuple[str, ...]
+SUPPORTED_HTTP_VERSIONS: tuple[Literal["1", "2"], ...]
+
+def http_version(value: object) -> Literal["1", "2"]: ...
+
+# Every browser switched to http_version, as browser dicts.
+def browsers_with_http_version(
+    browsers: str | Sequence[str | BrowserSpec], http_version: object
+) -> list[BrowserSpec]: ...
+
+# A minimum above its maximum raises ValueError.
+def validate_browser(min_version: int | None = None, max_version: int | None = None) -> None: ...
+def validate_screen(
+    min_width: int | None = None,
+    max_width: int | None = None,
+    min_height: int | None = None,
+    max_height: int | None = None,
+) -> None: ...
 
 class FingerprintData(TypedDict):
     screen: ScreenData
