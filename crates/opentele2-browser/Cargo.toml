@@ -16,10 +16,12 @@ thiserror.workspace = true
 # Raw DEFLATE for the embedded network zips, pure Rust (no C zlib).
 miniz_oxide = { version = "0.9.1", default-features = false, features = ["with-alloc"] }
 crc32fast = { version = "1.5.2", default-features = false }
-serde = "1.0.229"
+serde = { version = "1.0.229", features = ["derive"] }
 # `float_roundtrip` parses every probability to the correctly rounded double,
 # as Python's json does, so cumulative sums match browserforge bit for bit.
-serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+# `preserve_order` keeps the dataset's key order in the unpacked fingerprint
+# attributes, as browserforge's dicts do.
+serde_json = { version = "1.0.154", features = ["float_roundtrip", "preserve_order"] }
 sha2 = "0.11.1"
 getrandom = "0.4.3"
 

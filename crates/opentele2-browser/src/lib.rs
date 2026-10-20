@@ -10,12 +10,18 @@
 //!
 //! [browserforge]: https://github.com/daijro/browserforge
 
+pub mod fingerprint;
 pub mod headers;
 mod map;
 pub mod network;
 pub mod rng;
 mod zip;
 
+pub use fingerprint::{
+    Fingerprint, FingerprintGenerator, FingerprintOptions, FingerprintOverrides,
+    NavigatorFingerprint, Screen, ScreenFingerprint, VideoCard, generate_fingerprint,
+    generate_headers,
+};
 pub use headers::{
     Browser, HeaderGenerator, HeaderOptions, HeaderOverrides, Headers, HttpVersion, browser_of,
     get_user_agent, pascalize,
@@ -29,6 +35,9 @@ const TOO_RESTRICTIVE: &str = "The current constraints are too restrictive. No p
 
 /// The message browserforge raises when no headers fit the options.
 const NO_HEADERS: &str = "No headers based on this input can be generated. Please relax or change some of the requirements you specified.";
+
+/// The message browserforge raises when no fingerprint fits the headers.
+const NO_FINGERPRINT: &str = "Cannot generate headers. User-Agent may be invalid, or screen constraints are too restrictive.";
 
 /// Errors of the crate.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -57,6 +66,10 @@ pub enum Error {
     /// The generated headers carry no `User-Agent`.
     #[error("Failed to find User-Agent in generated response")]
     MissingUserAgent,
+    /// The fingerprint network has no sample for the generated `User-Agent`
+    /// (and, when strict, the screen constraint).
+    #[error("{NO_FINGERPRINT}")]
+    NoFingerprint,
     /// The generated `User-Agent` names no known browser.
     #[error("Failed to find browser in User-Agent {0:?}")]
     UnknownBrowser(String),
