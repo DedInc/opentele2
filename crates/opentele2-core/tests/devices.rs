@@ -1,13 +1,13 @@
 //! Tests for `devices`: every case of `tests/vectors/devices.json` (1.5.0
 //! `Generate` per entry point), seed hashes computed by 1.5.0's
-//! `_strtohashid`, catalog sizes equal to 1.5.0's expanded list lengths, and
-//! the embedded catalogs against the Python package's copies. The web catalog
+//! `_strtohashid` and catalog sizes equal to 1.5.0's expanded list lengths.
+//! The web catalog
 //! has no 1.5.0 vectors (1.5.0 drew it from browserforge), so its tests check
 //! determinism, reachability, the cited weights and the user agent formats.
 
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use opentele2_core::Result;
 use opentele2_core::devices::{self, Platform, WebClient};
@@ -193,21 +193,6 @@ fn unseeded_pick_comes_from_the_catalog() -> Result<()> {
         Platform::Windows | Platform::Linux | Platform::MacOS { swift: false }
     ));
     Ok(())
-}
-
-#[test]
-fn embedded_catalogs_equal_python_package_copies() {
-    let python_dir = crate_dir().join("../../src/devices");
-    let core_dir = crate_dir().join("data/devices");
-    for name in ["android.json", "desktop.json", "ios.json", "mac.json"] {
-        let core = fs::read(core_dir.join(name)).expect("read core catalog");
-        let python = Path::new(&python_dir).join(name);
-        // src/devices/ goes away once the Python package reads the core.
-        if python.exists() {
-            let python = fs::read(&python).expect("read Python catalog");
-            assert!(core == python, "{name} differs from src/devices/{name}");
-        }
-    }
 }
 
 fn web_json_text() -> String {

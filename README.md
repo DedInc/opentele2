@@ -20,44 +20,45 @@
 
 <br>
 
-A **Python Telegram API Library** for converting between **tdata** and **telethon** sessions, with built-in **official Telegram APIs**.
+A **Telegram API library** for converting between **tdata** and **telethon** sessions, with built-in **official Telegram APIs**, for Python, Node and Rust.
 
 ## Installation
 
 ```bash
-pip install --upgrade opentele2
+pip install opentele2             # Python 3.8+
+npm install opentele2             # Node 18+; opentele2/telethon needs Node 22.5+
+cargo add opentele2-core          # Rust core: tdata, crypto, sessions, devices, API profiles
+cargo add opentele2-versions      # Rust: fetch the current official client versions
+cargo add opentele2-grammers      # Rust: grammers 0.11 bridge; client flows behind feature `client`
 ```
 
 Targets **Telegram Desktop 7.3.1** tdata and **Telethon 1.45** (schema layer 230),
 including 7.3 passcode-locked tdata (Argon2id and scrypt key wraps).
 
-## opentele2 2.0 (pre-release, branch `2.0.0`)
+## opentele2 2.0.0
 
-2.0 moves the tdata formats and crypto into a Rust core, `opentele2-core`, used from Python, Node and Rust.
+2.0.0 moves the tdata formats and crypto into one Rust core, `opentele2-core`, shared by one
+package per ecosystem.
 
 - **Rust core**: tdata read and write, PBKDF2, Argon2id and scrypt key derivation, AES-256-IGE,
-  Telethon and mtcute string sessions, and device fingerprints live in `crates/opentele2-core`.
-- **Faster**: the core's `TData.load` reads a real one-account tdata folder in 0.24 ms against
-  1.08 ms for the Python `TDesktop` loader (best of 3 x 200 loads, one machine), about 4.6x.
+  Telethon and mtcute string sessions, Telethon `.session` rows, device catalogs and fingerprint
+  checks live in `crates/opentele2-core`.
+- **Faster**: the core loads a real one-account tdata folder in 0.24 ms against 1.08 ms for the
+  pure-Python 1.x `TDesktop` loader (best of 3 x 200 loads, one machine), about 4.6x.
 - **Native AES-IGE for Telethon**: when the real `cryptg` is not installed, `import opentele2`
-  registers the core's `opentele2_core.cryptg` as `cryptg`, so Telethon uses it. Import
+  registers `opentele2._native.cryptg` as `cryptg`, so Telethon uses the core's AES-IGE. Import
   `opentele2` before `telethon` for this to apply.
-- **Python 3.8+**: `opentele2` and the abi3 wheel `opentele2-core` both need Python 3.8 or newer.
+- **Python 3.8+**: the `opentele2` wheel is abi3 for CPython 3.8 and newer.
 - **No C crypto dependencies**: `TgCrypto-pyrofork` and `argon2-cffi` are gone; the dependencies are
-  `telethon`, `opentele2-core` and, below Python 3.10, `typing_extensions`.
+  `telethon` and, below Python 3.10, `typing_extensions`.
+- **Deterministic web fingerprints**: web devices come from a curated catalog and are seeded by
+  `unique_id` like every other platform; `browserforge` is no longer used.
+- **Full parity**: Python, Node and Rust cover the same conversions, device generation,
+  fingerprint checks, QR login with 2FA, session admin and consistency checks, each over its own
+  client (Telethon, mtcute, grammers).
 
-### Install
-
-The 2.0 versions are pre-releases: `2.0.0a1` on PyPI, `2.0.0-alpha.1` on npm and crates.io.
-
-```bash
-pip install --pre opentele2                 # Python: opentele2 plus opentele2-core
-npm install opentele2@2.0.0-alpha.1         # Node 18+; mtcute helpers in opentele2/mtcute
-cargo add opentele2-core@2.0.0-alpha.1      # Rust core
-cargo add opentele2-grammers@2.0.0-alpha.1  # optional grammers 0.11 bridge
-```
-
-Releases come from three workflows, `release-python.yml`, `release-node.yml` and `release-crates.yml`, which run only on a bare version tag such as `2.0.0-alpha.1` (PyPI spells it `2.0.0a1`) and publish from the protected environments `pypi`, `npm` and `crates-io`.
+The few places where 2.0.0 deliberately behaves differently from 1.5.0 are listed in
+[ARCHITECTURE.md, Deliberate differences from 1.5.0](ARCHITECTURE.md#deliberate-differences-from-150).
 
 ### Python
 
@@ -66,7 +67,7 @@ The 1.x API is unchanged.
 ```python
 import asyncio
 
-from opentele2.api import UseCurrentSession
+from opentele2.api import API, UseCurrentSession
 from opentele2.td import TDesktop
 
 
@@ -75,6 +76,9 @@ async def main():
     client = await tdesk.ToTelethon("telethon.session", UseCurrentSession)
     await client.connect()
     print(await client.get_me())
+    # Back to tdata through a new QR-login session with a generated device.
+    tdesk2 = await client.ToTDesktop(api=API.TelegramDesktop.Generate("windows", "my-id"))
+    tdesk2.SaveTData("tdata_new")
 
 
 asyncio.run(main())
@@ -83,36 +87,63 @@ asyncio.run(main())
 ### Node
 
 ```js
+import { TelegramClient } from '@mtcute/node'
 import { loadTdata, profile } from 'opentele2'
-import { initConnectionOptions, toStringSession } from 'opentele2/mtcute'
+import { createCryptoProvider, initConnectionOptions, toStringSession } from 'opentele2/mtcute'
+import { saveSessionPair } from 'opentele2/telethon'
 
 const tdata = await loadTdata('tdata') // loadTdata('tdata', passcode) for a locked folder
 const desktop = profile('TelegramDesktop')
 
-const session = toStringSession(tdata.mainAccount) // for mtcute's client.importSession()
-const options = initConnectionOptions(desktop) // pass desktop.apiId and desktop.apiHash separately
+const client = new TelegramClient({
+  apiId: desktop.apiId,
+  apiHash: desktop.apiHash,
+  initConnectionOptions: initConnectionOptions(desktop),
+  crypto: await createCryptoProvider(), // AES-IGE from the core
+})
+await client.importSession(toStringSession(tdata.mainAccount))
+
+// Telethon: the .session + .json pair 1.5.0 writes (node:sqlite, Node 22.5+).
+const { session, json } = await saveSessionPair('telethon', tdata.mainAccount, desktop)
 ```
 
-`createCryptoProvider()` from `opentele2/mtcute` returns mtcute's Node crypto provider with
-AES-IGE from the core.
+`opentele2/mtcute` also has the 1.5.0 client flows over an mtcute client: `qrLoginToNewClient`
+(QR login with 2FA), `getSessions`, `terminateSession`, `terminateAllSessions`, `formatSessions`,
+`runConsistencyChecks` and `tdataFromClient`.
 
 ### Rust
 
+`client::*` needs `cargo add opentele2-grammers --features client` and `grammers-client`.
+
 ```rust
+use grammers_client::Client;
+use opentele2_core::api::{self, Versions};
 use opentele2_core::session::{mtcute, telethon};
 use opentele2_core::tdata::TData;
+use opentele2_grammers::client::{self, ClientError};
 
-fn main() -> opentele2_core::Result<()> {
+fn convert() -> opentele2_core::Result<()> {
     let tdata = TData::load("tdata", b"", None)?; // passcode bytes, key file name
     let account = tdata.main_account().expect("folder has an account");
     println!("{}", telethon::StringSession::from_account(account, false)?.encode());
     println!("{}", mtcute::StringSession::from_account(account, false)?.encode());
+    // grammers 0.11 session data and initConnection params.
+    let desktop = api::profile(api::Client::Desktop, &Versions::offline());
+    let _session = opentele2_grammers::session_data(account);
+    let _params = opentele2_grammers::connection_params(&desktop);
+    Ok(())
+}
+
+async fn show_sessions(client: &Client) -> Result<(), ClientError> {
+    println!("{}", client::sessions_table(client).await?); // 1.5.0 PrintSessions
     Ok(())
 }
 ```
 
-`opentele2-grammers` turns the same account into grammers session data with
-`opentele2_grammers::session_data(account)`.
+`client::qr_login`, `client::run_consistency_checks` and `client::tdata_from_client` cover QR
+login with 2FA, the consistency checks and tdata from a client session. The Telethon `.session`
+file is written by the core's `session::telethon_file::write_session_file` with its
+default-off feature `telethon-sqlite`.
 
 ## Documentation
 
@@ -134,5 +165,5 @@ This new era means the project is no longer just a compatibility fork. It focuse
 
 ### Key Enhancements
 
-- **PyQt5 Removed**: The **PyQt5** dependency has been removed. Its required functionality was reimplemented in **pure Python** to reduce overhead and avoid installing unnecessary heavy dependencies.
+- **PyQt5 Removed**: The **PyQt5** dependency has been removed. Its required functionality was reimplemented without Qt, in pure Python in 1.x and in the Rust core since 2.0, to reduce overhead and avoid installing unnecessary heavy dependencies.
 - **New Fingerprints**: Device information generation has been improved. The library now uses a new device database for more realistic client profiles.
