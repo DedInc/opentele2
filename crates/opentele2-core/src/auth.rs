@@ -12,10 +12,16 @@
 //!   prints, drawn by [`format_table`] (1.5.0 `PrettyTable`),
 //!   [`OFFICIAL_API_IDS`] the api ids of the official profiles, and
 //!   the `TerminateSession` and `_handle2FA` messages are constants.
+//!   [`SessionRow::from_authorization`] maps a client's raw fields.
+//! - Login flow: the post-login sequence ([`POST_LOGIN_STEPS`]) with its
+//!   sleeps ([`random_delay_ms`]), the QR login constants and warnings
+//!   ([`QR_LOGIN_ATTEMPTS`], [`qr_attempt_timeout_warning`]) and the 2FA
+//!   algorithm name ([`SRP_ALGORITHM`]).
 //! - Consistency: [`ConsistencyExpectations`] says what each of the seven
 //!   1.5.0 `ConsistencyChecker` checks ([`Check`]) expects for a profile, and
 //!   [`CheckResult`] with [`consistency_summary`] and the detail builders
-//!   reproduce its report text.
+//!   reproduce its report text; [`consistency_report`] builds the report
+//!   from each check's [`CheckOutcome`].
 
 use std::fmt;
 
@@ -301,6 +307,226 @@ pub const HASH_INVALID: &str = "The provided hash is invalid.";
 /// sessions cannot be fetched.
 pub const SESSIONS_UNAVAILABLE: &str = "Could not fetch the account's sessions";
 
+/// The TL name of the only 2FA algorithm [`srp_check`] supports (Telethon
+/// `compute_check`); Telethon's class of it is the same name with a
+/// capital `P`.
+pub const SRP_ALGORITHM: &str = "passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow";
+
+/// The Telethon `compute_check` `ValueError` text for a 2FA algorithm other
+/// than [`SRP_ALGORITHM`], named `algorithm` (Telethon gives its class name).
+#[must_use]
+pub fn unsupported_password_algorithm(algorithm: &str) -> String {
+    format!("unsupported password algorithm {algorithm}")
+}
+
+/// How many QR login attempts 1.5.0 `_performQRLogin` makes by default
+/// (`_DEFAULT_REQUEST_RETRIES`; a client's integer `request_retries`
+/// replaces it).
+pub const QR_LOGIN_ATTEMPTS: u32 = 5;
+
+/// How many seconds past a QR token's expiry 1.5.0 waits for it to be
+/// accepted (`_QR_EXPIRE_SAFETY_SECONDS`).
+pub const QR_EXPIRE_SAFETY_SECONDS: u64 = 5;
+
+/// The 1.5.0 `TimeoutError` message when no QR login attempt logged in.
+pub const QR_LOGIN_TIMEOUT: &str = "Something went wrong, i couldn't perform the QR login";
+
+/// Python 3.11+ `str(type(e))` of the timeout a QR login wait raises, as
+/// [`qr_attempt_timeout_warning`] shows it.
+pub const QR_TIMEOUT_ERROR_TYPE: &str = "<class 'TimeoutError'>";
+
+/// The 1.5.0 warning of QR login attempt `attempt_number` (from 1) that
+/// timed out with an error whose Python `str(type(e))` is `error_type`
+/// ([`QR_TIMEOUT_ERROR_TYPE`] on Python 3.11 and later).
+#[must_use]
+pub fn qr_attempt_timeout_warning(attempt_number: u32, error_type: &str) -> String {
+    format!("\nQRLoginToNewClient attempt {attempt_number} failed because {error_type}")
+}
+
+/// The 1.5.0 warning after QR login attempt `attempt_number` (from 1)
+/// failed, emitted after [`qr_attempt_timeout_warning`].
+#[must_use]
+pub fn qr_attempt_retry_warning(attempt_number: u32) -> String {
+    format!("\nQRLoginToNewClient attempt {attempt_number} failed. Retrying..")
+}
+
+/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// holds a session of the same `api_id`, which is returned.
+pub const EXISTING_SESSION_KEPT: &str = "\nCreateNewSession - a session file with the same name \
+     is already existed, returning the old session";
+
+/// The 1.5.0 `_handleExistingSession` warning when the new client already
+/// holds a session of another `api_id`, which is deleted and logged in again.
+pub const EXISTING_SESSION_REPLACED: &str = "\nCreateNewSession - a session file with the same \
+     name is already existed, but its api_id is different from the current one, it will be \
+     overwritten";
+
+/// A request of the 1.5.0 post-login sequence (`_POST_LOGIN_STEPS`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PostLoginRequest {
+    /// `help.getConfig`.
+    GetConfig,
+    /// `help.getNearestDc`.
+    GetNearestDc,
+    /// `account.updateStatus` with `offline = false`.
+    UpdateStatus,
+    /// `langpack.getLanguages` with the client's `lang_pack`.
+    GetLanguages,
+    /// `help.getAppUpdate` with `source = ""`.
+    GetAppUpdate,
+    /// `help.getTermsOfServiceUpdate`.
+    GetTermsOfServiceUpdate,
+    /// `help.getCountriesList` with `lang_code = "en"` and `hash = 0`.
+    GetCountriesList,
+}
+
+impl PostLoginRequest {
+    /// The TL name of the request, such as `help.getConfig`.
+    #[must_use]
+    pub fn tl_name(self) -> &'static str {
+        match self {
+            Self::GetConfig => "help.getConfig",
+            Self::GetNearestDc => "help.getNearestDc",
+            Self::UpdateStatus => "account.updateStatus",
+            Self::GetLanguages => "langpack.getLanguages",
+            Self::GetAppUpdate => "help.getAppUpdate",
+            Self::GetTermsOfServiceUpdate => "help.getTermsOfServiceUpdate",
+            Self::GetCountriesList => "help.getCountriesList",
+        }
+    }
+}
+
+/// The `source` of the post-login `help.getAppUpdate`.
+pub const POST_LOGIN_APP_UPDATE_SOURCE: &str = "";
+
+/// The `lang_code` of the post-login `help.getCountriesList`; its `hash`
+/// is 0.
+pub const POST_LOGIN_COUNTRIES_LANG_CODE: &str = "en";
+
+/// One step of the 1.5.0 post-login sequence: a random sleep in
+/// `delay_ms`, then the request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PostLoginStep {
+    /// The request.
+    pub request: PostLoginRequest,
+    /// The inclusive range in milliseconds of the sleep before the request
+    /// ([`random_delay_ms`]); `None` for no sleep.
+    pub delay_ms: Option<(u64, u64)>,
+}
+
+impl PostLoginStep {
+    /// Whether 1.5.0 runs the step, sleep included, for a client whose
+    /// `lang_pack` is `lang_pack`: `langpack.getLanguages` only runs for a
+    /// non-empty one.
+    #[must_use]
+    pub fn runs_for(&self, lang_pack: &str) -> bool {
+        self.request != PostLoginRequest::GetLanguages || !lang_pack.is_empty()
+    }
+}
+
+/// The 1.5.0 post-login sequence (`_POST_LOGIN_STEPS`), in order; a failed
+/// request is skipped.
+pub const POST_LOGIN_STEPS: [PostLoginStep; 7] = [
+    PostLoginStep {
+        request: PostLoginRequest::GetConfig,
+        delay_ms: None,
+    },
+    PostLoginStep {
+        request: PostLoginRequest::GetNearestDc,
+        delay_ms: Some((100, 300)),
+    },
+    PostLoginStep {
+        request: PostLoginRequest::UpdateStatus,
+        delay_ms: Some((200, 400)),
+    },
+    PostLoginStep {
+        request: PostLoginRequest::GetLanguages,
+        delay_ms: Some((100, 200)),
+    },
+    PostLoginStep {
+        request: PostLoginRequest::GetAppUpdate,
+        delay_ms: Some((300, 500)),
+    },
+    PostLoginStep {
+        request: PostLoginRequest::GetTermsOfServiceUpdate,
+        delay_ms: Some((100, 300)),
+    },
+    PostLoginStep {
+        request: PostLoginRequest::GetCountriesList,
+        delay_ms: Some((50, 150)),
+    },
+];
+
+/// The [`POST_LOGIN_STEPS`] 1.5.0 runs for `lang_pack`
+/// ([`PostLoginStep::runs_for`]), in order.
+#[must_use]
+pub fn post_login_steps(lang_pack: &str) -> Vec<PostLoginStep> {
+    POST_LOGIN_STEPS
+        .into_iter()
+        .filter(|step| step.runs_for(lang_pack))
+        .collect()
+}
+
+/// A random whole number of milliseconds in `min_ms..=max_ms`, uniform,
+/// from the operating system's CSPRNG ([`crate::crypto::random_fill`]): the
+/// sleep 1.5.0 takes as `random.randint(min_ms, max_ms)`.
+///
+/// # Errors
+/// - [`crate::Error::InvalidInput`] when `min_ms > max_ms`, where
+///   `random.randint` raises `ValueError`.
+/// - [`crate::Error::Io`] when the system random source fails.
+pub fn random_delay_ms(min_ms: u64, max_ms: u64) -> crate::Result<u64> {
+    uniform_inclusive(min_ms, max_ms, &mut crate::crypto::random_fill)
+}
+
+/// [`random_delay_ms`] drawing its 8-byte little-endian words from `rng`.
+///
+/// A word below `2^64 mod (max_ms - min_ms + 1)` is drawn again, so every
+/// value is equally likely.
+///
+/// # Errors
+/// [`crate::Error::InvalidInput`] when `min_ms > max_ms`.
+pub fn random_delay_ms_with(
+    min_ms: u64,
+    max_ms: u64,
+    rng: &mut dyn FnMut(&mut [u8]),
+) -> crate::Result<u64> {
+    uniform_inclusive(min_ms, max_ms, &mut |buf| {
+        rng(buf);
+        Ok(())
+    })
+}
+
+fn uniform_inclusive(
+    min: u64,
+    max: u64,
+    fill: &mut dyn FnMut(&mut [u8]) -> crate::Result<()>,
+) -> crate::Result<u64> {
+    if min > max {
+        return Err(crate::Error::InvalidInput {
+            what: "delay range",
+            reason: format!("min {min} is above max {max}"),
+        });
+    }
+    let mut draw = || -> crate::Result<u64> {
+        let mut word = [0u8; 8];
+        fill(&mut word)?;
+        Ok(u64::from_le_bytes(word))
+    };
+    let Some(span) = (max - min).checked_add(1) else {
+        // The whole `u64` range: every word is a value.
+        return draw();
+    };
+    // `2^64 mod span`: the words below it are the incomplete last block.
+    let rejected = (u64::MAX % span + 1) % span;
+    loop {
+        let word = draw()?;
+        if word >= rejected {
+            return Ok(min + word % span);
+        }
+    }
+}
+
 /// The `api_id` of every official profile in [`api::profile`], in
 /// [`Client::ALL`] order without repeats (the web clients share one).
 pub const OFFICIAL_API_IDS: [i32; 6] = [2040, 6, 21724, 10840, 2834, 2496];
@@ -346,7 +572,46 @@ pub const SESSION_COLUMNS: [&str; 7] = [
     "Official App",
 ];
 
+/// The fields of an `authorization` as a client library returns them,
+/// before [`SessionRow::from_authorization`] maps them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct RawAuthorization<'a> {
+    /// `current`; `None` when the flag is absent.
+    pub current: Option<bool>,
+    /// `device_model`.
+    pub device_model: &'a str,
+    /// `platform`.
+    pub platform: &'a str,
+    /// `system_version`.
+    pub system_version: &'a str,
+    /// `api_id`.
+    pub api_id: i32,
+    /// `app_name`.
+    pub app_name: &'a str,
+    /// `app_version`.
+    pub app_version: &'a str,
+    /// `official_app`; `None` when the flag is absent.
+    pub official_app: Option<bool>,
+}
+
 impl SessionRow {
+    /// The row of an `authorization`, as 1.5.0 reads one: an absent
+    /// `current` or `official_app` flag is `false` (Python `bool(None)`),
+    /// every other field is copied.
+    #[must_use]
+    pub fn from_authorization(raw: &RawAuthorization<'_>) -> Self {
+        Self {
+            current: raw.current.unwrap_or(false),
+            device_model: raw.device_model.to_owned(),
+            platform: raw.platform.to_owned(),
+            system_version: raw.system_version.to_owned(),
+            api_id: raw.api_id,
+            app_name: raw.app_name.to_owned(),
+            app_version: raw.app_version.to_owned(),
+            official_app: raw.official_app.unwrap_or(false),
+        }
+    }
+
     /// The row's cells under [`SESSION_COLUMNS`] at position `index` in the
     /// list: `Current` or the index, the fields, `app_name app_version`,
     /// and `✔` or `✖`.
@@ -618,6 +883,82 @@ pub fn consistency_summary(results: &[CheckResult]) -> String {
         format!("  [{status}] {}: {}", result.name, result.detail)
     }));
     lines.join("\n")
+}
+
+/// How one [`Check`] ended, as a facade ran it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum CheckOutcome {
+    /// The check returned a result with this pass flag and detail text.
+    Finished {
+        /// Whether the check passed.
+        passed: bool,
+        /// The detail, from the detail builders of this module.
+        detail: String,
+    },
+    /// The check raised out of its own handling, with this error text
+    /// (Python `str(e)`); it fails with the [`check_exception`] detail.
+    Raised(String),
+}
+
+impl CheckOutcome {
+    /// The report entry of `check` ending this way.
+    #[must_use]
+    pub fn into_result(self, check: Check) -> CheckResult {
+        let (passed, detail) = match self {
+            Self::Finished { passed, detail } => (passed, detail),
+            Self::Raised(error) => (false, check_exception(&error)),
+        };
+        CheckResult {
+            name: check.name().to_owned(),
+            passed,
+            detail,
+        }
+    }
+}
+
+/// A 1.5.0 `ConsistencyReport`, without the server responses: one entry
+/// per [`Check`], in [`Check::ALL`] order.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConsistencyReport {
+    /// The entries, in [`Check::ALL`] order.
+    pub checks: Vec<CheckResult>,
+}
+
+impl ConsistencyReport {
+    /// Whether every check passed (`all_passed`).
+    #[must_use]
+    pub fn all_passed(&self) -> bool {
+        self.checks.iter().all(|result| result.passed)
+    }
+
+    /// The report text (`summary`), [`consistency_summary`] of the entries.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        consistency_summary(&self.checks)
+    }
+
+    /// The warning 1.5.0 `run_all` emits with `auto_warn` on:
+    /// [`CONSISTENCY_WARNING_PREFIX`] and the summary when a check failed,
+    /// `None` when all passed.
+    #[must_use]
+    pub fn warning(&self) -> Option<String> {
+        (!self.all_passed()).then(|| format!("{CONSISTENCY_WARNING_PREFIX}{}", self.summary()))
+    }
+}
+
+/// The report 1.5.0 `ConsistencyChecker.run_all` builds from the outcome of
+/// each check, `outcomes[i]` being that of `Check::ALL[i]`: every entry is
+/// named after its check, and a check that raised fails with the
+/// [`check_exception`] detail.
+#[must_use]
+pub fn consistency_report(outcomes: [CheckOutcome; 7]) -> ConsistencyReport {
+    ConsistencyReport {
+        checks: Check::ALL
+            .into_iter()
+            .zip(outcomes)
+            .map(|(check, outcome)| outcome.into_result(check))
+            .collect(),
+    }
 }
 
 /// Python's `str` of a bool.

@@ -708,3 +708,242 @@ fn failing_consistency_report_texts_match_1_5_0() {
         "opentele2 consistency check issues:\n"
     );
 }
+
+// ------------------------------------------------------------ flow rules
+
+#[test]
+fn post_login_steps_are_1_5_0s_table() {
+    use auth::PostLoginRequest as R;
+    let table: Vec<(&str, Option<(u64, u64)>)> = auth::POST_LOGIN_STEPS
+        .iter()
+        .map(|step| (step.request.tl_name(), step.delay_ms))
+        .collect();
+    assert_eq!(
+        table,
+        [
+            ("help.getConfig", None),
+            ("help.getNearestDc", Some((100, 300))),
+            ("account.updateStatus", Some((200, 400))),
+            ("langpack.getLanguages", Some((100, 200))),
+            ("help.getAppUpdate", Some((300, 500))),
+            ("help.getTermsOfServiceUpdate", Some((100, 300))),
+            ("help.getCountriesList", Some((50, 150))),
+        ]
+    );
+    assert_eq!(auth::post_login_steps("tdesktop"), auth::POST_LOGIN_STEPS);
+    // An empty lang_pack skips getLanguages and its sleep, nothing else.
+    let skipped: Vec<R> = auth::post_login_steps("")
+        .iter()
+        .map(|step| step.request)
+        .collect();
+    assert_eq!(
+        skipped,
+        [
+            R::GetConfig,
+            R::GetNearestDc,
+            R::UpdateStatus,
+            R::GetAppUpdate,
+            R::GetTermsOfServiceUpdate,
+            R::GetCountriesList,
+        ]
+    );
+    assert_eq!(auth::POST_LOGIN_APP_UPDATE_SOURCE, "");
+    assert_eq!(auth::POST_LOGIN_COUNTRIES_LANG_CODE, "en");
+}
+
+#[test]
+fn qr_login_constants_and_warnings_are_1_5_0s() {
+    assert_eq!(auth::QR_LOGIN_ATTEMPTS, 5);
+    assert_eq!(auth::QR_EXPIRE_SAFETY_SECONDS, 5);
+    assert_eq!(
+        auth::QR_LOGIN_TIMEOUT,
+        "Something went wrong, i couldn't perform the QR login"
+    );
+    assert_eq!(
+        auth::qr_attempt_timeout_warning(1, auth::QR_TIMEOUT_ERROR_TYPE),
+        "\nQRLoginToNewClient attempt 1 failed because <class 'TimeoutError'>"
+    );
+    assert_eq!(
+        auth::qr_attempt_retry_warning(5),
+        "\nQRLoginToNewClient attempt 5 failed. Retrying.."
+    );
+    assert_eq!(
+        auth::EXISTING_SESSION_KEPT,
+        "\nCreateNewSession - a session file with the same name is already existed, returning the old session"
+    );
+    assert_eq!(
+        auth::EXISTING_SESSION_REPLACED,
+        "\nCreateNewSession - a session file with the same name is already existed, but its api_id is different from the current one, it will be overwritten"
+    );
+    assert_eq!(
+        auth::SRP_ALGORITHM,
+        "passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow"
+    );
+    assert_eq!(
+        auth::unsupported_password_algorithm("PasswordKdfAlgoUnknown"),
+        "unsupported password algorithm PasswordKdfAlgoUnknown"
+    );
+}
+
+#[test]
+fn session_row_from_authorization_reads_absent_flags_as_false() {
+    let raw = auth::RawAuthorization {
+        current: None,
+        device_model: "Pixel 9",
+        platform: "Android",
+        system_version: "SDK 35",
+        api_id: 6,
+        app_name: "Telegram Android",
+        app_version: "12.0.1",
+        official_app: None,
+    };
+    assert_eq!(
+        SessionRow::from_authorization(&raw),
+        row(
+            false,
+            false,
+            6,
+            ["Pixel 9", "Android", "SDK 35", "Telegram Android", "12.0.1"]
+        )
+    );
+    let flagged = auth::RawAuthorization {
+        current: Some(true),
+        official_app: Some(true),
+        ..raw
+    };
+    let mapped = SessionRow::from_authorization(&flagged);
+    assert!(mapped.current && mapped.official_app);
+}
+
+#[test]
+fn check_all_is_the_run_all_order() {
+    let names: Vec<&str> = Check::ALL.iter().map(|check| check.name()).collect();
+    assert_eq!(
+        names,
+        [
+            "get_config",
+            "nearest_dc",
+            "current_session",
+            "layer_match",
+            "lang_pack",
+            "app_update",
+            "terms_of_service",
+        ]
+    );
+}
+
+#[test]
+fn consistency_report_wraps_a_raised_check_like_run_all() {
+    use auth::CheckOutcome::{Finished, Raised};
+    let failed = |detail: String| Finished {
+        passed: false,
+        detail,
+    };
+    // 1.5.0 run_all on a client whose every request raises "boom", with
+    // check_lang_pack raising ValueError("bad pack").
+    let report = auth::consistency_report([
+        failed(auth::get_config_error("boom")),
+        failed(auth::nearest_dc_error("boom")),
+        failed(CURRENT_SESSION_MISSING.to_owned()),
+        Finished {
+            passed: true,
+            detail: auth::layer_detail(229, 230),
+        },
+        Raised("bad pack".to_owned()),
+        failed(auth::app_update_error("boom")),
+        failed(auth::check_error("boom")),
+    ]);
+    let names: Vec<&str> = report.checks.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, Check::ALL.map(Check::name));
+    assert_eq!(
+        report.checks[4],
+        result(Check::LangPack, false, "Exception: bad pack".to_owned())
+    );
+    assert!(!report.all_passed());
+    assert_eq!(
+        report.warning().as_deref(),
+        Some(
+            "opentele2 consistency check issues:\nConsistency: 1/7 checks passed\n  [FAIL] get_config: Server rejected getConfig: boom\n  [FAIL] nearest_dc: Error calling getNearestDc: boom\n  [FAIL] current_session: Could not retrieve current session\n  [OK] layer_match: Telethon layer=229, advertised schema layer=230, diff=1\n  [FAIL] lang_pack: Exception: bad pack\n  [FAIL] app_update: Error calling getAppUpdate: boom\n  [FAIL] terms_of_service: Error: boom"
+        )
+    );
+
+    let passing = auth::consistency_report(std::array::from_fn(|_| Finished {
+        passed: true,
+        detail: "ok".to_owned(),
+    }));
+    assert!(passing.all_passed());
+    assert_eq!(passing.warning(), None);
+    assert!(
+        passing
+            .summary()
+            .starts_with("Consistency: 7/7 checks passed\n")
+    );
+}
+
+/// A source serving `words` as 8-byte little-endian draws, counting them.
+fn word_source(
+    words: &[u64],
+) -> (
+    impl FnMut(&mut [u8]) + '_,
+    std::rc::Rc<std::cell::Cell<usize>>,
+) {
+    let count = std::rc::Rc::new(std::cell::Cell::new(0));
+    let seen = std::rc::Rc::clone(&count);
+    let source = move |buf: &mut [u8]| {
+        let word = words[seen.get()];
+        seen.set(seen.get() + 1);
+        buf.copy_from_slice(&word.to_le_bytes());
+    };
+    (source, count)
+}
+
+#[test]
+fn random_delay_redraws_the_biased_tail() {
+    // 2^64 mod 201 is 151: words 0..=150 would favour the low values.
+    let (mut source, draws) = word_source(&[150, 151]);
+    assert_eq!(
+        auth::random_delay_ms_with(100, 300, &mut source).unwrap(),
+        251
+    );
+    assert_eq!(draws.get(), 2);
+
+    let (mut source, draws) = word_source(&[u64::MAX]);
+    // u64::MAX mod 201 is 150.
+    assert_eq!(
+        auth::random_delay_ms_with(100, 300, &mut source).unwrap(),
+        250
+    );
+    assert_eq!(draws.get(), 1);
+
+    // A one-value range and the whole u64 range need no redraw.
+    let (mut source, _) = word_source(&[12345]);
+    assert_eq!(auth::random_delay_ms_with(7, 7, &mut source).unwrap(), 7);
+    let (mut source, _) = word_source(&[12345]);
+    assert_eq!(
+        auth::random_delay_ms_with(0, u64::MAX, &mut source).unwrap(),
+        12345
+    );
+}
+
+#[test]
+fn random_delay_refuses_a_reversed_range() {
+    let error = auth::random_delay_ms(300, 100).unwrap_err();
+    assert_eq!(error.code(), "INVALID_INPUT");
+    let mut never = |_: &mut [u8]| panic!("no draw for a reversed range");
+    assert!(auth::random_delay_ms_with(2, 1, &mut never).is_err());
+}
+
+#[test]
+fn random_delay_stays_in_the_inclusive_range() {
+    let mut seen = [false; 2];
+    for _ in 0..256 {
+        let delay = auth::random_delay_ms(50, 51).unwrap();
+        assert!((50..=51).contains(&delay));
+        seen[usize::try_from(delay - 50).unwrap()] = true;
+    }
+    // Missing an end in 256 fair draws has a chance of 2^-255.
+    assert_eq!(seen, [true, true]);
+    for (low, high) in [(100, 300), (0, 0), (u64::MAX - 1, u64::MAX)] {
+        assert!((low..=high).contains(&auth::random_delay_ms(low, high).unwrap()));
+    }
+}

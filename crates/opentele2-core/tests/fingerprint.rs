@@ -704,6 +704,255 @@ fn is_valid_msg_id_matches_1_5_0() {
     }
 }
 
+// ------------------------------------------------- raw validation values
+
+use fingerprint::{RawApiId, RawInitParams, validate_raw_init_params};
+
+/// The tdesktop case of the raw-value probes, every field present.
+fn raw_desktop() -> RawInitParams<'static> {
+    RawInitParams {
+        api_id: RawApiId::Int(2040),
+        device_model: Some("PC"),
+        system_version: Some("Windows 11"),
+        app_version: Some("6.1.3 x64"),
+        system_lang_code: Some("en-US"),
+        lang_pack: Some("tdesktop"),
+        lang_code: Some("en"),
+    }
+}
+
+const DESKTOP_MAJOR: &str =
+    "Desktop app_version '6.1.3 x64' major does not match latest known '7.3.1'";
+
+fn raw_messages(params: &RawInitParams<'_>, mode: StrictMode) -> Vec<String> {
+    validate_raw_init_params(params, &Versions::offline(), mode)
+        .into_iter()
+        .map(|issue| issue.message)
+        .collect()
+}
+
+#[test]
+fn raw_validation_shows_none_values_as_1_5_0() {
+    let base = raw_desktop();
+    assert_eq!(
+        raw_messages(
+            &RawInitParams {
+                lang_code: None,
+                ..base
+            },
+            StrictMode::Warn
+        ),
+        ["lang_code 'None' looks invalid (too short)"]
+    );
+    assert_eq!(
+        raw_messages(
+            &RawInitParams {
+                lang_pack: None,
+                ..base
+            },
+            StrictMode::Warn
+        ),
+        [unknown("None")]
+    );
+    assert_eq!(
+        raw_messages(
+            &RawInitParams {
+                device_model: None,
+                system_version: None,
+                app_version: None,
+                ..base
+            },
+            StrictMode::Warn
+        ),
+        [
+            "device_model is empty",
+            "system_version is empty",
+            "app_version is empty"
+        ]
+    );
+    // 1.5.0 raises TypeError here; the facade tests and shows it as empty.
+    assert_eq!(
+        raw_messages(
+            &RawInitParams {
+                api_id: RawApiId::Int(6),
+                lang_pack: Some("android"),
+                system_lang_code: None,
+                ..base
+            },
+            StrictMode::Warn
+        ),
+        [
+            "system_lang_code '' should include a region code (e.g. 'en-US') for android \
+             clients"
+        ]
+    );
+}
+
+#[test]
+fn raw_validation_compares_and_shows_api_ids_as_1_5_0() {
+    // (api_id, the strict ApiIdMismatch message 1.5.0 gave, if any)
+    let cases: [(RawApiId<'_>, Option<&str>); 9] = [
+        (RawApiId::Int(2040), None),
+        (
+            RawApiId::Text("2040"),
+            Some("api_id 2040 does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+        (
+            RawApiId::Missing,
+            Some("api_id None does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+        (RawApiId::Float(2040.0), None),
+        (
+            RawApiId::Float(6.0),
+            Some("api_id 6.0 does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+        (
+            RawApiId::Bool(true),
+            Some("api_id True does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+        (
+            RawApiId::Text("1180591620717411303424"),
+            Some(
+                "api_id 1180591620717411303424 does not match lang_pack 'tdesktop' (expected 2040)",
+            ),
+        ),
+        (
+            RawApiId::Int(i64::from(i32::MAX) + 2041),
+            Some("api_id 2147485688 does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+        (
+            RawApiId::Float(2040.5),
+            Some("api_id 2040.5 does not match lang_pack 'tdesktop' (expected 2040)"),
+        ),
+    ];
+    for (api_id, mismatch) in cases {
+        let params = RawInitParams {
+            api_id,
+            ..raw_desktop()
+        };
+        let mut expected: Vec<&str> = mismatch.into_iter().collect();
+        expected.push(DESKTOP_MAJOR);
+        assert_eq!(
+            raw_messages(&params, StrictMode::Strict),
+            expected,
+            "{api_id:?}"
+        );
+        // The api_id is only compared in strict mode.
+        assert_eq!(raw_messages(&params, StrictMode::Warn), [""; 0]);
+    }
+    assert!(RawApiId::Bool(false).equals_id(0));
+    assert_eq!(RawApiId::default(), RawApiId::Missing);
+}
+
+#[test]
+fn raw_api_id_floats_print_as_python_repr() {
+    // (value, Python 3.12 repr)
+    let cases: [(f64, &str); 18] = [
+        (2040.0, "2040.0"),
+        (6.0, "6.0"),
+        (1e16, "1e+16"),
+        (1.5e-05, "1.5e-05"),
+        (0.0001, "0.0001"),
+        (123_456_789_012_345.6, "123456789012345.6"),
+        (1e15, "1000000000000000.0"),
+        (1_234_567_890_123_456.0, "1234567890123456.0"),
+        (-0.0, "-0.0"),
+        (f64::INFINITY, "inf"),
+        (f64::NEG_INFINITY, "-inf"),
+        (f64::NAN, "nan"),
+        (1e-07, "1e-07"),
+        (5e-324, "5e-324"),
+        (f64::MAX, "1.7976931348623157e+308"),
+        (0.1, "0.1"),
+        (-2.5e20, "-2.5e+20"),
+        (2040.5, "2040.5"),
+    ];
+    for (value, repr) in cases {
+        assert_eq!(RawApiId::Float(value).to_string(), repr, "{value:e}");
+    }
+}
+
+#[test]
+fn raw_validation_of_a_profile_is_validate_init_params() {
+    let versions = Versions::offline();
+    let android = ApiProfile {
+        api_id: 1,
+        lang_code: "e".to_owned(),
+        system_lang_code: "en".to_owned(),
+        ..android()
+    };
+    for mode in StrictMode::ALL {
+        assert_eq!(
+            validate_raw_init_params(&RawInitParams::from_profile(&android), &versions, mode),
+            validate_init_params(&android, &versions, mode),
+            "{mode:?}"
+        );
+    }
+}
+
+#[test]
+fn config_validate_raw_follows_the_mode() {
+    let versions = Versions::offline();
+    let params = RawInitParams {
+        api_id: RawApiId::Text("2040"),
+        lang_code: None,
+        ..raw_desktop()
+    };
+    let config = |strict_mode| FingerprintConfig {
+        strict_mode,
+        ..FingerprintConfig::new(&mut |buf| buf.fill(0))
+    };
+    let silent = config(StrictMode::Off).validate_raw(&params, &versions);
+    assert_eq!(messages(&silent), [""; 0]);
+    let off = FingerprintConfig {
+        auto_validate: false,
+        ..config(StrictMode::Strict)
+    };
+    assert_eq!(messages(&off.validate_raw(&params, &versions)), [""; 0]);
+    assert_eq!(
+        issues_message(&config(StrictMode::Warn).validate_raw(&params, &versions)),
+        "initConnection fingerprint issues:\n  - lang_code 'None' looks invalid (too short)"
+    );
+    assert_eq!(
+        issues_message(&config(StrictMode::Strict).validate_raw(&params, &versions)),
+        format!(
+            "initConnection fingerprint issues:\n  - lang_code 'None' looks invalid (too \
+             short)\n  - api_id 2040 does not match lang_pack 'tdesktop' (expected 2040)\n  - \
+             {DESKTOP_MAJOR}"
+        )
+    );
+}
+
+#[test]
+fn layer_mismatch_warning_is_1_5_0s() {
+    // 1.5.0 get_recommended_layer with Telethon's layer patched to 200.
+    assert_eq!(
+        fingerprint::layer_mismatch_warning(200).as_deref(),
+        Some(
+            "Telethon TL layer (200) differs from advertised layer (230, base=230) by 30 \
+             layers. This may cause initConnection fingerprint inconsistencies. Consider \
+             updating Telethon or opentele2."
+        )
+    );
+    assert_eq!(LAYER, 230);
+    // The tolerance is 15 layers either way, inclusive.
+    assert_eq!(fingerprint::layer_mismatch_warning(LAYER - 15), None);
+    assert_eq!(fingerprint::layer_mismatch_warning(LAYER + 15), None);
+    assert!(fingerprint::layer_mismatch_warning(LAYER + 16).is_some());
+    assert!(fingerprint::layer_mismatch_warning(i32::MIN).is_some());
+
+    let config = FingerprintConfig::new(&mut |buf| buf.fill(0));
+    let (layer, warning) = config.effective_layer_for(200);
+    assert_eq!(layer, 200);
+    assert!(warning.is_some());
+    assert_eq!(config.effective_layer_for(229), (229, None));
+    let overridden = FingerprintConfig {
+        layer_override: Some(180),
+        ..config
+    };
+    assert_eq!(overridden.effective_layer_for(200), (180, None));
+}
+
 #[test]
 fn is_valid_msg_id_survives_extreme_clocks() {
     let msg_id = (1_760_000_000i64 << 32) | 1;

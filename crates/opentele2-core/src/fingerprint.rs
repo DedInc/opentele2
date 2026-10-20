@@ -8,6 +8,10 @@
 //!   [`check_versions`] is its strict version check
 //!   `_check_version_consistency`. Versions come from a [`Versions`] the
 //!   caller passes, where 1.5.0 reads its global `PLATFORM_VERSIONS`.
+//!   [`validate_raw_init_params`] takes the arguments as the caller gave
+//!   them ([`RawInitParams`], `None` and an `api_id` of any type included)
+//!   and words each message as 1.5.0 shows it.
+//! - [`layer_mismatch_warning`] is the `get_recommended_layer` warning.
 //! - [`StrictMode`] and [`FingerprintConfig`] are the 1.5.0 types of the same
 //!   names.
 //! - [`msg_id_offset`] is `generate_msg_id_offset` with randomness from the
@@ -259,9 +263,166 @@ fn official_api_id(lang_pack: &str) -> Option<i32> {
 /// device model, system version and app version are not empty. Strict mode
 /// adds the official `api_id` of the `lang_pack` and [`check_versions`]
 /// against `versions`. `api_hash` is not checked.
+///
+/// This is [`validate_raw_init_params`] of
+/// [`RawInitParams::from_profile`].
 #[must_use]
 pub fn validate_init_params(
     profile: &ApiProfile,
+    versions: &Versions,
+    mode: StrictMode,
+) -> Vec<Issue> {
+    validate_raw_init_params(&RawInitParams::from_profile(profile), versions, mode)
+}
+
+/// An `api_id` as a caller of 1.5.0 `validate_init_connection_params` gave
+/// it, before any conversion: 1.5.0 compares it with the official id of the
+/// `lang_pack` by Python `!=` and shows it with Python `str()`.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum RawApiId<'a> {
+    /// An integer: equal to an official id of the same value, shown in
+    /// decimal.
+    Int(i64),
+    /// A float: equal to an official id it holds exactly (`2040.0 ==
+    /// 2040`), shown as Python `repr` (`2040.0`, `1e+16`, `nan`).
+    Float(f64),
+    /// A bool: equal to the id 1 or 0, shown as `True` or `False`.
+    Bool(bool),
+    /// Text, such as `"2040"`: equal to no official id, shown as given. An
+    /// integer outside `i64` is passed as its decimal text, which shows and
+    /// compares as Python does.
+    Text(&'a str),
+    /// Python `None`: equal to no official id, shown as `None`.
+    #[default]
+    Missing,
+}
+
+impl RawApiId<'_> {
+    /// Whether 1.5.0 finds the value equal to the official id `id` (Python
+    /// `==` between the value and an `int`).
+    #[must_use]
+    pub fn equals_id(&self, id: i32) -> bool {
+        match *self {
+            Self::Int(value) => value == i64::from(id),
+            #[allow(clippy::float_cmp)] // Python compares exactly too.
+            Self::Float(value) => value == f64::from(id),
+            Self::Bool(value) => i32::from(value) == id,
+            Self::Text(_) | Self::Missing => false,
+        }
+    }
+}
+
+impl fmt::Display for RawApiId<'_> {
+    /// Python `str()` of the value.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Int(value) => write!(f, "{value}"),
+            Self::Float(value) => f.write_str(&py_float_repr(value)),
+            Self::Bool(true) => f.write_str("True"),
+            Self::Bool(false) => f.write_str("False"),
+            Self::Text(text) => f.write_str(text),
+            Self::Missing => f.write_str("None"),
+        }
+    }
+}
+
+/// Python `repr` of a float: the shortest text that reads back as `value`,
+/// in fixed notation with at least one decimal for decimal exponents
+/// -4..=15, otherwise as `d.ddde±XX`.
+fn py_float_repr(value: f64) -> String {
+    if value.is_nan() {
+        return "nan".to_owned();
+    }
+    let sign = if value.is_sign_negative() { "-" } else { "" };
+    if value.is_infinite() {
+        return format!("{sign}inf");
+    }
+    // Rust's `{:e}` is the shortest round-trip form too: `2.04e3`, `5e-324`.
+    let scientific = format!("{:e}", value.abs());
+    let (mantissa, exponent) = scientific
+        .split_once('e')
+        .unwrap_or((scientific.as_str(), "0"));
+    let exponent: i32 = exponent.parse().unwrap_or(0);
+    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    if !(-4..16).contains(&exponent) {
+        let (first, rest) = digits.split_at(1);
+        let fraction = if rest.is_empty() {
+            String::new()
+        } else {
+            format!(".{rest}")
+        };
+        let exponent_sign = if exponent < 0 { '-' } else { '+' };
+        return format!(
+            "{sign}{first}{fraction}e{exponent_sign}{:02}",
+            exponent.unsigned_abs()
+        );
+    }
+    // `exponent` is in -4..16 here, so the casts are exact.
+    let point = usize::try_from(exponent + 1).unwrap_or(0);
+    if exponent < 0 {
+        let zeros = "0".repeat(usize::try_from(-exponent - 1).unwrap_or(0));
+        return format!("{sign}0.{zeros}{digits}");
+    }
+    if digits.len() <= point {
+        let zeros = "0".repeat(point - digits.len());
+        format!("{sign}{digits}{zeros}.0")
+    } else {
+        let (whole, fraction) = digits.split_at(point);
+        format!("{sign}{whole}.{fraction}")
+    }
+}
+
+/// The arguments of 1.5.0 `validate_init_connection_params` as the caller
+/// gave them, `None` standing for Python `None`.
+///
+/// 1.5.0 tests a `None` text as empty and shows it as `None` where it
+/// formats it: `lang_code 'None'`, and a `lang_pack` of `None` is the
+/// unknown pack `'None'`. Where 1.5.0 raises on `None` (a missing
+/// `system_lang_code` of an Android or iOS pack, a missing `app_version` or
+/// `system_version` in strict mode) it is tested and shown as empty text,
+/// as the 2.0 Python facade does.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct RawInitParams<'a> {
+    /// `api_id`.
+    pub api_id: RawApiId<'a>,
+    /// `device_model`.
+    pub device_model: Option<&'a str>,
+    /// `system_version`.
+    pub system_version: Option<&'a str>,
+    /// `app_version`.
+    pub app_version: Option<&'a str>,
+    /// `system_lang_code`.
+    pub system_lang_code: Option<&'a str>,
+    /// `lang_pack`.
+    pub lang_pack: Option<&'a str>,
+    /// `lang_code`.
+    pub lang_code: Option<&'a str>,
+}
+
+impl<'a> RawInitParams<'a> {
+    /// The fields of `profile`, every one present; `api_hash` is not
+    /// checked.
+    #[must_use]
+    pub fn from_profile(profile: &'a ApiProfile) -> Self {
+        Self {
+            api_id: RawApiId::Int(i64::from(profile.api_id)),
+            device_model: Some(&profile.device_model),
+            system_version: Some(&profile.system_version),
+            app_version: Some(&profile.app_version),
+            system_lang_code: Some(&profile.system_lang_code),
+            lang_pack: Some(&profile.lang_pack),
+            lang_code: Some(&profile.lang_code),
+        }
+    }
+}
+
+/// [`validate_init_params`] of the values a caller gave 1.5.0
+/// `validate_init_connection_params`, with every message in the form the
+/// Python facade shows: `None` values and an `api_id` of any type are shown
+/// as Python `str()` shows them (see [`RawInitParams`] and [`RawApiId`]).
+#[must_use]
+pub fn validate_raw_init_params(
+    params: &RawInitParams<'_>,
     versions: &Versions,
     mode: StrictMode,
 ) -> Vec<Issue> {
@@ -274,7 +435,12 @@ pub fn validate_init_params(
             message,
         });
     };
-    let lang_pack = profile.lang_pack.as_str();
+    // 1.5.0 looks a `None` pack up as its `str()`.
+    let lang_pack = params.lang_pack.unwrap_or("None");
+    let lang_code = params.lang_code.unwrap_or("");
+    let system_lang_code = params.system_lang_code.unwrap_or("");
+    let system_version = params.system_version.unwrap_or("");
+    let app_version = params.app_version.unwrap_or("");
 
     if !VALID_LANG_PACKS.contains(&lang_pack) {
         push(
@@ -286,38 +452,37 @@ pub fn validate_init_params(
         );
     }
     // Python's `len` counts code points.
-    if profile.lang_code.chars().count() < 2 {
+    if lang_code.chars().count() < 2 {
         push(
             IssueKind::ShortLangCode,
             format!(
                 "lang_code '{}' looks invalid (too short)",
-                profile.lang_code
+                params.lang_code.unwrap_or("None")
             ),
         );
     }
-    if matches!(lang_pack, "android" | "ios") && !profile.system_lang_code.contains('-') {
+    if matches!(lang_pack, "android" | "ios") && !system_lang_code.contains('-') {
         push(
             IssueKind::MissingRegion,
             format!(
-                "system_lang_code '{}' should include a region code (e.g. 'en-US') \
-                 for {lang_pack} clients",
-                profile.system_lang_code
+                "system_lang_code '{system_lang_code}' should include a region code \
+                 (e.g. 'en-US') for {lang_pack} clients"
             ),
         );
     }
-    if profile.device_model.is_empty() {
+    if params.device_model.unwrap_or("").is_empty() {
         push(
             IssueKind::EmptyDeviceModel,
             "device_model is empty".to_owned(),
         );
     }
-    if profile.system_version.is_empty() {
+    if system_version.is_empty() {
         push(
             IssueKind::EmptySystemVersion,
             "system_version is empty".to_owned(),
         );
     }
-    if profile.app_version.is_empty() {
+    if app_version.is_empty() {
         push(
             IssueKind::EmptyAppVersion,
             "app_version is empty".to_owned(),
@@ -326,17 +491,24 @@ pub fn validate_init_params(
 
     if mode == StrictMode::Strict {
         if let Some(expected) = official_api_id(lang_pack)
-            && profile.api_id != expected
+            && !params.api_id.equals_id(expected)
         {
             push(
                 IssueKind::ApiIdMismatch,
                 format!(
                     "api_id {} does not match lang_pack '{lang_pack}' (expected {expected})",
-                    profile.api_id
+                    params.api_id
                 ),
             );
         }
-        version_issues(profile, versions, severity, &mut issues);
+        version_issues(
+            lang_pack,
+            app_version,
+            system_version,
+            versions,
+            severity,
+            &mut issues,
+        );
     }
     issues
 }
@@ -358,17 +530,25 @@ pub fn validate_init_params(
 #[must_use]
 pub fn check_versions(profile: &ApiProfile, versions: &Versions) -> Vec<Issue> {
     let mut issues = Vec::new();
-    version_issues(profile, versions, Severity::Error, &mut issues);
+    version_issues(
+        &profile.lang_pack,
+        &profile.app_version,
+        &profile.system_version,
+        versions,
+        Severity::Error,
+        &mut issues,
+    );
     issues
 }
 
 fn version_issues(
-    profile: &ApiProfile,
+    lang_pack: &str,
+    app_version: &str,
+    system_version: &str,
     versions: &Versions,
     severity: Severity,
     issues: &mut Vec<Issue>,
 ) {
-    let lang_pack = profile.lang_pack.as_str();
     let known = match lang_pack {
         "android" => Some((&versions.android_app_version, "Android")),
         "ios" => Some((&versions.ios_app_version, "iOS")),
@@ -380,20 +560,18 @@ fn version_issues(
         let major = known
             .split_once('.')
             .map_or(known.as_str(), |(major, _)| major);
-        if !profile.app_version.starts_with(major) {
+        if !app_version.starts_with(major) {
             issues.push(Issue {
                 kind: IssueKind::AppVersionMajor,
                 severity,
                 message: format!(
-                    "{label} app_version '{}' major does not match latest known '{known}'",
-                    profile.app_version
+                    "{label} app_version '{app_version}' major does not match latest known '{known}'"
                 ),
             });
         }
     }
 
     if lang_pack == "android" {
-        let system_version = profile.system_version.as_str();
         let sdk = if system_version.contains("SDK") {
             PyInt::parse(&system_version.replace("SDK ", ""))
         } else {
@@ -625,6 +803,22 @@ impl FingerprintConfig {
         self.layer_override.unwrap_or(LAYER)
     }
 
+    /// 1.5.0 `get_effective_layer` for an `MTProto` library built for
+    /// `library_layer`: the layer to invoke with, and the warning 1.5.0
+    /// `get_recommended_layer` emits on the way.
+    ///
+    /// With [`FingerprintConfig::layer_override`] set, that layer and no
+    /// warning. Otherwise `library_layer` and [`layer_mismatch_warning`] of
+    /// it; 1.5.0 warns here whatever
+    /// [`FingerprintConfig::warn_on_layer_mismatch`] says.
+    #[must_use]
+    pub fn effective_layer_for(&self, library_layer: i32) -> (i32, Option<String>) {
+        match self.layer_override {
+            Some(layer) => (layer, None),
+            None => (library_layer, layer_mismatch_warning(library_layer)),
+        }
+    }
+
     /// The issues 1.5.0 `validate_params` warns about or raises for
     /// `profile` (render them with [`issues_message`]).
     ///
@@ -634,11 +828,35 @@ impl FingerprintConfig {
     /// [`StrictMode::Warn`], errors under [`StrictMode::Strict`].
     #[must_use]
     pub fn validate(&self, profile: &ApiProfile, versions: &Versions) -> Vec<Issue> {
+        self.validate_raw(&RawInitParams::from_profile(profile), versions)
+    }
+
+    /// [`FingerprintConfig::validate`] of the values the caller gave 1.5.0
+    /// `validate_params`, through [`validate_raw_init_params`], so the
+    /// messages are in their final display form.
+    #[must_use]
+    pub fn validate_raw(&self, params: &RawInitParams<'_>, versions: &Versions) -> Vec<Issue> {
         if !self.auto_validate || self.strict_mode == StrictMode::Off {
             return Vec::new();
         }
-        validate_init_params(profile, versions, self.strict_mode)
+        validate_raw_init_params(params, versions, self.strict_mode)
     }
+}
+
+/// The warning 1.5.0 `get_recommended_layer` emits when the `MTProto`
+/// library's layer `library_layer` is more than
+/// [`crate::auth::LAYER_TOLERANCE`] layers from [`LAYER`]; `None` within
+/// it. 1.5.0 names the library after Telethon.
+#[must_use]
+pub fn layer_mismatch_warning(library_layer: i32) -> Option<String> {
+    let diff = library_layer.abs_diff(LAYER);
+    (diff > crate::auth::LAYER_TOLERANCE).then(|| {
+        format!(
+            "Telethon TL layer ({library_layer}) differs from advertised layer \
+             ({LAYER}, base={LAYER}) by {diff} layers. This may cause initConnection \
+             fingerprint inconsistencies. Consider updating Telethon or opentele2."
+        )
+    })
 }
 
 /// The options a binding's `fingerprint_config` takes: each field that is
