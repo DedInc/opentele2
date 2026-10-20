@@ -211,8 +211,9 @@ class TDataKeyDataInvalid(OpenTeleException):
 
 # The exception 1.5.0 raised for the failure each core code reports. Codes
 # with no OpenTeleException of their own map to the builtin 1.5.0 raised:
-# ValueError for bad lengths (its AES-IGE backend) and for SRP refusals
-# (Telethon's compute_check), OSError for failed I/O.
+# ValueError for bad lengths (its AES-IGE backend), for other invalid
+# arguments (as hashlib does) and for SRP refusals (Telethon's
+# compute_check), OSError for failed I/O.
 CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
     "TFILE_NOT_FOUND": TFileNotFound,
     "TDATA_INVALID_MAGIC": TDataInvalidMagic,
@@ -230,6 +231,7 @@ CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
     "TDATA_SAVE_FAILED": TDataSaveFailed,
     "TDATA_KEY_DATA_INVALID": TDataKeyDataInvalid,
     "BAD_LENGTH": ValueError,
+    "INVALID_INPUT": ValueError,
     "IO": OSError,
     "SRP_BAD_PRIME_OR_GENERATOR": ValueError,
     "SRP_BAD_B": ValueError,

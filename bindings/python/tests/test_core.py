@@ -7,6 +7,9 @@ Key material is compared with ``assert_same``, which never prints the bytes.
 from __future__ import annotations
 
 import base64
+import gzip
+import hashlib
+import hmac
 import importlib
 import ipaddress
 import json
@@ -20,6 +23,7 @@ import pytest
 import opentele2
 from opentele2 import _native
 from opentele2._native import Account, CoreError, TData, cryptg
+from opentele2.exception import raise_core_error
 
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 FOLDERS = (
@@ -214,6 +218,144 @@ def test_cryptg_raises_value_error_on_bad_lengths() -> None:
     with pytest.raises(CoreError) as core:
         _native.aes_ige_encrypt(b"\x01" * 15, key, iv)
     assert core.value.code == "BAD_LENGTH"
+
+
+# ---------------------------------------------------------------- primitives
+
+# NIST SP 800-38A F.5.5 CTR-AES256.Encrypt.
+CTR_KEY = bytes.fromhex("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4")
+CTR_IV = bytes.fromhex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+CTR_PLAIN = bytes.fromhex(
+    "6bc1bee22e409f96e93d7e117393172a"
+    "ae2d8a571e03ac9c9eb76fac45af8e51"
+    "30c81c46a35ce411e5fbc1191a0a52ef"
+    "f69f2445df4f9b17ad2b417be66c3710"
+)
+CTR_CIPHER = bytes.fromhex(
+    "601ec313775789a5b7a7f504bbf3d228"
+    "f443e3ca4d62b59aca84e990cacaf5c5"
+    "2b0930daa23de94ce87017ba2d84988d"
+    "dfc9c58db67aada613c2dd08457941a6"
+)
+# RFC 6070 PBKDF2-HMAC-SHA1: (password, salt, iterations, dk_len, derived key).
+RFC_6070 = (
+    (b"password", b"salt", 1, 20, "0c60c80f961f0e71f3a9b524af6012062fe037a6"),
+    (b"password", b"salt", 2, 20, "ea6c014dc72d6f8ccd1ed92ace1d41f0d8de8957"),
+    (b"password", b"salt", 4096, 20, "4b007901b765489abead49d926f721d065a429c1"),
+    (
+        b"passwordPASSWORDpassword",
+        b"saltSALTsaltSALTsaltSALTsaltSALTsalt",
+        4096,
+        25,
+        "3d2eec4fe41c849b80c8d83662c0e44a8b291a964cf2f07038",
+    ),
+    (b"pass\x00word", b"sa\x00lt", 4096, 16, "56fa6aa75548099dcc37d7f03425e0c3"),
+)
+
+
+def test_hashes_match_fips_180_and_hashlib() -> None:
+    assert _native.sha1(b"abc").hex() == "a9993e364706816aba3e25717850c26c9cd0d89d"
+    assert _native.sha256(b"abc").hex() == (
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    )
+    for data in (b"", b"abc", bytes(range(256)) * 9):
+        assert _native.sha1(data) == hashlib.sha1(data).digest()
+        assert _native.sha256(bytearray(data)) == hashlib.sha256(data).digest()
+
+
+def test_hmac_sha256_matches_rfc_4231_and_hmac() -> None:
+    mac = _native.hmac_sha256(b"Jefe", b"what do ya want for nothing?")
+    assert mac.hex() == "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+    # Keys below, at and above the 64-byte block, which RFC 2104 hashes first.
+    for key in (b"", b"k" * 64, b"k" * 131):
+        expected = hmac.new(key, b"data", hashlib.sha256).digest()
+        assert _native.hmac_sha256(bytearray(key), b"data") == expected
+
+
+def test_pbkdf2_matches_rfc_6070_and_hashlib() -> None:
+    for password, salt, iterations, dk_len, derived in RFC_6070:
+        key = _native.pbkdf2(password, salt, iterations, dk_len, "sha1")
+        assert key.hex() == derived
+        assert key == hashlib.pbkdf2_hmac("sha1", password, salt, iterations, dk_len)
+    # The defaults: 64 bytes over SHA-512; a str password is UTF-8.
+    expected = hashlib.pbkdf2_hmac("sha512", "pässword".encode(), b"salt", 3, 64)
+    assert _native.pbkdf2("pässword", b"salt", 3) == expected
+    expected = hashlib.pbkdf2_hmac("sha256", b"pw", b"salt", 5, 40)
+    assert _native.pbkdf2(bytearray(b"pw"), b"salt", 5, key_len=40, digest="SHA256") == expected
+
+
+def test_pbkdf2_rejects_bad_arguments() -> None:
+    with pytest.raises(CoreError) as unknown:
+        _native.pbkdf2(b"pw", b"salt", 1, digest="md5")
+    assert unknown.value.code == "INVALID_INPUT"
+    assert not isinstance(unknown.value, ValueError)
+    with pytest.raises(ValueError, match="digest"):
+        raise_core_error(unknown.value)
+    with pytest.raises(CoreError) as zero:
+        _native.pbkdf2(b"pw", b"salt", 0)
+    assert zero.value.code == "INVALID_INPUT"
+
+
+def test_aes_ctr_matches_sp_800_38a_in_uneven_chunks() -> None:
+    ctr = _native.AesCtr(CTR_KEY, CTR_IV)
+    assert ctr.process(CTR_PLAIN) == CTR_CIPHER
+    chunked = _native.AesCtr(bytearray(CTR_KEY), CTR_IV)
+    pieces, offset = [], 0
+    for size in (1, 0, 15, 17, 3, 28):
+        pieces.append(chunked.process(bytearray(CTR_PLAIN[offset : offset + size])))
+        offset += size
+    assert offset == len(CTR_PLAIN)
+    assert b"".join(pieces) == CTR_CIPHER
+    assert _native.AesCtr(CTR_KEY, CTR_IV).process(CTR_CIPHER) == CTR_PLAIN
+    assert "603deb" not in repr(ctr)
+    with pytest.raises(CoreError) as short_key:
+        _native.AesCtr(CTR_KEY[:31], CTR_IV)
+    assert short_key.value.code == "BAD_LENGTH"
+    with pytest.raises(CoreError) as long_iv:
+        _native.AesCtr(CTR_KEY, CTR_IV + b"\x00")
+    assert long_iv.value.code == "BAD_LENGTH"
+
+
+def test_factorize_pq() -> None:
+    p, q = _native.factorize_pq(bytes.fromhex("17ED48941A08F981"))
+    assert (p.hex(), q.hex()) == ("494c553b", "53911073")
+    assert _native.factorize_pq(b"\x00\x0f") == (b"\x03", b"\x05")
+    assert _native.factorize_pq(bytearray(b"\x31")) == (b"\x07", b"\x07")
+    for bad_length in (b"", b"\x01" * 9):
+        with pytest.raises(CoreError) as length:
+            _native.factorize_pq(bad_length)
+        assert length.value.code == "BAD_LENGTH"
+    for not_composite in (b"\x00", b"\x01", b"\x0d"):
+        with pytest.raises(CoreError) as invalid:
+            _native.factorize_pq(not_composite)
+        assert invalid.value.code == "INVALID_INPUT"
+
+
+def test_random_bytes() -> None:
+    assert _native.random_bytes(0) == b""
+    first, second = _native.random_bytes(32), _native.random_bytes(32)
+    assert len(first) == len(second) == 32
+    assert first != second
+    with pytest.raises(OverflowError):
+        _native.random_bytes(-1)
+
+
+def test_gzip_round_trips_with_the_stdlib() -> None:
+    for data in (b"", b"opentele2 " * 500, bytes(range(256))):
+        packed = _native.gzip(data)
+        assert packed is not None
+        assert gzip.decompress(packed) == data
+        assert _native.gunzip(bytearray(gzip.compress(data))) == data
+    noise = _native.random_bytes(4096)
+    packed = _native.gzip(noise)
+    assert packed is not None
+    assert _native.gzip(noise, max_size=len(packed)) == packed
+    assert _native.gzip(noise, len(packed) - 1) is None
+    assert _native.gzip(noise, max_size=0) is None
+    for broken in (b"not gzip", gzip.compress(b"opentele2")[:-3]):
+        with pytest.raises(CoreError) as failed:
+            _native.gunzip(broken)
+        assert failed.value.code == "IO"
 
 
 # ---------------------------------------------------------------- sessions

@@ -1,14 +1,17 @@
-//! Crypto and KDF functions, and the cryptg-compatible submodule.
+//! Crypto and KDF functions, the hashes, PBKDF2, AES-256-CTR, `pq`
+//! factorisation, gzip and the OS random source, and the cryptg-compatible
+//! submodule.
 //!
 //! Every function copies its inputs and runs the work with the thread
 //! detached from the interpreter.
 
 use std::borrow::Cow;
+use std::sync::{Mutex, PoisonError};
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyModule};
 
-use opentele2_core::{crypto, kdf};
+use opentele2_core::{compress, crypto, kdf};
 
 use crate::convert::{fixed_bytes, to_auth_key, to_bytes, to_passcode};
 use crate::error::{check, check_value};
@@ -165,6 +168,149 @@ fn argon2id<'py>(
     Ok(to_bytes(py, &key))
 }
 
+/// An AES-256-CTR keystream (OpenSSL `aes-256-ctr`: the 16-byte IV is a
+/// 128-bit big-endian counter). The keystream continues across `process`
+/// calls, so data processed in pieces gives the same bytes as in one call;
+/// encryption and decryption are the same operation. `repr()` never shows
+/// key material.
+#[pyclass(frozen, module = "opentele2._native", name = "AesCtr")]
+pub(crate) struct PyAesCtr {
+    /// The keystream; the lock is taken with the thread detached, so a
+    /// waiting `process` never holds the interpreter.
+    inner: Mutex<crypto::AesCtr>,
+}
+
+#[pymethods]
+impl PyAesCtr {
+    /// Starts a keystream under the 32-byte `key` at the 16-byte counter
+    /// `iv`; other lengths raise `CoreError` `BAD_LENGTH`.
+    #[new]
+    fn new(py: Python<'_>, key: &Bound<'_, PyAny>, iv: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let key = key.extract::<Cow<'_, [u8]>>()?;
+        let iv = iv.extract::<Cow<'_, [u8]>>()?;
+        let inner = check(py, crypto::AesCtr::new(&key, &iv))?;
+        Ok(Self {
+            inner: Mutex::new(inner),
+        })
+    }
+
+    /// XORs the next `len(data)` keystream bytes into a copy of `data`.
+    fn process<'py>(&self, py: Python<'py>, data: Cow<'_, [u8]>) -> Bound<'py, PyBytes> {
+        let mut buf = data.into_owned();
+        py.detach(|| {
+            // `apply` cannot panic, so a poisoned lock still holds a
+            // keystream at a whole-call boundary.
+            let mut ctr = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
+            ctr.apply(&mut buf);
+        });
+        to_bytes(py, &buf)
+    }
+}
+
+/// The 20-byte SHA-1 of `data`.
+#[pyfunction]
+fn sha1<'py>(py: Python<'py>, data: Cow<'_, [u8]>) -> Bound<'py, PyBytes> {
+    let data = data.into_owned();
+    let digest = py.detach(move || crypto::sha1(&data));
+    to_bytes(py, &digest)
+}
+
+/// The 32-byte SHA-256 of `data`.
+#[pyfunction]
+fn sha256<'py>(py: Python<'py>, data: Cow<'_, [u8]>) -> Bound<'py, PyBytes> {
+    let data = data.into_owned();
+    let digest = py.detach(move || crypto::sha256(&data));
+    to_bytes(py, &digest)
+}
+
+/// The 32-byte HMAC-SHA256 of `data` under `key`, which may have any
+/// length. The key comes first, as in `hmac.new(key, data, "sha256")`.
+#[pyfunction]
+fn hmac_sha256<'py>(
+    py: Python<'py>,
+    key: Cow<'_, [u8]>,
+    data: Cow<'_, [u8]>,
+) -> Bound<'py, PyBytes> {
+    let key = key.into_owned();
+    let data = data.into_owned();
+    let mac = py.detach(move || crypto::hmac_sha256(&key, &data));
+    to_bytes(py, &mac)
+}
+
+/// PBKDF2 (RFC 8018) of `password` and `salt`: `key_len` bytes over the
+/// HMAC of `digest`, `"sha1"`, `"sha256"` or `"sha512"`, ignoring case. A
+/// `str` password is UTF-8 encoded. Zero iterations or another digest raise
+/// `CoreError` `INVALID_INPUT`.
+#[pyfunction]
+#[pyo3(signature = (password, salt, iterations, key_len = 64, digest = "sha512"))]
+fn pbkdf2<'py>(
+    py: Python<'py>,
+    password: &Bound<'py, PyAny>,
+    salt: Cow<'_, [u8]>,
+    iterations: u32,
+    key_len: usize,
+    digest: &str,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let password = to_passcode(Some(password))?;
+    let salt = salt.into_owned();
+    let digest = check(py, crypto::Digest::from_name(digest))?;
+    let key = check(
+        py,
+        py.detach(move || crypto::pbkdf2(&password, &salt, iterations, key_len, digest)),
+    )?;
+    Ok(to_bytes(py, &key))
+}
+
+/// The factors `(p, q)` of the `MTProto` `pq`, `p <= q`, as minimal
+/// big-endian bytes. `pq` is 1 to 8 big-endian bytes, otherwise `CoreError`
+/// `BAD_LENGTH`; 0, 1 or a prime raise `CoreError` `INVALID_INPUT`.
+#[pyfunction]
+fn factorize_pq<'py>(
+    py: Python<'py>,
+    pq: Cow<'_, [u8]>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let pq = pq.into_owned();
+    let (p, q) = check(py, py.detach(move || crypto::factorize_pq(&pq)))?;
+    Ok((to_bytes(py, &p), to_bytes(py, &q)))
+}
+
+/// `size` bytes from the operating system's CSPRNG; a failing source raises
+/// `CoreError` `IO`.
+#[pyfunction]
+fn random_bytes(py: Python<'_>, size: usize) -> PyResult<Bound<'_, PyBytes>> {
+    let buf = check(
+        py,
+        py.detach(move || {
+            let mut buf = vec![0u8; size];
+            crypto::random_fill(&mut buf).map(|()| buf)
+        }),
+    )?;
+    Ok(to_bytes(py, &buf))
+}
+
+/// `data` gzipped at the default level, or `None` when the output would be
+/// longer than `max_size` bytes; without `max_size` there is no limit.
+#[pyfunction]
+#[pyo3(signature = (data, max_size = None))]
+fn gzip<'py>(
+    py: Python<'py>,
+    data: Cow<'_, [u8]>,
+    max_size: Option<usize>,
+) -> Option<Bound<'py, PyBytes>> {
+    let data = data.into_owned();
+    py.detach(move || compress::gzip(&data, max_size))
+        .map(|out| to_bytes(py, &out))
+}
+
+/// Decompresses one gzip member; data that is not a whole, intact gzip
+/// stream raises `CoreError` `IO`.
+#[pyfunction]
+fn gunzip<'py>(py: Python<'py>, data: Cow<'_, [u8]>) -> PyResult<Bound<'py, PyBytes>> {
+    let data = data.into_owned();
+    let out = check(py, py.detach(move || compress::gunzip(&data)))?;
+    Ok(to_bytes(py, &out))
+}
+
 /// cryptg 0.6.0 `encrypt_ige`: AES-256-IGE encryption; `ValueError` when
 /// `data` is not whole 16-byte blocks or `key`/`iv` are not 32 bytes.
 #[pyfunction]
@@ -204,6 +350,15 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(create_local_key, module)?)?;
     module.add_function(wrap_pyfunction!(create_legacy_local_key, module)?)?;
     module.add_function(wrap_pyfunction!(argon2id, module)?)?;
+    module.add_function(wrap_pyfunction!(sha1, module)?)?;
+    module.add_function(wrap_pyfunction!(sha256, module)?)?;
+    module.add_function(wrap_pyfunction!(hmac_sha256, module)?)?;
+    module.add_function(wrap_pyfunction!(pbkdf2, module)?)?;
+    module.add_function(wrap_pyfunction!(factorize_pq, module)?)?;
+    module.add_function(wrap_pyfunction!(random_bytes, module)?)?;
+    module.add_function(wrap_pyfunction!(gzip, module)?)?;
+    module.add_function(wrap_pyfunction!(gunzip, module)?)?;
+    module.add_class::<PyAesCtr>()?;
     Ok(())
 }
 

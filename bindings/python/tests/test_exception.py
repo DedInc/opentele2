@@ -80,6 +80,7 @@ CORE_CODES = {
     "TDATA_SAVE_FAILED": "TDataSaveFailed",
     "TDATA_KEY_DATA_INVALID": "TDataKeyDataInvalid",
     "BAD_LENGTH": "ValueError",
+    "INVALID_INPUT": "ValueError",
     "IO": "OSError",
     "SRP_BAD_PRIME_OR_GENERATOR": "ValueError",
     "SRP_BAD_B": "ValueError",
