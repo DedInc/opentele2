@@ -1,5 +1,5 @@
 //! Browser HTTP header and fingerprint generation from the Apify fingerprint
-//! datapoints; a Rust port of [browserforge].
+//! datapoints, based on [browserforge].
 //!
 //! The crate embeds the three Bayesian networks of
 //! `apify_fingerprint_datapoints` 0.15.0 (see `data/SOURCE.md`) and samples

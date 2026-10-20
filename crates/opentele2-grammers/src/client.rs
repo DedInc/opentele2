@@ -1,4 +1,4 @@
-//! The opentele2 1.5.0 client flows over grammers-client 0.11 (feature
+//! The opentele2 client flows over grammers-client 0.11 (feature
 //! `client`).
 //!
 //! Every flow runs over an [`Invoker`], which [`grammers_client::Client`]
@@ -8,54 +8,50 @@
 //! the client's `SenderPool` was built with: grammers 0.11 keeps the
 //! client's session private.
 //!
-//! - Login: [`qr_login`] is 1.5.0's `_performQRLogin` with `_handle2FA`,
-//!   and [`post_login_requests`] its `_run_post_login_requests`.
+//! - Login: [`qr_login`] logs a new session in by QR login, with 2FA, and
+//!   [`post_login_requests`] sends the requests that follow a login.
 //! - Self user: [`get_me_id`].
 //! - Session admin: [`sessions`], [`current_session`],
 //!   [`terminate_session`], [`terminate_all_sessions`], [`session_row`],
 //!   [`sessions_table`] and [`is_official_app`].
-//! - Consistency: [`run_consistency_checks`], the seven checks of 1.5.0
-//!   `ConsistencyChecker.run_all`.
-//! - tdata: [`account_from_client`] and [`tdata_from_client`], 1.5.0
-//!   `Account.FromTelethon` with `UseCurrentSession`.
+//! - Consistency: [`run_consistency_checks`], the seven checks of
+//!   [`Check::ALL`].
+//! - tdata: [`account_from_client`] and [`tdata_from_client`] turn the
+//!   client's current session into a tdata account.
 //!
-//! # Gaps against 1.5.0
+//! # Limits
 //!
-//! - QR login waits for no `updateLoginToken`. 1.5.0 accepts the token on
-//!   the authorised client, waits for that update on the new one
-//!   (`QRLogin.wait`) and exports the token again. grammers 0.11 delivers
+//! - QR login waits for no `updateLoginToken`. grammers 0.11 delivers
 //!   updates only through `SenderPool::updates`, which the caller owns, so
 //!   [`qr_login`] exports the token again as soon as
 //!   `auth.acceptLoginToken` returns, which the server answers after it has
 //!   authorised the token. An export that still yields a plain
-//!   `auth.loginToken` counts as 1.5.0's timed-out attempt, so
+//!   `auth.loginToken` ends the attempt as timed out, so
 //!   [`auth::QR_EXPIRE_SAFETY_SECONDS`] has no wait to extend.
-//! - The crate has no warning channel: 1.5.0's per-attempt
+//! - The crate has no warning channel: the per-attempt
 //!   [`auth::qr_attempt_timeout_warning`] and
 //!   [`auth::qr_attempt_retry_warning`] are not emitted, and the
 //!   consistency warning is left to the caller
 //!   ([`ConsistencyReport::warning`]).
-//! - `QRLoginToNewClient`'s connect, its first `_switch_dc` to the
-//!   authorised client's DC and its existing-session branch are left to
-//!   the caller, who builds the new client's session; a home DC that
-//!   differs is handled by the `auth.loginTokenMigrateTo` step. 1.5.0 warns
-//!   [`auth::EXISTING_SESSION_KEPT`] or [`auth::EXISTING_SESSION_REPLACED`]
-//!   there. A caller replacing a session of another `api_id` replaces it
-//!   locally only, as 1.5.0 deletes the session file: it drops that
-//!   session and builds the new client on a fresh one, and never sends
-//!   `auth.logOut`, which would end the authorisation on the server. No
-//!   flow here logs out.
+//! - Connecting the new client, its first switch to the authorised
+//!   client's DC and the handling of an existing session are left to the
+//!   caller, who builds the new client's session; a home DC that differs
+//!   is handled by the `auth.loginTokenMigrateTo` step. The caller is the
+//!   one to warn [`auth::EXISTING_SESSION_KEPT`] or
+//!   [`auth::EXISTING_SESSION_REPLACED`]. A caller replacing a session of
+//!   another `api_id` replaces it locally only: it drops that session and
+//!   builds the new client on a fresh one, and never sends `auth.logOut`,
+//!   which would end the authorisation on the server. No flow here logs
+//!   out.
 //! - A DC migration sets the session's home DC and invokes
 //!   `auth.importLoginToken` there; grammers' private
 //!   `disconnect_from_dc` of the old DC is not reachable, so its idle
 //!   connection stays open until the pool quits.
 //! - The `lang_pack` check asks about the profile's `lang_pack`
-//!   ([`ConsistencyExpectations::lang_pack`]); grammers 0.11 sends an
+//!   ([`ConsistencyExpectations::lang_pack`]), while grammers 0.11 sends an
 //!   empty one in `initConnection` (see the
-//!   [crate docs](crate#fingerprint-gap)), where 1.5.0 asks about the one
-//!   the session sends.
-//! - Error details are grammers' [`InvocationError`] texts where 1.5.0
-//!   prints Telethon's.
+//!   [crate docs](crate#fingerprint-gap)).
+//! - Error details are grammers' [`InvocationError`] texts.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -98,10 +94,11 @@ impl Invoker for Client {
     }
 }
 
-/// The 1.5.0 `TelethonUnauthorized` message when the self user is unknown.
+/// The `TelethonUnauthorized` message when the self user is unknown.
 pub use opentele2_core::auth::USER_ID_UNRESOLVED;
 
-/// Why a flow failed, named after the 1.5.0 exception it raises.
+/// Why a flow failed; each variant's docs open with the error name it
+/// stands for.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ClientError {
@@ -110,11 +107,11 @@ pub enum ClientError {
     /// `PasswordIncorrect`: `auth.checkPassword` failed with
     /// `PASSWORD_HASH_INVALID`.
     PasswordIncorrect(RpcError),
-    /// `AuthTokenAlreadyAcceptedError`, re-raised by 1.5.0.
+    /// `AuthTokenAlreadyAcceptedError`, passed through from QR login.
     AuthTokenAlreadyAccepted(RpcError),
-    /// `AuthTokenExpiredError`, re-raised by 1.5.0.
+    /// `AuthTokenExpiredError`, passed through from QR login.
     AuthTokenExpired(RpcError),
-    /// `AuthTokenInvalidError`, re-raised by 1.5.0.
+    /// `AuthTokenInvalidError`, passed through from QR login.
     AuthTokenInvalid(RpcError),
     /// `TimeoutError`: every QR login attempt ended without a login
     /// ([`auth::QR_LOGIN_TIMEOUT`]).
@@ -245,8 +242,7 @@ where
 
 /// The token an `auth.LoginToken` carries, and the response after a DC
 /// migration: an `auth.loginTokenMigrateTo` moves the session's home DC to
-/// its DC and is replaced by `auth.importLoginToken` there (1.5.0
-/// `_switch_dc` then `ImportLoginTokenRequest`).
+/// its DC and is replaced by `auth.importLoginToken` there.
 async fn follow_migration<N, S>(
     new: &N,
     session: &S,
@@ -295,7 +291,7 @@ where
     follow_migration(new, session, response).await
 }
 
-/// One 1.5.0 QR login attempt: the authorisation it ended with, or `None`
+/// One QR login attempt: the authorisation it ended with, or `None`
 /// when the token was not accepted in time.
 async fn qr_login_attempt<A, N, S>(
     authorized: &A,
@@ -382,8 +378,8 @@ fn password_check(
     ))
 }
 
-/// 1.5.0 `_handle2FA`: `account.getPassword`, then `auth.checkPassword`
-/// with the SRP check of `password`.
+/// The 2FA step of a login: `account.getPassword`, then
+/// `auth.checkPassword` with the SRP check of `password`.
 async fn two_factor<N, S>(new: &N, session: &S, password: Option<&str>) -> Result<i64, ClientError>
 where
     N: Invoker,
@@ -407,8 +403,7 @@ where
 }
 
 /// Logs the session behind `new` in through the authorised client
-/// `authorized` by QR login, as 1.5.0 `_performQRLogin` does, and returns
-/// the user id.
+/// `authorized` by QR login and returns the user id.
 ///
 /// `new_session` is the session `new`'s `SenderPool` was built with; it
 /// receives the home DC of a migration and the self user. Each of up to
@@ -420,10 +415,10 @@ where
 ///    `auth.loginTokenMigrateTo` sets the home DC and is followed by
 ///    `auth.importLoginToken`. An `auth.loginTokenSuccess` logs in.
 /// 3. `auth.acceptLoginToken` with the token on `authorized`.
-/// 4. The export again (see the [module docs](self#gaps-against-150)): a
+/// 4. The export again (see the [module docs](self#limits)): a
 ///    success logs in, a plain token ends the attempt.
 ///
-/// `SESSION_PASSWORD_NEEDED` at any step runs 1.5.0 `_handle2FA`:
+/// `SESSION_PASSWORD_NEEDED` at any step runs the 2FA step:
 /// `account.getPassword`, then `auth.checkPassword` with
 /// [`auth::srp_check_random`] of `password`.
 ///
@@ -480,18 +475,18 @@ where
     Err(ClientError::QrLoginTimeout)
 }
 
-/// 1.5.0 `_run_post_login_requests`: the steps of
+/// The requests a client sends after a login: the steps of
 /// [`auth::post_login_steps`] for `lang_pack` (`help.getConfig`,
 /// `help.getNearestDc`, `account.updateStatus(offline=false)`,
 /// `langpack.getLanguages` only for a non-empty `lang_pack`,
 /// `help.getAppUpdate(source="")`, `help.getTermsOfServiceUpdate` and
 /// `help.getCountriesList("en", 0)`), each after `delay(min_ms, max_ms)`
-/// of its [`auth::PostLoginStep::delay_ms`] where it has one. 1.5.0 sleeps
-/// [`auth::random_delay_ms`]`(min_ms, max_ms)` milliseconds; `delay` does
-/// the waiting, so the caller picks the timer.
+/// of its [`auth::PostLoginStep::delay_ms`] where it has one. `delay` does the
+/// waiting, for example [`auth::random_delay_ms`]`(min_ms, max_ms)`
+/// milliseconds, so the caller picks the timer.
 ///
-/// Failures are ignored, as in 1.5.0; the number of requests that failed
-/// is returned.
+/// A failed request does not stop the remaining steps; the number of
+/// requests that failed is returned.
 pub async fn post_login_requests<I, D, F>(invoker: &I, lang_pack: &str, mut delay: D) -> usize
 where
     I: Invoker,
@@ -563,8 +558,7 @@ pub async fn get_me_id<I: Invoker>(invoker: &I) -> Result<i64, ClientError> {
         .ok_or(ClientError::UserIdUnresolved)
 }
 
-/// Every session of the account, 1.5.0 `GetSessions`
-/// (`account.getAuthorizations`).
+/// Every session of the account (`account.getAuthorizations`).
 ///
 /// # Errors
 /// [`ClientError::Invocation`] when the request fails.
@@ -581,7 +575,7 @@ pub async fn sessions<I: Invoker>(
         .collect())
 }
 
-/// The session flagged `current`, 1.5.0 `GetCurrentSession`.
+/// The session flagged `current`.
 ///
 /// # Errors
 /// As [`sessions`].
@@ -594,8 +588,7 @@ pub async fn current_session<I: Invoker>(
         .find(|authorization| authorization.current))
 }
 
-/// Ends the session `hash`, 1.5.0 `TerminateSession`
-/// (`account.resetAuthorization`).
+/// Ends the session `hash` (`account.resetAuthorization`).
 ///
 /// # Errors
 /// - [`ClientError::FreshResetAuthorisationForbidden`] for
@@ -620,12 +613,12 @@ pub async fn terminate_session<I: Invoker>(invoker: &I, hash: i64) -> Result<(),
     }
 }
 
-/// Ends every session but the current one, in list order, 1.5.0
-/// `TerminateAllSessions`, and returns how many were ended.
+/// Ends every session but the current one, in list order, and returns how
+/// many were ended.
 ///
 /// # Errors
 /// As [`sessions`] and [`terminate_session`]; the first failure stops the
-/// loop, as in 1.5.0.
+/// loop, so the sessions after it stay open.
 pub async fn terminate_all_sessions<I: Invoker>(invoker: &I) -> Result<usize, ClientError> {
     let mut ended = 0;
     for authorization in sessions(invoker).await? {
@@ -637,7 +630,7 @@ pub async fn terminate_all_sessions<I: Invoker>(invoker: &I) -> Result<usize, Cl
     Ok(ended)
 }
 
-/// The 1.5.0 `PrintSessions` fields of `authorization`, through
+/// The session-table fields of `authorization`, through
 /// [`SessionRow::from_authorization`]; grammers always decodes the
 /// `current` and `official_app` flags.
 #[must_use]
@@ -654,8 +647,8 @@ pub fn session_row(authorization: &tl::types::Authorization) -> SessionRow {
     })
 }
 
-/// The table 1.5.0 `PrintSessions` prints ([`auth::format_sessions`]) for
-/// the account's sessions.
+/// The session table ([`auth::format_sessions`]) for the account's
+/// sessions.
 ///
 /// # Errors
 /// As [`sessions`].
@@ -664,8 +657,8 @@ pub async fn sessions_table<I: Invoker>(invoker: &I) -> Result<String, ClientErr
     Ok(auth::format_sessions(&rows))
 }
 
-/// Whether the server flags the current session `official_app`, 1.5.0
-/// `is_official_app`; `false` without a current session.
+/// Whether the server flags the current session `official_app`; `false`
+/// without a current session.
 ///
 /// # Errors
 /// As [`sessions`].
@@ -778,7 +771,7 @@ async fn run_check<I: Invoker>(
     }
 }
 
-/// The seven checks of 1.5.0 `ConsistencyChecker.run_all`, run one after
+/// The seven consistency checks, run one after
 /// the other in [`Check::ALL`] order, as [`auth::consistency_report`]
 /// builds the report from their outcomes.
 ///
@@ -791,11 +784,11 @@ async fn run_check<I: Invoker>(
 /// - `lang_pack` asks `langpack.getLanguages` about the expected
 ///   `lang_pack`, and passes without a request when it is empty.
 ///
-/// No check raises out of its own handling, so 1.5.0's `Exception:` entry
+/// No check fails outside its own handling, so the `Exception:` entry
 /// ([`auth::check_exception`]) never appears.
-/// [`ConsistencyReport::summary`] is 1.5.0's report text and
-/// [`ConsistencyReport::warning`] the warning its `auto_warn` emits, which
-/// this crate leaves to the caller.
+/// [`ConsistencyReport::summary`] is the report text and
+/// [`ConsistencyReport::warning`] the warning for a failed check, which
+/// this crate leaves to the caller to emit.
 pub async fn run_consistency_checks<I: Invoker>(
     invoker: &I,
     expectations: &ConsistencyExpectations,
@@ -812,8 +805,7 @@ pub async fn run_consistency_checks<I: Invoker>(
     ])
 }
 
-/// The account at `index` for the session behind `invoker`, 1.5.0
-/// `Account.FromTelethon` with `UseCurrentSession`: the home DC of
+/// The account at `index` for the session behind `invoker`: the home DC of
 /// `session` as main DC with its key, and the user id of [`get_me_id`].
 ///
 /// # Errors
@@ -851,12 +843,12 @@ where
 }
 
 /// A new tdata folder holding the session behind `invoker` as its only
-/// account (index 0), as 1.5.0 `FromTelethon` builds one without an owner:
-/// [`account_from_client`], then [`TData::new`] with `passcode`,
-/// performance mode on (the 1.5.0 default) and `rng`.
+/// account (index 0), with no owner: [`account_from_client`], then
+/// [`TData::new`] with `passcode`, performance mode on (the default) and
+/// `rng`.
 ///
-/// 1.5.0's `CreateNewSession` flag first logs a new session in by QR
-/// login; run [`qr_login`] and pass the new client and its session here.
+/// To store a new session rather than the client's own, log one in with
+/// [`qr_login`] first and pass the new client and its session here.
 ///
 /// # Errors
 /// As [`account_from_client`] and [`TData::new`].

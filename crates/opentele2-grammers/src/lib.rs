@@ -8,12 +8,12 @@
 //!   user of a [`SessionData`] become an [`Account`].
 //! - [`connection_params`] copies the `initConnection` fields of an
 //!   [`ApiProfile`] into a [`grammers_mtsender::ConnectionParams`].
-//! - With the `client` feature (off by default), `client` runs the 1.5.0
+//! - With the `client` feature (off by default), `client` runs the opentele2
 //!   client flows over grammers-client 0.11: QR login with DC migration
 //!   and 2FA, the self user id, session admin, the seven consistency
 //!   checks and tdata from a client session, over an `Invoker` that
-//!   `grammers_client::Client` implements. Its module docs list where
-//!   grammers 0.11 cannot follow 1.5.0 step for step.
+//!   `grammers_client::Client` implements. Its module docs list the limits
+//!   grammers 0.11 puts on those flows.
 //!
 //! The core crate never depends on grammers; this crate is the optional
 //! bridge. The profile's `api_id` is passed to grammers separately (for

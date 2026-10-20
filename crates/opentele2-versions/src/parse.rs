@@ -1,12 +1,11 @@
-//! Pure parsers, one per 1.5.0 source (src/version_fetcher.py:40-201), with
-//! the same regexes, JSON paths and fallbacks, plus the Chrome and Firefox
-//! release feeds 1.5.0 read for its web fingerprints.
+//! Pure parsers, one per version source, including the Chrome and Firefox
+//! release feeds the web fingerprints use.
 //!
 //! Each `parse_*` takes a response body and returns the fields it carries,
 //! or `None` when the body yields nothing usable. For a source with a
-//! fallback, `None` from the primary parser is what sends 1.5.0 to the
-//! fallback URL. Empty strings are never set, matching 1.5.0
-//! `fetch_all_versions`, which drops empty values before merging.
+//! fallback, `None` from the primary parser is what sends
+//! [`crate::fetch_all`] to the fallback URL. Empty strings are never set, so
+//! an empty value never overwrites a field when patches merge.
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -39,7 +38,7 @@ static ENTITY: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new("&(?:#([0-9]+);?|#[xX]([0-9a-fA-F]+);?|([A-Za-z]+);)").expect("valid entity regex")
 });
 
-/// 1.5.0 `_parse_tg_messages`: the version posts of a `t.me/s` page, oldest
+/// The version posts of a `t.me/s` page, oldest
 /// first as the page lists them.
 ///
 /// A search for one platform also returns posts for the others, so
@@ -70,8 +69,8 @@ pub fn parse_tgstable(html: &str, platform: Option<&str>) -> Vec<TgPost> {
         .collect()
 }
 
-/// The newest Android post of a `t.me/s/tgstable` page (1.5.0
-/// `_fetch_android`, primary source).
+/// The newest Android post of a `t.me/s/tgstable` page (Android, primary
+/// source).
 #[must_use]
 pub fn parse_android_tgstable(html: &str) -> Option<VersionsPatch> {
     let latest = parse_tgstable(html, Some("Android")).pop()?;
@@ -82,8 +81,7 @@ pub fn parse_android_tgstable(html: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// `version` of the `play.rajkumaar.co.in` JSON (1.5.0 `_fetch_android`,
-/// fallback).
+/// `version` of the `play.rajkumaar.co.in` JSON (Android, fallback).
 #[must_use]
 pub fn parse_android_play(json: &str) -> Option<VersionsPatch> {
     let version = non_empty(parse_json(json)?.get("version")?.as_str()?)?;
@@ -93,8 +91,7 @@ pub fn parse_android_play(json: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// The newest iOS post of a `t.me/s/tgstable` page (1.5.0 `_fetch_ios`,
-/// primary source).
+/// The newest iOS post of a `t.me/s/tgstable` page (iOS, primary source).
 #[must_use]
 pub fn parse_ios_tgstable(html: &str) -> Option<VersionsPatch> {
     let latest = parse_tgstable(html, Some("iOS")).pop()?;
@@ -105,8 +102,8 @@ pub fn parse_ios_tgstable(html: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// `results[0].version` of the iTunes lookup of app 686449807 (1.5.0
-/// `_fetch_ios`, fallback).
+/// `results[0].version` of the iTunes lookup of app 686449807 (iOS,
+/// fallback).
 #[must_use]
 pub fn parse_ios_itunes(json: &str) -> Option<VersionsPatch> {
     Some(VersionsPatch {
@@ -115,8 +112,7 @@ pub fn parse_ios_itunes(json: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// `tag_name` without leading `v` of the GitHub latest tdesktop release
-/// (1.5.0 `_fetch_tdesktop`).
+/// `tag_name` without leading `v` of the GitHub latest tdesktop release.
 #[must_use]
 pub fn parse_tdesktop(json: &str) -> Option<VersionsPatch> {
     Some(VersionsPatch {
@@ -125,8 +121,7 @@ pub fn parse_tdesktop(json: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// `tag_name` without leading `v` of the GitHub latest Telegram X release
-/// (1.5.0 `_fetch_telegram_x`).
+/// `tag_name` without leading `v` of the GitHub latest Telegram X release.
 #[must_use]
 pub fn parse_telegram_x(json: &str) -> Option<VersionsPatch> {
     Some(VersionsPatch {
@@ -136,10 +131,10 @@ pub fn parse_telegram_x(json: &str) -> Option<VersionsPatch> {
 }
 
 /// The `version` of the Homebrew `telegram` cask, `"<version>,<build>"`
-/// (1.5.0 `_fetch_macos`, primary source).
+/// (macOS, primary source).
 ///
 /// A missing, non-string or empty `version` is `None`, the case in which
-/// 1.5.0 falls back to iTunes. A non-numeric build is dropped, since
+/// [`crate::fetch_all`] falls back to iTunes. A non-numeric build is dropped, since
 /// [`opentele2_core::api::Versions::macos_build_number`] is numeric.
 #[must_use]
 pub fn parse_macos_brew(json: &str) -> Option<VersionsPatch> {
@@ -165,8 +160,8 @@ pub fn parse_macos_brew(json: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// `results[0].version` of the iTunes lookup of app 747648890 (1.5.0
-/// `_fetch_macos`, fallback).
+/// `results[0].version` of the iTunes lookup of app 747648890 (macOS,
+/// fallback).
 #[must_use]
 pub fn parse_macos_itunes(json: &str) -> Option<VersionsPatch> {
     Some(VersionsPatch {
@@ -175,8 +170,7 @@ pub fn parse_macos_itunes(json: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// tweb `public/version`, for example `2.2 (680)`, as `2.2 K` (1.5.0
-/// `_fetch_web_k`): the first non-empty line that is no merge-conflict
+/// tweb `public/version`, for example `2.2 (680)`, as `2.2 K`: the first non-empty line that is no merge-conflict
 /// marker, cut before `(`.
 #[must_use]
 pub fn parse_web_k(text: &str) -> Option<VersionsPatch> {
@@ -200,8 +194,7 @@ pub fn parse_web_k(text: &str) -> Option<VersionsPatch> {
     })
 }
 
-/// telegram-tt `public/version.txt`, for example `12.0.47`, as `12.0.47 A`
-/// (1.5.0 `_fetch_web_a`).
+/// telegram-tt `public/version.txt`, for example `12.0.47`, as `12.0.47 A`.
 #[must_use]
 pub fn parse_web_a(text: &str) -> Option<VersionsPatch> {
     Some(VersionsPatch {

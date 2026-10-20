@@ -1,5 +1,5 @@
 //! The Bayesian networks of the Apify fingerprint datapoints and their
-//! sampler, a port of browserforge's `bayesian_network.py`.
+//! sampler, based on browserforge's `bayesian_network.py`.
 //!
 //! A network is a list of nodes in sampling order. Each node holds a
 //! conditional probability table (CPT): a flat value-to-probability map when

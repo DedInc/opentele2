@@ -1,4 +1,4 @@
-//! Browser HTTP header generation, a port of browserforge's
+//! Browser HTTP header generation, based on browserforge's
 //! `headers/generator.py` and `headers/utils.py` (browserforge 1.2.4).
 //!
 //! The input network draws a browser, operating system and device that fit
@@ -6,7 +6,7 @@
 //! that draw. The result is filtered, ordered as the browser orders its
 //! headers (`data/headers-order.json`) and, for HTTP/2, pascalized.
 //!
-//! The port fixes these browserforge defects, each documented where it
+//! The module fixes these browserforge defects, each documented where it
 //! lives:
 //!
 //! 1. the Sec-Fetch headers carry real navigation values ([`SEC_FETCH`]);

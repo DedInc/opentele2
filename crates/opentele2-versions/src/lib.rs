@@ -1,14 +1,13 @@
-//! Current official Telegram client versions, fetched from the public release
-//! feeds 1.5.0 `src/version_fetcher.py` reads, plus the stable Chrome and
-//! Firefox versions 1.5.0 fetched for its web fingerprints, as a patch onto
-//! [`opentele2_core::api::Versions`].
+//! Current official Telegram client versions, fetched from their public
+//! release feeds, plus the stable Chrome and Firefox versions the web
+//! fingerprints use, as a patch onto [`opentele2_core::api::Versions`].
 //!
 //! [`fetch_all`] queries the nine sources (Telegram Desktop, Android,
 //! Telegram X, iOS, macOS, Web K, Web A, Chrome, Firefox) in parallel over
 //! blocking HTTP with rustls and merges whatever answered into a
 //! [`VersionsPatch`]. A source that fails or times out only leaves its fields
-//! unset. [`VersionsPatch::apply`] writes the patch onto a [`Versions`] with
-//! 1.5.0's field mapping.
+//! unset. [`VersionsPatch::apply`] writes the patch onto a [`Versions`] field
+//! by field.
 //!
 //! The parsing of every response lives in [`parse`] as pure functions, so it
 //! is testable without the network.
@@ -22,13 +21,13 @@ use opentele2_core::api::Versions;
 use serde_json::{Map, Value};
 use ureq::Agent;
 
-/// The per-request timeout of 1.5.0 (`_TIMEOUT`).
+/// The default per-request timeout.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// The user agent 1.5.0 sends to the JSON and plain-text sources.
+/// The user agent sent to the JSON and plain-text sources.
 pub const API_USER_AGENT: &str = "opentele2";
 
-/// The browser user agent 1.5.0 sends to `t.me` (`_TG_UA`).
+/// The browser user agent sent to `t.me`.
 pub const TG_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
     AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36";
 
@@ -37,7 +36,7 @@ const TG_ACCEPT: &str = "text/html,application/xhtml+xml,*/*;q=0.8";
 
 const TDESKTOP_URL: &str = "https://api.github.com/repos/telegramdesktop/tdesktop/releases/latest";
 const TELEGRAM_X_URL: &str = "https://api.github.com/repos/TGX-Android/Telegram-X/releases/latest";
-// `urllib.parse.quote` of "android versions:" and "ios versions:".
+// The percent-encoded searches "android versions:" and "ios versions:".
 const TG_ANDROID_URL: &str = "https://t.me/s/tgstable?q=android%20versions%3A";
 const TG_IOS_URL: &str = "https://t.me/s/tgstable?q=ios%20versions%3A";
 const PLAY_ANDROID_URL: &str = "https://play.rajkumaar.co.in/json?id=org.telegram.messenger";
@@ -195,9 +194,7 @@ impl VersionsPatch {
         *self == Self::default()
     }
 
-    /// Writes every set field onto `versions` like 1.5.0
-    /// `_apply_fetched_versions` (src/fingerprint.py:122-147): each field
-    /// lands on the [`Versions`] field of the same name, except
+    /// Writes every set field onto `versions`: each field lands on the [`Versions`] field of the same name, except
     /// `desktop_app_version`, which stays bound to the tdata version, and
     /// `chrome_version`, which goes through
     /// [`Versions::set_chrome_version`] so the user agent follows it.

@@ -1,4 +1,4 @@
-//! Browser fingerprint generation, a port of browserforge's
+//! Browser fingerprint generation, based on browserforge's
 //! `fingerprints/generator.py` (browserforge 1.2.4).
 //!
 //! A [`HeaderGenerator`] draws the headers first; the fingerprint network is
@@ -7,7 +7,7 @@
 //! constraint restricts the network's `screen` node and, through the
 //! network's `possible_values` closure, the User-Agents the headers may use.
 //!
-//! The port fixes these browserforge defects, each documented where it
+//! The module fixes these browserforge defects, each documented where it
 //! lives:
 //!
 //! 1. `navigator.languages` are trimmed (browserforge kept the space after
