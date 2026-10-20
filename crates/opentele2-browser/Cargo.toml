@@ -1,0 +1,27 @@
+[package]
+name = "opentele2-browser"
+description = "Browser HTTP header and fingerprint generation from the Apify fingerprint datapoints; a Rust port of browserforge"
+keywords = ["browserforge", "fingerprint", "user-agent", "headers", "bayesian"]
+categories = ["web-programming", "simulation"]
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# The crate embeds the Apache-2.0 Apify datapoints and ports Apache-2.0
+# browserforge, so it carries that licence rather than the workspace MIT.
+license = "Apache-2.0"
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+# Raw DEFLATE for the embedded network zips, pure Rust (no C zlib).
+miniz_oxide = { version = "0.9.1", default-features = false, features = ["with-alloc"] }
+crc32fast = { version = "1.5.2", default-features = false }
+serde = "1.0.229"
+# `float_roundtrip` parses every probability to the correctly rounded double,
+# as Python's json does, so cumulative sums match browserforge bit for bit.
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+sha2 = "0.11.1"
+getrandom = "0.4.3"
+
+[lints]
+workspace = true

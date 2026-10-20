@@ -1,0 +1,13 @@
+opentele2-browser
+Copyright the opentele2 contributors
+
+This crate is a Rust port of browserforge
+(https://github.com/daijro/browserforge), Copyright daijro, licensed under the
+Apache License, Version 2.0. The Bayesian network sampler in src/network.rs
+follows browserforge's bayesian_network.py.
+
+The data/ directory embeds the Apify fingerprint datapoints from the Python
+package apify_fingerprint_datapoints 0.15.0, part of Apify fingerprint-suite
+(https://github.com/apify/fingerprint-suite), Copyright Apify Technologies
+s.r.o., licensed under the Apache License, Version 2.0. Its licence text is in
+data/LICENSE-APIFY.md and its provenance in data/SOURCE.md.
