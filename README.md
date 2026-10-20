@@ -1,80 +1,79 @@
-<!-- vim: syntax=Markdown -->
-
-# opentele2
-
 <p align="center">
-<img src="https://raw.githubusercontent.com/DedInc/opentele2/main/opentele.png" alt="logo" width="180"/>
-<br><br>
-<a href="https://pypi.org/project/opentele2/"><img alt="pypi version" src="https://img.shields.io/pypi/v/opentele2?logo=pypi&logoColor=%232d93c1"/></a>
-<a href="https://pypi.org/project/opentele2/"><img alt="pypi status" src="https://img.shields.io/pypi/status/opentele2?color=%2331c754&logo=pypi&logoColor=%232d93c1"/></a>
-<a href="https://codecov.io/gh/DedInc/opentele2">
-<img src="https://img.shields.io/codecov/c/github/DedInc/opentele2?color=%2331c754&label=codecov&logo=codecov&token=H2IWGEJ5LN"/>
-</a>
-<a href="https://github.com/DedInc/opentele2/issues"><img alt="issues" src="https://img.shields.io/github/issues/DedInc/opentele2?color=%2331c754&logo=github"/></a>
-<a href="https://github.com/DedInc/opentele2/commits/main"><img alt="github last commit" src="https://img.shields.io/github/last-commit/DedInc/opentele2?color=%2331c754&logo=github"/></a>
-<a href="https://github.com/DedInc/opentele2/commits/main"><img alt="github commits" src="https://img.shields.io/github/commit-activity/m/DedInc/opentele2?logo=github"/></a>
-<a href="https://pypi.org/project/opentele2/"><img alt="pypi installs" src="https://img.shields.io/pypi/dm/opentele2?label=installs&logo=docusign&color=%2331c754"/></a>
-<a href="https://en.wikipedia.org/wiki/MIT_License"><img alt="pypi license" src="https://img.shields.io/pypi/l/opentele2?color=%2331c754&logo=gitbook&logoColor=white"/></a>
-<a href="https://github.com/psf/black"><img alt="code format" src="https://img.shields.io/badge/code%20style-black-000000.svg?logo=python&logoColor=%232d93c1"/></a>
+  <img src="https://raw.githubusercontent.com/DedInc/opentele2/main/opentele.png" alt="opentele2 logo" width="180"/>
 </p>
 
-<br>
+<h1 align="center">opentele2</h1>
 
-A **Telegram API library** for converting between **tdata** and **telethon** sessions, with built-in **official Telegram APIs**, for Python, Node and Rust.
+<p align="center">
+  <b>A Telegram client identity toolkit</b>: Telegram Desktop tdata, Telethon, mtcute and grammers
+  sessions, official API profiles with realistic devices, initConnection fingerprint checks and
+  browser fingerprints, on one Rust core for Python, Node and Rust.
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/opentele2/"><img alt="PyPI" src="https://img.shields.io/pypi/v/opentele2?logo=pypi&logoColor=white"/></a>
+  <a href="https://www.npmjs.com/package/opentele2"><img alt="npm" src="https://img.shields.io/npm/v/opentele2?logo=npm"/></a>
+  <a href="https://crates.io/crates/opentele2-core"><img alt="crates.io" src="https://img.shields.io/crates/v/opentele2-core?logo=rust"/></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/DedInc/opentele2"/></a>
+  <a href="https://github.com/DedInc/opentele2/actions/workflows/test.yml"><img alt="test" src="https://github.com/DedInc/opentele2/actions/workflows/test.yml/badge.svg"/></a>
+</p>
+
+## What it does
+
+**Telegram Desktop tdata**
+- Reads and writes tdata folders of Telegram Desktop 7.3.1, including passcode-locked folders
+  (Argon2id and scrypt passcode wraps, PBKDF2 local keys), several accounts per folder and the
+  stored MTP config with its DC endpoints. A folder with a legacy key file is migrated on save.
+
+**Sessions**
+- Telethon string sessions and `.session` files (SQLite, version 8) with their `.json` companion.
+- mtcute string sessions (version 3) and grammers 0.11 `SessionData`.
+- tdata back from a logged-in client session, in every ecosystem.
+
+**Official API profiles and devices**
+- Profiles of Telegram Desktop, Android, Telegram X, iOS, macOS, Web A, Web K and Webogram.
+- Weighted device catalogs for Android, desktop, iOS and macOS; web devices drawn from browser
+  fingerprints. The same unique id gives the same device in Python, Node and Rust.
+- Live client versions from the Telegram release sources plus stable Chrome and Firefox.
+
+**Fingerprint and consistency checks**
+- `initConnection` validation: layer, lang pack, `tz_offset`, msg_id offset, transport
+  recommendation (Python) and version consistency.
+- Seven consistency checks of a profile against a live session.
+
+**Client flows**
+- QR login into a new session with 2FA, listing and terminating sessions, the sessions table.
+
+**Browser fingerprints** (`opentele2-browser`)
+- HTTP headers and full browser fingerprints sampled from Bayesian networks, based on
+  browserforge and the Apify fingerprint datapoints. Deterministic by seed: the same seed and
+  options give byte-identical output in Rust, Python and Node.
+
+**MTProto client crypto on the Rust core**
+- AES-256-IGE and -CTR, SHA-1, SHA-256, HMAC, PBKDF2, PQ factorisation, gzip and the OS random
+  source. Telethon reaches it through `cryptg` plus a bridge for AES-CTR, PQ, SHA and password
+  hashing; mtcute through a complete `ICryptoProvider`; grammers is Rust.
+- Measured on one machine: a one-account tdata folder loads in 0.24 ms against 1.08 ms for the
+  previous pure-Python loader (best of 3 x 200 loads); AES-CTR on 1 MiB takes 0.9 ms against
+  3.6 s with pyaes.
 
 ## Installation
 
 ```bash
-pip install opentele2             # Python 3.8+
-npm install opentele2             # Node 18+, every entry point including opentele2/telethon
+pip install opentele2             # Python 3.8+ (abi3 wheels), over Telethon
+npm install opentele2             # Node 18+; subpaths opentele2/mtcute and opentele2/telethon
 cargo add opentele2-core          # Rust core: tdata, crypto, sessions, devices, API profiles
-cargo add opentele2-browser       # Rust: browser headers and fingerprints, a port of browserforge
+cargo add opentele2-browser       # Rust: browser headers and fingerprints
 cargo add opentele2-versions      # Rust: fetch the current official client and browser versions
 cargo add opentele2-grammers      # Rust: grammers 0.11 bridge; client flows behind feature `client`
 ```
 
-Targets **Telegram Desktop 7.3.1** tdata and **Telethon 1.45** (schema layer 230),
-including 7.3 passcode-locked tdata (Argon2id and scrypt key wraps).
+`opentele2/mtcute` needs `@mtcute/node` (0.32 or newer) next to `opentele2`. Targets
+**Telegram Desktop 7.3.1** tdata and **Telethon 1.45** (schema layer 230).
 
-## opentele2 2.0.0
-
-2.0.0 moves the tdata formats and crypto into one Rust core, `opentele2-core`, shared by one
-package per ecosystem.
-
-- **Rust core**: tdata read and write, PBKDF2, Argon2id and scrypt key derivation, AES-256-IGE
-  and -CTR, SHA-1, SHA-256, HMAC, PQ factorisation, gzip, one OS random source, Telethon and
-  mtcute string sessions, Telethon `.session` files, device catalogs and fingerprint checks live
-  in `crates/opentele2-core`.
-- **Faster**: the core loads a real one-account tdata folder in 0.24 ms against 1.08 ms for the
-  pure-Python 1.x `TDesktop` loader (best of 3 x 200 loads, one machine), about 4.6x.
-- **Client crypto on the core**: `import opentele2` (before `telethon`) registers
-  `opentele2._native.cryptg` (AES-IGE) when the real `cryptg` is absent, and always rebinds Telethon's
-  AES-CTR (obfuscated, CDN, MTProxy; 1 MiB in 0.9 ms against 3.6 s for pyaes, one machine), PQ
-  factorisation, SHA-1/256 and password hashing; DH/RSA `pow` and `os.urandom` stay Telethon's.
-  mtcute's `createCryptoProvider()` covers every `ICryptoProvider` member; DH/RSA bigint maths stay mtcute's.
-- **Python 3.8+**: the `opentele2` wheel is abi3 for CPython 3.8 and newer.
-- **No C crypto dependencies**: `TgCrypto-pyrofork` and `argon2-cffi` are gone; the dependencies are
-  `telethon` and, below Python 3.10, `typing_extensions`.
-- **Telethon `.session` on every Node**: `opentele2/telethon` uses the core's bundled SQLite (Node 18+).
-- **Browser fingerprints without browserforge**: `opentele2-browser` (Apache-2.0) ports browserforge
-  to Rust over the embedded `apify_fingerprint_datapoints` 0.15.0 networks with a seeded
-  xoshiro256** RNG, and fixes seven browserforge defects (Sec-Fetch values, OS relaxation, HTTP/1
-  fallback, Edge detection, user-agent constraint, locale cap, request-dependent headers). Python
-  `opentele2.browser` and Node `generateHeaders` / `generateFingerprint` expose it; the same seed and
-  options give byte-identical output in Python and Node.
-- **Web devices**: the curated web catalog was replaced by 1.5.0's pool drawn from
-  `opentele2-browser` (Chrome, Edge, Firefox weighted 19/2/1 around the live majors), deterministic
-  per seed and per Chrome/Firefox major; `opentele2-versions` fetches the Chrome and Firefox versions.
-- **Full parity**: Python, Node and Rust cover the same conversions, device generation,
-  fingerprint checks, QR login with 2FA, session admin and consistency checks, each over its own
-  client (Telethon, mtcute, grammers).
-
-The few places where 2.0.0 deliberately behaves differently from 1.5.0 are listed in
-[ARCHITECTURE.md, Deliberate differences from 1.5.0](ARCHITECTURE.md#deliberate-differences-from-150).
+## Examples
 
 ### Python
-
-The 1.x API is unchanged.
 
 ```python
 import asyncio
@@ -119,7 +118,7 @@ const client = new TelegramClient({
 })
 await client.importSession(toStringSession(tdata.mainAccount))
 
-// Telethon: the .session + .json pair 1.5.0 writes (the core's bundled SQLite).
+// Telethon: a .session file and its .json companion (the core's bundled SQLite).
 const { session, json } = await saveSessionPair('telethon', tdata.mainAccount, desktop)
 
 // Browser headers and fingerprints, the same as opentele2.browser for the same seed.
@@ -127,7 +126,7 @@ const headers = await generateHeaders({ browsers: 'chrome', os: 'windows' }, 'my
 const { navigator } = await generateFingerprint({ screen: { maxWidth: 1920 } }, 42)
 ```
 
-`opentele2/mtcute` also has the 1.5.0 client flows over an mtcute client: `qrLoginToNewClient`
+`opentele2/mtcute` also runs the client flows over an mtcute client: `qrLoginToNewClient`
 (QR login with 2FA), `getSessions`, `terminateSession`, `terminateAllSessions`, `formatSessions`,
 `runConsistencyChecks` and `tdataFromClient`.
 
@@ -156,7 +155,7 @@ fn convert() -> opentele2_core::Result<()> {
 }
 
 async fn show_sessions(client: &Client) -> Result<(), ClientError> {
-    println!("{}", client::sessions_table(client).await?); // 1.5.0 PrintSessions
+    println!("{}", client::sessions_table(client).await?); // the PrintSessions table
     Ok(())
 }
 
@@ -180,23 +179,17 @@ default-off feature `telethon-sqlite`, the same writer the Python and Node packa
 
 ## Documentation
 
-For full documentation, guides, API reference, and examples, please visit the official documentation website:
-
-**[https://opentele2.github.io/](https://opentele2.github.io/)**
-
-### Quick Links
+Guides, API reference and examples: **[https://opentele2.github.io/](https://opentele2.github.io/)**
 
 - [Getting Started](https://opentele2.github.io/)
 - [Documentation & API Reference](https://opentele2.github.io/documentation)
 - [Examples & Recipes](https://opentele2.github.io/examples)
 
-## A New Era for opentele
+Release notes are in [CHANGELOG.md](CHANGELOG.md); the internals are in
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
-**opentele2** is the rebirth of the original opentele project. The library is actively maintained and continues the original idea with current Telegram Desktop and Telethon support, bug fixes, and new features.
+## License
 
-This new era means the project is no longer just a compatibility fork. It focuses on a lighter dependency footprint, a Rust core for tdata formats and crypto (2.0), updated official Telegram API templates, and more realistic device fingerprint generation.
-
-### Key Enhancements
-
-- **PyQt5 Removed**: The **PyQt5** dependency has been removed. Its required functionality was reimplemented without Qt, in pure Python in 1.x and in the Rust core since 2.0, to reduce overhead and avoid installing unnecessary heavy dependencies.
-- **New Fingerprints**: Device information generation has been improved. The library now uses a new device database for more realistic client profiles.
+MIT ([LICENSE](LICENSE)) for `opentele2-core`, `opentele2-versions`, `opentele2-grammers` and the
+Python and Node packages. `opentele2-browser` is Apache-2.0; its
+[NOTICE](crates/opentele2-browser/NOTICE) credits browserforge and the Apify fingerprint datapoints.
