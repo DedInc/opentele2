@@ -1,0 +1,173 @@
+# .github/workflows/test.yml
+#
+# Every local gate of the Rust crates, the Python package and the Node package,
+# on push and pull request. No secrets, no publishing.
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rust:
+    name: rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      # pyo3 locates an interpreter when it builds bindings/python.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      # --all-features adds telethon-sqlite (bundled SQLite) to opentele2-core
+      # and client (grammers-client) to opentele2-grammers; opentele2-browser
+      # and opentele2-versions have no optional features.
+      - name: cargo clippy --all-features
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: cargo test
+        run: cargo test --workspace
+      # The pure Rust crates by name: the binding crates are built and tested
+      # by the python and node jobs. This also runs core's no_suppressions test.
+      - name: cargo test --all-features (browser, core, versions, grammers)
+        run: cargo test -p opentele2-browser -p opentele2-core -p opentele2-versions -p opentele2-grammers --all-features
+
+  msrv:
+    name: msrv (1.89)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@1.89
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo check
+        run: cargo check --workspace --all-targets
+
+  vectors:
+    name: golden vectors (1.5.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      # The oracle is 1.5.0 itself: the generator imports src/ of this checkout.
+      - name: Check out tag 1.5.0
+        uses: actions/checkout@v5
+        with:
+          ref: "1.5.0"
+          path: opentele2-1.5.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install the 1.5.0 dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "telethon>=1.45.0" "TgCrypto-pyrofork>=1.2.6" "argon2-cffi>=21.2"
+      - name: Regenerate and compare the 1.5.0 vectors
+        run: python crates/opentele2-core/tests/vectors/gen_core_vectors.py --source opentele2-1.5.0 --check
+
+  python:
+    name: python ${{ matrix.python-version }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # maturin builds opentele2._native through the PEP 517 backend.
+      - name: Install opentele2 and pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ./bindings/python pytest
+      - name: Tests
+        run: python -m pytest bindings/python/tests -q -m "not live"
+      # ruff and ty read their configuration from bindings/python/pyproject.toml;
+      # ty resolves telethon and opentele2 from this interpreter.
+      - name: Lint and type check
+        if: matrix.python-version == '3.12' && runner.os == 'Linux'
+        working-directory: bindings/python
+        run: |
+          python -m pip install ruff==0.16.6 ty==0.0.79
+          ruff check
+          ruff format --check
+          ty check --python "$(command -v python)"
+
+  node:
+    name: node (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: bindings/node
+    steps:
+      - uses: actions/checkout@v5
+      # The pnpm version comes from packageManager in package.json.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: bindings/node/package.json
+      # @napi-rs/cli 3.10.8 needs Node 20.17+ to build.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: bindings/node/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: pnpm install
+        run: pnpm install
+      - name: Build the addon
+        run: pnpm run build
+      - name: Type check the declarations
+        run: pnpm run typecheck
+      - name: Test on Node 22
+        run: node --test __test__
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "18"
+      # Node 18 runs the built addon against the subset below. api.test.mjs is
+      # left out because its devices.json loader needs JSON.parse source text
+      # access (Node 21+); Node 22 runs every file above.
+      - name: Test on Node 18
+        run: |
+          node --version
+          node --test __test__/crypto.test.mjs __test__/mtcute.test.mjs __test__/sessions.test.mjs __test__/tdata.test.mjs

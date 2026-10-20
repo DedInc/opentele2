@@ -34,3 +34,6 @@ dist/
 node_modules/
 *.node
 *.tgz
+
+# The documentation site, a separate repository checked out here.
+opentele2.github.io/

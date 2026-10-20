@@ -1,0 +1,284 @@
+# .github/workflows/release-python.yml
+#
+# Builds the one PyPI package `opentele2` from bindings/python with maturin:
+# abi3 wheels (cp38-abi3), cp314t wheels for the free-threaded interpreter,
+# and the sdist; then publishes all of them to PyPI from the protected `pypi`
+# environment through OIDC trusted publishing. Runs only on version tags.
+#
+# Tag to version mapping. A release has one tag in the repository's bare form
+# (no `v` prefix): `X.Y.Z` or `X.Y.Z-(alpha|beta|rc).N`, the semver spelling
+# that npm and crates.io use verbatim. PyPI uses the PEP 440 spelling of the
+# same tag: `-alpha.N` -> `aN`, `-beta.N` -> `bN`, `-rc.N` -> `rcN`, `X.Y.Z`
+# unchanged. Tag `2.0.0-alpha.1` publishes `2.0.0a1` here, `2.0.0-alpha.1` on
+# npm and crates.io. Any other tag shape fails the publish job.
+name: release-python
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  linux:
+    name: manylinux ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, x86, aarch64, armv7]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build the abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist
+      # abi3 wheels do not load on free-threaded interpreters (ARCHITECTURE.md, v1 D2).
+      - name: Build the cp314t wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.target }}
+          manylinux: auto
+          args: --release --out dist -i python3.14t
+      - uses: actions/upload-artifact@v5
+        with:
+          name: wheels-manylinux-${{ matrix.target }}
+          path: bindings/python/dist
+          if-no-files-found: error
+
+  musllinux:
+    name: musllinux_1_2 ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build the abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.target }}
+          manylinux: musllinux_1_2
+          args: --release --out dist
+      - name: Build the cp314t wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.target }}
+          manylinux: musllinux_1_2
+          args: --release --out dist -i python3.14t
+      - uses: actions/upload-artifact@v5
+        with:
+          name: wheels-musllinux-${{ matrix.target }}
+          path: bindings/python/dist
+          if-no-files-found: error
+
+  windows:
+    name: windows ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: windows-latest
+            target: x64
+            python-arch: x64
+            rustflags: ""
+          # Hardware AES for the `aes` crate on Windows arm64 (ARCHITECTURE.md, v1 D9).
+          - runner: windows-11-arm
+            target: aarch64
+            python-arch: arm64
+            rustflags: "-Ctarget-feature=+aes"
+    env:
+      RUSTFLAGS: ${{ matrix.platform.rustflags }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        id: python-abi3
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.platform.python-arch }}
+      - name: Build the abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i ${{ steps.python-abi3.outputs.python-path }}
+      - uses: actions/setup-python@v6
+        id: python-ft
+        with:
+          python-version: "3.14t"
+          architecture: ${{ matrix.platform.python-arch }}
+      - name: Build the cp314t wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i ${{ steps.python-ft.outputs.python-path }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: wheels-windows-${{ matrix.platform.target }}
+          path: bindings/python/dist
+          if-no-files-found: error
+
+  macos:
+    name: macos ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: macos-15-intel
+            target: x86_64
+          - runner: macos-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        id: python-abi3
+        with:
+          python-version: "3.12"
+      - name: Build the abi3 wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i ${{ steps.python-abi3.outputs.python-path }}
+      - uses: actions/setup-python@v6
+        id: python-ft
+        with:
+          python-version: "3.14t"
+      - name: Build the cp314t wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist -i ${{ steps.python-ft.outputs.python-path }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: bindings/python/dist
+          if-no-files-found: error
+
+  sdist:
+    name: opentele2 sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      # maturin packs the path dependencies opentele2-core and
+      # opentele2-versions from crates/ into the sdist.
+      - name: Build the sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: bindings/python
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v5
+        with:
+          name: wheels-sdist
+          path: bindings/python/dist
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: [linux, musllinux, windows, macos, sdist]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Required reviewers and the trusted publisher of the PyPI project
+    # opentele2 are bound to this environment.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/opentele2/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      # maturin takes the package version from the Cargo workspace
+      # (bindings/python/pyproject.toml has `dynamic = ["version"]`), so the
+      # workspace version must be the tag and every file in dist its PEP 440
+      # spelling.
+      - name: Check the tag against the package versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'EOF'
+          import os
+          import pathlib
+          import re
+          import sys
+          import tomllib
+
+          tag = os.environ["RELEASE_TAG"]
+          match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)\.(\d+))?", tag)
+          if match is None:
+              sys.exit(f"tag {tag!r} is not X.Y.Z or X.Y.Z-(alpha|beta|rc).N")
+          release, label, number = match.groups()
+          pep440 = release + ({"alpha": "a", "beta": "b", "rc": "rc"}[label] + number if label else "")
+
+          cargo = tomllib.loads(pathlib.Path("Cargo.toml").read_text(encoding="utf-8"))
+          checks = {
+              "Cargo.toml workspace.package.version": (cargo["workspace"]["package"]["version"], tag),
+          }
+          for path in sorted(pathlib.Path("dist").iterdir()):
+              name = path.name
+              if name.endswith(".whl"):
+                  project, version = name.split("-")[:2]
+              elif name.endswith(".tar.gz"):
+                  project, version = name[: -len(".tar.gz")].rsplit("-", 1)
+              else:
+                  sys.exit(f"unexpected file in dist: {name}")
+              if project != "opentele2":
+                  sys.exit(f"unexpected project in dist: {name}")
+              checks[f"dist/{name}"] = (version, pep440)
+
+          failed = [f"{where}: {found} != {wanted}" for where, (found, wanted) in checks.items() if found != wanted]
+          for line in failed:
+              print(f"::error::{line}")
+          if failed:
+              sys.exit(f"tag {tag} does not match {len(failed)} version(s)")
+          print(f"tag {tag} -> PyPI {pep440}: {len(checks)} versions match")
+          EOF
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

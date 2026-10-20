@@ -1,0 +1,190 @@
+# .github/workflows/release-node.yml
+#
+# Builds the napi-rs addon of bindings/node for every target in
+# package.json `napi.targets`, then publishes the npm package `opentele2` and
+# its per-platform packages from the protected `npm` environment with npm
+# provenance. Runs only on version tags.
+#
+# Tag to version mapping. A release has one tag in the repository's bare form
+# (no `v` prefix): `X.Y.Z` or `X.Y.Z-(alpha|beta|rc).N`. npm uses the tag
+# verbatim, so tag `2.0.0-alpha.1` publishes `2.0.0-alpha.1`; PyPI spells the
+# same tag `2.0.0a1` (release-python.yml). The publish job fails unless
+# bindings/node/package.json and every npm/<platform>/package.json carry
+# exactly the tag.
+name: release-node
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+    working-directory: bindings/node
+
+jobs:
+  build:
+    name: build ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            flags: ""
+            rustflags: ""
+          # Hardware AES for the `aes` crate on Windows arm64 (ARCHITECTURE.md, v1 D9).
+          - host: windows-latest
+            target: aarch64-pc-windows-msvc
+            flags: ""
+            rustflags: "-Ctarget-feature=+aes"
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            flags: ""
+            rustflags: ""
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            flags: ""
+            rustflags: ""
+          # Every Linux target builds with `-x` (cargo-zigbuild): zig links the
+          # musl targets and aarch64 from an x86_64 host, and keeps the glibc
+          # floor of the gnu targets below that of the runner image.
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            flags: "-x"
+            rustflags: ""
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            flags: "-x"
+            rustflags: ""
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            flags: "-x"
+            rustflags: ""
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            flags: "-x"
+            rustflags: ""
+    env:
+      RUSTFLAGS: ${{ matrix.settings.rustflags }}
+    steps:
+      - uses: actions/checkout@v5
+      # The pnpm version comes from packageManager in package.json.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: bindings/node/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: bindings/node/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.target }}
+      - uses: mlugg/setup-zig@v2
+        if: runner.os == 'Linux'
+        with:
+          version: 0.14.1
+      - name: Install cargo-zigbuild
+        if: runner.os == 'Linux'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+      - name: Build the addon
+        run: pnpm run build --target ${{ matrix.settings.target }} ${{ matrix.settings.flags }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: bindings/node/opentele2.*.node
+          if-no-files-found: error
+
+  publish:
+    name: publish to npm
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Required reviewers are bound to this environment.
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/opentele2
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: bindings/node/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+          cache-dependency-path: bindings/node/pnpm-lock.yaml
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+      # `napi artifacts` collects every .node file below ./artifacts and fails
+      # when a configured target is missing.
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: bindings-*
+          path: bindings/node/artifacts
+      - name: napi create-npm-dirs
+        run: pnpm exec napi create-npm-dirs
+      - name: napi artifacts
+        run: pnpm exec napi artifacts
+      - name: Check the tag against the package versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node - <<'EOF'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const tag = process.env.RELEASE_TAG;
+          if (!/^\d+\.\d+\.\d+(-(alpha|beta|rc)\.\d+)?$/.test(tag)) {
+            console.error(`tag ${tag} is not X.Y.Z or X.Y.Z-(alpha|beta|rc).N`);
+            process.exit(1);
+          }
+          const manifests = ["package.json"].concat(
+            fs.readdirSync("npm").map((dir) => path.join("npm", dir, "package.json")),
+          );
+          let failed = 0;
+          for (const manifest of manifests) {
+            const { version } = JSON.parse(fs.readFileSync(manifest, "utf8"));
+            if (version !== tag) {
+              console.log(`::error::${manifest}: ${version} != ${tag}`);
+              failed += 1;
+            }
+          }
+          if (failed > 0) process.exit(1);
+          console.log(`tag ${tag} -> npm ${tag}: ${manifests.length} versions match`);
+          EOF
+      # prepublishOnly runs `napi prepublish -t npm`, which adds the
+      # optionalDependencies and publishes each npm/<platform> package first;
+      # NPM_CONFIG_PROVENANCE carries --provenance to those nested publishes.
+      # No GITHUB_TOKEN is passed, so its GitHub release step only logs.
+      - name: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+        run: npm publish --provenance --access public

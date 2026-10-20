@@ -1,0 +1,106 @@
+# .github/workflows/release-crates.yml
+#
+# Publishes opentele2-browser, then opentele2-core, then opentele2-versions,
+# then opentele2-grammers to crates.io from the protected `crates-io`
+# environment. Runs only on version tags. opentele2-core depends on
+# opentele2-browser 2.0.0 by version, and both later crates depend on
+# opentele2-core 2.0.0 by version, so the browser crate goes first and the core
+# second; `cargo publish` builds each crate from its packaged sources before
+# uploading it and waits for it to appear in the index before the next crate
+# resolves it. The binding crates opentele2-python and opentele2-node are
+# `publish = false`; release-python.yml and release-node.yml ship them.
+#
+# Tag to version mapping. A release has one tag in the repository's bare form
+# (no `v` prefix): `X.Y.Z` or `X.Y.Z-(alpha|beta|rc).N`. crates.io uses the tag
+# verbatim, so tag `2.0.0-alpha.1` publishes `2.0.0-alpha.1`; PyPI spells the
+# same tag `2.0.0a1` (release-python.yml). The publish job fails unless all
+# four crates carry exactly the tag.
+name: release-crates
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    name: publish to crates.io
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Required reviewers are bound to this environment.
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/opentele2-core
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      # The version check below runs on this interpreter.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check the tag against the crate versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cargo metadata --no-deps --format-version 1 > "$RUNNER_TEMP/metadata.json"
+          python - "$RUNNER_TEMP/metadata.json" <<'EOF'
+          import json
+          import os
+          import re
+          import sys
+
+          CRATES = (
+              "opentele2-browser",
+              "opentele2-core",
+              "opentele2-versions",
+              "opentele2-grammers",
+          )
+
+          tag = os.environ["RELEASE_TAG"]
+          if re.fullmatch(r"\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?", tag) is None:
+              sys.exit(f"tag {tag!r} is not X.Y.Z or X.Y.Z-(alpha|beta|rc).N")
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              packages = {p["name"]: p["version"] for p in json.load(handle)["packages"]}
+          failed = []
+          for crate in CRATES:
+              if packages.get(crate) != tag:
+                  failed.append(f"{crate}: {packages.get(crate)} != {tag}")
+          for line in failed:
+              print(f"::error::{line}")
+          if failed:
+              sys.exit(1)
+          print(f"tag {tag} -> crates.io {tag}: {len(CRATES)} versions match")
+          EOF
+      - name: cargo publish opentele2-browser
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p opentele2-browser
+      - name: cargo publish opentele2-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p opentele2-core
+      - name: cargo publish opentele2-versions
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p opentele2-versions
+      - name: cargo publish opentele2-grammers
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p opentele2-grammers
