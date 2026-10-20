@@ -354,17 +354,28 @@ def test_msg_id_offset_range() -> None:
         assert 0 <= generate_msg_id_offset() <= 0xFFFF
 
 
-def test_msg_id_offsets_follow_random_seed_as_1_5_0() -> None:
-    # 1.5.0 src.fingerprint after random.seed(198): generate_msg_id_offset()
-    # three times, and FingerprintConfig()._msg_id_offset three times.
-    expected = [6944, 62977, 13221]
+def test_msg_id_offsets_come_from_the_core_not_random_seed() -> None:
+    # Deliberate difference from 1.5.0: 1.5.0 drew offsets with Python's
+    # random, so random.seed(198) reproduced [6944, 62977, 13221]. The core
+    # now draws them from the OS random source, so random.seed has no effect.
+    seeded_1_5_0 = [6944, 62977, 13221]
     assert _native.MSG_ID_OFFSET_MAX == 0xFFFF
+    draws = (
+        generate_msg_id_offset,
+        lambda: FingerprintConfig()._msg_id_offset,
+    )
     state = random.getstate()
     try:
-        random.seed(198)
-        assert [generate_msg_id_offset() for _ in range(3)] == expected
-        random.seed(198)
-        assert [FingerprintConfig()._msg_id_offset for _ in range(3)] == expected
+        for draw in draws:
+            offsets = [draw() for _ in range(32)]
+            assert all(0 <= offset <= 0xFFFF for offset in offsets)
+            assert len(set(offsets)) > 1
+            random.seed(198)
+            first = [draw() for _ in range(3)]
+            random.seed(198)
+            second = [draw() for _ in range(3)]
+            assert first != second
+            assert seeded_1_5_0 not in (first, second)
     finally:
         random.setstate(state)
 
