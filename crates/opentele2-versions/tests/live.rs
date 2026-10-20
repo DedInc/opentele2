@@ -19,6 +19,8 @@ fn fetch_all_returns_current_versions() {
         &patch.macos_app_version,
         &patch.web_k_version,
         &patch.web_a_version,
+        &patch.chrome_version,
+        &patch.firefox_version,
     ];
     for text in texts.into_iter().flatten() {
         assert_ne!(text, "");

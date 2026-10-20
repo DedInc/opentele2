@@ -124,11 +124,16 @@ pub struct Versions {
     /// Telegram Web K version, for example `2.2 K`.
     pub web_k_version: String,
     /// Chrome version of the web user agent, for example `155.0.0.0`.
+    /// [`Versions::set_chrome_version`] changes it with
+    /// [`Versions::user_agent`].
     pub chrome_version: String,
     /// The browser user agent the web clients report as their device in
     /// their default [`profile`]; [`generate`] picks one from the web catalog
     /// instead.
     pub user_agent: String,
+    /// Current stable Firefox version, for example `150.0`, for web
+    /// fingerprints.
+    pub firefox_version: String,
 }
 
 impl Versions {
@@ -158,7 +163,16 @@ impl Versions {
             web_k_version: "2.2 K".to_owned(),
             user_agent: windows_chrome_user_agent(&chrome_version),
             chrome_version,
+            firefox_version: "150.0".to_owned(),
         }
+    }
+
+    /// Sets [`Versions::chrome_version`] and rebuilds
+    /// [`Versions::user_agent`] as Chrome `version` on 64-bit Windows, so the
+    /// two stay in step.
+    pub fn set_chrome_version(&mut self, version: impl Into<String>) {
+        self.chrome_version = version.into();
+        self.user_agent = windows_chrome_user_agent(&self.chrome_version);
     }
 }
 

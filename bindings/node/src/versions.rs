@@ -68,6 +68,7 @@ impl From<VersionsPatch> for CorePatch {
             macos_build_number: patch.macos_build_number,
             web_k_version: patch.web_k_version,
             web_a_version: patch.web_a_version,
+            ..CorePatch::default()
         }
     }
 }

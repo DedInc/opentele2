@@ -16,6 +16,10 @@ const BREW_MACOS: &str = include_str!("fixtures/brew_telegram.json");
 const ITUNES_MACOS: &str = include_str!("fixtures/itunes_macos.json");
 const WEB_K: &str = include_str!("fixtures/web_k_version");
 const WEB_A: &str = include_str!("fixtures/web_a_version.txt");
+// Written by hand in the shape of the live Chrome for Testing and Mozilla
+// product-details responses, not captured.
+const CHROME: &str = include_str!("fixtures/chrome_last_known_good.json");
+const FIREFOX: &str = include_str!("fixtures/firefox_versions.json");
 
 fn post(version: &str, build_code: u32) -> TgPost {
     TgPost {
@@ -272,4 +276,60 @@ fn web_k_skips_merge_conflict_markers() {
         Some("2.3 K")
     );
     assert_eq!(web_k("<<<<<<< HEAD\n").as_deref(), Some("<<<<<<< HEAD K"));
+}
+
+#[test]
+fn chrome_stable_version_is_reduced_to_its_major() {
+    assert_eq!(
+        parse::parse_chrome(CHROME),
+        Some(VersionsPatch {
+            chrome_version: Some("155.0.0.0".to_owned()),
+            ..VersionsPatch::default()
+        })
+    );
+}
+
+#[test]
+fn chrome_without_a_numeric_stable_version_is_none() {
+    for json in [
+        "{}",
+        "not json",
+        r#"{"channels": {"Beta": {"version": "156.0.1.2"}}}"#,
+        r#"{"channels": {"Stable": {"version": 155}}}"#,
+        r#"{"channels": {"Stable": {"version": ""}}}"#,
+        r#"{"channels": {"Stable": {"version": "x.0.1.2"}}}"#,
+    ] {
+        assert_eq!(parse::parse_chrome(json), None, "{json}");
+    }
+}
+
+#[test]
+fn firefox_latest_version_is_reduced_to_its_major() {
+    assert_eq!(
+        parse::parse_firefox(FIREFOX),
+        Some(VersionsPatch {
+            firefox_version: Some("150.0".to_owned()),
+            ..VersionsPatch::default()
+        })
+    );
+    assert_eq!(
+        parse::parse_firefox(r#"{"LATEST_FIREFOX_VERSION": "151.0"}"#)
+            .and_then(|p| p.firefox_version)
+            .as_deref(),
+        Some("151.0")
+    );
+}
+
+#[test]
+fn firefox_without_a_numeric_latest_version_is_none() {
+    for json in [
+        "{}",
+        "[]",
+        r#"{"FIREFOX_NIGHTLY": "152.0a1"}"#,
+        r#"{"LATEST_FIREFOX_VERSION": null}"#,
+        r#"{"LATEST_FIREFOX_VERSION": ""}"#,
+        r#"{"LATEST_FIREFOX_VERSION": "esr.1"}"#,
+    ] {
+        assert_eq!(parse::parse_firefox(json), None, "{json}");
+    }
 }

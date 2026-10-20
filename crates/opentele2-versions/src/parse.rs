@@ -1,5 +1,6 @@
 //! Pure parsers, one per 1.5.0 source (src/version_fetcher.py:40-201), with
-//! the same regexes, JSON paths and fallbacks.
+//! the same regexes, JSON paths and fallbacks, plus the Chrome and Firefox
+//! release feeds 1.5.0 read for its web fingerprints.
 //!
 //! Each `parse_*` takes a response body and returns the fields it carries,
 //! or `None` when the body yields nothing usable. For a source with a
@@ -207,6 +208,42 @@ pub fn parse_web_a(text: &str) -> Option<VersionsPatch> {
         web_a_version: Some(format!("{} A", text.trim())),
         ..VersionsPatch::default()
     })
+}
+
+/// `channels.Stable.version` of the Chrome for Testing
+/// `last-known-good-versions.json`, for example `155.0.7790.110`, as the
+/// reduced version Chrome's user agent reports, `155.0.0.0`.
+///
+/// A missing, non-string or non-numeric version is `None`.
+#[must_use]
+pub fn parse_chrome(json: &str) -> Option<VersionsPatch> {
+    let version = parse_json(json)?;
+    let major = major_version(version.pointer("/channels/Stable/version")?.as_str()?)?;
+    Some(VersionsPatch {
+        chrome_version: Some(format!("{major}.0.0.0")),
+        ..VersionsPatch::default()
+    })
+}
+
+/// `LATEST_FIREFOX_VERSION` of Mozilla's `firefox_versions.json`, for example
+/// `150.0.1`, as the version Firefox's user agent reports, `150.0`.
+///
+/// A missing, non-string or non-numeric version is `None`.
+#[must_use]
+pub fn parse_firefox(json: &str) -> Option<VersionsPatch> {
+    let version = parse_json(json)?;
+    let major = major_version(version.get("LATEST_FIREFOX_VERSION")?.as_str()?)?;
+    Some(VersionsPatch {
+        firefox_version: Some(format!("{major}.0")),
+        ..VersionsPatch::default()
+    })
+}
+
+/// The leading `<major>` of a `<major>.<rest>` browser version, all digits
+/// and not empty.
+fn major_version(version: &str) -> Option<&str> {
+    let major = version.trim().split('.').next()?;
+    (!major.is_empty() && major.bytes().all(|b| b.is_ascii_digit())).then_some(major)
 }
 
 fn parse_json(json: &str) -> Option<Value> {
