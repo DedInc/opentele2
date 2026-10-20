@@ -49,6 +49,9 @@ class CoreError(Exception):
     # The message 1.5.0 gave the matching exception; `message` when none
     # was given.
     legacy_message: str
+    # Stable SCREAMING_SNAKE code of a context raised differently from the
+    # rest of `code`, such as "BAD_ACCOUNTS_COUNT"; None for most errors.
+    detail_code: str | None
     def __init__(self, code: str, message: str, legacy_message: str | None = None) -> None: ...
 
 # The values a client sends in initConnection.
@@ -172,6 +175,10 @@ class _Cryptg(Protocol):
 cryptg: _Cryptg
 
 # tdata: repr() of Account and TData never shows key bytes.
+
+# The 1.5.0 messages of TDataSaveFailed and MaxAccountLimit.
+SAVE_FAILED_MESSAGE: str
+MAX_ACCOUNT_LIMIT_MESSAGE: str
 
 @final
 class Account:

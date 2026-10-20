@@ -66,7 +66,7 @@ class TDesktop(BaseObject):
     Supports up to 6 accounts. Handles loading/saving tdata folders.
     """
 
-    kMaxAccounts: int = 6
+    kMaxAccounts: int = TData.MAX_ACCOUNTS
     kDefaultKeyFile: str = _DEFAULT_KEY_FILE
     kPerformanceMode: bool = True
 
@@ -145,9 +145,7 @@ class TDesktop(BaseObject):
             # 1.5.0 checked the accounts count with a bare Expects, so a
             # count below one is a plain OpenTeleException, not
             # TDataKeyDataInvalid like the other key data failures.
-            if error.code == "TDATA_KEY_DATA_INVALID" and error.legacy_message.startswith(
-                "Bad accounts count "
-            ):
+            if error.detail_code == "BAD_ACCOUNTS_COUNT":
                 raise OpenTeleException(error.legacy_message) from error
             raise_core_error(error)
 
@@ -223,7 +221,7 @@ class TDesktop(BaseObject):
         accounts = [account._core for account in self.accounts]
         written = [core for core in accounts if core is not None]
         if len(written) != len(accounts):
-            raise TDataSaveFailed("Could not save tdata, something went wrong")
+            raise TDataSaveFailed(_native.SAVE_FAILED_MESSAGE)
 
         folder = self.__folder
         if folder is not None and self.isLoaded():
@@ -234,7 +232,7 @@ class TDesktop(BaseObject):
             try:
                 folder.accounts = written
             except CoreError as error:
-                raise TDataSaveFailed("Could not save tdata, something went wrong") from error
+                raise TDataSaveFailed(_native.SAVE_FAILED_MESSAGE) from error
             if folder.legacy_key_file:
                 # tdesktop 7.3 migrates a pre-7.3 key file on start; write the
                 # migrated shape directly, keeping the local key the accounts
@@ -285,7 +283,7 @@ class TDesktop(BaseObject):
             return True
 
         except OpenTeleException as e:
-            raise TDataSaveFailed("Could not save tdata, something went wrong") from e
+            raise TDataSaveFailed(_native.SAVE_FAILED_MESSAGE) from e
 
     def __useFolder(self, folder: TData) -> None:
         """Holds ``folder`` and hands its local key to every account."""
@@ -322,7 +320,7 @@ class TDesktop(BaseObject):
         holding ``authKey`` as the key of its main DC, at the next index."""
         Expects(
             self.accountsCount < TDesktop.kMaxAccounts,
-            exception=MaxAccountLimit("You can't have more than 6 accounts in one TDesktop client"),
+            exception=MaxAccountLimit(_native.MAX_ACCOUNT_LIMIT_MESSAGE),
         )
         folder = self.__folder
         if folder is None:
@@ -341,9 +339,7 @@ class TDesktop(BaseObject):
             index = folder.add_account(userId, authKey.dcId, authKey.key)
         except CoreError as error:
             if error.code == "MAX_ACCOUNT_LIMIT":
-                raise MaxAccountLimit(
-                    "You can't have more than 6 accounts in one TDesktop client"
-                ) from error
+                raise MaxAccountLimit(_native.MAX_ACCOUNT_LIMIT_MESSAGE) from error
             raise_core_error(error)
 
         account = Account(

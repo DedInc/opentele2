@@ -1,26 +1,71 @@
 //! `TData`, `Account`, `load_many`, the draw plans of the folder writers
 //! and the accounts' MTP configs.
 
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock};
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyModule, PyTuple};
+use serde_json::{Map, Value};
 
 use opentele2_core::Error;
 use opentele2_core::batch::{self, BatchOptions, LoadRequest};
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::tdata::account::Account;
-use opentele2_core::tdata::mtp_config::{
-    self, ConfigFields, Endpoint, Environment, MtpConfig, ProtocolEndpoints,
-};
-use opentele2_core::tdata::{self, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData};
+use opentele2_core::tdata::mtp_config::{self, Environment, MtpConfig};
+use opentele2_core::tdata::{self, DrawOperation, DrawSource, NEW_FOLDER_ACTIVE_INDEX, TData};
 
 use crate::convert::{optional, owned_bytes, to_auth_key, to_bytes, to_passcode};
-use crate::draws::{Draws, to_draws};
-use crate::error::{check, core_error_value};
+use crate::error::{core_error_type, core_error_value};
+use crate::json::from_json;
+
+/// The `CoreError` value of `error`, with its `detail_code` attribute
+/// ([`Error::detail_code`], `None` for most errors).
+fn tdata_error_value<'py>(py: Python<'py>, error: &Error) -> PyResult<Bound<'py, PyAny>> {
+    let value = core_error_value(py, error)?;
+    value.setattr("detail_code", error.detail_code())?;
+    Ok(value)
+}
+
+/// `error` as a raisable `CoreError` carrying its `detail_code`.
+fn tdata_error(py: Python<'_>, error: &Error) -> PyErr {
+    match tdata_error_value(py, error) {
+        Ok(value) => PyErr::from_value(value),
+        Err(failure) => failure,
+    }
+}
+
+/// Maps a core result onto a Python result raising `CoreError` with its
+/// `detail_code`.
+fn check<T>(py: Python<'_>, result: opentele2_core::Result<T>) -> PyResult<T> {
+    result.map_err(|error| tdata_error(py, &error))
+}
+
+/// As [`check`], but a replay that does not match the draws raises
+/// `ValueError` `draws: {reason}`.
+fn check_draws<T>(py: Python<'_>, result: opentele2_core::Result<T>) -> PyResult<T> {
+    result.map_err(|error| match error {
+        Error::InvalidInput {
+            what: "draws",
+            reason,
+        } => PyValueError::new_err(format!("draws: {reason}")),
+        error => tdata_error(py, &error),
+    })
+}
+
+/// A `draws` argument: `None` for the OS random source, or an iterable of
+/// `bytes`/`bytearray` replayed in order.
+fn to_draws(value: Option<&Bound<'_, PyAny>>) -> PyResult<DrawSource> {
+    let Some(value) = value.filter(|value| !value.is_none()) else {
+        return Ok(DrawSource::os());
+    };
+    value
+        .try_iter()?
+        .map(|item| owned_bytes(&item?))
+        .collect::<PyResult<Vec<_>>>()
+        .map(DrawSource::replay)
+}
 
 /// One Telegram Desktop account: its index, user id, main DC and
 /// authorization keys. `repr()` never shows key bytes.
@@ -189,24 +234,15 @@ impl PyTData {
         draws: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let passcode = to_passcode(passcode)?;
-        let draws = Draws::new(to_draws(draws)?);
+        let draws = to_draws(draws)?;
         let accounts: Vec<Account> = accounts
             .into_iter()
             .map(|account| account.get().inner.clone())
             .collect();
-        let (created, replayed) = py.detach(move || {
-            let mut draws = draws;
-            let created = TData::new(accounts, &passcode, performance_mode, &mut |buf| {
-                draws.fill(buf);
-            });
-            (created, draws.finish())
+        let created = py.detach(move || {
+            TData::new_with_draws(accounts, &passcode, performance_mode, active_index, draws)
         });
-        // A failed draw leaves the buffer unspecified, so the folder is
-        // discarded rather than returned with weak keys.
-        replayed.map_err(|failure| failure.into_err(py))?;
-        let mut created = check(py, created)?;
-        created.active_index = active_index;
-        Ok(Self::holding(created))
+        Ok(Self::holding(check_draws(py, created)?))
     }
 
     /// Writes the folder into `path`, with padding from the OS random
@@ -224,23 +260,10 @@ impl PyTData {
         performance_mode: Option<bool>,
         draws: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
-        let draws = Draws::new(to_draws(draws)?);
-        let mut folder = self.folder();
-        if let Some(mode) = performance_mode
-            && mode != folder.performance_mode
-        {
-            Arc::make_mut(&mut folder).performance_mode = mode;
-        }
-        if !draws.is_replay() {
-            return check(py, py.detach(move || folder.save_random(&path)));
-        }
-        let (saved, replayed) = py.detach(move || {
-            let mut draws = draws;
-            let saved = folder.save(&path, &mut |buf| draws.fill(buf));
-            (saved, draws.finish())
-        });
-        replayed.map_err(|failure| failure.into_err(py))?;
-        check(py, saved)
+        let draws = to_draws(draws)?;
+        let folder = self.folder();
+        let saved = py.detach(move || folder.save_with_draws(&path, performance_mode, draws));
+        check_draws(py, saved)
     }
 
     /// Installs 7.3 key data in place of a legacy (pre-7.3) key file, as the
@@ -254,17 +277,13 @@ impl PyTData {
     /// `ValueError` is raised.
     #[pyo3(signature = (draws = None))]
     fn migrate(&self, py: Python<'_>, draws: Option<&Bound<'_, PyAny>>) -> PyResult<bool> {
-        let draws = Draws::new(to_draws(draws)?);
+        let draws = to_draws(draws)?;
         let mut folder = TData::clone(&self.folder());
-        let (folder, migrated, replayed) = py.detach(move || {
-            let mut draws = draws;
-            let migrated = folder.migrate(&mut |buf| draws.fill(buf));
-            (folder, migrated, draws.finish())
+        let (folder, migrated) = py.detach(move || {
+            let migrated = folder.migrate_with_draws(draws);
+            (folder, migrated)
         });
-        // A failed draw leaves the new wrap unspecified, so the folder
-        // stays as it was.
-        replayed.map_err(|failure| failure.into_err(py))?;
-        let migrated = check(py, migrated)?;
+        let migrated = check_draws(py, migrated)?;
         if migrated {
             *self.inner.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
         }
@@ -403,11 +422,11 @@ impl PyTData {
 /// `(path, passcode, key_file)` tuple.
 fn load_request(item: &Bound<'_, PyAny>) -> PyResult<LoadRequest> {
     let Ok(tuple) = item.cast::<PyTuple>() else {
-        return Ok(LoadRequest {
-            dir: item.extract()?,
-            passcode: Vec::new(),
-            key_file: None,
-        });
+        return Ok(LoadRequest::new(
+            item.extract::<PathBuf>()?,
+            Vec::new(),
+            None,
+        ));
     };
     let len = tuple.len();
     if !(1..=3).contains(&len) {
@@ -425,11 +444,11 @@ fn load_request(item: &Bound<'_, PyAny>) -> PyResult<LoadRequest> {
     } else {
         None
     };
-    Ok(LoadRequest {
-        dir: tuple.get_item(0)?.extract()?,
+    Ok(LoadRequest::new(
+        tuple.get_item(0)?.extract::<PathBuf>()?,
         passcode,
         key_file,
-    })
+    ))
 }
 
 /// Loads many folders on a dedicated thread pool and returns, in input
@@ -442,24 +461,23 @@ fn load_many<'py>(
     requests: &Bound<'py, PyAny>,
     threads: Option<usize>,
 ) -> PyResult<Bound<'py, PyList>> {
-    let threads = match threads {
-        None => None,
-        Some(count) => Some(
-            NonZeroUsize::new(count)
-                .ok_or_else(|| PyValueError::new_err("threads must be at least 1"))?,
-        ),
-    };
+    let options = BatchOptions::from_threads(threads).map_err(|error| match error {
+        Error::InvalidInput {
+            what: "threads",
+            reason,
+        } => PyValueError::new_err(reason),
+        error => tdata_error(py, &error),
+    })?;
     let requests = requests
         .try_iter()?
         .map(|item| load_request(&item?))
         .collect::<PyResult<Vec<_>>>()?;
-    let options = BatchOptions { threads };
     let results = py.detach(move || batch::load_many(&requests, &options));
     let out = PyList::empty(py);
     for result in results {
         match result {
             Ok(inner) => out.append(Bound::new(py, PyTData::holding(inner))?)?,
-            Err(error) => out.append(core_error_value(py, &error)?)?,
+            Err(error) => out.append(tdata_error_value(py, &error)?)?,
         }
     }
     Ok(out)
@@ -476,38 +494,47 @@ fn load_many<'py>(
 /// `TDATA_SAVE_FAILED` for a folder without accounts.
 #[pyfunction]
 fn draw_plan(py: Python<'_>, operation: &str, target: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
-    if operation == "new" {
-        let params = target.cast::<PyDict>().map_err(|_| {
-            PyTypeError::new_err(
-                "the \"new\" plan takes a dict of has_passcode and performance_mode",
-            )
-        })?;
-        let has_passcode = optional(params, "has_passcode")?.unwrap_or(false);
-        let performance_mode = optional(params, "performance_mode")?.unwrap_or(true);
-        return check(
-            py,
-            tdata::draw_plan(DrawOperation::New {
-                has_passcode,
-                performance_mode,
-            }),
-        );
-    }
-    if operation != "migrate" && operation != "save" {
-        return Err(PyValueError::new_err(format!(
-            "unknown operation {operation:?}; expected one of new, migrate, save"
-        )));
-    }
+    /// The text 1.5.0-compatible callers see when `"new"` gets no dict.
+    const NEW_TAKES_A_DICT: &str =
+        "the \"new\" plan takes a dict of has_passcode and performance_mode";
     let folder = target
         .cast::<PyTData>()
-        .map_err(|_| PyTypeError::new_err(format!("the {operation:?} plan takes a TData")))?
-        .get()
-        .folder();
-    let plan = if operation == "migrate" {
-        tdata::draw_plan(DrawOperation::Migrate(&folder))
-    } else {
-        tdata::draw_plan(DrawOperation::Save(&folder))
+        .ok()
+        .map(|target| target.get().folder());
+    // `Error::InvalidInput` of `from_name`: an unknown name raises
+    // `ValueError`, a target of the wrong kind `TypeError`.
+    let refused = |error: Error| match error {
+        Error::InvalidInput {
+            what: "operation",
+            reason,
+        } => PyValueError::new_err(reason),
+        // Only "new" refuses a TData.
+        Error::InvalidInput { what: "target", .. } if folder.is_some() => {
+            PyTypeError::new_err(NEW_TAKES_A_DICT)
+        }
+        Error::InvalidInput {
+            what: "target",
+            reason,
+        } => PyTypeError::new_err(reason),
+        error => tdata_error(py, &error),
     };
-    check(py, plan)
+    let named = DrawOperation::from_name(operation, None, None, folder.as_deref());
+    let named = named.map_err(refused)?;
+    let operation = if let DrawOperation::New { .. } = named {
+        let params = target
+            .cast::<PyDict>()
+            .map_err(|_| PyTypeError::new_err(NEW_TAKES_A_DICT))?;
+        DrawOperation::from_name(
+            operation,
+            optional(params, "has_passcode")?,
+            optional(params, "performance_mode")?,
+            None,
+        )
+        .map_err(refused)?
+    } else {
+        named
+    };
+    check(py, tdata::draw_plan(operation))
 }
 
 /// The Telethon string session of `account`: the first production endpoint
@@ -533,83 +560,44 @@ fn mtcute_string_session(py: Python<'_>, account: &Bound<'_, PyAccount>) -> PyRe
     Ok(check(py, session)?.encode())
 }
 
-/// `endpoint` as an `Endpoint` dict.
-fn endpoint_dict<'py>(py: Python<'py>, endpoint: &Endpoint) -> PyResult<Bound<'py, PyDict>> {
-    let dict = PyDict::new(py);
-    dict.set_item("id", endpoint.id)?;
-    dict.set_item("flags", endpoint.flags)?;
-    dict.set_item("ip", &endpoint.ip)?;
-    dict.set_item("port", endpoint.port)?;
-    dict.set_item("secret", to_bytes(py, &endpoint.secret))?;
-    Ok(dict)
-}
+/// The keys whose values the core MTP config maps give as lists of 0 to
+/// 255: an endpoint `secret` and a CDN key's `n` and `e`, Python `bytes`.
+const BYTES_KEYS: [&str; 3] = ["secret", "n", "e"];
 
-/// `endpoints` as a list of `Endpoint` dicts.
-fn endpoint_list<'py>(
-    py: Python<'py>,
-    endpoints: &[Endpoint],
-) -> PyResult<Vec<Bound<'py, PyDict>>> {
-    endpoints
-        .iter()
-        .map(|endpoint| endpoint_dict(py, endpoint))
-        .collect()
-}
-
-/// `family` as a `ProtocolEndpoints` dict.
-fn family_dict<'py>(py: Python<'py>, family: &ProtocolEndpoints) -> PyResult<Bound<'py, PyDict>> {
-    let dict = PyDict::new(py);
-    dict.set_item("tcp", endpoint_list(py, &family.tcp)?)?;
-    dict.set_item("http", endpoint_list(py, &family.http)?)?;
-    Ok(dict)
-}
-
-/// `fields` as an `MtpConfigFields` dict, in serialization order.
-fn fields_dict<'py>(py: Python<'py>, fields: &ConfigFields) -> PyResult<Bound<'py, PyDict>> {
-    let f = fields;
-    let dict = PyDict::new(py);
-    let numbers = [
-        ("chat_size_max", f.chat_size_max),
-        ("megagroup_size_max", f.megagroup_size_max),
-        ("forwarded_count_max", f.forwarded_count_max),
-        ("online_update_period", f.online_update_period),
-        ("offline_blur_timeout", f.offline_blur_timeout),
-        ("offline_idle_timeout", f.offline_idle_timeout),
-        ("online_focus_timeout", f.online_focus_timeout),
-        ("online_cloud_timeout", f.online_cloud_timeout),
-        ("notify_cloud_delay", f.notify_cloud_delay),
-        ("notify_default_delay", f.notify_default_delay),
-        ("saved_gifs_limit", f.saved_gifs_limit),
-        ("edit_time_limit", f.edit_time_limit),
-        ("revoke_time_limit", f.revoke_time_limit),
-        ("revoke_private_time_limit", f.revoke_private_time_limit),
-    ];
-    for (key, value) in numbers {
-        dict.set_item(key, value)?;
+/// `value`, the value of `key` in an MTP config map, as Python: a byte list
+/// under [`BYTES_KEYS`] as `bytes`, maps and lists item by item, the rest
+/// as JSON values.
+fn config_value<'py>(py: Python<'py>, key: &str, value: &Value) -> PyResult<Bound<'py, PyAny>> {
+    match value {
+        Value::Array(items) if BYTES_KEYS.contains(&key) => {
+            let bytes = items
+                .iter()
+                .map(|item| {
+                    item.as_u64()
+                        .and_then(|byte| u8::try_from(byte).ok())
+                        .ok_or_else(|| PyValueError::new_err(format!("{key} is not a byte list")))
+                })
+                .collect::<PyResult<Vec<u8>>>()?;
+            Ok(to_bytes(py, &bytes).into_any())
+        }
+        Value::Array(items) => {
+            let list = PyList::empty(py);
+            for item in items {
+                list.append(config_value(py, key, item)?)?;
+            }
+            Ok(list.into_any())
+        }
+        Value::Object(map) => Ok(config_dict(py, map)?.into_any()),
+        value => from_json(py, value),
     }
-    dict.set_item("revoke_private_inbox", f.revoke_private_inbox)?;
-    dict.set_item("stickers_recent_limit", f.stickers_recent_limit)?;
-    dict.set_item("stickers_faved_limit", f.stickers_faved_limit)?;
-    dict.set_item("pinned_dialogs_count_max", f.pinned_dialogs_count_max)?;
-    dict.set_item(
-        "pinned_dialogs_in_folder_max",
-        f.pinned_dialogs_in_folder_max,
-    )?;
-    dict.set_item("internal_links_domain", &f.internal_links_domain)?;
-    dict.set_item("channels_read_media_period", f.channels_read_media_period)?;
-    dict.set_item("call_receive_timeout_ms", f.call_receive_timeout_ms)?;
-    dict.set_item("call_ring_timeout_ms", f.call_ring_timeout_ms)?;
-    dict.set_item("call_connect_timeout_ms", f.call_connect_timeout_ms)?;
-    dict.set_item("call_packet_timeout_ms", f.call_packet_timeout_ms)?;
-    dict.set_item("web_file_dc_id", f.web_file_dc_id)?;
-    dict.set_item("txt_domain_string", &f.txt_domain_string)?;
-    dict.set_item("phone_calls_enabled", f.phone_calls_enabled)?;
-    dict.set_item("blocked_mode", f.blocked_mode)?;
-    dict.set_item("caption_length_max", f.caption_length_max)?;
-    dict.set_item("reaction_default_emoji", &f.reaction_default_emoji)?;
-    dict.set_item("reaction_default_custom", f.reaction_default_custom)?;
-    dict.set_item("rating_decay", f.rating_decay)?;
-    dict.set_item("gif_search_username", &f.gif_search_username)?;
-    dict.set_item("venue_search_username", &f.venue_search_username)?;
+}
+
+/// An MTP config map of the core as a dict, keys in its order.
+fn config_dict<'py>(py: Python<'py>, map: &Map<String, Value>) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (key, value) in map {
+        dict.set_item(key, config_value(py, key, value)?)?;
+    }
     Ok(dict)
 }
 
@@ -632,39 +620,7 @@ fn account_mtp_config<'py>(
     py: Python<'py>,
     account: Option<&Bound<'py, PyAccount>>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let config = config_of(account);
-    let environment = match config.environment {
-        Environment::Production => "production",
-        Environment::Test => "test",
-    };
-    let dcs = config
-        .dc_options
-        .dcs()
-        .map(|(dc_id, endpoints)| {
-            let dc = PyDict::new(py);
-            dc.set_item("dc_id", dc_id)?;
-            dc.set_item("endpoints", endpoint_list(py, endpoints)?)?;
-            Ok(dc)
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let cdn_public_keys = config
-        .dc_options
-        .cdn_public_keys
-        .iter()
-        .map(|key| {
-            let dict = PyDict::new(py);
-            dict.set_item("dc_id", key.dc_id)?;
-            dict.set_item("n", to_bytes(py, &key.n))?;
-            dict.set_item("e", to_bytes(py, &key.e))?;
-            Ok(dict)
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    let dict = PyDict::new(py);
-    dict.set_item("environment", environment)?;
-    dict.set_item("dcs", dcs)?;
-    dict.set_item("cdn_public_keys", cdn_public_keys)?;
-    dict.set_item("fields", fields_dict(py, &config.fields)?)?;
-    Ok(dict)
+    config_dict(py, &config_of(account).to_map())
 }
 
 /// The endpoints of DC `dc_id` (default the main DC) in the MTP config of
@@ -680,25 +636,22 @@ fn account_endpoints<'py>(
     dc_id: Option<i32>,
 ) -> PyResult<Option<Bound<'py, PyDict>>> {
     let main_dc = account.map_or(0, |account| account.get().inner.main_dc);
-    let Some(endpoints) = config_of(account).endpoints(dc_id.unwrap_or(main_dc)) else {
-        return Ok(None);
-    };
-    let selected = |ipv6| {
-        endpoints
-            .select(ipv6)
-            .map(|endpoint| endpoint_dict(py, endpoint))
-            .transpose()
-    };
-    let dict = PyDict::new(py);
-    dict.set_item("ipv4", family_dict(py, &endpoints.ipv4)?)?;
-    dict.set_item("ipv6", family_dict(py, &endpoints.ipv6)?)?;
-    dict.set_item("selected_ipv4", selected(false)?)?;
-    dict.set_item("selected_ipv6", selected(true)?)?;
-    Ok(Some(dict))
+    config_of(account)
+        .endpoints(dc_id.unwrap_or(main_dc))
+        .map(|endpoints| config_dict(py, &endpoints.to_map()))
+        .transpose()
 }
 
 /// Adds the tdata classes and functions to `module`.
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Every `CoreError` has a `detail_code`; the tdata errors set their own.
+    core_error_type(module.py())?.setattr("detail_code", module.py().None())?;
+    // The 1.5.0 texts the Python layer raises without a `CoreError`.
+    module.add("SAVE_FAILED_MESSAGE", Error::SaveFailed.legacy_message())?;
+    module.add(
+        "MAX_ACCOUNT_LIMIT_MESSAGE",
+        Error::MaxAccountLimit.legacy_message(),
+    )?;
     module.add_class::<PyAccount>()?;
     module.add_class::<PyTData>()?;
     module.add_function(wrap_pyfunction!(load_many, module)?)?;
