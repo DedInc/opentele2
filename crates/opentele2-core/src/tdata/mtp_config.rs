@@ -23,6 +23,15 @@
 //! Reads mirror 1.5.0's `QDataStream`: a read past the end yields zero or
 //! empty values and fails the stream, which is checked where 1.5.0 checks it,
 //! so a cut-short config fails with the same error as in 1.5.0.
+//!
+//! Every type converts to a JSON object map keyed by the `snake_case` field
+//! names the Python binding exposes (`to_map`), and the owned types back
+//! (`from_map`): integers and booleans as JSON numbers and booleans, text as
+//! JSON strings, bytes as lists of integers from 0 to 255, and the
+//! environment as [`Environment::name`]. `from_map` requires every key and
+//! rejects unknown keys and wrong types with [`Error::InvalidInput`].
+
+use serde_json::{Map, Value};
 
 use crate::qt::{NULL_LENGTH, QWriter};
 use crate::{ConfigFailure, Error, Result};
@@ -127,6 +136,26 @@ impl Environment {
         match code {
             0 => Some(Self::Production),
             1 => Some(Self::Test),
+            _ => None,
+        }
+    }
+
+    /// The name the bindings expose: `"production"` or `"test"`.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::Test => "test",
+        }
+    }
+
+    /// The environment named `name` ([`Environment::name`], exact case);
+    /// `None` for any other text.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "production" => Some(Self::Production),
+            "test" => Some(Self::Test),
             _ => None,
         }
     }
@@ -791,4 +820,486 @@ impl MtpConfig {
         }
         Some(result)
     }
+
+    /// Every key of [`MtpConfig::to_map`], in map order.
+    pub const MAP_KEYS: &'static [&'static str] =
+        &["environment", "dcs", "cdn_public_keys", "fields"];
+
+    /// The config as the Python binding's `account_mtp_config` dict:
+    /// `environment` ([`Environment::name`]), `dcs` and `cdn_public_keys`
+    /// as in [`DcOptions::to_map`], and `fields` ([`ConfigFields::to_map`]).
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("environment".to_owned(), self.environment.name().into());
+        map.extend(self.dc_options.to_map());
+        map.insert("fields".to_owned(), self.fields.to_map().into());
+        map
+    }
+
+    /// The config [`MtpConfig::to_map`] gives `map`.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`] naming the key: `what` is a missing key, one
+    /// with a value of the wrong type, or one whose value breaks a
+    /// [`DcOptions`] invariant (as [`DcOptions::from_map`]); for a key not in
+    /// [`MtpConfig::MAP_KEYS`] (or a nested map's keys) `what` is the key of
+    /// the map holding it (`"config"` at the top) and the reason names the
+    /// unknown key. Nested failures give their path in the reason.
+    pub fn from_map(map: &Map<String, Value>) -> Result<Self> {
+        let reader = MapReader::new(map, String::new(), "config", Self::MAP_KEYS)?;
+        let environment = match reader.value("environment")? {
+            Value::String(name) => Environment::from_name(name),
+            _ => None,
+        }
+        .ok_or_else(|| {
+            invalid(
+                "environment",
+                &reader.path,
+                "expected \"production\" or \"test\"".to_owned(),
+            )
+        })?;
+        let fields = reader.child("fields");
+        Ok(Self {
+            environment,
+            dc_options: DcOptions::read_map(&reader)?,
+            fields: ConfigFields::read_map(reader.object("fields")?, fields, "fields")?,
+        })
+    }
+}
+
+/// A value of one key of the `to_map` shapes.
+trait MapValue: Sized {
+    /// What `from_value` accepts, for the error reason.
+    const EXPECTED: &'static str;
+
+    fn to_value(&self) -> Value;
+
+    fn from_value(value: &Value) -> Option<Self>;
+}
+
+impl MapValue for i32 {
+    const EXPECTED: &'static str = "an integer from -2147483648 to 2147483647";
+
+    fn to_value(&self) -> Value {
+        Value::from(*self)
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        value.as_i64().and_then(|n| Self::try_from(n).ok())
+    }
+}
+
+impl MapValue for u64 {
+    const EXPECTED: &'static str = "an integer from 0 to 18446744073709551615";
+
+    fn to_value(&self) -> Value {
+        Value::from(*self)
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        value.as_u64()
+    }
+}
+
+impl MapValue for bool {
+    const EXPECTED: &'static str = "a boolean";
+
+    fn to_value(&self) -> Value {
+        Value::Bool(*self)
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        value.as_bool()
+    }
+}
+
+impl MapValue for String {
+    const EXPECTED: &'static str = "a string";
+
+    fn to_value(&self) -> Value {
+        Value::String(self.clone())
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        value.as_str().map(str::to_owned)
+    }
+}
+
+impl MapValue for Vec<u8> {
+    const EXPECTED: &'static str = "a list of integers from 0 to 255";
+
+    fn to_value(&self) -> Value {
+        Value::Array(self.iter().map(|&byte| Value::from(byte)).collect())
+    }
+
+    fn from_value(value: &Value) -> Option<Self> {
+        value
+            .as_array()?
+            .iter()
+            .map(|item| item.as_u64().and_then(|n| u8::try_from(n).ok()))
+            .collect()
+    }
+}
+
+/// The [`Error::InvalidInput`] of key `what`, `path` locating the map that
+/// holds it (empty for the top map).
+fn invalid(what: &'static str, path: &str, reason: String) -> Error {
+    let reason = if path.is_empty() {
+        reason
+    } else {
+        format!("{reason} (at {path})")
+    };
+    Error::InvalidInput { what, reason }
+}
+
+/// Typed access to one map of a `to_map` shape, whose keys were checked.
+struct MapReader<'a> {
+    map: &'a Map<String, Value>,
+    /// Where the map sits in the top map, as `dcs[0].endpoints[1]`.
+    path: String,
+}
+
+impl<'a> MapReader<'a> {
+    /// A reader of `map`, failing on its first key outside `keys`; `what`
+    /// is the key holding `map`.
+    fn new(
+        map: &'a Map<String, Value>,
+        path: String,
+        what: &'static str,
+        keys: &[&str],
+    ) -> Result<Self> {
+        if let Some(key) = map.keys().find(|key| !keys.contains(&key.as_str())) {
+            return Err(invalid(what, &path, format!("unknown key `{key}`")));
+        }
+        Ok(Self { map, path })
+    }
+
+    /// The path of the value at `key`.
+    fn child(&self, key: &str) -> String {
+        if self.path.is_empty() {
+            key.to_owned()
+        } else {
+            format!("{}.{key}", self.path)
+        }
+    }
+
+    fn value(&self, key: &'static str) -> Result<&'a Value> {
+        self.map
+            .get(key)
+            .ok_or_else(|| invalid(key, &self.path, "missing".to_owned()))
+    }
+
+    fn get<T: MapValue>(&self, key: &'static str) -> Result<T> {
+        T::from_value(self.value(key)?)
+            .ok_or_else(|| invalid(key, &self.path, format!("expected {}", T::EXPECTED)))
+    }
+
+    fn object(&self, key: &'static str) -> Result<&'a Map<String, Value>> {
+        self.value(key)?
+            .as_object()
+            .ok_or_else(|| invalid(key, &self.path, "expected an object".to_owned()))
+    }
+
+    /// The list at `key` read item by item with `read`, which gets each item
+    /// as an object and its path.
+    fn objects<T>(
+        &self,
+        key: &'static str,
+        read: impl Fn(&'a Map<String, Value>, String) -> Result<T>,
+    ) -> Result<Vec<T>> {
+        let items = self
+            .value(key)?
+            .as_array()
+            .ok_or_else(|| invalid(key, &self.path, "expected a list".to_owned()))?;
+        let list = self.child(key);
+        items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let path = format!("{list}[{index}]");
+                let map = item
+                    .as_object()
+                    .ok_or_else(|| invalid(key, &path, "expected an object".to_owned()))?;
+                read(map, path)
+            })
+            .collect()
+    }
+}
+
+/// `endpoints` as a list of [`Endpoint::to_map`] objects.
+fn endpoint_values(endpoints: &[Endpoint]) -> Value {
+    endpoints
+        .iter()
+        .map(|endpoint| Value::Object(endpoint.to_map()))
+        .collect()
+}
+
+impl Endpoint {
+    /// Every key of [`Endpoint::to_map`], in map order.
+    pub const MAP_KEYS: &'static [&'static str] = &["id", "flags", "ip", "port", "secret"];
+
+    /// The endpoint as the Python binding's `Endpoint` dict.
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("id".to_owned(), self.id.to_value());
+        map.insert("flags".to_owned(), self.flags.to_value());
+        map.insert("ip".to_owned(), self.ip.to_value());
+        map.insert("port".to_owned(), self.port.to_value());
+        map.insert("secret".to_owned(), self.secret.to_value());
+        map
+    }
+
+    /// The endpoint [`Endpoint::to_map`] gives `map`.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`] as [`MtpConfig::from_map`], `"endpoint"`
+    /// standing for the map itself.
+    pub fn from_map(map: &Map<String, Value>) -> Result<Self> {
+        Self::read_map(map, String::new(), "endpoint")
+    }
+
+    fn read_map(map: &Map<String, Value>, path: String, what: &'static str) -> Result<Self> {
+        let reader = MapReader::new(map, path, what, Self::MAP_KEYS)?;
+        Ok(Self {
+            id: reader.get("id")?,
+            flags: reader.get("flags")?,
+            ip: reader.get("ip")?,
+            port: reader.get("port")?,
+            secret: reader.get("secret")?,
+        })
+    }
+}
+
+impl RsaPublicKey {
+    /// Every key of [`RsaPublicKey::to_map`], in map order.
+    pub const MAP_KEYS: &'static [&'static str] = &["dc_id", "n", "e"];
+
+    /// The key as one of the Python binding's `cdn_public_keys` dicts.
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("dc_id".to_owned(), self.dc_id.to_value());
+        map.insert("n".to_owned(), self.n.to_value());
+        map.insert("e".to_owned(), self.e.to_value());
+        map
+    }
+
+    /// The key [`RsaPublicKey::to_map`] gives `map`.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`] as [`MtpConfig::from_map`], `"cdn_public_key"`
+    /// standing for the map itself.
+    pub fn from_map(map: &Map<String, Value>) -> Result<Self> {
+        Self::read_map(map, String::new(), "cdn_public_key")
+    }
+
+    fn read_map(map: &Map<String, Value>, path: String, what: &'static str) -> Result<Self> {
+        let reader = MapReader::new(map, path, what, Self::MAP_KEYS)?;
+        Ok(Self {
+            dc_id: reader.get("dc_id")?,
+            n: reader.get("n")?,
+            e: reader.get("e")?,
+        })
+    }
+}
+
+impl DcOptions {
+    /// Every key of [`DcOptions::to_map`], in map order.
+    pub const MAP_KEYS: &'static [&'static str] = &["dcs", "cdn_public_keys"];
+
+    /// The options as the `dcs` and `cdn_public_keys` of the Python
+    /// binding's `account_mtp_config` dict: `dcs` lists every DC, in
+    /// first-seen order, as `dc_id` and its `endpoints`
+    /// ([`Endpoint::to_map`]); `cdn_public_keys` lists
+    /// [`RsaPublicKey::to_map`] objects in file order.
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let dcs: Value = self
+            .dcs()
+            .map(|(dc_id, endpoints)| {
+                let mut dc = Map::new();
+                dc.insert("dc_id".to_owned(), dc_id.to_value());
+                dc.insert("endpoints".to_owned(), endpoint_values(endpoints));
+                Value::Object(dc)
+            })
+            .collect();
+        let keys: Value = self
+            .cdn_public_keys
+            .iter()
+            .map(|key| Value::Object(key.to_map()))
+            .collect();
+        let mut map = Map::new();
+        map.insert("dcs".to_owned(), dcs);
+        map.insert("cdn_public_keys".to_owned(), keys);
+        map
+    }
+
+    /// The options [`DcOptions::to_map`] gives `map`, kept in its order.
+    ///
+    /// # Errors
+    /// [`Error::InvalidInput`] as [`MtpConfig::from_map`] (`"dc_options"`
+    /// standing for the map itself), and for what [`DcOptions::add`] never
+    /// builds: a `dc_id` listed twice, an endpoint `id` other than its
+    /// `dc_id`, or two `endpoints` of one DC with the same IP and port.
+    pub fn from_map(map: &Map<String, Value>) -> Result<Self> {
+        let reader = MapReader::new(map, String::new(), "dc_options", Self::MAP_KEYS)?;
+        Self::read_map(&reader)
+    }
+
+    /// Reads `dcs` and `cdn_public_keys` of `reader`, whose keys were
+    /// checked by the caller.
+    fn read_map(reader: &MapReader<'_>) -> Result<Self> {
+        let dcs = reader.objects("dcs", |map, path| {
+            let dc = MapReader::new(map, path, "dcs", &["dc_id", "endpoints"])?;
+            let dc_id: i32 = dc.get("dc_id")?;
+            let endpoints = dc.objects("endpoints", |map, path| {
+                let endpoint = Endpoint::read_map(map, path.clone(), "endpoints")?;
+                if endpoint.id != dc_id {
+                    return Err(invalid(
+                        "id",
+                        &path,
+                        format!("endpoint of DC {} listed under DC {dc_id}", endpoint.id),
+                    ));
+                }
+                Ok(endpoint)
+            })?;
+            for (index, endpoint) in endpoints.iter().enumerate() {
+                let earlier = &endpoints[..index];
+                if earlier
+                    .iter()
+                    .any(|e| e.ip == endpoint.ip && e.port == endpoint.port)
+                {
+                    return Err(invalid(
+                        "endpoints",
+                        &dc.path,
+                        format!("{}:{} listed twice", endpoint.ip, endpoint.port),
+                    ));
+                }
+            }
+            Ok((dc_id, endpoints, dc.path))
+        })?;
+        let mut options = Self::default();
+        for (dc_id, endpoints, path) in dcs {
+            if options.dc(dc_id).is_some() {
+                return Err(invalid("dc_id", &path, format!("DC {dc_id} listed twice")));
+            }
+            options.dcs.push((dc_id, endpoints));
+        }
+        options.cdn_public_keys = reader.objects("cdn_public_keys", |map, path| {
+            RsaPublicKey::read_map(map, path, "cdn_public_keys")
+        })?;
+        Ok(options)
+    }
+}
+
+impl ProtocolEndpoints {
+    /// The family as the Python binding's `ProtocolEndpoints` dict: `tcp`
+    /// and `http`, each a list of [`Endpoint::to_map`] objects.
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let mut map = Map::new();
+        map.insert("tcp".to_owned(), endpoint_values(&self.tcp));
+        map.insert("http".to_owned(), endpoint_values(&self.http));
+        map
+    }
+}
+
+impl Endpoints {
+    /// The endpoints as the Python binding's `account_endpoints` dict:
+    /// `ipv4` and `ipv6` ([`ProtocolEndpoints::to_map`]), then
+    /// `selected_ipv4` and `selected_ipv6`, the [`Endpoints::select`] result
+    /// as an [`Endpoint::to_map`] object or `null`.
+    #[must_use]
+    pub fn to_map(&self) -> Map<String, Value> {
+        let selected = |ipv6| {
+            self.select(ipv6)
+                .map_or(Value::Null, |endpoint| Value::Object(endpoint.to_map()))
+        };
+        let mut map = Map::new();
+        map.insert("ipv4".to_owned(), self.ipv4.to_map().into());
+        map.insert("ipv6".to_owned(), self.ipv6.to_map().into());
+        map.insert("selected_ipv4".to_owned(), selected(false));
+        map.insert("selected_ipv6".to_owned(), selected(true));
+        map
+    }
+}
+
+/// Declares the map conversions of [`ConfigFields`] from one field list, so
+/// [`ConfigFields::MAP_KEYS`], `to_map` and `from_map` never drift apart.
+macro_rules! config_fields_map {
+    ($($field:ident,)*) => {
+        impl ConfigFields {
+            /// Every key of [`ConfigFields::to_map`], in serialization order.
+            pub const MAP_KEYS: &'static [&'static str] = &[$(stringify!($field)),*];
+
+            /// The fields as the Python binding's `MtpConfigFields` dict, in
+            /// serialization order.
+            #[must_use]
+            pub fn to_map(&self) -> Map<String, Value> {
+                let mut map = Map::new();
+                $(map.insert(stringify!($field).to_owned(), self.$field.to_value());)*
+                map
+            }
+
+            /// The fields [`ConfigFields::to_map`] gives `map`.
+            ///
+            /// # Errors
+            /// [`Error::InvalidInput`] as [`MtpConfig::from_map`], `"fields"`
+            /// standing for the map itself.
+            pub fn from_map(map: &Map<String, Value>) -> Result<Self> {
+                Self::read_map(map, String::new(), "fields")
+            }
+
+            fn read_map(
+                map: &Map<String, Value>,
+                path: String,
+                what: &'static str,
+            ) -> Result<Self> {
+                let reader = MapReader::new(map, path, what, Self::MAP_KEYS)?;
+                Ok(Self {
+                    $($field: reader.get(stringify!($field))?,)*
+                })
+            }
+        }
+    };
+}
+
+config_fields_map! {
+    chat_size_max,
+    megagroup_size_max,
+    forwarded_count_max,
+    online_update_period,
+    offline_blur_timeout,
+    offline_idle_timeout,
+    online_focus_timeout,
+    online_cloud_timeout,
+    notify_cloud_delay,
+    notify_default_delay,
+    saved_gifs_limit,
+    edit_time_limit,
+    revoke_time_limit,
+    revoke_private_time_limit,
+    revoke_private_inbox,
+    stickers_recent_limit,
+    stickers_faved_limit,
+    pinned_dialogs_count_max,
+    pinned_dialogs_in_folder_max,
+    internal_links_domain,
+    channels_read_media_period,
+    call_receive_timeout_ms,
+    call_ring_timeout_ms,
+    call_connect_timeout_ms,
+    call_packet_timeout_ms,
+    web_file_dc_id,
+    txt_domain_string,
+    phone_calls_enabled,
+    blocked_mode,
+    caption_length_max,
+    reaction_default_emoji,
+    reaction_default_custom,
+    rating_decay,
+    gif_search_username,
+    venue_search_username,
 }
