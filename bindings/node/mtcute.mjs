@@ -95,10 +95,10 @@ async function importPeer(specifier, caller, pkg) {
 //
 // Gaps against 1.5.0, as in the grammers flows:
 // - `qrLoginToNewClient` takes a client the caller built (its storage, its
-//   initConnection). An already authorised one with another api_id is
-//   logged out (`logOut()`, or `auth.logOut` and `notifyLoggedOut()`) and
-//   logged in again on the same client, where 1.5.0 deletes its session
-//   file and builds a new client.
+//   initConnection). An already authorised one with another api_id has
+//   its session discarded locally (`disconnect()` and `storage.clear(true)`,
+//   nothing sent to Telegram) and is logged in again on the same client,
+//   where 1.5.0 deletes its session file and builds a new client.
 // - Without an `onServerUpdate` emitter on the new client, the QR login
 //   exports the token again as soon as `auth.acceptLoginToken` returns
 //   instead of waiting for `updateLoginToken`.
@@ -347,16 +347,24 @@ async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl
   throw flowError('TimeoutError', 'OT_QR_LOGIN_TIMEOUT', QR_LOGIN_TIMEOUT)
 }
 
-/** Drops the session `fresh` holds: mtcute `logOut()`, or `auth.logOut` and `notifyLoggedOut()`. */
+/**
+ * Discards the session `fresh` holds on this side only, as 1.5.0 deletes
+ * the session file: `disconnect()` closes its connections and
+ * `storage.clear(true)` deletes its auth keys, self user, update state and
+ * peers, so the next call reconnects with a new, unauthorised auth key.
+ * Nothing is sent to Telegram and the old authorization stays on the
+ * server. mtcute's log-out method would terminate it, and
+ * `notifyLoggedOut()` sends `destroy_auth_key` on every other connected
+ * DC, so neither is used.
+ */
 async function dropSession(fresh) {
-  if (typeof fresh.logOut === 'function') {
-    await fresh.logOut()
-    return
+  if (typeof fresh.disconnect !== 'function' || typeof fresh.storage?.clear !== 'function') {
+    throw new TypeError(
+      'qrLoginToNewClient needs disconnect() and storage.clear() on the new client to replace a session of another api id',
+    )
   }
-  await fresh.call({ _: 'auth.logOut' })
-  if (typeof fresh.notifyLoggedOut === 'function') {
-    await fresh.notifyLoggedOut()
-  }
+  await fresh.disconnect()
+  await fresh.storage.clear(true)
 }
 
 /**
@@ -394,8 +402,9 @@ async function alignDc(authorized, fresh) {
  *
  * 1. `fresh` moves to the DC of `authorized`. When `fresh` is already
  *    authorised with the same api id, it is returned as is
- *    (`EXISTING_SESSION_KEPT` warning); with another api id, it is logged
- *    out and logged in again (`EXISTING_SESSION_REPLACED` warning).
+ *    (`EXISTING_SESSION_KEPT` warning); with another api id, its session
+ *    is discarded locally, without logging out on the server, and it is
+ *    aligned and logged in again (`EXISTING_SESSION_REPLACED` warning).
  * 2. Up to `QR_LOGIN_ATTEMPTS` attempts of `auth.exportLoginToken` on
  *    `fresh` (a `loginTokenMigrateTo` is followed by `changePrimaryDc` and
  *    `auth.importLoginToken`), `auth.acceptLoginToken` on `authorized`, the
@@ -423,6 +432,8 @@ export async function qrLoginToNewClient(authorized, fresh, options = {}) {
     if (kept !== null) {
       return { client: fresh, userId: kept }
     }
+    // The cleared storage held the aligned DC; the reconnect may land elsewhere.
+    await alignDc(authorized, fresh)
   }
   const userId = await performQrLogin(authorized, fresh, apiId, apiHash, password, options.onUrl)
   if (options.postLogin !== false) {

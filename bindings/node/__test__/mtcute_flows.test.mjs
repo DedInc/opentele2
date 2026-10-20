@@ -500,17 +500,36 @@ test('qrLoginToNewClient keeps a session of the same api id and replaces one of 
   assert.equal(warnings[0].message, core.EXISTING_SESSION_KEPT)
   assert.deepEqual(log, ['fresh updates.getState', 'fresh account.getAuthorizations', 'fresh getMe'])
 
-  // Another api id: 1.5.0 warns, drops the session and logs in again.
+  // Another api id: 1.5.0 warns, discards the local session file and logs
+  // in again; the old authorization is never logged out on the server.
+  // The fake answers auth.logOut and has logOut() so that a log-out would
+  // show up in the log instead of failing as an unexpected request.
   log = []
-  fresh = new FakeClient('fresh', log, {
-    'updates.getState': { _: 'updates.state' },
-    'account.getAuthorizations': sessions(6),
-    'auth.logOut': { _: 'auth.loggedOut' },
-    'auth.exportLoginToken': success(784),
-    ...POST_LOGIN_ANSWERS,
-  })
+  fresh = new FakeClient(
+    'fresh',
+    log,
+    {
+      'updates.getState': { _: 'updates.state' },
+      'account.getAuthorizations': sessions(6),
+      'auth.logOut': { _: 'auth.loggedOut' },
+      'auth.exportLoginToken': success(784),
+      ...POST_LOGIN_ANSWERS,
+    },
+    { dc: 2 },
+  )
+  fresh.logOut = async () => {
+    log.push('fresh logOut')
+  }
+  fresh.disconnect = async () => {
+    log.push('fresh disconnect')
+  }
+  fresh.storage = {
+    clear: async (withAuthKeys) => {
+      log.push(`fresh storage.clear ${withAuthKeys}`)
+    },
+  }
   const replaced = await withWarnings(() =>
-    qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP, delay: noDelay }),
+    qrLoginToNewClient(new FakeClient('authorized', log, {}, { dc: 4 }), fresh, { profile: DESKTOP, delay: noDelay }),
   )
   assert.equal(replaced.error, undefined)
   assert.deepEqual(replaced.value, { client: fresh, userId: 784 })
@@ -519,37 +538,36 @@ test('qrLoginToNewClient keeps a session of the same api id and replaces one of 
     [['UserWarning', core.EXISTING_SESSION_REPLACED]],
   )
   assert.match(core.EXISTING_SESSION_REPLACED, /api_id is different from the current one, it will be overwritten$/)
+  assert.ok(!log.includes('fresh logOut'), 'logOut() was called')
+  assert.ok(!fresh.requests.some((request) => request._ === 'auth.logOut'), 'auth.logOut was sent')
   assert.deepEqual(log, [
+    'authorized getPrimaryDcId',
+    'fresh getPrimaryDcId',
+    'fresh changePrimaryDc 4',
     'fresh updates.getState',
     'fresh account.getAuthorizations',
-    'fresh auth.logOut',
-    'fresh notifyLoggedOut',
+    'fresh disconnect',
+    'fresh storage.clear true',
+    // The cleared storage held DC 4; the realignment finds the client there.
+    'authorized getPrimaryDcId',
+    'fresh getPrimaryDcId',
     'fresh auth.exportLoginToken',
     'fresh notifyLoggedIn 784',
     ...POST_LOGIN_SEQUENCE.map((method) => `fresh ${method}`),
   ])
 
-  // An mtcute client logs out through its own logOut().
+  // Without disconnect() and storage.clear() the session cannot be
+  // discarded locally, and it is not logged out instead.
   log = []
   fresh = new FakeClient('fresh', log, {
     'updates.getState': { _: 'updates.state' },
     'account.getAuthorizations': sessions(6),
-    'auth.exportLoginToken': success(785),
+    'auth.logOut': { _: 'auth.loggedOut' },
   })
-  fresh.logOut = async () => {
-    log.push('fresh logOut')
-  }
-  const own = await withWarnings(() =>
-    qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP, postLogin: false }),
-  )
-  assert.equal(own.value.userId, 785)
-  assert.deepEqual(log, [
-    'fresh updates.getState',
-    'fresh account.getAuthorizations',
-    'fresh logOut',
-    'fresh auth.exportLoginToken',
-    'fresh notifyLoggedIn 785',
-  ])
+  const bare = await withWarnings(() => qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP }))
+  assert.ok(bare.error instanceof TypeError, String(bare.error))
+  assert.match(bare.error.message, /disconnect\(\) and storage\.clear\(\)/)
+  assert.deepEqual(log, ['fresh updates.getState', 'fresh account.getAuthorizations'])
 })
 
 test('postLoginRequests ignores failures and counts them', async () => {

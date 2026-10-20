@@ -56,12 +56,15 @@ export interface FlowClient {
   /** The mtcute v3 string session; required by `tdataFromClient`. */
   exportSession?(): Promise<string>
   /**
-   * mtcute's `logOut`: drops a session of another api id before the QR
-   * login logs in again; without it, `auth.logOut` then `notifyLoggedOut`.
+   * Closes the connections; with `storage.clear`, required to discard a
+   * session of another api id before the QR login logs in again.
    */
-  logOut?(): Promise<unknown>
-  /** Told about the `auth.logOut` the flows send when there is no `logOut`. */
-  notifyLoggedOut?(): Promise<unknown>
+  disconnect?(): Promise<unknown>
+  /**
+   * mtcute's storage; `clear(true)` deletes the auth keys, self user and
+   * update state of a discarded session. Nothing is sent to Telegram.
+   */
+  storage?: { clear(withAuthKeys?: boolean): Promise<unknown> }
   /** Server updates; the QR login waits on it for `updateLoginToken`. */
   onServerUpdate?: {
     add(listener: (update: tl.TypeUpdates) => void): void
@@ -127,9 +130,11 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
  *
  * An already authorised `fresh` of the same api id is returned as is with
  * the `EXISTING_SESSION_KEPT` warning. One of another api id warns
- * `EXISTING_SESSION_REPLACED`, is logged out (`fresh.logOut()`, or
- * `auth.logOut` and `notifyLoggedOut()`) and logged in again, as 1.5.0
- * replaces it; it no longer rejects with `OT_SESSION_EXISTS`. Each
+ * `EXISTING_SESSION_REPLACED`, has its session discarded locally
+ * (`fresh.disconnect()` and `fresh.storage.clear(true)`; the old
+ * authorization is not terminated on the server) and is logged in again,
+ * as 1.5.0 deletes the session file; without those two members it rejects
+ * with a `TypeError`. It no longer rejects with `OT_SESSION_EXISTS`. Each
  * timed-out attempt warns `qrAttemptTimeoutWarning(n)` (the 1.5.0 text,
  * `... failed because <class 'TimeoutError'>`) and
  * `qrAttemptRetryWarning(n)`.
