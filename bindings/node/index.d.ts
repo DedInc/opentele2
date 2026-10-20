@@ -10,6 +10,22 @@
 export declare const __napiBindingTarget: 'native' | 'wasm32-wasi' | 'wasm32-wasip1'
 
 /**
+ * An AES-256-CTR keystream (OpenSSL `aes-256-ctr`: the 16-byte IV is a
+ * 128-bit big-endian counter). The keystream continues across `process`
+ * calls, so data processed in pieces gives the same bytes as in one call;
+ * encryption and decryption are the same operation.
+ */
+export declare class AesCtr {
+  /**
+   * Starts a keystream under the 32-byte `key` at the 16-byte counter
+   * `iv`; other lengths throw `OT_BAD_LENGTH`.
+   */
+  constructor(key: Uint8Array, iv: Uint8Array)
+  /** XORs the next `data.length` keystream bytes into a copy of `data`. */
+  process(data: Uint8Array): Buffer
+}
+
+/**
  * A Telegram Desktop `tdata` folder, loaded from disk or created for
  * writing. Its keys stay in Rust; `accounts`, `localKey` and `passcodeKey`
  * copy key bytes out into new buffers.
@@ -395,6 +411,13 @@ export interface Endpoints {
 }
 
 /**
+ * The factors `[p, q]` of the `MTProto` `pq`, `p <= q`, as minimal
+ * big-endian bytes. `pq` is 1 to 8 big-endian bytes, otherwise throws
+ * `OT_BAD_LENGTH`; 0, 1 or a prime throws `OT_INVALID_INPUT`.
+ */
+export declare function factorizePq(pq: Uint8Array): [Buffer, Buffer]
+
+/**
  * Fetches the current versions from the seven release feeds of 1.5.0
  * `version_fetcher.py` (Telegram Desktop, Android, Telegram X, iOS, macOS,
  * Web K, Web A) in parallel. `timeoutMs` bounds each HTTP request, 10000
@@ -496,8 +519,26 @@ export declare function getConfigDetail(thisDc?: number | undefined | null): str
 /** The `get_config` detail when the request fails with `error`. */
 export declare function getConfigError(error: string): string
 
+/**
+ * Decompresses one gzip member; data that is not a whole, intact gzip
+ * stream throws `OT_IO`.
+ */
+export declare function gunzip(data: Uint8Array): Buffer
+
+/**
+ * `data` gzipped at the default level, or `null` when the output would be
+ * longer than `maxSize` bytes; without `maxSize` there is no limit.
+ */
+export declare function gzip(data: Uint8Array, maxSize?: number | undefined | null): Buffer | null
+
 /** The 1.5.0 `HashInvalidError` message of `TerminateSession`. */
 export declare const HASH_INVALID: string
+
+/**
+ * The 32-byte HMAC-SHA256 of `data` under `key`, which may have any
+ * length. The key comes first, as in `createHmac(key).update(data)`.
+ */
+export declare function hmacSha256(key: Uint8Array, data: Uint8Array): Buffer
 
 /** Whether `apiId` is the id of an official profile (`OFFICIAL_API_IDS`). */
 export declare function isOfficialApiId(apiId: number): boolean
@@ -762,6 +803,14 @@ export declare const NO_PASSWORD_PROVIDED: string
 export declare const OFFICIAL_API_IDS: number[]
 
 /**
+ * PBKDF2 (RFC 8018) of `password` and `salt`: `keyLen` bytes (default 64)
+ * over the HMAC of `digest`, `"sha1"`, `"sha256"` or `"sha512"` (the
+ * default), ignoring case. A string password is UTF-8 encoded. Zero
+ * iterations or another digest rejects with `OT_INVALID_INPUT`.
+ */
+export declare function pbkdf2(password: string | Uint8Array, salt: Uint8Array, iterations: number, keyLen?: number | undefined | null, digest?: string | undefined | null): Promise<Buffer>
+
+/**
  * The offline `PlatformVersions` of 1.5.0 (`OPENTELE_NO_FETCH`), with the
  * fields of `overrides` replaced.
  */
@@ -864,6 +913,15 @@ export declare const QR_LOGIN_URL_PREFIX: string
  * padding, as Telethon `QRLogin.url`.
  */
 export declare function qrLoginUrl(token: Uint8Array): string
+
+/** `size` bytes from the operating system's CSPRNG. */
+export declare function randomBytes(size: number): Buffer
+
+/**
+ * Fills `buf` in place from the operating system's CSPRNG; a failing
+ * source throws `OT_IO`.
+ */
+export declare function randomFill(buf: Uint8Array): void
 
 /** One CDN RSA public key (`MTP.RSAPublicKey`). */
 export interface RsaPublicKey {
@@ -972,6 +1030,12 @@ export declare const SESSIONS_UNAVAILABLE: string
  * was.
  */
 export declare function setTdataAccounts(tdata: TData, accounts: Array<AccountInput>): void
+
+/** The 20-byte SHA-1 of `data`. */
+export declare function sha1(data: Uint8Array): Buffer
+
+/** The 32-byte SHA-256 of `data`. */
+export declare function sha256(data: Uint8Array): Buffer
 
 /**
  * The size in bytes of the SRP numbers `p`, `A`, `B` and the secret

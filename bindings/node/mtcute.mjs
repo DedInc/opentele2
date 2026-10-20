@@ -11,7 +11,6 @@
 // `exportSession`, `onServerUpdate`), each optional where it can be, so a
 // fake object that answers `call` with canned TL objects drives them too.
 
-import { randomInt } from 'node:crypto'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -42,18 +41,38 @@ export function initConnectionOptions(profile) {
 }
 
 /**
- * mtcute's default Node crypto provider with AES-256-IGE, the per-packet
- * cipher, replaced by the opentele2 core. Every other method, including
- * `initialize`, stays mtcute's own.
+ * An mtcute `ICryptoProvider` whose every primitive is the opentele2 core:
+ * hashes, HMAC, PBKDF2, AES-256-CTR and -IGE, `pq` factorisation, gzip and
+ * the OS random source. It needs neither Node's crypto module nor
+ * @mtcute/node, and `initialize` has nothing to load.
+ *
+ * `gzip` writes a gzip stream, which `gunzip` (and Telegram) reads; mtcute's
+ * own Node provider writes zlib instead.
  */
 export async function createCryptoProvider() {
-  const utils = await importPeer('@mtcute/node/utils.js', 'createCryptoProvider', '@mtcute/node')
-  const provider = new utils.NodeCryptoProvider()
-  provider.createAesIge = (key, iv) => ({
-    encrypt: (data) => native.aesIgeEncrypt(data, key, iv),
-    decrypt: (data) => native.aesIgeDecrypt(data, key, iv),
-  })
-  return provider
+  return {
+    initialize() {},
+    sha1: (data) => native.sha1(data),
+    sha256: (data) => native.sha256(data),
+    pbkdf2: (password, salt, iterations, keylen = 64, algo = 'sha512') =>
+      native.pbkdf2(password, salt, iterations, keylen, algo),
+    // mtcute passes the data first; the native takes the key first.
+    hmacSha256: (data, key) => native.hmacSha256(key, data),
+    // CTR is its own inverse, so `encrypt` does not change the keystream.
+    createAesCtr(key, iv) {
+      const stream = new native.AesCtr(key, iv)
+      return { process: (data) => stream.process(data) }
+    },
+    createAesIge: (key, iv) => ({
+      encrypt: (data) => native.aesIgeEncrypt(data, key, iv),
+      decrypt: (data) => native.aesIgeDecrypt(data, key, iv),
+    }),
+    factorizePQ: (pq) => native.factorizePq(pq),
+    gzip: (data, maxSize) => native.gzip(data, maxSize),
+    gunzip: (data) => native.gunzip(data),
+    randomFill: (buf) => native.randomFill(buf),
+    randomBytes: (size) => native.randomBytes(size),
+  }
 }
 
 /** Loads the optional peer `specifier`, or rejects with `ERR_MODULE_NOT_FOUND`. */
@@ -401,9 +420,25 @@ const POST_LOGIN_REQUESTS = [
   () => ({ _: 'help.getCountriesList', langCode: 'en', hash: 0 }),
 ]
 
+const UINT32_RANGE = 0x1_0000_0000
+
+// A uniform whole number in [min, max] from the core's random source. Draws
+// at or above the last whole multiple of the span are redrawn, so no value
+// is favoured.
+function randomIntInclusive(min, max) {
+  const span = max - min + 1
+  const limit = UINT32_RANGE - (UINT32_RANGE % span)
+  for (;;) {
+    const draw = native.randomBytes(4).readUInt32LE(0)
+    if (draw < limit) {
+      return min + (draw % span)
+    }
+  }
+}
+
 // 1.5.0 sleeps a random whole number of milliseconds in the inclusive range.
 function randomDelay(minMs, maxMs) {
-  return new Promise((resolve) => setTimeout(resolve, randomInt(minMs, maxMs + 1)))
+  return new Promise((resolve) => setTimeout(resolve, randomIntInclusive(minMs, maxMs)))
 }
 
 /**
