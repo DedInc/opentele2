@@ -4,14 +4,16 @@
 //! The SRP check runs PBKDF2 with 100000 iterations, so it is an async task;
 //! everything else is pure formatting and runs synchronously.
 
+use std::collections::HashMap;
+
 use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, Env, Uint8Array};
 use napi::{JsString, Task};
 use napi_derive::napi;
 
-use opentele2_core::api::LAYER;
+use opentele2_core::api::{Client, LAYER, Versions as CoreVersions};
 use opentele2_core::auth::{
     self, Check, CheckOutcome as CoreCheckOutcome, CheckResult as CoreCheckResult,
-    ConsistencyExpectations as CoreExpectations, PostLoginStep as CorePostLoginStep,
+    ConsistencyExpectations as CoreExpectations, FlowFailure, PostLoginStep as CorePostLoginStep,
     RawAuthorization as CoreRawAuthorization, SessionRow as CoreSessionRow,
     SrpCheck as CoreSrpCheck, SrpError, SrpParams as CoreSrpParams,
 };
@@ -29,6 +31,78 @@ pub const QR_LOGIN_URL_PREFIX: &str = auth::QR_LOGIN_URL_PREFIX;
 /// exponents.
 #[napi]
 pub const SRP_NUMBER_SIZE: u32 = 256;
+
+// The core holds the size as a `usize`, which no `const` conversion narrows
+// without a cast; the number above must stay equal to it.
+const _: () = assert!(SRP_NUMBER_SIZE as usize == auth::SRP_NUMBER_SIZE);
+
+/// The RPC error `auth.checkPassword` fails with for a wrong password.
+#[napi]
+pub const RPC_PASSWORD_HASH_INVALID: &str = auth::RPC_PASSWORD_HASH_INVALID;
+
+/// The RPC error of a QR login step on an account with 2FA.
+#[napi]
+pub const RPC_SESSION_PASSWORD_NEEDED: &str = auth::RPC_SESSION_PASSWORD_NEEDED;
+
+/// The RPC error `account.resetAuthorization` fails with within 24 hours of
+/// login.
+#[napi]
+pub const RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN: &str =
+    auth::RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN;
+
+/// The RPC error `account.resetAuthorization` fails with for an unknown
+/// hash.
+#[napi]
+pub const RPC_HASH_INVALID: &str = auth::RPC_HASH_INVALID;
+
+/// The RPC error of a QR login token accepted already; 1.5.0 re-raises it.
+#[napi]
+pub const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: &str = auth::RPC_AUTH_TOKEN_ALREADY_ACCEPTED;
+
+/// The RPC error of an expired QR login token; 1.5.0 re-raises it.
+#[napi]
+pub const RPC_AUTH_TOKEN_EXPIRED: &str = auth::RPC_AUTH_TOKEN_EXPIRED;
+
+/// The RPC error of an invalid QR login token; 1.5.0 re-raises it.
+#[napi]
+pub const RPC_AUTH_TOKEN_INVALID: &str = auth::RPC_AUTH_TOKEN_INVALID;
+
+/// The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+/// cannot be resolved.
+#[napi]
+pub const USER_ID_UNRESOLVED: &str = auth::USER_ID_UNRESOLVED;
+
+/// The message of a login the server answered with
+/// `auth.authorizationSignUpRequired`.
+#[napi]
+pub const SIGN_UP_REQUIRED: &str = auth::SIGN_UP_REQUIRED;
+
+/// Every SRP refusal `srpCheck` rejects with.
+const EVERY_SRP_ERROR: [SrpError; 4] = [
+    SrpError::BadPrimeOrGenerator,
+    SrpError::BadB,
+    SrpError::NoGoodRandom,
+    SrpError::RandomUnavailable,
+];
+
+/// The class name of the exception 1.5.0 raised for each error code of the
+/// client flows, by code: `OT_` and the core `FlowFailure::code` of every
+/// flow failure to its `FlowFailure::legacy_class`, and `OT_` and the
+/// `SrpError::code` of every `srpCheck` refusal to its
+/// `SrpError::legacy_class`.
+#[napi]
+pub fn flow_error_classes() -> HashMap<String, &'static str> {
+    let flows = FlowFailure::ALL
+        .iter()
+        .map(|failure| (failure.code(), failure.legacy_class()));
+    let srp = EVERY_SRP_ERROR
+        .iter()
+        .map(|error| (error.code(), error.legacy_class()));
+    flows
+        .chain(srp)
+        .map(|(code, class)| (format!("OT_{code}"), class))
+        .collect()
+}
 
 /// The 1.5.0 `NoPasswordProvided` message of a QR login that needs 2FA.
 #[napi]
@@ -382,6 +456,36 @@ pub fn srp_check(
     }))
 }
 
+/// The `srpId` and `srpB` of an `SrpParams`, from `srpInputs`.
+#[napi(object, object_from_js = false)]
+pub struct SrpInputs {
+    /// `account.Password.srp_id`, or 0 without both inputs.
+    pub srp_id: BigInt,
+    /// `account.Password.srp_B`, or empty without both inputs.
+    pub srp_b: Buffer,
+}
+
+/// The `srpId` and `srpB` `srpCheck` takes from an `account.Password` whose
+/// `srp_id` is `srpId` and `srp_B` is `srpB`, the core rule: both as given
+/// when both are present, otherwise id 0 and an empty `srpB`, which
+/// `srpCheck` rejects with `OT_SRP_BAD_B`. Throws `ERR_INVALID_ARG_VALUE`
+/// for an `srpId` outside `-(2**63)..2**63`.
+#[napi]
+pub fn srp_inputs(srp_id: Option<BigInt>, srp_b: Option<Uint8Array>) -> Result<SrpInputs> {
+    let srp_id = srp_id
+        .map(|srp_id| match srp_id.get_i64() {
+            (srp_id, true) => Ok(srp_id),
+            _ => Err(invalid_arg("srpId must be a bigint in -(2**63)..2**63")),
+        })
+        .transpose()?;
+    let srp_b = srp_b.map(|srp_b| srp_b.to_vec());
+    let (srp_id, srp_b) = auth::srp_inputs(srp_id, srp_b.as_deref());
+    Ok(SrpInputs {
+        srp_id: BigInt::from(srp_id),
+        srp_b: Buffer::from(srp_b),
+    })
+}
+
 /// Whether `apiId` is the id of an official profile (`OFFICIAL_API_IDS`).
 #[napi]
 pub fn is_official_api_id(api_id: i32) -> bool {
@@ -593,15 +697,22 @@ pub fn consistency_checks() -> Vec<&'static str> {
     Check::ALL.iter().map(|check| check.name()).collect()
 }
 
-/// The `layer_match` result for a library built for `libraryLayer`: it
-/// passes within `LAYER_TOLERANCE` of `LAYER`.
+/// The `layer_match` result for a library built for `libraryLayer`, the
+/// core `ConsistencyExpectations` rule: it passes within `LAYER_TOLERANCE`
+/// of `advertisedLayer` (default `LAYER`).
 #[napi]
-pub fn layer_result(library_layer: i32) -> CheckResult {
-    let passed = library_layer.abs_diff(LAYER) <= auth::LAYER_TOLERANCE;
+pub fn layer_result(library_layer: i32, advertised_layer: Option<i32>) -> CheckResult {
+    // The layer check reads only the advertised layer and the tolerance, so
+    // the default profile's expectations stand in for any session's.
+    let mut expectations = CoreExpectations::for_client(Client::Desktop, &CoreVersions::offline());
+    if let Some(advertised_layer) = advertised_layer {
+        expectations.advertised_layer = advertised_layer;
+    }
+    let result = expectations.layer_result(library_layer);
     CheckResult {
-        name: Check::LayerMatch.name().to_owned(),
-        passed,
-        detail: auth::layer_detail(library_layer, LAYER),
+        name: result.name,
+        passed: result.passed,
+        detail: result.detail,
     }
 }
 

@@ -408,9 +408,104 @@ test('qrLoginToNewClient 2FA: wrong, missing and unsupported passwords', async (
   ;({ authorized, fresh } = scenario(log, { ...server.password, currentAlgo: { _: 'passwordKdfAlgoUnknown' } }))
   const unsupported = await rejection(qrLoginToNewClient(authorized, fresh, { profile: DESKTOP, password: PASSWORD, postLogin: false }))
   assert.equal(unsupported.code, 'OT_UNSUPPORTED_PASSWORD_ALGORITHM')
+  assert.equal(unsupported.name, 'ValueError')
   assert.equal(unsupported.message, 'unsupported password algorithm passwordKdfAlgoUnknown')
   assert.equal(unsupported.message, core.unsupportedPasswordAlgorithm('passwordKdfAlgoUnknown'))
   assert.deepEqual(log, ['fresh updates.getState', 'fresh auth.exportLoginToken', 'fresh account.getPassword'])
+})
+
+test('qrLoginToNewClient 2FA without srpId or srpB ends in the core OT_SRP_BAD_B', async () => {
+  const server = srpServer(PASSWORD)
+  const { srpB: _srpB, ...noB } = server.password
+  const { srpId: _srpId, ...noId } = server.password
+  for (const password of [noB, noId, { ...server.password, srpB: undefined, srpId: undefined }]) {
+    const log = []
+    const fresh = new FakeClient('fresh', log, {
+      'updates.getState': unauthorized,
+      'auth.exportLoginToken': rpc(401, 'SESSION_PASSWORD_NEEDED'),
+      'account.getPassword': password,
+    })
+    const error = await rejection(
+      qrLoginToNewClient(new FakeClient('authorized', log, {}), fresh, { profile: DESKTOP, password: PASSWORD, postLogin: false }),
+    )
+    assert.equal(error.code, 'OT_SRP_BAD_B')
+    assert.equal(error.name, 'ValueError')
+    // The core rule: without both inputs, id 0 and an empty B, which srpCheck refuses.
+    const inputs = core.srpInputs(password.srpId == null ? null : 2479236611711966277n, password.srpB ?? null)
+    assert.deepEqual([inputs.srpId, inputs.srpB.length], [0n, 0])
+    const refused = await rejection(
+      core.srpCheck({ srpId: inputs.srpId, g: 3, p: P, salt1: SALT1, salt2: SALT2, srpB: inputs.srpB }, PASSWORD),
+    )
+    assert.equal(error.message, refused.message)
+    assert.deepEqual(log, ['fresh updates.getState', 'fresh auth.exportLoginToken', 'fresh account.getPassword'])
+  }
+  const both = core.srpInputs(2479236611711966277n, server.password.srpB)
+  assert.equal(both.srpId, 2479236611711966277n)
+  assert.ok(Buffer.from(both.srpB).equals(Buffer.from(server.password.srpB)))
+  assert.deepEqual([core.srpInputs().srpId, core.srpInputs().srpB.length], [0n, 0])
+  assert.throws(() => core.srpInputs(2n ** 64n, null), { code: 'ERR_INVALID_ARG_VALUE' })
+})
+
+test('initConnectionOptions sends tz_offset params for tdesktop, as Python does', () => {
+  const desktop = initConnectionOptions(DESKTOP)
+  const offset = core.tzOffset(Math.round(-new Date().getTimezoneOffset() * 60))
+  assert.deepEqual(desktop.params, {
+    _: 'jsonObject',
+    value: [{ _: 'jsonObjectValue', key: 'tz_offset', value: { _: 'jsonNumber', value: offset } }],
+  })
+  assert.equal(DESKTOP.langPack, 'tdesktop')
+  for (const name of ['TelegramAndroid', 'TelegramWeb_A']) {
+    const options = initConnectionOptions(core.profile(name))
+    assert.ok(!('params' in options), name)
+  }
+})
+
+test('the flow RPC names, texts and error classes are the core ones', () => {
+  assert.equal(USER_ID_UNRESOLVED, core.USER_ID_UNRESOLVED)
+  assert.equal(core.SIGN_UP_REQUIRED, 'the server asked to sign up instead of logging in')
+  assert.equal(core.SRP_NUMBER_SIZE, 256)
+  assert.deepEqual(
+    [
+      core.RPC_PASSWORD_HASH_INVALID,
+      core.RPC_SESSION_PASSWORD_NEEDED,
+      core.RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN,
+      core.RPC_HASH_INVALID,
+      core.RPC_AUTH_TOKEN_ALREADY_ACCEPTED,
+      core.RPC_AUTH_TOKEN_EXPIRED,
+      core.RPC_AUTH_TOKEN_INVALID,
+    ],
+    [
+      'PASSWORD_HASH_INVALID',
+      'SESSION_PASSWORD_NEEDED',
+      'FRESH_RESET_AUTHORISATION_FORBIDDEN',
+      'HASH_INVALID',
+      'AUTH_TOKEN_ALREADY_ACCEPTED',
+      'AUTH_TOKEN_EXPIRED',
+      'AUTH_TOKEN_INVALID',
+    ],
+  )
+  assert.deepEqual(core.flowErrorClasses(), {
+    OT_NO_PASSWORD_PROVIDED: 'NoPasswordProvided',
+    OT_PASSWORD_INCORRECT: 'PasswordIncorrect',
+    OT_AUTH_TOKEN_ALREADY_ACCEPTED: 'AuthTokenAlreadyAcceptedError',
+    OT_AUTH_TOKEN_EXPIRED: 'AuthTokenExpiredError',
+    OT_AUTH_TOKEN_INVALID: 'AuthTokenInvalidError',
+    OT_QR_LOGIN_TIMEOUT: 'TimeoutError',
+    OT_FRESH_RESET_FORBIDDEN: 'FreshResetAuthorisationForbiddenError',
+    OT_HASH_INVALID: 'HashInvalidError',
+    OT_UNSUPPORTED_PASSWORD_ALGORITHM: 'ValueError',
+    OT_SIGN_UP_REQUIRED: 'SignUpRequired',
+    OT_USER_ID_UNRESOLVED: 'TelethonUnauthorized',
+    OT_SESSIONS_UNAVAILABLE: 'OpenTeleException',
+    OT_SRP_BAD_PRIME_OR_GENERATOR: 'ValueError',
+    OT_SRP_BAD_B: 'ValueError',
+    OT_SRP_NO_GOOD_RANDOM: 'ValueError',
+    OT_SRP_RANDOM_UNAVAILABLE: 'ValueError',
+  })
+  // The layer rule is the core ConsistencyExpectations one, against an advertised layer.
+  assert.deepEqual(core.layerResult(250, 250), { name: 'layer_match', passed: true, detail: core.layerDetail(250, 250) })
+  assert.equal(core.layerResult(250, 200).passed, false)
+  assert.deepEqual(core.layerResult(229, undefined), core.layerResult(229))
 })
 
 test('qrLoginToNewClient retries timed-out attempts, then times out', async () => {
@@ -482,7 +577,10 @@ test('qrLoginToNewClient re-raises AUTH_TOKEN_* and other errors without retryin
     'updates.getState': unauthorized,
     'auth.exportLoginToken': { _: 'auth.loginTokenSuccess', authorization: { _: 'auth.authorizationSignUpRequired' } },
   })
-  assert.equal((await rejection(qrLoginToNewClient(new FakeClient('a', [], {}), signUp, { profile: DESKTOP }))).code, 'OT_SIGN_UP_REQUIRED')
+  const signUpError = await rejection(qrLoginToNewClient(new FakeClient('a', [], {}), signUp, { profile: DESKTOP }))
+  assert.equal(signUpError.code, 'OT_SIGN_UP_REQUIRED')
+  assert.equal(signUpError.name, 'SignUpRequired')
+  assert.equal(signUpError.message, core.SIGN_UP_REQUIRED)
   await assert.rejects(qrLoginToNewClient(new FakeClient('a', [], {}), signUp, {}), TypeError)
 })
 

@@ -38,7 +38,7 @@ test("mtcute's own reader decodes mtcuteStringSession output", async () => {
 
 test('initConnectionOptions carries the six initConnection fields', () => {
   const profile = core.generate('TelegramDesktop', 'opentele2', 'windows')
-  const options = initConnectionOptions(profile)
+  const { params, ...options } = initConnectionOptions(profile)
   assert.deepEqual(options, {
     deviceModel: profile.deviceModel,
     systemVersion: profile.systemVersion,
@@ -47,6 +47,8 @@ test('initConnectionOptions carries the six initConnection fields', () => {
     langPack: profile.langPack,
     langCode: profile.langCode,
   })
+  // tdesktop also sends params ({tz_offset}), as 1.5.0 Python does.
+  assert.equal(params?._, 'jsonObject')
   assert.ok(!('apiId' in options) && !('apiHash' in options))
 })
 

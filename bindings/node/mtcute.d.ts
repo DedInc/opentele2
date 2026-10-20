@@ -13,6 +13,14 @@ export interface InitConnectionOptions {
   systemLangCode: string
   langPack: string
   langCode: string
+  /**
+   * For the `tdesktop` lang pack only, Telegram Desktop's
+   * `{"tz_offset": <seconds>}` as the Python binding sends it: a TL
+   * `jsonObject` with one `jsonObjectValue` `tz_offset` whose `jsonNumber`
+   * is the core `tzOffset` of the local UTC offset when the options were
+   * built. Absent for every other lang pack.
+   */
+  params?: tl.TypeJSONValue
 }
 
 /**
@@ -24,7 +32,8 @@ export declare function toStringSession(account: AccountInput): string
 /**
  * The `initConnectionOptions` mtcute's `TelegramClient` takes, from an
  * opentele2 `profile()` or `generate()` result; pass `profile.apiId` and
- * `profile.apiHash` to the client separately.
+ * `profile.apiHash` to the client separately. A `tdesktop` profile also
+ * gets `params` with `tz_offset`, as the Python binding sends them.
  */
 export declare function initConnectionOptions(profile: ApiProfile): InitConnectionOptions
 
@@ -78,7 +87,7 @@ export declare const QR_LOGIN_ATTEMPTS: number
 /** The 1.5.0 message of the `OT_QR_LOGIN_TIMEOUT` rejection, the core `QR_LOGIN_TIMEOUT`. */
 export declare const QR_LOGIN_TIMEOUT: string
 
-/** The 1.5.0 message of the `OT_USER_ID_UNRESOLVED` rejection. */
+/** The 1.5.0 message of the `OT_USER_ID_UNRESOLVED` rejection, the core `USER_ID_UNRESOLVED`. */
 export declare const USER_ID_UNRESOLVED: string
 
 /**
@@ -142,8 +151,14 @@ export interface QrLoginResult<C extends FlowClient = FlowClient> {
  * Rejects with code `OT_NO_PASSWORD_PROVIDED`, `OT_PASSWORD_INCORRECT`,
  * `OT_UNSUPPORTED_PASSWORD_ALGORITHM` (message
  * `unsupportedPasswordAlgorithm` of the algorithm's TL name),
- * `OT_QR_LOGIN_TIMEOUT`, `OT_SIGN_UP_REQUIRED` or the mtcute `RpcError`
- * (`AUTH_TOKEN_*` included).
+ * `OT_QR_LOGIN_TIMEOUT`, `OT_SIGN_UP_REQUIRED` (message `SIGN_UP_REQUIRED`)
+ * or the mtcute `RpcError` (`AUTH_TOKEN_*` included). A password whose
+ * `account.password` lacks `srpId` or `srpB` goes to `srpCheck` as the core
+ * `srpInputs` gives it and rejects with the core `OT_SRP_BAD_B`, as the
+ * Python binding does; it no longer rejects with
+ * `OT_UNSUPPORTED_PASSWORD_ALGORITHM`. Each error's `name` is its 1.5.0
+ * class from `flowErrorClasses()` (`ValueError` for an unsupported
+ * algorithm and every `OT_SRP_*` refusal).
  */
 export declare function qrLoginToNewClient<C extends FlowClient>(
   authorized: FlowClient,

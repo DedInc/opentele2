@@ -702,6 +702,15 @@ export interface FingerprintVideoCard {
 }
 
 /**
+ * The class name of the exception 1.5.0 raised for each error code of the
+ * client flows, by code: `OT_` and the core `FlowFailure::code` of every
+ * flow failure to its `FlowFailure::legacy_class`, and `OT_` and the
+ * `SrpError::code` of every `srpCheck` refusal to its
+ * `SrpError::legacy_class`.
+ */
+export declare function flowErrorClasses(): Record<string, string>
+
+/**
  * 1.5.0 `format_app_version`: a packed Telegram Desktop version as
  * `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
  * `7003000` is `"7.3"`.
@@ -851,10 +860,11 @@ export declare const LAYER_TOLERANCE: number
 export declare function layerDetail(libraryLayer: number, advertisedLayer?: number | undefined | null): string
 
 /**
- * The `layer_match` result for a library built for `libraryLayer`: it
- * passes within `LAYER_TOLERANCE` of `LAYER`.
+ * The `layer_match` result for a library built for `libraryLayer`, the
+ * core `ConsistencyExpectations` rule: it passes within `LAYER_TOLERANCE`
+ * of `advertisedLayer` (default `LAYER`).
  */
-export declare function layerResult(libraryLayer: number): CheckResult
+export declare function layerResult(libraryLayer: number, advertisedLayer?: number | undefined | null): CheckResult
 
 /**
  * Loads many folders on a dedicated thread pool and resolves, in input
@@ -1203,6 +1213,33 @@ export declare function readSessionCompanion(text: string): SessionCompanion
  */
 export declare function readTelethonSessionFile(path: string): Promise<TelethonFileRows>
 
+/** The RPC error of a QR login token accepted already; 1.5.0 re-raises it. */
+export declare const RPC_AUTH_TOKEN_ALREADY_ACCEPTED: string
+
+/** The RPC error of an expired QR login token; 1.5.0 re-raises it. */
+export declare const RPC_AUTH_TOKEN_EXPIRED: string
+
+/** The RPC error of an invalid QR login token; 1.5.0 re-raises it. */
+export declare const RPC_AUTH_TOKEN_INVALID: string
+
+/**
+ * The RPC error `account.resetAuthorization` fails with within 24 hours of
+ * login.
+ */
+export declare const RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN: string
+
+/**
+ * The RPC error `account.resetAuthorization` fails with for an unknown
+ * hash.
+ */
+export declare const RPC_HASH_INVALID: string
+
+/** The RPC error `auth.checkPassword` fails with for a wrong password. */
+export declare const RPC_PASSWORD_HASH_INVALID: string
+
+/** The RPC error of a QR login step on an account with 2FA. */
+export declare const RPC_SESSION_PASSWORD_NEEDED: string
+
 /**
  * Writes `tdata` into the folder `path`, with padding from the OS random
  * source. `performanceMode`, when given, applies to this save only: on, no
@@ -1348,6 +1385,12 @@ export declare function sha1(data: Uint8Array): Buffer
 /** The 32-byte SHA-256 of `data`. */
 export declare function sha256(data: Uint8Array): Buffer
 
+/**
+ * The message of a login the server answered with
+ * `auth.authorizationSignUpRequired`.
+ */
+export declare const SIGN_UP_REQUIRED: string
+
 /** The TL name of the only 2FA algorithm `srpCheck` supports. */
 export declare const SRP_ALGORITHM: string
 
@@ -1378,6 +1421,23 @@ export interface SrpCheck {
   a: Buffer
   /** The proof `M1`, 32 bytes. */
   m1: Buffer
+}
+
+/**
+ * The `srpId` and `srpB` `srpCheck` takes from an `account.Password` whose
+ * `srp_id` is `srpId` and `srp_B` is `srpB`, the core rule: both as given
+ * when both are present, otherwise id 0 and an empty `srpB`, which
+ * `srpCheck` rejects with `OT_SRP_BAD_B`. Throws `ERR_INVALID_ARG_VALUE`
+ * for an `srpId` outside `-(2**63)..2**63`.
+ */
+export declare function srpInputs(srpId?: bigint | undefined | null, srpB?: Uint8Array | undefined | null): SrpInputs
+
+/** The `srpId` and `srpB` of an `SrpParams`, from `srpInputs`. */
+export interface SrpInputs {
+  /** `account.Password.srp_id`, or 0 without both inputs. */
+  srpId: bigint
+  /** `account.Password.srp_B`, or empty without both inputs. */
+  srpB: Buffer
 }
 
 /**
@@ -1538,6 +1598,12 @@ export declare function tzOffset(offsetSeconds: number): number
  * `SRP_ALGORITHM`, named `algorithm`.
  */
 export declare function unsupportedPasswordAlgorithm(algorithm: string): string
+
+/**
+ * The 1.5.0 `TelethonUnauthorized` message when the self user of a client
+ * cannot be resolved.
+ */
+export declare const USER_ID_UNRESOLVED: string
 
 /**
  * The issues 1.5.0 `FingerprintConfig.validate_params` warns about or

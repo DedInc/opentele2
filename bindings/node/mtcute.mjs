@@ -28,15 +28,39 @@ export function toStringSession(account) {
  * The `initConnectionOptions` mtcute's `TelegramClient` takes, from an
  * opentele2 `profile()` or `generate()` result. The API id and hash are not
  * part of them; pass `profile.apiId` and `profile.apiHash` to the client.
+ *
+ * For the `tdesktop` lang pack they carry `params` as the Python binding
+ * sends them, Telegram Desktop's `{"tz_offset": <seconds>}` as an mtcute TL
+ * `jsonObject`: the core `tzOffset` of the local UTC offset now. Other lang
+ * packs send no `params`.
  */
 export function initConnectionOptions(profile) {
-  return {
+  const options = {
     deviceModel: profile.deviceModel,
     systemVersion: profile.systemVersion,
     appVersion: profile.appVersion,
     systemLangCode: profile.systemLangCode,
     langPack: profile.langPack,
     langCode: profile.langCode,
+  }
+  if (profile.langPack === 'tdesktop') {
+    options.params = tdesktopInitParams()
+  }
+  return options
+}
+
+/**
+ * The `initConnection` `params` Telegram Desktop sends
+ * (mtproto/session_private.cpp prepareInitParams), as the Python binding's
+ * `_refresh_init_params`: `tz_offset`, the core `tzOffset` of the local UTC
+ * offset in seconds.
+ */
+function tdesktopInitParams() {
+  // getTimezoneOffset is minutes behind UTC.
+  const offsetSeconds = Math.round(-new Date().getTimezoneOffset() * 60)
+  return {
+    _: 'jsonObject',
+    value: [{ _: 'jsonObjectValue', key: 'tz_offset', value: { _: 'jsonNumber', value: native.tzOffset(offsetSeconds) } }],
   }
 }
 
@@ -110,8 +134,8 @@ export const QR_LOGIN_ATTEMPTS = native.QR_LOGIN_ATTEMPTS
 /** The 1.5.0 `TimeoutError` message when no QR login attempt logged in. */
 export const QR_LOGIN_TIMEOUT = native.QR_LOGIN_TIMEOUT
 
-/** The 1.5.0 `TelethonUnauthorized` message when the self user is unknown. */
-export const USER_ID_UNRESOLVED = "Could not resolve the account's user id"
+/** The 1.5.0 `TelethonUnauthorized` message when the self user is unknown (the core `USER_ID_UNRESOLVED`). */
+export const USER_ID_UNRESOLVED = native.USER_ID_UNRESOLVED
 
 /**
  * The delay range in milliseconds before each 1.5.0 post-login request,
@@ -125,10 +149,14 @@ export const POST_LOGIN_DELAYS_MS = Object.freeze(
 // waited for.
 const QR_EXPIRE_SAFETY_MS = native.QR_EXPIRE_SAFETY_SECONDS * 1000
 
-/** An error named after the 1.5.0 exception, with an `OT_` code. */
-function flowError(name, code, message, cause) {
+// The 1.5.0 exception class of every flow error code, from the core
+// `FlowFailure::legacy_class` and `SrpError::legacy_class`.
+const FLOW_ERROR_CLASSES = native.flowErrorClasses()
+
+/** An error with the `OT_` code `code`, named after its 1.5.0 exception class. */
+function flowError(code, message, cause) {
   const error = new Error(message, cause === undefined ? undefined : { cause })
-  error.name = name
+  error.name = FLOW_ERROR_CLASSES[code] ?? 'Error'
   error.code = code
   return error
 }
@@ -186,7 +214,7 @@ export async function getMeId(client) {
     id = users?.[0]?.id
   }
   if (id === undefined || id === null) {
-    throw flowError('TelethonUnauthorized', 'OT_USER_ID_UNRESOLVED', USER_ID_UNRESOLVED)
+    throw flowError('OT_USER_ID_UNRESOLVED', USER_ID_UNRESOLVED)
   }
   return id
 }
@@ -194,11 +222,7 @@ export async function getMeId(client) {
 /** Telethon `_on_login`: hands `authorization` to mtcute and returns the user id. */
 async function onLogin(client, authorization) {
   if (authorization?._ !== 'auth.authorization') {
-    throw flowError(
-      'SignUpRequired',
-      'OT_SIGN_UP_REQUIRED',
-      'the server asked to sign up instead of logging in',
-    )
+    throw flowError('OT_SIGN_UP_REQUIRED', native.SIGN_UP_REQUIRED)
   }
   if (typeof client.notifyLoggedIn === 'function') {
     await client.notifyLoggedIn(authorization)
@@ -286,25 +310,30 @@ async function qrLoginAttempt(authorized, fresh, apiId, apiHash, onUrl) {
 
 /**
  * 1.5.0 `_handle2FA`: `account.getPassword`, then `auth.checkPassword` with
- * the native `srpCheck` of `password`.
+ * the native `srpCheck` of `password`. A password without `srpId` or `srpB`
+ * goes to `srpCheck` as the core `srpInputs` gives it, which rejects with
+ * `OT_SRP_BAD_B`, as the Python binding does.
  */
 async function twoFactor(fresh, password) {
   if (password === undefined || password === null) {
-    throw flowError('NoPasswordProvided', 'OT_NO_PASSWORD_PROVIDED', native.NO_PASSWORD_PROVIDED)
+    throw flowError('OT_NO_PASSWORD_PROVIDED', native.NO_PASSWORD_PROVIDED)
   }
   const info = await fresh.call({ _: 'account.getPassword' })
   const algo = info.currentAlgo
-  if (algo?._ !== native.SRP_ALGORITHM || !info.srpB || info.srpId === undefined || info.srpId === null) {
-    throw flowError(
-      'UnsupportedPasswordAlgorithm',
-      'OT_UNSUPPORTED_PASSWORD_ALGORITHM',
-      native.unsupportedPasswordAlgorithm(String(algo?._)),
-    )
+  if (algo?._ !== native.SRP_ALGORITHM) {
+    throw flowError('OT_UNSUPPORTED_PASSWORD_ALGORITHM', native.unsupportedPasswordAlgorithm(String(algo?._)))
   }
-  const check = await native.srpCheck(
-    { srpId: toBigInt(info.srpId), g: algo.g, p: algo.p, salt1: algo.salt1, salt2: algo.salt2, srpB: info.srpB },
-    password,
-  )
+  const { srpId, srpB } = native.srpInputs(info.srpId == null ? null : toBigInt(info.srpId), info.srpB ?? null)
+  let check
+  try {
+    check = await native.srpCheck({ srpId, g: algo.g, p: algo.p, salt1: algo.salt1, salt2: algo.salt2, srpB }, password)
+  } catch (error) {
+    // A core SRP refusal is named after its 1.5.0 class, as Python raises it.
+    if (typeof error?.code === 'string' && error.code in FLOW_ERROR_CLASSES) {
+      error.name = FLOW_ERROR_CLASSES[error.code]
+    }
+    throw error
+  }
   let authorization
   try {
     authorization = await fresh.call({
@@ -313,8 +342,8 @@ async function twoFactor(fresh, password) {
       password: { _: 'inputCheckPasswordSRP', srpId: info.srpId, A: check.a, M1: check.m1 },
     })
   } catch (error) {
-    if (rpcIs(error, 'PASSWORD_HASH_INVALID')) {
-      throw flowError('PasswordIncorrect', 'OT_PASSWORD_INCORRECT', error.message, error)
+    if (rpcIs(error, native.RPC_PASSWORD_HASH_INVALID)) {
+      throw flowError('OT_PASSWORD_INCORRECT', error.message, error)
     }
     throw error
   }
@@ -331,7 +360,7 @@ async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl
       }
       authorization = await qrLoginAttempt(authorized, fresh, apiId, apiHash, onUrl)
     } catch (error) {
-      if (rpcIs(error, 'SESSION_PASSWORD_NEEDED')) {
+      if (rpcIs(error, native.RPC_SESSION_PASSWORD_NEEDED)) {
         return twoFactor(fresh, password)
       }
       // AUTH_TOKEN_ALREADY_ACCEPTED, _EXPIRED and _INVALID are re-raised,
@@ -344,7 +373,7 @@ async function performQrLogin(authorized, fresh, apiId, apiHash, password, onUrl
     warn(native.qrAttemptTimeoutWarning(attempt + 1))
     warn(native.qrAttemptRetryWarning(attempt + 1))
   }
-  throw flowError('TimeoutError', 'OT_QR_LOGIN_TIMEOUT', QR_LOGIN_TIMEOUT)
+  throw flowError('OT_QR_LOGIN_TIMEOUT', QR_LOGIN_TIMEOUT)
 }
 
 /**
@@ -493,7 +522,7 @@ export async function postLoginRequests(client, langPack = '', delay = randomDel
 export async function getSessions(client) {
   const sessions = await client.call({ _: 'account.getAuthorizations' })
   if (!Array.isArray(sessions?.authorizations)) {
-    throw flowError('OpenTeleException', 'OT_SESSIONS_UNAVAILABLE', native.SESSIONS_UNAVAILABLE)
+    throw flowError('OT_SESSIONS_UNAVAILABLE', native.SESSIONS_UNAVAILABLE)
   }
   return sessions
 }
@@ -515,16 +544,11 @@ export async function terminateSession(client, hash) {
   try {
     await client.call({ _: 'account.resetAuthorization', hash })
   } catch (error) {
-    if (rpcIs(error, 'FRESH_RESET_AUTHORISATION_FORBIDDEN')) {
-      throw flowError(
-        'FreshResetAuthorisationForbiddenError',
-        'OT_FRESH_RESET_FORBIDDEN',
-        native.FRESH_RESET_FORBIDDEN,
-        error,
-      )
+    if (rpcIs(error, native.RPC_FRESH_RESET_AUTHORISATION_FORBIDDEN)) {
+      throw flowError('OT_FRESH_RESET_FORBIDDEN', native.FRESH_RESET_FORBIDDEN, error)
     }
-    if (rpcIs(error, 'HASH_INVALID')) {
-      throw flowError('HashInvalidError', 'OT_HASH_INVALID', native.HASH_INVALID, error)
+    if (rpcIs(error, native.RPC_HASH_INVALID)) {
+      throw flowError('OT_HASH_INVALID', native.HASH_INVALID, error)
     }
     throw error
   }
@@ -568,7 +592,7 @@ export async function formatSessions(source) {
   } else if (Array.isArray(source?.authorizations)) {
     authorizations = source.authorizations
   } else {
-    throw flowError('OpenTeleException', 'OT_SESSIONS_UNAVAILABLE', native.SESSIONS_UNAVAILABLE)
+    throw flowError('OT_SESSIONS_UNAVAILABLE', native.SESSIONS_UNAVAILABLE)
   }
   return native.formatSessions(authorizations.map(sessionRow))
 }
@@ -683,7 +707,7 @@ export async function runConsistencyChecks(client, profile, versions, options = 
     () => checkGetConfig(client),
     () => checkNearestDc(client),
     () => checkCurrentSession(client),
-    () => native.layerResult(layer),
+    () => native.layerResult(layer, expectations.advertisedLayer),
     () => checkLangPack(client, expectations),
     () => checkAppUpdate(client),
     () => checkTermsOfService(client),
