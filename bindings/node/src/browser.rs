@@ -609,8 +609,9 @@ impl napi::Task for FingerprintTask {
 /// browserforge's `HeaderGenerator(...).generate()`. A `seed` (a string, or
 /// an integer `number` or `bigint` as its decimal text, as Python's `str()`
 /// of an `int`) makes the draw reproducible, the same as
-/// `opentele2.browser.generate_headers` of the Python binding with that
-/// seed; without one it comes from the operating system's entropy.
+/// `opentele2.browser.HeaderGenerator(...).generate(seed=...)` of the
+/// Python binding with those options and that seed; without one it comes
+/// from the operating system's entropy.
 ///
 /// Runs as an async task: the first call parses the embedded networks.
 /// Invalid options reject with `ERR_INVALID_ARG_VALUE`; options nothing

@@ -767,8 +767,9 @@ export declare function generateFingerprint(options?: BrowserFingerprintOptions 
  * browserforge's `HeaderGenerator(...).generate()`. A `seed` (a string, or
  * an integer `number` or `bigint` as its decimal text, as Python's `str()`
  * of an `int`) makes the draw reproducible, the same as
- * `opentele2.browser.generate_headers` of the Python binding with that
- * seed; without one it comes from the operating system's entropy.
+ * `opentele2.browser.HeaderGenerator(...).generate(seed=...)` of the
+ * Python binding with those options and that seed; without one it comes
+ * from the operating system's entropy.
  *
  * Runs as an async task: the first call parses the embedded networks.
  * Invalid options reject with `ERR_INVALID_ARG_VALUE`; options nothing
@@ -1195,9 +1196,11 @@ export interface RawAuthorization {
 /**
  * Reads `.json` companion text as 1.5.0 `from_session_json` does: the
  * text must parse as a JSON object holding `app_id` and `app_hash`, not
- * null, else `OT_INVALID_INPUT`; the profile is then read as
- * `profileFromSessionJson` reads it, `OT_IO` when a key is missing or
- * has the wrong type.
+ * null, else `OT_INVALID_INPUT`. The profile is then read as
+ * `profileFromSessionJson` reads it, and is absent when a profile key is
+ * missing or has the wrong type (1.5.0 reads those as `APIData.from_json`
+ * does), as the Python binding's `read_session_companion` returns `None`;
+ * `json` is the whole object either way.
  */
 export declare function readSessionCompanion(text: string): SessionCompanion
 
@@ -1271,8 +1274,11 @@ export declare const SESSION_COLUMNS: string[]
 
 /** The `.json` companion `readSessionCompanion` read. */
 export interface SessionCompanion {
-  /** The profile of the companion (`profileFromSessionJson`). */
-  profile: ApiProfile
+  /**
+   * The profile of the companion (`profileFromSessionJson`); absent when
+   * its profile keys are not the strict form that function reads.
+   */
+  profile?: ApiProfile
   /**
    * The whole companion object, keys in order; an integer outside the
    * safe range is a `bigint`.
@@ -1296,6 +1302,15 @@ export declare function sessionCompanionJson(profile: ApiProfile, extra?: Record
  * exact digits, and an integral `number` prints as an integer.
  */
 export declare function sessionCompanionText(profile: ApiProfile, extra?: Record<string, unknown> | null): string
+
+/**
+ * The `session_file` value 1.5.0 `save_session_json` writes for the pair at
+ * `base`: Python's `os.path.basename`, for the platform Node runs on, of the
+ * pair's session path (`sessionPairPaths(base).session`) without its
+ * `.session` suffix. On POSIX only `/` separates; on Windows `/` and `\`
+ * do, after a drive (`C:`, `\\server\share`) is removed.
+ */
+export declare function sessionFileName(base: string): string
 
 /** One profile key of the session JSON. */
 export interface SessionJsonField {

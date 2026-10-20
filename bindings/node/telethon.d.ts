@@ -36,8 +36,11 @@ export interface LoadedSessionPair {
   paths: SessionPairPaths
   /** The sessions row of the `.session` file. */
   rows: ReadSessionRows
-  /** The profile of the `.json` companion (`profileFromSessionJson`). */
-  profile: ApiProfile
+  /**
+   * The profile of the `.json` companion (`profileFromSessionJson`), or `null`
+   * when its profile keys are not in strict form (read as data only, as Python does).
+   */
+  profile: ApiProfile | null
   /** The `.json` companion as parsed; an integer outside the safe range is a `bigint`. */
   json: Record<string, unknown>
 }

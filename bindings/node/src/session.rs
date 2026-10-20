@@ -360,25 +360,121 @@ pub fn session_companion_text(
 /// The `.json` companion `readSessionCompanion` read.
 #[napi(object, object_from_js = false)]
 pub struct SessionCompanion {
-    /// The profile of the companion (`profileFromSessionJson`).
-    pub profile: ApiProfile,
+    /// The profile of the companion (`profileFromSessionJson`); absent when
+    /// its profile keys are not the strict form that function reads.
+    pub profile: Option<ApiProfile>,
     /// The whole companion object, keys in order; an integer outside the
     /// safe range is a `bigint`.
     #[napi(ts_type = "Record<string, unknown>")]
     pub json: Value,
 }
 
+/// The companion of `text`, as the Python binding's
+/// `read_session_companion` reads it.
+fn session_companion(text: &str) -> Result<SessionCompanion> {
+    match telethon_file::read_companion(text) {
+        Ok((profile, json)) => Ok(SessionCompanion {
+            profile: Some(profile.into()),
+            json: Value::Object(json),
+        }),
+        // Only the profile read gives `Io`, after the text parsed as an
+        // object holding both required fields; the core returns no object
+        // with it, so the object is read here.
+        Err(opentele2_core::Error::Io(_)) => {
+            let json: Map<String, Value> = serde_json::from_str(text).map_err(|error| {
+                core_error(&opentele2_core::Error::InvalidInput {
+                    what: "JSON file",
+                    reason: error.to_string(),
+                })
+            })?;
+            Ok(SessionCompanion {
+                profile: None,
+                json: Value::Object(json),
+            })
+        }
+        Err(error) => Err(core_error(&error)),
+    }
+}
+
 /// Reads `.json` companion text as 1.5.0 `from_session_json` does: the
 /// text must parse as a JSON object holding `app_id` and `app_hash`, not
-/// null, else `OT_INVALID_INPUT`; the profile is then read as
-/// `profileFromSessionJson` reads it, `OT_IO` when a key is missing or
-/// has the wrong type.
+/// null, else `OT_INVALID_INPUT`. The profile is then read as
+/// `profileFromSessionJson` reads it, and is absent when a profile key is
+/// missing or has the wrong type (1.5.0 reads those as `APIData.from_json`
+/// does), as the Python binding's `read_session_companion` returns `None`;
+/// `json` is the whole object either way.
 #[napi]
 pub fn read_session_companion(env: Env, text: JsString<'_>) -> napi::Result<SessionCompanion> {
-    let read = with_text(text, telethon_file::read_companion).and_then(check);
-    let read = read.map(|(profile, json)| SessionCompanion {
-        profile: profile.into(),
-        json: Value::Object(json),
-    });
-    thrown(env, read)
+    thrown(
+        env,
+        with_text(text, session_companion).and_then(std::convert::identity),
+    )
+}
+
+/// Whether `unit` separates path components for Python's `os.path` on this
+/// platform: `/`, and `\` on Windows.
+fn is_separator(unit: char) -> bool {
+    unit == '/' || (cfg!(windows) && unit == '\\')
+}
+
+/// The length of the drive of `path` as Python's `ntpath.splitroot` (3.12)
+/// splits it: a UNC or device prefix (`\\server\share`, `\\?\UNC\server\share`,
+/// `\\.\device`) up to the separator after its second component, else a
+/// one-character drive and its colon (`C:`), else none.
+fn windows_drive_len(path: &str) -> usize {
+    let units: Vec<(usize, char)> = path.char_indices().collect();
+    let separator_at = |at: usize| units.get(at).is_some_and(|&(_, unit)| is_separator(unit));
+    if separator_at(0) && separator_at(1) {
+        let normal: String = path
+            .chars()
+            .take(8)
+            .map(|unit| {
+                if unit == '/' {
+                    '\\'
+                } else {
+                    unit.to_ascii_uppercase()
+                }
+            })
+            .collect();
+        let start = if normal == "\\\\?\\UNC\\" { 8 } else { 2 };
+        let mut found = units
+            .iter()
+            .skip(start)
+            .filter(|&&(_, unit)| is_separator(unit));
+        return match (found.next(), found.next()) {
+            (Some(_), Some(&(at, _))) => at,
+            _ => path.len(),
+        };
+    }
+    match units.get(1) {
+        Some(&(at, ':')) => at + 1,
+        _ => 0,
+    }
+}
+
+/// `path` as Python's `os.path.basename` gives it on this platform: the
+/// text after the last separator (`/`; on Windows also `\`, with the drive
+/// `ntpath.splitdrive` gives removed first), empty when `path` ends with one.
+fn python_basename(path: &str) -> &str {
+    let path = if cfg!(windows) {
+        &path[windows_drive_len(path)..]
+    } else {
+        path
+    };
+    path.rfind(is_separator).map_or(path, |at| &path[at + 1..])
+}
+
+/// The `session_file` value 1.5.0 `save_session_json` writes for the pair at
+/// `base`: Python's `os.path.basename`, for the platform Node runs on, of the
+/// pair's session path (`sessionPairPaths(base).session`) without its
+/// `.session` suffix. On POSIX only `/` separates; on Windows `/` and `\`
+/// do, after a drive (`C:`, `\\server\share`) is removed.
+#[napi]
+pub fn session_file_name(base: String) -> Result<String> {
+    let (session, _) = telethon_file::pair_paths(base);
+    let session = path_text(session)?;
+    let stem = session
+        .strip_suffix(telethon_file::SESSION_SUFFIX)
+        .unwrap_or(&session);
+    Ok(python_basename(stem).to_owned())
 }

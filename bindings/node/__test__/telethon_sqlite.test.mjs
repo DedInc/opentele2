@@ -226,7 +226,13 @@ test('read errors carry the core codes', { skip }, async () => {
 
 test('bad rows are refused before the file is opened', async () => {
   const file = path.join(scratch(), 'bad.session')
-  assert.equal(await code(writeSessionFile(file, rows(2, 'x', Buffer.alloc(255)))), 'OT_BAD_LENGTH')
+  // The length error is the native one, legacyMessage included.
+  const short = await rejection(writeSessionFile(file, rows(2, 'x', Buffer.alloc(255))))
+  assert.equal(short.code, 'OT_BAD_LENGTH')
+  assert.equal(short.message, 'auth key has a bad length: expected 256, got 255')
+  assert.equal(short.legacyMessage, short.message)
+  // The key length is checked before the takeout id range, as natively.
+  assert.equal(await code(writeSessionFile(file, rows(2, 'x', Buffer.alloc(257), 2n ** 63n))), 'OT_BAD_LENGTH')
   for (const bad of [
     null,
     { ...rows(2, 'x', countingKey(0)), dcId: 1.5 },
@@ -260,6 +266,25 @@ test('saveSessionPair writes the 1.5.0 pair at the normalised paths', { skip }, 
   assert.equal(readFileSync(nested.json, 'utf8'), companion({ session_file: 'acc.session', id: 77 }))
 })
 
+test('sessionFileName is Python os.path.basename of the pair stem on this platform', () => {
+  const windows = process.platform === 'win32'
+  const cases = [
+    ['acc', 'acc'],
+    ['acc.json.session', 'acc'],
+    ['dir/acc.session', 'acc'],
+    ['dir/', ''],
+    ['dir\\acc', windows ? 'acc' : 'dir\\acc'],
+    ['C:acc', windows ? 'acc' : 'C:acc'],
+    ['C:\\dir/acc.json', windows ? 'acc' : 'C:\\dir/acc'],
+    // ntpath.splitdrive takes `\\server\share` whole as the drive.
+    ['\\\\server\\share', windows ? '' : '\\\\server\\share'],
+    ['//server/share/acc', 'acc'],
+  ]
+  for (const [base, want] of cases) {
+    assert.equal(core.sessionFileName(base), want, base)
+  }
+})
+
 test('saveSessionPair options, ids and loadSessionPair', async () => {
   const dir = scratch()
   const profile = core.profile('TelegramAndroid')
@@ -291,6 +316,14 @@ test('saveSessionPair options, ids and loadSessionPair', async () => {
   assert.equal(await code(loadSessionPair(base)), 'OT_IO')
   writeFileSync(paths.json, '{"app_id": 1}')
   assert.equal(await code(loadSessionPair(base)), 'OT_IO')
+  // Profile keys not in the strict form read as Python's: the data, with
+  // no profile (this was OT_IO before).
+  writeFileSync(paths.json, '{"app_id": 1, "app_hash": "h", "device": 7, "id": 1152921504606846977}')
+  const loose = await loadSessionPair(base)
+  assert.equal(loose.profile, null)
+  assert.deepEqual(loose.json, { app_id: 1, app_hash: 'h', device: 7, id: 2n ** 60n + 1n })
+  checkRows(loose.rows, core.telethonSessionRows(ACCOUNT), 'loose')
+  assert.equal(core.readSessionCompanion('{"app_id": "1", "app_hash": "h"}').profile ?? null, null)
   rmSync(paths.session)
   assert.equal(await code(loadSessionPair(base)), 'OT_TFILE_NOT_FOUND')
 })

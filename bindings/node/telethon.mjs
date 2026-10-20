@@ -12,8 +12,6 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const native = require('./index.js')
 
-const AUTH_KEY_SIZE = 256
-
 /** An `Error` with `code`, the shape the native module throws. */
 function codedError(code, message, cause) {
   const error = new Error(message, cause === undefined ? undefined : { cause })
@@ -52,13 +50,13 @@ function sessionInput(rows) {
   if (!(authKey instanceof Uint8Array)) {
     throw invalidRows('authKey must be a Uint8Array')
   }
-  if (authKey.length !== AUTH_KEY_SIZE) {
-    throw codedError('OT_BAD_LENGTH', `auth key has a bad length: expected ${AUTH_KEY_SIZE}, got ${authKey.length}`)
-  }
+  // The key length (OT_BAD_LENGTH, with its legacyMessage) and the 64-bit
+  // range of a bigint takeout id are the native module's checks, in that
+  // order, as writeTelethonSessionFile makes them.
   const input = { dcId, serverAddress, port, authKey }
   if (takeoutId !== undefined && takeoutId !== null) {
     const wide = typeof takeoutId === 'bigint' ? takeoutId : Number.isSafeInteger(takeoutId) ? BigInt(takeoutId) : null
-    if (wide === null || BigInt.asIntN(64, wide) !== wide) {
+    if (wide === null) {
       throw invalidRows('takeoutId must be a 64-bit integer')
     }
     input.takeoutId = wide
@@ -104,20 +102,6 @@ export async function readSessionFile(path) {
 }
 
 /**
- * The last component of `base` as Python's `os.path.basename` gives it:
- * the text after the last separator (`/`, and `\` and a drive on Windows),
- * empty when `base` ends with one.
- */
-function pythonBasename(base) {
-  let text = base
-  if (process.platform === 'win32') {
-    text = text.replace(/^[A-Za-z]:/, '')
-    return text.slice(Math.max(text.lastIndexOf('/'), text.lastIndexOf('\\')) + 1)
-  }
-  return text.slice(text.lastIndexOf('/') + 1)
-}
-
-/**
  * Writes the pair 1.5.0 `save_session_json` writes for `account` and
  * `profile`, and resolves to its paths (`sessionPairPaths(base)`): the
  * `.session` file holds `telethonSessionRows(account, ipv6)` and the `.json`
@@ -131,8 +115,7 @@ export async function saveSessionPair(base, account, profile, options = {}) {
   const paths = native.sessionPairPaths(base)
   const rows = native.telethonSessionRows(account, ipv6)
   await writeSessionFile(paths.session, rows)
-  const stem = paths.session.slice(0, -native.TELETHON_SESSION_SUFFIX.length)
-  const fields = { session_file: pythonBasename(stem), ...(extra ?? {}) }
+  const fields = { session_file: native.sessionFileName(base), ...(extra ?? {}) }
   if (!('id' in fields) && account.userId !== undefined && BigInt(account.userId) !== 0n) {
     // A bigint id reaches the companion as its exact JSON integer.
     fields.id = BigInt(account.userId)
@@ -150,7 +133,9 @@ export async function saveSessionPair(base, account, profile, options = {}) {
  * Reads back the pair at `sessionPairPaths(base)` as 1.5.0
  * `from_session_json` does: both files must exist (`OT_TFILE_NOT_FOUND`),
  * the companion is read with `readSessionCompanion` (`OT_IO` when it is not
- * a valid session JSON), and the session file with `readSessionFile`.
+ * a valid session JSON; `profile` is `null` when its profile keys are not
+ * the strict form, as the Python binding returns no profile), and the
+ * session file with `readSessionFile`.
  */
 export async function loadSessionPair(base) {
   const paths = native.sessionPairPaths(base)
@@ -163,13 +148,9 @@ export async function loadSessionPair(base) {
   try {
     companion = native.readSessionCompanion(await readFile(paths.json, 'utf8'))
   } catch (cause) {
-    // The core's OT_IO (a profile key missing or mistyped) passes through;
-    // text that is not a session JSON object is OT_IO here, as before.
-    if (cause?.code === 'OT_IO') {
-      throw cause
-    }
+    // Text that is not a session JSON object is OT_IO here, as before.
     throw codedError('OT_IO', `I/O error: invalid JSON file ${paths.json}: ${cause?.message ?? cause}`, cause)
   }
   const rows = await readSessionFile(paths.session)
-  return { paths, rows, profile: companion.profile, json: companion.json }
+  return { paths, rows, profile: companion.profile ?? null, json: companion.json }
 }

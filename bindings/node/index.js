@@ -887,6 +887,7 @@ module.exports.saveTdata = nativeBinding.saveTdata
 module.exports.SESSION_COLUMNS = nativeBinding.SESSION_COLUMNS
 module.exports.sessionCompanionJson = nativeBinding.sessionCompanionJson
 module.exports.sessionCompanionText = nativeBinding.sessionCompanionText
+module.exports.sessionFileName = nativeBinding.sessionFileName
 module.exports.sessionJsonFields = nativeBinding.sessionJsonFields
 module.exports.sessionPairPaths = nativeBinding.sessionPairPaths
 module.exports.sessionPath = nativeBinding.sessionPath

@@ -61,7 +61,7 @@ export async function usage(): Promise<void> {
   })
   const same: SessionPairPaths = sessionPairPaths(paths.json)
   const loaded: LoadedSessionPair = await loadSessionPair(same.session)
-  const apiId: number = loaded.profile.apiId
+  const apiId: number | undefined = loaded.profile?.apiId
   const key: Uint8Array = loaded.rows.authKey
 
   void [options, session, takeout, apiId, key]
