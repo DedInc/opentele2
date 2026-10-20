@@ -4,6 +4,7 @@ itself is read by :mod:`opentele2._native`."""
 
 from __future__ import annotations
 
+from .. import _native
 from ..exception import OpenTeleException
 
 __all__ = ["TDataDcIdNotFound"]
@@ -11,5 +12,5 @@ __all__ = ["TDataDcIdNotFound"]
 
 class TDataDcIdNotFound(OpenTeleException):
     def __init__(self, dcId: int, stack_index: int = 2) -> None:
-        super().__init__(f"No endpoints for dc id {int(dcId)}", stack_index)
+        super().__init__(_native.dc_not_found_message(int(dcId)), stack_index)
         self.dcId = dcId

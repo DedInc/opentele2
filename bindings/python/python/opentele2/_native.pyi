@@ -645,6 +645,13 @@ NO_APP_UPDATE: str
 TERMS_OF_SERVICE_OK: str
 CONSISTENCY_WARNING_PREFIX: str
 SRP_ALGORITHM: str
+USER_ID_UNRESOLVED: str
+NO_TCP_ENDPOINT: str
+
+def srp_inputs(srp_id: int | None = None, srp_b: _Bytes | None = None) -> tuple[int, bytes]: ...
+def core_error_classes() -> dict[str, str]: ...
+def dc_not_found_message(dc_id: int) -> str: ...
+
 QR_LOGIN_ATTEMPTS: int
 QR_EXPIRE_SAFETY_SECONDS: int
 QR_LOGIN_TIMEOUT: str

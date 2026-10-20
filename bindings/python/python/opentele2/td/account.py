@@ -264,7 +264,7 @@ class Account(BaseObject):
                 await copy.get_me()
                 userId = copy.UserId
             if userId is None:
-                raise TelethonUnauthorized("Could not resolve the account's user id")
+                raise TelethonUnauthorized(_native.USER_ID_UNRESOLVED)
 
             if owner is None:
                 # The tdesktop module imports this one, so it is only

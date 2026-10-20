@@ -86,7 +86,6 @@ CORE_CODES = {
     "SRP_BAD_B": "ValueError",
     "SRP_NO_GOOD_RANDOM": "ValueError",
     "SRP_RANDOM_UNAVAILABLE": "ValueError",
-    "SRP_FAILED": "ValueError",
 }
 
 

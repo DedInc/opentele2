@@ -7,10 +7,13 @@ the exception 1.5.0 raised for the same failure.
 
 from __future__ import annotations
 
+import builtins
 import inspect
 import sys
 import types
 import typing
+
+from . import _native
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -209,35 +212,20 @@ class TDataKeyDataInvalid(OpenTeleException):
     star import of this module is unchanged."""
 
 
-# The exception 1.5.0 raised for the failure each core code reports. Codes
-# with no OpenTeleException of their own map to the builtin 1.5.0 raised:
-# ValueError for bad lengths (its AES-IGE backend), for other invalid
-# arguments (as hashlib does) and for SRP refusals (Telethon's
-# compute_check), OSError for failed I/O.
+def _legacy_class(name: str) -> type[BaseException]:
+    """The exception class the core names ``name``: the one this module
+    defines under that name, else the builtin."""
+    kind = globals().get(name, getattr(builtins, name, None))
+    if not (isinstance(kind, type) and issubclass(kind, BaseException)):
+        raise TypeError(f"the core names {name!r}, which is not an exception class")
+    return kind
+
+
+# The exception 1.5.0 raised for the failure each core code reports, by the
+# class name the core gives it: an OpenTeleException of this module, or the
+# builtin 1.5.0 raised for codes with no class of their own.
 CORE_ERROR_TYPES: Mapping[str, type[BaseException]] = {
-    "TFILE_NOT_FOUND": TFileNotFound,
-    "TDATA_INVALID_MAGIC": TDataInvalidMagic,
-    "TDATA_INVALID_CHECKSUM": TDataInvalidCheckSum,
-    "TDATA_BAD_DECRYPT_KEY": TDataBadDecryptKey,
-    "TDATA_WRONG_PASSCODE": TDataWrongPasscode,
-    "TDATA_BAD_ENCRYPTED_DATA_SIZE": TDataBadEncryptedDataSize,
-    "TDATA_BAD_DECRYPTED_DATA_SIZE": TDataBadDecryptedDataSize,
-    "TDATA_BAD_CONFIG_DATA": TDataBadConfigData,
-    "QDATASTREAM_FAILED": QDataStreamFailed,
-    "TDATA_READ_MAP_DATA_FAILED": TDataReadMapDataFailed,
-    "TDATA_READ_MAP_DATA_INCORRECT_PASSCODE": TDataReadMapDataIncorrectPasscode,
-    "TDATA_AUTH_KEY_NOT_FOUND": TDataAuthKeyNotFound,
-    "MAX_ACCOUNT_LIMIT": MaxAccountLimit,
-    "TDATA_SAVE_FAILED": TDataSaveFailed,
-    "TDATA_KEY_DATA_INVALID": TDataKeyDataInvalid,
-    "BAD_LENGTH": ValueError,
-    "INVALID_INPUT": ValueError,
-    "IO": OSError,
-    "SRP_BAD_PRIME_OR_GENERATOR": ValueError,
-    "SRP_BAD_B": ValueError,
-    "SRP_NO_GOOD_RANDOM": ValueError,
-    "SRP_RANDOM_UNAVAILABLE": ValueError,
-    "SRP_FAILED": ValueError,
+    code: _legacy_class(name) for code, name in _native.core_error_classes().items()
 }
 
 

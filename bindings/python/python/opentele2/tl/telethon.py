@@ -94,7 +94,6 @@ _SRP_ALGORITHM_CLASS: type[
     types.PasswordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow
 ] = getattr(types, _native.SRP_ALGORITHM[:1].upper() + _native.SRP_ALGORITHM[1:])
 
-_NO_ENDPOINT = "Couldn't find endpoint for this account, something went wrong?"
 _NO_AUTH_KEY = "The account has no authKey loaded"
 
 
@@ -122,7 +121,7 @@ def _session_rows(account: td.Account, use_ipv6: bool) -> TelethonSessionRows:
         return _native.telethon_session_rows(loaded, use_ipv6)
     except CoreError as error:
         if error.code == "TDATA_BAD_CONFIG_DATA":
-            raise OpenTeleException(_NO_ENDPOINT) from error
+            raise OpenTeleException(_native.NO_TCP_ENDPOINT) from error
         if error.code == "TDATA_AUTH_KEY_NOT_FOUND":
             raise TDataAuthKeyNotFound(_NO_AUTH_KEY) from error
         raise_core_error(error)
@@ -133,11 +132,7 @@ def _compute_check(pwd: types.account.Password, password: str) -> types.InputChe
     algo = pwd.current_algo
     if not isinstance(algo, _SRP_ALGORITHM_CLASS):
         raise ValueError(_native.unsupported_password_algorithm(algo.__class__.__name__))
-    srp_id, srp_b = pwd.srp_id, pwd.srp_B
-    if srp_id is None or srp_b is None:
-        # Telethon cannot run the check without them either; the core
-        # refuses the empty B as a bad one.
-        srp_id, srp_b = 0, b""
+    srp_id, srp_b = _native.srp_inputs(pwd.srp_id, pwd.srp_B)
     try:
         check = _native.srp_check(
             {

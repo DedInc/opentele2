@@ -9,13 +9,14 @@ use std::borrow::Cow;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyModule, PyString, PyTuple};
+use pyo3::types::{PyBytes, PyDict, PyList, PyModule, PyString, PyTuple};
 
-use opentele2_core::api::LAYER;
+use opentele2_core::api::{Client, LAYER, Versions};
 use opentele2_core::auth::{
     self, Check, CheckOutcome, CheckResult, ConsistencyExpectations, PostLoginStep,
     RawAuthorization, SessionRow, SrpCheck, SrpError, SrpParams,
 };
+use opentele2_core::{ConfigFailure, Error, KeyDataFailure, MagicContext, MapReadFailure};
 
 use crate::api::{to_profile, versions};
 use crate::convert::{dicts, optional, required, required_bytes, to_bytes};
@@ -318,13 +319,14 @@ fn layer_result(
     library_layer: i32,
     advertised_layer: Option<i32>,
 ) -> PyResult<Bound<'_, PyDict>> {
-    let advertised_layer = advertised_layer.unwrap_or(LAYER);
-    let result = CheckResult {
-        name: Check::LayerMatch.name().to_owned(),
-        passed: library_layer.abs_diff(advertised_layer) <= auth::LAYER_TOLERANCE,
-        detail: auth::layer_detail(library_layer, advertised_layer),
-    };
-    result_dict(py, &result)
+    // The layer check reads only the advertised layer and the tolerance, so
+    // the default profile's expectations stand in for any session's.
+    let mut expectations =
+        ConsistencyExpectations::for_client(Client::Desktop, &Versions::offline());
+    if let Some(advertised_layer) = advertised_layer {
+        expectations.advertised_layer = advertised_layer;
+    }
+    result_dict(py, &expectations.layer_result(library_layer))
 }
 
 /// The core outcome a `CheckOutcome` dict holds: `{"raised": str(e)}` for a
@@ -412,6 +414,106 @@ fn random_delay_ms(min_ms: u64, max_ms: u64) -> PyResult<u64> {
 #[pyfunction]
 fn unsupported_password_algorithm(algorithm: &str) -> String {
     auth::unsupported_password_algorithm(algorithm)
+}
+
+/// The `srp_id` and `srp_b` `srp_check` takes from an `account.Password`
+/// whose `srp_id` is `srp_id` and `srp_B` is `srp_b`: both as given when
+/// both are present, otherwise id 0 and an empty `B`, which `srp_check`
+/// refuses as a bad one.
+#[pyfunction]
+#[pyo3(signature = (srp_id = None, srp_b = None))]
+fn srp_inputs<'py>(
+    py: Python<'py>,
+    srp_id: Option<i64>,
+    srp_b: Option<&Bound<'py, PyAny>>,
+) -> PyResult<(i64, Bound<'py, PyBytes>)> {
+    let srp_b = srp_b
+        .map(PyAnyMethods::extract::<Cow<'_, [u8]>>)
+        .transpose()?;
+    let (srp_id, srp_b) = auth::srp_inputs(srp_id, srp_b.as_deref());
+    Ok((srp_id, to_bytes(py, &srp_b)))
+}
+
+/// One error of every core [`Error`] variant: their codes and legacy
+/// classes are the `CoreError` codes `core_error_classes` names.
+fn every_error() -> [Error; 18] {
+    [
+        Error::FileNotFound {
+            file: String::new(),
+        },
+        Error::InvalidMagic {
+            context: MagicContext::MtpDataBlock { block_id: 0 },
+        },
+        Error::InvalidCheckSum {
+            file: String::new(),
+            computed: [0; 16],
+        },
+        Error::BadDecryptKey,
+        Error::WrongPasscode,
+        Error::BadEncryptedDataSize { size: 0 },
+        Error::BadDecryptedDataSize {
+            encrypted_size: 0,
+            full_len: 0,
+            decrypted_size: 0,
+        },
+        Error::BadConfigData {
+            context: ConfigFailure::NoTcpEndpoint,
+        },
+        Error::QDataStreamFailed { context: None },
+        Error::ReadMapDataFailed {
+            context: MapReadFailure::Open,
+        },
+        Error::ReadMapDataIncorrectPasscode,
+        Error::AuthKeyNotFound,
+        Error::MaxAccountLimit,
+        Error::SaveFailed,
+        Error::KeyDataInvalid {
+            context: KeyDataFailure::BadTrailerMagic,
+        },
+        Error::BadLength {
+            what: "",
+            expected: 0,
+            actual: 0,
+        },
+        Error::InvalidInput {
+            what: "",
+            reason: String::new(),
+        },
+        Error::Io(std::io::Error::other("")),
+    ]
+}
+
+/// Every SRP refusal, which `srp_check` raises as a `CoreError`.
+const EVERY_SRP_ERROR: [SrpError; 4] = [
+    SrpError::BadPrimeOrGenerator,
+    SrpError::BadB,
+    SrpError::NoGoodRandom,
+    SrpError::RandomUnavailable,
+];
+
+/// The class name of the exception 1.5.0 raised for each `CoreError` code
+/// this module raises, by code: the core `Error::legacy_class` of every
+/// error code and `SrpError::legacy_class` of every SRP code. A name is an
+/// opentele2 exception class or a builtin.
+#[pyfunction]
+fn core_error_classes(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
+    let classes = PyDict::new(py);
+    for error in every_error() {
+        classes.set_item(error.code(), error.legacy_class())?;
+    }
+    for error in EVERY_SRP_ERROR {
+        classes.set_item(error.code(), error.legacy_class())?;
+    }
+    Ok(classes)
+}
+
+/// The 1.5.0 `TDataDcIdNotFound` message for DC `dc_id`.
+#[pyfunction]
+fn dc_not_found_message(dc_id: i32) -> String {
+    Error::BadConfigData {
+        context: ConfigFailure::DcNotFound { dc_id },
+    }
+    .legacy_message()
 }
 
 /// The 1.5.0 warning of QR login attempt `attempt_number` (from 1) that
@@ -538,6 +640,14 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("FRESH_RESET_FORBIDDEN", auth::FRESH_RESET_FORBIDDEN)?;
     module.add("HASH_INVALID", auth::HASH_INVALID)?;
     module.add("SESSIONS_UNAVAILABLE", auth::SESSIONS_UNAVAILABLE)?;
+    module.add("USER_ID_UNRESOLVED", auth::USER_ID_UNRESOLVED)?;
+    module.add(
+        "NO_TCP_ENDPOINT",
+        Error::BadConfigData {
+            context: ConfigFailure::NoTcpEndpoint,
+        }
+        .legacy_message(),
+    )?;
     module.add(
         "OFFICIAL_API_IDS",
         PyTuple::new(py, auth::OFFICIAL_API_IDS)?,
@@ -574,6 +684,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("POST_LOGIN_STEPS", PyTuple::new(py, steps)?)?;
     module.add_function(wrap_pyfunction!(qr_login_url, module)?)?;
     module.add_function(wrap_pyfunction!(unsupported_password_algorithm, module)?)?;
+    module.add_function(wrap_pyfunction!(srp_inputs, module)?)?;
+    module.add_function(wrap_pyfunction!(core_error_classes, module)?)?;
+    module.add_function(wrap_pyfunction!(dc_not_found_message, module)?)?;
     module.add_function(wrap_pyfunction!(qr_attempt_timeout_warning, module)?)?;
     module.add_function(wrap_pyfunction!(qr_attempt_retry_warning, module)?)?;
     module.add_function(wrap_pyfunction!(post_login_steps, module)?)?;
