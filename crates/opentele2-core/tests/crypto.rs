@@ -1,4 +1,4 @@
-//! Golden-vector tests for `crypto` and `kdf` against the 1.5.0 outputs in
+//! Golden-vector tests for `crypto` and `kdf` against the outputs in
 //! `tests/vectors/crypto.json`, plus the length and cap failure paths.
 
 use std::fs;
@@ -90,7 +90,7 @@ fn encrypt_local_vectors() {
         let decrypted = unhex(case, "decrypted");
         let encrypted = unhex(case, "encrypted");
 
-        // `decrypted` is the 1.5.0 descriptor: LE u32 real length, then payload.
+        // `decrypted` is the descriptor: LE u32 real length, then payload.
         let real_len = u32::try_from(payload.len() + 4).expect("u32 length");
         assert_eq!(decrypted[..4], real_len.to_le_bytes(), "header case {i}");
         assert_eq!(decrypted[4..], payload[..], "descriptor case {i}");

@@ -1,9 +1,9 @@
-//! Tests for `session`: the 1.5.0 DC table, Telethon string sessions against
-//! `tests/vectors/sessions.json`, mtcute v3 string sessions against byte
+//! Tests for `session`: the built-in DC table, Telethon string sessions
+//! against `tests/vectors/sessions.json`, mtcute v3 string sessions against byte
 //! layouts written by hand from the TypeScript source, grammers-shaped
 //! session data, `from_account` on the vector tdata accounts, and Telethon
-//! version 8 session files against `sqlite3` dumps of files 1.5.0 wrote
-//! (with the `telethon-sqlite` feature, also written and read back, and a
+//! version 8 session files against pinned `sqlite3` dumps (with the
+//! `telethon-sqlite` feature, also written and read back, and a
 //! Telethon-written fixture under `tests/fixtures`).
 //!
 //! Key bytes are never printed: key comparisons use `assert!` without the
@@ -58,8 +58,8 @@ fn same_key(a: &AuthKey, b: &AuthKey) -> bool {
     a.as_bytes() == b.as_bytes()
 }
 
-/// The first TCP endpoint of each production DC in 1.5.0
-/// (`src/td/configs.py` `kBuiltInDcs`, `kBuiltInDcsIPv6`), as (IPv4, IPv6).
+/// The first TCP endpoint of each production DC in the built-in table
+/// (tdesktop `kBuiltInDcs`, `kBuiltInDcsIPv6`), as (IPv4, IPv6).
 fn expected_production(dc_id: i32) -> (SocketAddr, SocketAddr) {
     let (v4, v6) = match dc_id {
         1 => ("149.154.175.50:443", "[2001:0b28:f23d:f001::000a]:443"),
@@ -91,7 +91,7 @@ fn production_table_takes_the_first_endpoint() {
 }
 
 #[test]
-fn test_table_matches_1_5_0() {
+fn test_table_has_the_test_dcs() {
     assert_eq!(dc::test(1, false), Some(addr("149.154.175.10:443")));
     assert_eq!(dc::test(2, false), Some(addr("149.154.167.40:443")));
     assert_eq!(dc::test(3, false), Some(addr("149.154.175.117:443")));
@@ -750,8 +750,8 @@ fn from_account_errors() {
     );
 }
 
-/// 1.5.0's `Serialize()` of a production config whose DC options were
-/// cleared and rebuilt (the `CUSTOM_CONFIG` of `tests/tdata_read.rs`): DC 2
+/// The serialized production config whose DC options were cleared and
+/// rebuilt (the `CUSTOM_CONFIG` of `tests/tdata_read.rs`): DC 2
 /// has IPv4 TCP `203.0.113.2:443` first and IPv6 TCP `2001:db8::2` first,
 /// DC 1 `198.51.100.1` and `2001:db8::1`, DC 3 only IPv4 `198.51.100.3`.
 const CUSTOM_CONFIG: &str = "000000010000000000000149fffffffe000000080000000200000005000001bb0000000b323030313a6462383a3a32000000000000000200000000000001bb0000000b3230332e302e3131332e32000000000000000200000400000020fb0000000b3230332e302e3131332e33000000100102030405060708090a0b0c0d0e0f100000000200000002000000500000000b3230332e302e3131332e34000000000000000200000011000001bb0000000c323030313a6462383a3a3232000000000000000100000010000001bb0000000c3139382e35312e3130302e31000000000000000100000401000001bb0000000b323030313a6462383a3a3100000020abababababababababababababababababababababababababababababababab0000000300000008000001bb0000000c3139382e35312e3130302e330000000000000001000000cb00000003010203000000030100010000014100002710000000640001d4c00000138800007530000003e8000493e000007530000005dc000000c80002a3000002a3000002a300000000010000001e0000000500000005000000640000001a00680074007400700073003a002f002f0074002e006d0065002f00093a8000004e2000015f90000075300000271000000004000000000000000100000000000004000000000227648000000000000005fffffff90000000800670069006600730000000c00760065006e007500650073";
@@ -767,8 +767,8 @@ fn account_with_config(main_dc: i32, config: Option<Vec<u8>>) -> Account {
 fn from_account_prefers_the_stored_config() {
     let config = hex::decode(CUSTOM_CONFIG).expect("hex");
     let account = account_with_config(2, Some(config.clone()));
-    // Endpoints chosen by 1.5.0 (`endpoints(MainDcId)`, then
-    // `_select_endpoint_address`, then the first TCP endpoint).
+    // The endpoint is the first TCP endpoint of the main DC's endpoints for
+    // the address family.
     for (ipv6, expected) in [
         (false, addr("203.0.113.2:443")),
         (true, addr("[2001:db8::2]:443")),
@@ -853,11 +853,11 @@ fn debug_output_never_shows_key_bytes() {
 
 // ---------------------------------------------------------------- telethon file
 
-/// Python `sqlite3` `iterdump()` of the file 1.5.0 writes with
-/// `write_session_file(base, 2, "149.154.167.51", 443, bytes(range(256)))`
-/// into an empty directory (`OPENTELE_NO_FETCH=1`, SQLite 3.45.3). The key
-/// blob, `counting_key(0)`, is masked as `<KEY>`.
-const V150_DUMP: [&str; 10] = [
+/// Python `sqlite3` `iterdump()` of the session file written for DC 2 at
+/// `149.154.167.51:443` with `bytes(range(256))` as the key into an empty
+/// directory (SQLite 3.45.3). The key blob, `counting_key(0)`, is masked as
+/// `<KEY>`.
+const WRITTEN_DUMP: [&str; 10] = [
     "BEGIN TRANSACTION;",
     "CREATE TABLE entities (id integer primary key, hash integer not null, username text, phone integer, name text, date integer);",
     "CREATE TABLE sent_files (md5_digest blob, file_size integer, type integer, id integer, hash integer, primary key(md5_digest, file_size, type));",
@@ -871,17 +871,16 @@ const V150_DUMP: [&str; 10] = [
 ];
 
 /// The dump lines without the trailing empty entry kept for formatting.
-fn v150_dump() -> Vec<String> {
-    V150_DUMP
+fn written_dump() -> Vec<String> {
+    WRITTEN_DUMP
         .iter()
         .filter(|line| !line.is_empty())
         .map(|line| (*line).to_owned())
         .collect()
 }
 
-/// The text 1.5.0's built-in table gives each production DC
-/// (`src/td/configs.py`), as (IPv4, IPv6).
-fn table_text_1_5_0(dc_id: i32) -> (&'static str, &'static str) {
+/// The text the built-in table gives each production DC, as (IPv4, IPv6).
+fn table_text(dc_id: i32) -> (&'static str, &'static str) {
     match dc_id {
         1 => ("149.154.175.50", "2001:0b28:f23d:f001:0000:0000:0000:000a"),
         2 => ("149.154.167.51", "2001:067c:04e8:f002:0000:0000:0000:000a"),
@@ -893,8 +892,8 @@ fn table_text_1_5_0(dc_id: i32) -> (&'static str, &'static str) {
 }
 
 #[test]
-fn telethon_file_schema_matches_1_5_0() {
-    let dump = v150_dump();
+fn telethon_file_schema_matches_the_dump() {
+    let dump = written_dump();
     let names: Vec<&str> = telethon_file::SCHEMA.iter().map(|t| t.name).collect();
     assert_eq!(
         names,
@@ -945,7 +944,7 @@ fn telethon_file_rows_from_vector_accounts() {
     for folder in ["tdata_plain/performance_on", "tdata_plain/performance_off"] {
         for (account, want) in &vector_accounts(folder) {
             let key_hex = want["auth_key"].as_str().expect("auth_key");
-            let (v4, v6) = table_text_1_5_0(account.main_dc);
+            let (v4, v6) = table_text(account.main_dc);
             for (ipv6, text) in [(false, v4), (true, v6)] {
                 let rows = SessionRows::from_account(account, ipv6).expect("rows");
                 let string = telethon::StringSession::from_account(account, ipv6).expect("string");
@@ -1006,8 +1005,9 @@ fn telethon_file_rows_from_stored_config_keep_its_text() {
 }
 
 #[test]
-fn telethon_file_pair_paths_match_1_5_0() {
-    // 1.5.0 `_normalize_base_path(p) + ".session"` and `+ ".json"`.
+fn telethon_file_pair_paths_share_one_base() {
+    // The base path with one trailing `.session` and then one trailing
+    // `.json` removed, plus ".session" and ".json".
     let cases = [
         ("acc", "acc.session", "acc.json"),
         ("acc.session", "acc.session", "acc.json"),
@@ -1033,7 +1033,7 @@ fn telethon_file_pair_paths_match_1_5_0() {
         assert_eq!(got_session, PathBuf::from(session), "{base:?} session");
         assert_eq!(got_json, PathBuf::from(json), "{base:?} json");
     }
-    // 1.5.0 `write_session_file`: the suffix is appended unless present.
+    // `write_session_file`: the suffix is appended unless present.
     for (path, full) in [
         ("acc", "acc.session"),
         ("acc.session", "acc.session"),
@@ -1073,8 +1073,8 @@ fn companion_profile() -> api::ApiProfile {
     }
 }
 
-/// The profile keys of [`companion_profile`] as 1.5.0 prints them, with the
-/// opening brace.
+/// The profile keys of [`companion_profile`] as the companion text prints
+/// them, with the opening brace.
 const COMPANION_HEAD: &str = r#"{
   "app_id": 2040,
   "app_hash": "b18441a1ff607e10a989891a5462e627",
@@ -1095,7 +1095,7 @@ fn object(value: Value) -> serde_json::Map<String, Value> {
 }
 
 #[test]
-fn companion_text_with_default_extras_matches_1_5_0() {
+fn companion_text_with_default_extras_is_pinned() {
     let want = r#"{
   "app_id": 2040,
   "app_hash": "b18441a1ff607e10a989891a5462e627",
@@ -1133,9 +1133,9 @@ fn companion_text_with_default_extras_matches_1_5_0() {
 }
 
 #[test]
-fn companion_text_with_user_extras_matches_1_5_0() {
-    // The extras 1.5.0 `save_session_json` sets after `get_me`, inserted in
-    // its order; defaults keep their positions, unknown keys go last.
+fn companion_text_with_user_extras_is_pinned() {
+    // The extras a saved session sets after `get_me`, inserted in their
+    // order; defaults keep their positions, unknown keys go last.
     let extra = object(serde_json::json!({
         "session_file": "acc",
         "id": 123_456_789,
@@ -1383,7 +1383,7 @@ fn read_companion_reads_what_companion_text_writes() {
 }
 
 #[test]
-fn read_companion_rejects_bad_json_with_the_1_5_0_message() {
+fn read_companion_rejects_bad_json_with_the_parser_message() {
     for text in ["not json", "", "{\"app_id\": 1,}"] {
         let parser = serde_json::from_str::<Value>(text)
             .expect_err("invalid JSON")
@@ -1560,16 +1560,16 @@ mod telethon_sqlite {
     }
 
     #[test]
-    fn written_file_dumps_as_1_5_0_writes_it() {
+    fn written_file_dumps_as_the_pinned_dump() {
         let dir = scratch("dump");
         let written = rows(2, "149.154.167.51", counting_key(0), None);
-        let path = telethon_file::write_session_file(dir.join("v150"), &written).expect("write");
-        assert_eq!(path, dir.join("v150.session"));
-        assert_eq!(dump(&path, &counting_key(0)), super::v150_dump());
+        let path = telethon_file::write_session_file(dir.join("written"), &written).expect("write");
+        assert_eq!(path, dir.join("written.session"));
+        assert_eq!(dump(&path, &counting_key(0)), super::written_dump());
     }
 
     #[test]
-    fn pre_v8_file_is_rebuilt_as_1_5_0_does() {
+    fn pre_v8_file_is_rebuilt_at_version_8() {
         let dir = scratch("rebuild");
         let path = dir.join("old.session");
         let conn = Connection::open(&path).expect("open");
@@ -1584,7 +1584,7 @@ mod telethon_sqlite {
         conn.close().expect("close");
         let written = rows(2, "149.154.167.51", counting_key(0), None);
         telethon_file::write_session_file(&path, &written).expect("write");
-        assert_eq!(dump(&path, &counting_key(0)), super::v150_dump());
+        assert_eq!(dump(&path, &counting_key(0)), super::written_dump());
     }
 
     #[test]
@@ -1638,7 +1638,7 @@ mod telethon_sqlite {
     }
 
     #[test]
-    fn writing_over_the_fixture_keeps_its_schema_as_1_5_0_does() {
+    fn writing_over_the_fixture_keeps_its_schema() {
         let dir = scratch("over_fixture");
         let path = dir.join("over.session");
         fs::copy(fixture(), &path).expect("copy fixture");
@@ -1663,7 +1663,7 @@ mod telethon_sqlite {
         telethon_file::write_session_file(&path, &written).expect("write");
         let lines = dump(&path, &counting_key(0));
         assert_eq!(creates(&lines), telethon_schema, "schema kept");
-        // 1.5.0 `write_session_file` on a copy of the fixture, same values.
+        // The rows written over a copy of the fixture.
         assert_eq!(
             inserts(&lines),
             [

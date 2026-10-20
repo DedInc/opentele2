@@ -1,12 +1,9 @@
-//! Tests for `opentele2_core::auth` against Telethon 1.45.0 and opentele2
-//! 1.5.0.
+//! Tests for `opentele2_core::auth` against Telethon 1.45.0.
 //!
-//! Every expected value was produced by running the reference code with
-//! `python -c`: Telethon `QRLogin.url` for the QR URLs, Telethon
+//! The QR URLs are Telethon `QRLogin.url`, and the SRP checks are Telethon
 //! `password.compute_check` with `os.urandom` patched to serve the recorded
-//! exponents for the SRP checks, 1.5.0 `TelegramClient.PrintSessions` on a
-//! fake `account.Authorizations` for the tables, and 1.5.0
-//! `ConsistencyChecker.run_all` on a fake client for the report texts. The
+//! exponents. The session tables are pinned for a fake
+//! `account.Authorizations`, and the report texts for a fake client. The
 //! passwords are fixtures; no password or proof is printed on failure.
 
 use opentele2_core::api::{self, ApiProfile, Client, LAYER, Versions};
@@ -546,10 +543,10 @@ fn sessions_table_without_rows_is_the_header() {
     assert_eq!(SESSION_COLUMNS[0], " ");
 }
 
-/// 1.5.0 `PrettyTable(table, addSplit)` (`src/utils.py`) on each table,
-/// captured by running it with `python -c`.
+/// Each table framed with `|`, `-` and `+`, cells centred, with a split
+/// line after the header and before each row index the third argument lists.
 #[test]
-fn format_table_matches_1_5_0_pretty_table() {
+fn format_table_frames_and_centres_the_cells() {
     assert_eq!(
         auth::format_table(&["a", "bb"], &[["1", "x"], ["long value", ""]], &[]),
         "|------------+----|\n|     a      | bb |\n|------------+----|\n\
@@ -592,7 +589,7 @@ fn format_table_pads_short_rows_and_drops_extra_cells() {
 }
 
 #[test]
-fn session_admin_messages_are_1_5_0s() {
+fn session_admin_messages_are_pinned() {
     assert_eq!(
         auth::FRESH_RESET_FORBIDDEN,
         "You can't logout other sessions if less than 24 hours have passed since you logged on the current session."
@@ -643,7 +640,7 @@ fn consistency_expectations_follow_the_profile() {
         api::profile(Client::Desktop, &versions).app_version
     );
 
-    // 1.5.0 `_check_version_consistency` on the offline profiles flags
+    // The version consistency check on the offline profiles flags
     // Telegram X (Android pack, own versions) and Web K (macOS pack).
     let expected = [
         (Client::Android, "android", true),
@@ -720,7 +717,7 @@ fn result(check: Check, passed: bool, detail: String) -> CheckResult {
 }
 
 #[test]
-fn consistency_report_texts_match_1_5_0() {
+fn consistency_report_texts_are_pinned() {
     let names: Vec<&str> = Check::ALL.iter().map(|check| check.name()).collect();
     assert_eq!(
         names,
@@ -798,7 +795,7 @@ fn consistency_report_texts_match_1_5_0() {
 }
 
 #[test]
-fn failing_consistency_report_texts_match_1_5_0() {
+fn failing_consistency_report_texts_are_pinned() {
     let expectations = ConsistencyExpectations::for_client(Client::Desktop, &Versions::offline());
     let failing = [
         result(
@@ -853,7 +850,7 @@ fn failing_consistency_report_texts_match_1_5_0() {
 // ------------------------------------------------------------ flow rules
 
 #[test]
-fn post_login_steps_are_1_5_0s_table() {
+fn post_login_steps_are_the_pinned_table() {
     use auth::PostLoginRequest as R;
     let table: Vec<(&str, Option<(u64, u64)>)> = auth::POST_LOGIN_STEPS
         .iter()
@@ -893,7 +890,7 @@ fn post_login_steps_are_1_5_0s_table() {
 }
 
 #[test]
-fn qr_login_constants_and_warnings_are_1_5_0s() {
+fn qr_login_constants_and_warnings_are_pinned() {
     assert_eq!(auth::QR_LOGIN_ATTEMPTS, 5);
     assert_eq!(auth::QR_EXPIRE_SAFETY_SECONDS, 5);
     assert_eq!(
@@ -980,8 +977,8 @@ fn consistency_report_wraps_a_raised_check_like_run_all() {
         passed: false,
         detail,
     };
-    // 1.5.0 run_all on a client whose every request raises "boom", with
-    // check_lang_pack raising ValueError("bad pack").
+    // The report of a client whose every request raises "boom", with the
+    // lang pack check raising ValueError("bad pack").
     let report = auth::consistency_report([
         failed(auth::get_config_error("boom")),
         failed(auth::nearest_dc_error("boom")),

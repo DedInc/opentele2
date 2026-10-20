@@ -1,4 +1,4 @@
-//! Golden-vector tests for `qt` and `tdf` against the 1.5.0 encodings in
+//! Golden-vector tests for `qt` and `tdf` against the encodings in
 //! `tests/vectors/tdf.json`.
 
 use std::fs;

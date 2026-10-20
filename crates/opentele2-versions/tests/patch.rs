@@ -1,6 +1,6 @@
-//! Tests for `VersionsPatch`: `apply` follows 1.5.0 `_apply_fetched_versions`
-//! (src/fingerprint.py:122-147) and `merge` keeps the fields a later answer
-//! leaves unset; `FIELDS`, `to_map` and `from_map` cover every field.
+//! Tests for `VersionsPatch`: `apply` writes every fetched field but the
+//! desktop version and leaves unset fields alone, and `merge` keeps the
+//! fields a later answer leaves unset; `FIELDS`, `to_map` and `from_map` cover every field.
 
 use opentele2_core::api::Versions;
 use opentele2_versions::VersionsPatch;

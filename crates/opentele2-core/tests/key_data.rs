@@ -1,4 +1,4 @@
-//! Tests for `tdata::key_data` against the four 1.5.0 vector folders in
+//! Tests for `tdata::key_data` against the four vector folders in
 //! `tests/vectors` (described by `tdata.json`) and the `argon2id_wrap` case of
 //! `crypto.json`, plus synthetic malformed trailers.
 //!
@@ -85,8 +85,8 @@ fn check_folder(folder: &str, passcode_lock: bool) {
         .collect();
     let main = entry["main_account_index"].as_i64().expect("main index");
     assert_eq!(info.indices, indices, "{folder} account indices");
-    // 1.5.0 makes the account whose index is the active one main, else the
-    // first loaded account (the vectors store an active index of -1).
+    // The account whose index is the active one is main, else the first
+    // loaded account (the vectors store an active index of -1).
     let effective_main = if info.indices.contains(&info.active_index) {
         info.active_index
     } else {
@@ -310,7 +310,7 @@ fn newer_format_reads_known_prefix_and_writes_format_2() {
     assert_eq!(trailer.wraps.len(), 3);
     assert_eq!(trailer.live_wraps().count(), 1);
 
-    // 1.5.0 keeps only the live wraps before writing back.
+    // Only the live wraps are written back.
     let live = KeyDataTrailer {
         committed: trailer.committed,
         wraps: trailer.live_wraps().cloned().collect(),
@@ -417,7 +417,7 @@ fn argon2id_wrap_vector_wraps_and_unwraps() {
     let wrapped = wrap_local_key(&local, &wrap_key, &bytes("padding")).expect("wrap");
     assert!(
         wrapped == bytes("key_encrypted"),
-        "wrapped key differs from 1.5.0"
+        "wrapped key differs from the vector"
     );
     let unwrapped = unwrap_local_key(&wrapped, &wrap_key).expect("unwrap");
     assert!(

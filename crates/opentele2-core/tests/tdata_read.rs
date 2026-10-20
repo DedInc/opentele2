@@ -1,5 +1,5 @@
 //! Tests for `tdata::account`, `tdata::map`, and `TData::load` against the
-//! four 1.5.0 vector folders in `tests/vectors` (described by `tdata.json`),
+//! four vector folders in `tests/vectors` (described by `tdata.json`),
 //! plus synthetic blobs and damaged copies of a vector folder.
 //!
 //! Argon2id derivations are slow in debug builds; only the two passcode
@@ -97,7 +97,7 @@ fn check_folder(folder: &str) {
         let key = account.auth_key().expect("main auth key");
         assert!(
             hex::encode(key.as_bytes()) == want["auth_key"].as_str().expect("auth key"),
-            "{folder}/{index} auth key differs from 1.5.0"
+            "{folder}/{index} auth key differs from the vector"
         );
 
         // The account's files are where the helpers say they are.
@@ -112,7 +112,7 @@ fn check_folder(folder: &str) {
             !performance,
             "{folder}/{index} config presence"
         );
-        // The configs 1.5.0 wrote parse and re-serialize byte for byte.
+        // The vector configs parse and re-serialize byte for byte.
         if let Some(config) = account.config.as_deref() {
             let parsed = MtpConfig::parse(config).expect("parse vector config");
             assert_eq!(
@@ -134,7 +134,7 @@ fn check_folder(folder: &str) {
         );
         assert_eq!(account.map.stopped_at, None, "{folder}/{index} map stop");
 
-        // MtpAuthorization re-encodes to the exact bytes 1.5.0 wrote.
+        // MtpAuthorization re-encodes to the exact vector bytes.
         let blob =
             Account::read_mtp_authorization(&dir, &data_name(key_file, index), &tdata.local_key)
                 .expect("read mtp authorization");
@@ -180,7 +180,7 @@ fn data_and_folder_names_match_the_vectors() {
 }
 
 #[test]
-fn load_errors_match_1_5_0() {
+fn load_errors_are_pinned() {
     let plain = vectors_dir().join("tdata_plain/performance_on");
     assert!(matches!(
         TData::load(&plain, b"opentele2", None),
@@ -374,7 +374,7 @@ fn mtp_authorization_errors() {
 }
 
 #[test]
-fn map_entries_accept_the_1_5_0_shapes() {
+fn map_entries_accept_every_entry_shape() {
     let mut w = QWriter::new();
     w.write_u32(map::LSK_SELF_SERIALIZED);
     w.write_bytearray(Some(b"self")).expect("self");
@@ -440,7 +440,7 @@ fn map_entries_accept_the_1_5_0_shapes() {
     let (entries, stopped) = MapData::parse_entries(&unknown).expect("unknown");
     assert_eq!((entries.len(), stopped), (7, Some(0x7F)));
 
-    // A key type cut short reads as 0 in 1.5.0, which also ends the entries.
+    // A key type cut short reads as 0, which also ends the entries.
     let mut short = known.clone();
     short.extend_from_slice(&[0, 0]);
     let (entries, stopped) = MapData::parse_entries(&short).expect("short type");
@@ -468,7 +468,7 @@ fn hex_bytes(text: &str) -> Vec<u8> {
     hex::decode(text).expect("hex literal")
 }
 
-/// 1.5.0's `MTP.Config(Production)` with custom DC options and fields:
+/// A production config with custom DC options and fields:
 /// `_data` cleared, then through `applyOneGuarded`, in order, DC 2 IPv6
 /// TCP-only `2001:db8::2`, `203.0.113.2`, secret `203.0.113.3:8443` (secret
 /// bytes 1 to 16), a static duplicate of `203.0.113.2:443`, media-only
@@ -478,10 +478,10 @@ fn hex_bytes(text: &str) -> Vec<u8> {
 /// one CDN key (203, `010203`, `010001`); and chatSizeMax 321,
 /// revokePrivateInbox, an empty txtDomainString, emoji U+2764, custom
 /// reaction 2^63 + 5, ratingDecay -7, search bots `gifs` and `venues`. The
-/// bytes are its `Serialize()`.
+/// bytes are its serialization.
 const CUSTOM_CONFIG: &str = "000000010000000000000149fffffffe000000080000000200000005000001bb0000000b323030313a6462383a3a32000000000000000200000000000001bb0000000b3230332e302e3131332e32000000000000000200000400000020fb0000000b3230332e302e3131332e33000000100102030405060708090a0b0c0d0e0f100000000200000002000000500000000b3230332e302e3131332e34000000000000000200000011000001bb0000000c323030313a6462383a3a3232000000000000000100000010000001bb0000000c3139382e35312e3130302e31000000000000000100000401000001bb0000000b323030313a6462383a3a3100000020abababababababababababababababababababababababababababababababab0000000300000008000001bb0000000c3139382e35312e3130302e330000000000000001000000cb00000003010203000000030100010000014100002710000000640001d4c00000138800007530000003e8000493e000007530000005dc000000c80002a3000002a3000002a300000000010000001e0000000500000005000000640000001a00680074007400700073003a002f002f0074002e006d0065002f00093a8000004e2000015f90000075300000271000000004000000000000000100000000000004000000000227648000000000000005fffffff90000000800670069006600730000000c00760065006e007500650073";
 
-/// 1.5.0's `MTP.Config(Test).Serialize()`.
+/// The serialized default test config.
 const TEST_CONFIG: &str = "000000010000000100000124fffffffe000000060000000100000010000001bb0000000e3134392e3135342e3137352e3130000000000000000100000011000001bb00000027323030313a306232383a663233643a663030313a303030303a303030303a303030303a30303065000000000000000200000010000001bb0000000e3134392e3135342e3136372e3430000000000000000200000011000001bb00000027323030313a303637633a303465383a663030323a303030303a303030303a303030303a30303065000000000000000300000010000001bb0000000f3134392e3135342e3137352e313137000000000000000300000011000001bb00000027323030313a306232383a663233643a663030333a303030303a303030303a303030303a303030650000000000000000000000c800002710000000640001d4c00000138800007530000003e8000493e000007530000005dc000000c80002a3000002a3000002a300000000000000001e0000000500000005000000640000001a00680074007400700073003a002f002f0074002e006d0065002f00093a8000004e2000015f900000753000002710000000020000001c00740061007000760033002e007300740065006c002e0063006f006d00000001000000000000040000000004d83ddc4d00000000000000000024ea00000000100069007a0067006900660062006f00740000001a0066006f007500720073007100750061007200650062006f0074";
 
 fn endpoint(id: i32, flags: i32, ip: &str, port: i32, secret: &[u8]) -> Endpoint {
@@ -535,7 +535,7 @@ fn default_configs_round_trip() {
 }
 
 #[test]
-fn custom_config_matches_1_5_0() {
+fn custom_config_parses_and_rebuilds() {
     let bytes = hex_bytes(CUSTOM_CONFIG);
     let parsed = MtpConfig::parse(&bytes).expect("parse custom");
     assert_eq!(parsed.serialize().expect("serialize"), bytes);
@@ -573,12 +573,12 @@ fn custom_config_matches_1_5_0() {
     fields.venue_search_username = "venues".to_owned();
     assert_eq!(built.serialize().expect("serialize built"), bytes);
     assert_eq!(built.fields, parsed.fields);
-    // As in 1.5.0 the temporary DC is kept in memory but never serialized.
+    // The temporary DC is kept in memory but never serialized.
     assert!(built.endpoints(1001).is_some());
     assert!(parsed.endpoints(1001).is_none());
     assert_eq!((bare_dc_id(10_003), bare_dc_id(-1)), (3, 9_999));
 
-    // `config.endpoints(dc)` of 1.5.0, by family and protocol.
+    // `config.endpoints(dc)`, by family and protocol.
     let dc1 = parsed.endpoints(1).expect("DC 1");
     let v4 = endpoint(1, FLAG_STATIC, "198.51.100.1", 443, &[]);
     let v6 = endpoint(1, FLAG_IPV6 | FLAG_SECRET, "2001:db8::1", 443, &[0xAB; 32]);
@@ -625,7 +625,7 @@ fn custom_config_matches_1_5_0() {
     }
 }
 
-/// Serialized DC options and the bytes 1.5.0 re-serializes them to.
+/// Serialized DC options and the bytes they re-serialize to.
 const LEGACY_DC_OPTIONS: [(&str, &str, &str); 3] = [
     (
         "version 1, duplicate dropped, trailing bytes ignored",
@@ -649,7 +649,7 @@ fn be(values: &[i32]) -> Vec<u8> {
 }
 
 #[test]
-fn dc_options_versions_and_errors_match_1_5_0() {
+fn dc_options_versions_and_errors_are_pinned() {
     for (what, input, output) in LEGACY_DC_OPTIONS {
         let options = DcOptions::parse(&hex_bytes(input)).expect(what);
         assert_eq!(
@@ -691,7 +691,7 @@ fn dc_options_versions_and_errors_match_1_5_0() {
             one(7, b"1.1.1.1", &be(&[-1])),
             "TDATA_BAD_CONFIG_DATA",
         ),
-        // A cut-short endpoint reads its IP size as 0 first, as in 1.5.0.
+        // A cut-short endpoint reads its IP size as 0 first.
         ("cut after count", be(&[-2, 1]), "TDATA_BAD_CONFIG_DATA"),
         (
             "non-ASCII ip",
@@ -716,7 +716,7 @@ fn dc_options_versions_and_errors_match_1_5_0() {
 }
 
 #[test]
-fn config_tail_and_errors_match_1_5_0() {
+fn config_tail_and_errors_are_pinned() {
     let full = &MTP_CONFIG_PRODUCTION[..];
     // The fixed part ends 54 bytes before the end: the tail is the emoji
     // string (8 bytes), a u64, an i32, and two strings of 10 and 24 bytes.
@@ -787,7 +787,7 @@ fn authorization_block(blob: Option<&[u8]>) -> Vec<u8> {
     })
 }
 
-/// Every legacy block 1.5.0's `ReadSetting` reads: user 7 on DC 2 with keys
+/// Every legacy block the settings reader reads: user 7 on DC 2 with keys
 /// for DC 4 and DC 2, and the blocks that leave the account unchanged.
 fn legacy_mtp_data() -> Vec<u8> {
     let options = DcOptions::built_in(Environment::Production)

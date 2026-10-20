@@ -1,8 +1,6 @@
-//! Tests for `api`: every case of `tests/vectors/devices.json` (1.5.0
-//! `Generate` per entry point) on all five recorded fields, and every default
-//! profile against the class values of 1.5.0 `src/api.py` after
-//! `_sync_api_versions` with the offline `PlatformVersions` of
-//! `src/fingerprint.py`.
+//! Tests for `api`: every case of `tests/vectors/devices.json` (one generated
+//! profile per entry point and seed) on all five recorded fields, and every
+//! default profile against its expected values with the offline versions.
 
 use std::fs;
 use std::path::PathBuf;
@@ -21,7 +19,7 @@ fn read_vectors() -> Value {
     serde_json::from_str(&text).expect("parse devices.json")
 }
 
-/// The seed 1.5.0 hashes: strings as given, integers as their decimal `str()`.
+/// The seed that is hashed: strings as given, integers as their decimal `str()`.
 fn seed_of(case: &Value) -> String {
     match (&case["seed_kind"], &case["seed"]) {
         (Value::String(kind), Value::String(seed)) if kind == "str" => seed.clone(),
@@ -82,7 +80,7 @@ fn expected(
 }
 
 #[test]
-fn every_vector_case_matches_1_5_0() -> Result<()> {
+fn every_vector_case_matches() -> Result<()> {
     let versions = Versions::offline();
     let vectors = read_vectors();
     let cases = vectors["cases"].as_array().expect("cases array");
@@ -141,7 +139,7 @@ fn offline_versions_equal_platform_versions_defaults() {
     assert_eq!(versions.ios_build_number, 35303);
     assert_eq!(versions.ios_system_version, "27.0.1");
     assert_eq!(versions.macos_system_version, "27.0.1");
-    // APP_VERSION_STR of src/utils.py: format_app_version(7003001).
+    // format_app_version(7003001), the tdata app version.
     assert_eq!(versions.desktop_app_version, "7.3.1");
     assert_eq!(versions.desktop_app_version_suffix, "x64");
     assert_eq!(versions.macos_app_version, "13.0");
@@ -164,9 +162,9 @@ fn advertised_layer_is_230() {
     assert_eq!(api::LAYER, 230);
 }
 
-/// `json.dumps(API.<X>().to_json(), separators=(",", ":"))` of 1.5.0 with
-/// `OPENTELE_NO_FETCH=1`, per client in [`Client::ALL`] order.
-const SESSION_JSON_1_5_0: [&str; 8] = [
+/// The compact session JSON of each default profile with the offline
+/// versions, per client in [`Client::ALL`] order.
+const DEFAULT_SESSION_JSON: [&str; 8] = [
     r#"{"app_id":2040,"app_hash":"b18441a1ff607e10a989891a5462e627","device":"Desktop","sdk":"Windows 11 x64","app_version":"7.3.1 x64","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"tdesktop","lang_code":"en","twoFA":null,"role":"","id":null,"phone":null,"username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,"session_file":""}"#,
     r#"{"app_id":6,"app_hash":"eb06d4abfb49dc3eeb1aeb98ae0f581e","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"13.0.3 (7183)","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en","twoFA":null,"role":"","id":null,"phone":null,"username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,"session_file":""}"#,
     r#"{"app_id":21724,"app_hash":"3e0cb5efcd52300aec5994fdfc5bdc16","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"0.29.1.1817","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en","twoFA":null,"role":"","id":null,"phone":null,"username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,"session_file":""}"#,
@@ -178,9 +176,9 @@ const SESSION_JSON_1_5_0: [&str; 8] = [
 ];
 
 #[test]
-fn default_session_json_matches_1_5_0_byte_for_byte() -> Result<()> {
+fn default_session_json_matches_byte_for_byte() -> Result<()> {
     let versions = Versions::offline();
-    for (client, want) in Client::ALL.into_iter().zip(SESSION_JSON_1_5_0) {
+    for (client, want) in Client::ALL.into_iter().zip(DEFAULT_SESSION_JSON) {
         let profile = api::profile(client, &versions);
         let json = profile.to_session_json(None);
         let got = serde_json::to_string(&json).expect("serialize session JSON");
@@ -199,8 +197,8 @@ fn default_session_json_matches_1_5_0_byte_for_byte() -> Result<()> {
 
 #[test]
 fn session_json_extra_overrides_in_place_and_appends() {
-    // 1.5.0 API.TelegramAndroid().to_json({"zeta": 1, "phone": "+100",
-    // "app_id": 7, "ipv6": True, "alpha": None}).
+    // The Android profile written with the extras {"zeta": 1, "phone": "+100",
+    // "app_id": 7, "ipv6": true, "alpha": null}.
     let want = r#"{"app_id":7,"app_hash":"eb06d4abfb49dc3eeb1aeb98ae0f581e","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"13.0.3 (7183)","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en","twoFA":null,"role":"","id":null,"phone":"+100","username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":true,"session_file":"","zeta":1,"alpha":null}"#;
     let extra: serde_json::Map<String, Value> =
         serde_json::from_str(r#"{"zeta":1,"phone":"+100","app_id":7,"ipv6":true,"alpha":null}"#)
@@ -217,9 +215,9 @@ fn from_json(text: &str) -> Result<[String; 8]> {
 }
 
 #[test]
-fn from_session_json_applies_1_5_0_defaults() -> Result<()> {
+fn from_session_json_applies_the_language_defaults() -> Result<()> {
     let base = r#""app_id":1,"app_hash":"h","device":"d","sdk":"s","app_version":"v""#;
-    // Each expectation is what 1.5.0 APIData.from_json gives for the input.
+    // Each expectation is the language fields read from the input.
     let cases = [
         (format!("{{{base}}}"), ["en", "en", ""]),
         (
@@ -284,8 +282,8 @@ fn hash_of(profile: &ApiProfile) -> u64 {
 fn equality_and_hash_ignore_the_language_fields() {
     let versions = Versions::offline();
     let base = api::profile(Client::Desktop, &versions);
-    // 1.5.0: TelegramDesktop() == TelegramDesktop(lang_code="ru",
-    // system_lang_code="ru-RU", lang_pack="x"), with equal hashes.
+    // The desktop profile equals itself with lang_code "ru",
+    // system_lang_code "ru-RU" and lang_pack "x", with equal hashes.
     let other_language = ApiProfile {
         lang_code: "ru".to_owned(),
         system_lang_code: "ru-RU".to_owned(),
@@ -309,7 +307,7 @@ fn equality_and_hash_ignore_the_language_fields() {
 }
 
 #[test]
-fn default_profiles_match_1_5_0() {
+fn default_profiles_have_their_class_values() {
     let versions = Versions::offline();
     let web_hash = "8da85b0d5bfe62527e5b244c209159c3";
     let cases = [
@@ -471,7 +469,7 @@ fn lone_unknown_system_is_the_seed() -> Result<()> {
 #[test]
 fn unknown_system_with_a_seed_is_chosen_by_hash() -> Result<()> {
     let versions = Versions::offline();
-    // Platform names are matched case-sensitively, as in 1.5.0.
+    // Platform names are matched case-sensitively.
     for system in ["Windows", "MACOS", "bsd", ""] {
         for seed in ["", "user1@example.org", "ключ-2"] {
             assert_eq!(
@@ -573,10 +571,10 @@ fn unseeded_generate_keeps_the_profile_fields() -> Result<()> {
     Ok(())
 }
 
-/// 1.5.0 `format_app_version` (`src/utils.py`) of each version, captured by
-/// running it.
+/// The dotted text of each packed version: trailing zero patch dropped, minor
+/// and patch unpadded.
 #[test]
-fn format_app_version_matches_1_5_0() {
+fn format_app_version_prints_the_dotted_version() {
     let cases = [
         (7_003_001, "7.3.1"),
         (7_003_000, "7.3"),
@@ -595,7 +593,7 @@ fn format_app_version_matches_1_5_0() {
     );
 }
 
-/// 1.5.0 `TDF_MAGIC` is `b'TDF$'`.
+/// `TDF_MAGIC` is `b'TDF$'`.
 #[test]
 fn tdf_magic_is_exported_next_to_the_app_version() {
     assert_eq!(opentele2_core::tdata::TDF_MAGIC, *b"TDF$");
@@ -617,10 +615,10 @@ fn assert_same_object(ours: &serde_json::Map<String, Value>, expected: &str) {
     assert_eq!(ours, &expected);
 }
 
-/// `{attribute: getattr(APIData.from_json(data), attribute)}` in 1.5.0, for
-/// each `data`, captured by running it.
+/// The attribute map read from each untyped session JSON `data`, keys in
+/// attribute order.
 #[test]
-fn untyped_session_json_read_matches_1_5_0() {
+fn untyped_session_json_read_gives_the_attributes() {
     use api::session_json;
     let cases = [
         (
@@ -649,9 +647,9 @@ fn untyped_session_json_read_matches_1_5_0() {
     }
 }
 
-/// `APIData(...).to_json(extra)` in 1.5.0, captured by running it.
+/// The session JSON written from an attribute map, with and without extras.
 #[test]
-fn untyped_session_json_write_matches_1_5_0() {
+fn untyped_session_json_write_gives_the_session_json() {
     use api::session_json;
     let attributes = object(
         r#"{"api_id": 9, "api_hash": "hh", "device_model": "M", "system_version": null, "app_version": "1.0", "lang_code": "en", "system_lang_code": "en-US", "lang_pack": ""}"#,
@@ -672,10 +670,10 @@ fn untyped_session_json_write_matches_1_5_0() {
     assert_eq!(written["device"], Value::Null);
 }
 
-/// `list(_DEFAULT_EXTRA_FIELDS.items())` of 1.5.0 `src/api.py`, and the
-/// field table against the keys `APIData.to_json` writes.
+/// `DEFAULT_EXTRA_FIELDS` as key and default pairs in order, and the field
+/// table against the keys the session JSON holds.
 #[test]
-fn session_json_tables_match_1_5_0() {
+fn session_json_tables_list_the_fields_and_defaults() {
     use api::session_json::{self, DEFAULT_EXTRA_FIELDS, FIELDS, JsonDefault};
     let expected: Value = serde_json::from_str(
         r#"[["twoFA", null], ["role", ""], ["id", null], ["phone", null], ["username", null], ["date_of_birth", null], ["date_of_birth_integrity", null], ["is_premium", false], ["has_profile_pic", false], ["spamblock", null], ["register_time", null], ["last_check_time", null], ["avatar", null], ["first_name", ""], ["last_name", ""], ["sex", null], ["proxy", null], ["ipv6", false], ["session_file", ""]]"#,

@@ -1,7 +1,6 @@
 //! Tests for `parse`: every parser against response bodies captured from the
-//! real sources into `tests/fixtures/` (2026-10-19). The expected values are
-//! what the 1.5.0 fetchers of `src/version_fetcher.py` return on the same
-//! bodies, plus the synthetic page of `tests/test_version_fetcher.py`.
+//! real sources into `tests/fixtures/` (2026-10-19), plus one synthetic
+//! page. The expected values are the versions each body carries.
 
 use opentele2_versions::VersionsPatch;
 use opentele2_versions::parse::{self, TgPost};
@@ -32,7 +31,8 @@ fn message(text: &str) -> String {
     format!(r#"<div class="tgme_widget_message_text js-message_text" dir="auto">{text}</div>"#)
 }
 
-/// `_TGSTABLE_PAGE` of `tests/test_version_fetcher.py`.
+/// A synthetic tgstable channel page: Android, iOS, macOS, then a newer
+/// Android post.
 fn synthetic_page() -> String {
     [
         "Telegram for <b>Android</b> has been updated New <b>version</b>:\
@@ -183,8 +183,8 @@ fn a_page_without_posts_sends_to_the_fallback() {
 
 #[test]
 fn play_fallback_drops_its_empty_version() {
-    // The captured feed answers `"version": ""`; 1.5.0 returns it and then
-    // drops the empty value in `fetch_all_versions`.
+    // The captured feed answers `"version": ""`; an empty version is no
+    // version.
     assert_eq!(parse::parse_android_play(PLAY_ANDROID), None);
     assert_eq!(
         parse::parse_android_play(r#"{"version": "13.0.3"}"#)
@@ -242,7 +242,7 @@ fn macos_brew_edge_cases() {
         patch(Some("13.1"), Some(290_000))
     );
     assert_eq!(brew(r#""13.1,beta""#), patch(Some("13.1"), None));
-    // These fall back to iTunes in 1.5.0.
+    // These give no version, so the iTunes source answers instead.
     assert_eq!(brew(r#""""#), None);
     assert_eq!(brew("null"), None);
     assert_eq!(parse::parse_macos_brew("{}"), None);

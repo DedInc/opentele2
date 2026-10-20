@@ -1,14 +1,10 @@
-//! `Error::legacy_message` against the messages 1.5.0 raised on the same
-//! inputs.
+//! `Error::legacy_message` and `Error::legacy_class` against the pinned
+//! message and class of each failure.
 //!
-//! Every expected string was captured by running the 1.5.0 sources under
-//! `src/` (with `OPENTELE_NO_FETCH=1` set before `import src`) on the input
-//! the test builds: `Storage.ReadFile`, `Storage.DecryptLocal`,
-//! `MapData.read`, `Account._setMtpAuthorization`, `Account.FromTelethon`,
-//! `read_key_data`, `create_passcode_key`, `TDesktop.__loadFromTData`,
-//! `TDesktop.SaveTData`, `MTP.DcOptions.constructFromSerialized` and
-//! `MTP.Config.FromSerialized`, reading the exception's `message`. Key
-//! bytes are never printed.
+//! Each test builds a failing input for one reader or writer: file reads,
+//! local decryption, the map, the MTP authorization, the account limit, key
+//! data, passcode keys, accounts info, saves, DC options and MTP configs.
+//! Key bytes are never printed.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,7 +39,7 @@ fn message<T>(result: Result<T>) -> String {
     }
 }
 
-/// The 256-byte key `bytes(range(256))` the captures used.
+/// The 256-byte key `bytes(range(256))`.
 fn counting_key() -> AuthKey {
     AuthKey::new(core::array::from_fn(|i| {
         u8::try_from(i).expect("index fits a byte")
@@ -51,7 +47,7 @@ fn counting_key() -> AuthKey {
 }
 
 #[test]
-fn read_file_messages_match_1_5_0() {
+fn read_file_messages_are_pinned() {
     let dir = scratch("read_file");
     assert_eq!(message(tdf::read(&dir, "map")), "Could not open map");
 
@@ -116,7 +112,7 @@ fn parse_errors_carry_the_magic_and_checksum() {
 }
 
 #[test]
-fn decrypt_local_messages_match_1_5_0() {
+fn decrypt_local_messages_are_pinned() {
     let key = counting_key();
     assert_eq!(
         message(decrypt_local(&[0; 16], &key)),
@@ -172,7 +168,7 @@ fn qbytes(bytes: &[u8]) -> Vec<u8> {
 }
 
 #[test]
-fn map_read_messages_match_1_5_0() {
+fn map_read_messages_are_pinned() {
     let dir = scratch("map");
     let key = counting_key();
     assert_eq!(
@@ -198,8 +194,8 @@ fn map_read_messages_match_1_5_0() {
     );
     fs::remove_dir_all(&dir).expect("clean scratch");
 
-    // The legacy-passcode read is 1.5.0's only; its messages are given
-    // for bindings that implement it.
+    // The core has no legacy-passcode map read; its messages are given for
+    // bindings that implement it.
     let bad_salt = Error::ReadMapDataFailed {
         context: MapReadFailure::BadSalt { size: 5 },
     };
@@ -212,7 +208,7 @@ fn map_read_messages_match_1_5_0() {
 }
 
 #[test]
-fn mtp_authorization_messages_match_1_5_0() {
+fn mtp_authorization_messages_are_pinned() {
     assert_eq!(
         message(Account::parse_mtp_authorization(0, b"")),
         "Could not read main fields from mtp authorization."
@@ -229,8 +225,7 @@ fn mtp_authorization_messages_match_1_5_0() {
     assert_eq!(error.code(), "QDATASTREAM_FAILED");
 }
 
-/// 1.5.0 skips an unknown MTP data block, so it never raised this; the text
-/// is its `_readMtpData` format (`src/td/storage_account.py:122`).
+/// An unknown MTP data block is refused with a message naming its id.
 #[test]
 fn unknown_mtp_data_block_names_the_block_id() {
     let error = Account::parse_mtp_data(0, &0x1234_5678u32.to_be_bytes()).expect_err("unknown");
@@ -242,7 +237,7 @@ fn unknown_mtp_data_block_names_the_block_id() {
 }
 
 #[test]
-fn account_limit_message_matches_1_5_0() {
+fn account_limit_message_is_pinned() {
     let accounts = (0..6)
         .map(|index| {
             Account::new(index, 1, 2, vec![(2, AuthKey::new([0; AuthKey::SIZE]))]).expect("account")
@@ -278,10 +273,9 @@ fn wrap(kdf: [u32; 5], salt: &[u8]) -> Vec<u8> {
     [be32(&kdf), qbytes(salt), qbytes(&[0; 48])].concat()
 }
 
-/// The inputs `read_key_data` was run on in 1.5.0 (`src/td/key_data.py:213`),
-/// with the message it raised for each.
+/// Malformed key data inputs, with the message each one fails with.
 #[test]
-fn key_data_messages_match_1_5_0() {
+fn key_data_messages_are_pinned() {
     use opentele2_core::tdata::key_data::KeyData;
 
     let head = [qbytes(&[0; 32]), qbytes(&[0; 48]), qbytes(&[0; 48])].concat();
@@ -363,7 +357,7 @@ fn key_data_messages_match_1_5_0() {
 }
 
 #[test]
-fn passcode_key_message_matches_1_5_0() {
+fn passcode_key_message_is_pinned() {
     use opentele2_core::tdata::key_data::{PasscodeKdf, create_passcode_key};
 
     let cases = [
@@ -392,9 +386,9 @@ fn passcode_key_message_matches_1_5_0() {
     }
 }
 
-/// Writes `key_datas` the way the 1.5.0 capture did: a zero open salt, the
-/// counting local key wrapped under the open key, and the accounts info
-/// `[count, 0]` encrypted under `info_key`.
+/// Writes `key_datas` with a zero open salt, the counting local key wrapped
+/// under the open key, and the accounts info `[count, 0]` encrypted under
+/// `info_key`.
 fn write_key_file(dir: &Path, count: i32, info_key: &AuthKey) {
     use opentele2_core::crypto::encrypt_local;
     use opentele2_core::kdf::create_local_key;
@@ -421,7 +415,7 @@ fn write_key_file(dir: &Path, count: i32, info_key: &AuthKey) {
 }
 
 #[test]
-fn accounts_info_messages_match_1_5_0() {
+fn accounts_info_messages_are_pinned() {
     let dir = scratch("accounts_info");
     let other = AuthKey::new(core::array::from_fn(|i| {
         255 - u8::try_from(i).expect("index fits a byte")
@@ -443,10 +437,10 @@ fn accounts_info_messages_match_1_5_0() {
     fs::remove_dir_all(&dir).expect("clean scratch");
 }
 
-/// `DcOptions.constructFromSerialized` and `Config.FromSerialized`
-/// (`src/td/mtp.py:105-150,388-418`) on the same bytes.
+/// The stream failures of `DcOptions::parse` and `MtpConfig::parse` on the
+/// same bytes.
 #[test]
-fn mtp_config_stream_messages_match_1_5_0() {
+fn mtp_config_stream_messages_are_pinned() {
     use opentele2_core::tdata::mtp_config::{DcOptions, MtpConfig};
 
     let cases = [
@@ -472,11 +466,10 @@ fn mtp_config_stream_messages_match_1_5_0() {
     );
 }
 
-/// The `TDataBadConfigData` checks of `DcOptions.constructFromSerialized`
-/// (`src/td/mtp.py:117-132`) and the version check of `Config.FromSerialized`
-/// (`src/td/mtp.py:391-394`) on the same bytes.
+/// The `TDataBadConfigData` checks of `DcOptions::parse` and the version
+/// check of `MtpConfig::parse` on the same bytes.
 #[test]
-fn bad_config_messages_match_1_5_0() {
+fn bad_config_messages_are_pinned() {
     use opentele2_core::tdata::mtp_config::{DcOptions, MtpConfig};
 
     let endpoint = |ip_size: i32| bei32(&[-2, 1, 2, 0, 443, ip_size]);
@@ -524,12 +517,12 @@ fn bad_config_messages_match_1_5_0() {
     }
 }
 
-/// The checks 1.5.0 reached through Python itself: `ip.decode("ascii")`
-/// in `constructFromSerialized` (`UnicodeDecodeError`) and
-/// `MTP.Environment(...)` in `Config.FromSerialized` (`ValueError`, the
-/// Python 3.8 text), and `TDataDcIdNotFound` from `MTP.Config.endpoints`.
+/// The checks worded as Python words them: a non-ASCII IP in `DcOptions`
+/// (the `UnicodeDecodeError` text), an unknown environment in `MtpConfig`
+/// (the Python 3.8 `ValueError` text), and `TDataDcIdNotFound` for a DC with
+/// no endpoints.
 #[test]
-fn bad_config_python_messages_match_1_5_0() {
+fn bad_config_python_worded_messages_are_pinned() {
     use opentele2_core::session::telethon::StringSession;
     use opentele2_core::tdata::mtp_config::{DcOptions, MtpConfig};
 
@@ -558,7 +551,7 @@ fn bad_config_python_messages_match_1_5_0() {
 }
 
 #[test]
-fn save_failed_message_matches_1_5_0() {
+fn save_failed_message_is_pinned() {
     let mut no_draw = |_: &mut [u8]| panic!("performance mode draws nothing");
     let tdata = TData::new(Vec::new(), b"", true, &mut no_draw).expect("new");
     let dir = scratch("save_failed");
@@ -646,8 +639,8 @@ fn legacy_classes_of_file_codes_are_the_python_table() {
 }
 
 /// The rest of the `CORE_ERROR_TYPES` table, with the bad accounts count
-/// raised as the plain `OpenTeleException` 1.5.0 gave it and the builtins
-/// of the codes 1.5.0 has no class for.
+/// raised as the plain `OpenTeleException` and the codes without an
+/// opentele2 class raised as Python builtins.
 #[test]
 fn legacy_classes_of_account_and_input_codes_are_the_python_table() {
     assert_classes(&[

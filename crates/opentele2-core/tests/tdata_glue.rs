@@ -42,7 +42,7 @@ fn scratch(label: &str) -> PathBuf {
     dir
 }
 
-/// The draws 1.5.0 recorded for `entry`, after the first `skip`.
+/// The draws recorded for `entry`, after the first `skip`.
 fn recorded_draws(entry: &Value, skip: usize) -> Vec<Vec<u8>> {
     entry["rng_draws"]
         .as_array()
@@ -77,7 +77,7 @@ fn assert_same_folder(folder: &str, written: &Path) {
         let name = name.as_str().expect("file name");
         let ours = fs::read(written.join(name)).expect("read written file");
         let theirs = fs::read(expected.join(name)).expect("read vector file");
-        assert!(ours == theirs, "{folder}/{name} differs from 1.5.0");
+        assert!(ours == theirs, "{folder}/{name} differs from the vector");
     }
 }
 
@@ -91,7 +91,7 @@ fn invalid_input<T>(result: Result<T>) -> (&'static str, String) {
 }
 
 #[test]
-fn replayed_new_and_save_write_like_1_5_0() {
+fn replayed_new_and_save_write_the_vector_files() {
     let folder = "tdata_plain/performance_off";
     let entry = folder_entry(folder);
     let draws = recorded_draws(&entry, 0);

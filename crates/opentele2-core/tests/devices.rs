@@ -1,10 +1,9 @@
-//! Tests for `devices`: every case of `tests/vectors/devices.json` (1.5.0
-//! `Generate` per entry point), seed hashes computed by 1.5.0's
-//! `_strtohashid` and catalog sizes equal to 1.5.0's expanded list lengths.
-//! The web pool has no 1.5.0 vectors (1.5.0 drew it at random from
-//! browserforge), so its tests check 1.5.0's sizes, weights, platform
-//! strings and version windows, determinism per seed and versions, and
-//! reachability.
+//! Tests for `devices`: every case of `tests/vectors/devices.json` (one
+//! generated device per entry point and seed), seed hashes and catalog sizes
+//! equal to the expanded device list lengths. The web pool has no vectors
+//! (it is built from browserforge), so its tests check its sizes, weights,
+//! platform strings and version windows, determinism per seed and versions,
+//! and reachability.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -32,7 +31,7 @@ fn read_vectors() -> Value {
     serde_json::from_str(&text).expect("parse devices.json")
 }
 
-/// The seed 1.5.0 hashes: strings as given, integers as their decimal `str()`.
+/// The seed that is hashed: strings as given, integers as their decimal `str()`.
 fn seed_of(case: &Value) -> String {
     match (&case["seed_kind"], &case["seed"]) {
         (Value::String(kind), Value::String(seed)) if kind == "str" => seed.clone(),
@@ -41,14 +40,14 @@ fn seed_of(case: &Value) -> String {
     }
 }
 
-/// The platform 1.5.0 `src/api.py` uses for an entry point and system.
+/// The platform of a vector entry point and system.
 fn platform_of(entry_point: &str, system: &Value, seed: &str) -> Result<Platform> {
     Ok(match (entry_point, system.as_str()) {
         ("TelegramDesktop", None) => devices::desktop_system(Some(seed))?,
         ("TelegramDesktop", Some("windows")) => Platform::Windows,
         ("TelegramDesktop", Some("macos")) => Platform::MacOS { swift: false },
         ("TelegramDesktop", Some("linux")) => Platform::Linux,
-        // `_GENERATE_MAP`: Telegram X uses the Android catalog.
+        // Telegram X uses the Android catalog.
         ("TelegramAndroid" | "TelegramAndroidX", None) => Platform::Android,
         ("TelegramIOS", None) => Platform::Ios,
         ("TelegramMacOS", None) => Platform::MacOS { swift: true },
@@ -57,7 +56,7 @@ fn platform_of(entry_point: &str, system: &Value, seed: &str) -> Result<Platform
 }
 
 #[test]
-fn every_vector_case_matches_1_5_0() -> Result<()> {
+fn every_vector_case_matches() -> Result<()> {
     let vectors = read_vectors();
     let cases = vectors["cases"].as_array().expect("cases array");
     assert_eq!(cases.len(), 2800);
@@ -87,8 +86,8 @@ fn every_vector_case_matches_1_5_0() -> Result<()> {
 }
 
 #[test]
-fn seed_hash_matches_python() {
-    // int(hashlib.sha1(seed.encode()).hexdigest(), 16) % 10**12 in CPython.
+fn seed_hash_is_sha1_mod_10_pow_12() {
+    // The SHA-1 of the UTF-8 seed as a big-endian integer, modulo 10**12.
     let expected = [
         ("", 403_882_391_305),
         ("user1@example.org", 266_454_831_697),
@@ -106,7 +105,7 @@ fn seed_hash_matches_python() {
 
 #[test]
 fn catalog_weights_equal_expanded_list_lengths() -> Result<()> {
-    // len(cls.deviceList) after cls.__gen__() in 1.5.0.
+    // The length of each expanded device list.
     let expected = [
         (Platform::Windows, 3050),
         (Platform::Linux, 21045),
@@ -129,7 +128,7 @@ fn catalog_weights_equal_expanded_list_lengths() -> Result<()> {
 
 #[test]
 fn first_and_last_slots_match_expanded_list_ends() -> Result<()> {
-    // deviceList[0] and deviceList[-1] in 1.5.0.
+    // The first and last entries of each expanded device list.
     let expected = [
         (
             Platform::Windows,
@@ -197,7 +196,7 @@ fn unseeded_pick_comes_from_the_catalog() -> Result<()> {
     Ok(())
 }
 
-/// The slot of 1.5.0's expanded list that `hash` lands on.
+/// The slot of the expanded list that `hash` lands on.
 fn expected_web_pick(platform: Platform, seed: &str) -> Result<(String, String)> {
     let catalog = devices::catalog(platform)?;
     let mut index = devices::seed_hash(seed) % catalog.total_weight();
@@ -290,7 +289,7 @@ fn browser(ua: &str) -> &'static str {
 }
 
 #[test]
-fn web_pool_has_1_5_0s_sizes_and_weights() -> Result<()> {
+fn web_pool_has_the_browser_sizes_and_weights() -> Result<()> {
     let versions = lagging_versions();
     for client in [WebClient::A, WebClient::K] {
         let catalog = devices::web_catalog_for(client, &versions)?;
@@ -487,12 +486,11 @@ fn lines_digest<'a>(lines: impl Iterator<Item = String> + 'a) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// The owned entries list 1.5.0 `cls.deviceList` pair by pair: the
-/// expected digests are of `itertools.groupby` runs of `(model, version)`
-/// over the expanded list, one `model\tversion\tcount` line per run,
-/// captured by running 1.5.0 after `cls.__gen__()`.
+/// The owned entries list the expanded device list pair by pair: the
+/// expected digests are of the runs of equal `(model, version)` over the
+/// expanded list, one `model\tversion\tcount` line per run.
 #[test]
-fn catalog_entries_list_the_1_5_0_device_lists() -> Result<()> {
+fn catalog_entries_list_the_expanded_device_lists() -> Result<()> {
     let expected = [
         (
             Platform::Windows,
@@ -547,11 +545,10 @@ fn catalog_entries_list_the_1_5_0_device_lists() -> Result<()> {
     Ok(())
 }
 
-/// `device_models` and `system_versions` of 1.5.0's `WindowsDevice`,
-/// `LinuxDevice`, `macOSDevice` and `IOSDevice` after `__gen__()`, as the
-/// SHA-1 of their lines, captured by running 1.5.0.
+/// The device model and system version lists of the Windows, Linux, macOS
+/// and iOS catalogs, as their sizes and the SHA-1 of their lines.
 #[test]
-fn catalog_lists_match_1_5_0_models_and_versions() -> Result<()> {
+fn catalog_lists_match_the_models_and_versions() -> Result<()> {
     let expected = [
         (
             Platform::Windows,
@@ -629,10 +626,9 @@ fn web_catalog_entries_are_listed_for_both_clients() -> Result<()> {
     Ok(())
 }
 
-/// 1.5.0 `WebBrowserDevice.BROWSER_WEIGHTS`, captured by running it:
-/// `{'chrome': 19, 'edge': 2, 'firefox': 1}`.
+/// The web browser weights: Chrome 19, Edge 2, Firefox 1.
 #[test]
-fn web_browser_weights_are_1_5_0s() {
+fn web_browser_weights_are_chrome_edge_firefox() {
     assert_eq!(
         devices::WEB_BROWSER_WEIGHTS,
         [("chrome", 19), ("edge", 2), ("firefox", 1)]

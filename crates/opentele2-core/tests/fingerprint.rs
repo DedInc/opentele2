@@ -1,15 +1,11 @@
-//! Tests for `fingerprint`. Every expected value was printed by the 1.5.0
-//! Python functions of `src/fingerprint.py` (Python 3.12.8, imported as
-//! `src` with `OPENTELE_NO_FETCH=1`, so `PLATFORM_VERSIONS` holds the
-//! offline defaults of `Versions::offline`):
+//! Tests for `fingerprint`. Every expected value is pinned for the offline
+//! defaults of `Versions::offline`:
 //!
-//! - `tdesktop_tz_offset` on `datetime(2026, 10, 18, 12, 0,
-//!   tzinfo=timezone(timedelta(seconds=s)))`, and on instants converted to
-//!   `zoneinfo` zones for the DST cases;
-//! - `validate_init_connection_params` with `strict=False` and `strict=True`;
-//! - `FingerprintConfig.validate_params` per mode, catching the warning or
-//!   the `ValueError`;
-//! - `is_valid_msg_id` with `time.time` patched to `1760000000.9`.
+//! - `tz_offset` at 2026-10-18 12:00 under a fixed UTC offset of `s`
+//!   seconds, and on instants in `zoneinfo` zones for the DST cases;
+//! - `validate_init_params` lenient and strict;
+//! - `FingerprintConfig` validation per mode, as a warning or an error;
+//! - `is_valid_msg_id` at the time `1760000000.9`.
 
 use opentele2_core::api::{ApiProfile, LAYER, Versions};
 use opentele2_core::fingerprint::{
@@ -20,8 +16,8 @@ use opentele2_core::fingerprint::{
 // ---------------------------------------------------------------- tz_offset
 
 #[test]
-fn tz_offset_matches_1_5_0_for_fixed_offsets() {
-    // (utc offset in seconds, 1.5.0 tdesktop_tz_offset)
+fn tz_offset_is_pinned_for_fixed_offsets() {
+    // (utc offset in seconds, tz_offset)
     let cases: [(i32, f64); 22] = [
         (18000, 18000.0),
         (19800, 19800.0),
@@ -58,9 +54,9 @@ fn tz_offset_matches_1_5_0_for_fixed_offsets() {
 }
 
 #[test]
-fn tz_offset_matches_1_5_0_for_every_second_of_a_day_either_way() {
-    // 1.5.0: sum(int(tdesktop_tz_offset(at(s))) // 900 * (s + 86400)
-    //            for s in range(-86399, 86400))
+fn tz_offset_is_pinned_for_every_second_of_a_day_either_way() {
+    // sum(int(tz_offset(at(s))) // 900 * (s + 86400)
+    //     for s in range(-86399, 86400))
     let mut total = 0i64;
     let mut quarter = -56i32;
     for offset in -86_399..86_400 {
@@ -80,7 +76,7 @@ fn tz_offset_matches_1_5_0_for_every_second_of_a_day_either_way() {
 
 #[test]
 fn tz_offset_follows_dst_and_odd_zones() {
-    // (zone, UTC instant, zoneinfo utcoffset, 1.5.0 result)
+    // (zone, UTC instant, zoneinfo utcoffset, tz_offset)
     let cases: [(&str, &str, i32, f64); 13] = [
         ("Europe/Berlin", "2026-01-15", 3600, 3600.0),
         ("Europe/Berlin", "2026-07-15", 7200, 7200.0),
@@ -108,7 +104,7 @@ fn tz_offset_follows_dst_and_odd_zones() {
 
 #[test]
 fn tz_offset_wraps_any_i32_by_whole_days() {
-    // Beyond a datetime's range; the 1.5.0 loops wrap by whole days, so the
+    // Beyond a datetime's range; the offset wraps by whole days, so the
     // result equals that of the congruent offset inside one day.
     for offset in [
         i32::MIN,
@@ -154,7 +150,7 @@ fn profile(
     }
 }
 
-/// The Android base case of 1.5.0 `tests/test_fingerprints.py`.
+/// The Android base case.
 fn android() -> ApiProfile {
     profile(
         6,
@@ -188,7 +184,7 @@ fn unknown(pack: &str) -> String {
 }
 
 #[test]
-fn validate_matches_1_5_0_for_its_own_test_cases() {
+fn validate_is_pinned_for_the_base_cases() {
     check("android_ok", &android(), &[], &[ANDROID_MAJOR]);
     check(
         "desktop_ok",
@@ -244,7 +240,7 @@ fn validate_matches_1_5_0_for_its_own_test_cases() {
 }
 
 #[test]
-fn validate_matches_1_5_0_for_language_fields() {
+fn validate_is_pinned_for_language_fields() {
     let bad_pack = unknown("invalid_pack");
     check(
         "bad_pack",
@@ -265,7 +261,7 @@ fn validate_matches_1_5_0_for_language_fields() {
         &[short],
         &[short, ANDROID_MAJOR],
     );
-    // Python's len counts code points, not UTF-8 bytes.
+    // The length counts code points, not UTF-8 bytes.
     let one_char = "lang_code '\u{e9}' looks invalid (too short)";
     check(
         "one_char_lang",
@@ -300,7 +296,7 @@ fn validate_matches_1_5_0_for_language_fields() {
 }
 
 #[test]
-fn validate_matches_1_5_0_for_regions() {
+fn validate_is_pinned_for_regions() {
     let region =
         "system_lang_code 'en' should include a region code (e.g. 'en-US') for android clients";
     check(
@@ -345,7 +341,7 @@ fn validate_matches_1_5_0_for_regions() {
 }
 
 #[test]
-fn validate_matches_1_5_0_for_each_platform_in_strict_mode() {
+fn validate_is_pinned_for_each_platform_in_strict_mode() {
     check(
         "macos_ok",
         &profile(
@@ -402,7 +398,7 @@ fn validate_matches_1_5_0_for_each_platform_in_strict_mode() {
         &[],
         &["Desktop app_version '6.9 x64' major does not match latest known '7.3.1'"],
     );
-    // 1.5.0 tests a prefix, so "130.0" passes against "13".
+    // The check tests a prefix, so "130.0" passes against "13".
     check(
         "startswith_quirk",
         &ApiProfile {
@@ -468,7 +464,7 @@ fn sdk_issue(level: &str) -> String {
 }
 
 #[test]
-fn check_versions_reads_android_sdk_levels_as_1_5_0_does() {
+fn check_versions_reads_android_sdk_levels() {
     let big = "9".repeat(30);
     let cases: Vec<(String, Option<String>)> = vec![
         ("SDK 29".into(), None),
@@ -577,7 +573,7 @@ fn check_versions_follows_the_versions_passed() {
 // ------------------------------------------------- StrictMode and the config
 
 #[test]
-fn strict_mode_has_the_1_5_0_values() {
+fn strict_mode_has_off_warn_and_strict() {
     let values: Vec<&str> = StrictMode::ALL.iter().map(|mode| mode.as_str()).collect();
     assert_eq!(values, ["off", "warn", "strict"]);
     for mode in StrictMode::ALL {
@@ -590,7 +586,7 @@ fn strict_mode_has_the_1_5_0_values() {
 }
 
 #[test]
-fn config_defaults_match_1_5_0() {
+fn config_defaults_are_pinned() {
     let config = FingerprintConfig::new(&mut |buf| buf.copy_from_slice(&[0x34, 0x12]));
     assert_eq!(
         config,
@@ -614,7 +610,7 @@ fn config_defaults_match_1_5_0() {
 }
 
 #[test]
-fn config_validate_warns_and_raises_as_1_5_0() {
+fn config_validate_warns_and_raises_per_mode() {
     let versions = Versions::offline();
     let android = ApiProfile {
         api_id: 1,
@@ -670,9 +666,9 @@ fn msg_id_offset_spans_0_to_0xffff() {
 }
 
 #[test]
-fn is_valid_msg_id_matches_1_5_0() {
+fn is_valid_msg_id_is_pinned() {
     const NOW: i64 = 1_760_000_000;
-    // (msg_id, from_client, 1.5.0 result at time.time() == NOW + 0.9)
+    // (msg_id, from_client, result at the time NOW + 0.9)
     let cases: [(i64, bool, bool); 17] = [
         (7_559_142_440_960_000_001, true, true),
         (7_559_142_440_960_000_001, false, false),
@@ -732,7 +728,7 @@ fn raw_messages(params: &RawInitParams<'_>, mode: StrictMode) -> Vec<String> {
 }
 
 #[test]
-fn raw_validation_shows_none_values_as_1_5_0() {
+fn raw_validation_shows_none_values() {
     let base = raw_desktop();
     assert_eq!(
         raw_messages(
@@ -770,7 +766,7 @@ fn raw_validation_shows_none_values_as_1_5_0() {
             "app_version is empty"
         ]
     );
-    // 1.5.0 raises TypeError here; the facade tests and shows it as empty.
+    // A missing system_lang_code is tested and shown as empty.
     assert_eq!(
         raw_messages(
             &RawInitParams {
@@ -789,8 +785,8 @@ fn raw_validation_shows_none_values_as_1_5_0() {
 }
 
 #[test]
-fn raw_validation_compares_and_shows_api_ids_as_1_5_0() {
-    // (api_id, the strict ApiIdMismatch message 1.5.0 gave, if any)
+fn raw_validation_compares_and_shows_api_ids() {
+    // (api_id, the strict ApiIdMismatch message, if any)
     let cases: [(RawApiId<'_>, Option<&str>); 9] = [
         (RawApiId::Int(2040), None),
         (
@@ -924,8 +920,8 @@ fn config_validate_raw_follows_the_mode() {
 }
 
 #[test]
-fn layer_mismatch_warning_is_1_5_0s() {
-    // 1.5.0 get_recommended_layer with Telethon's layer patched to 200.
+fn layer_mismatch_warning_is_pinned() {
+    // The warning for a Telethon layer of 200.
     assert_eq!(
         fingerprint::layer_mismatch_warning(200).as_deref(),
         Some(

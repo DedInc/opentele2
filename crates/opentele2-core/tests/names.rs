@@ -1,8 +1,7 @@
 //! Tests for the name tables the bindings share. Every expected string is
-//! copied from the tables the Python (`bindings/python/src`) and Node
-//! (`bindings/node/src`) bindings kept before the core owned them; both
-//! bindings used the same strings, except that Node prefixes SRP codes with
-//! `OT_`.
+//! the one the Python (`bindings/python/src`) and Node (`bindings/node/src`)
+//! bindings show; both show the same strings, except that Node prefixes SRP
+//! codes with `OT_`.
 
 use opentele2_core::api::Client;
 use opentele2_core::auth::SrpError;

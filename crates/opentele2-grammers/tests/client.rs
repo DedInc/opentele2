@@ -570,7 +570,7 @@ async fn qr_login_checks_the_2fa_password() {
 
 #[tokio::test]
 async fn qr_login_2fa_errors() {
-    // No password: 1.5.0's NoPasswordProvided, before account.getPassword.
+    // No password: NoPasswordProvided, before account.getPassword.
     let (session, new, authorized) = two_factor_script();
     let error = client::qr_login(&authorized, &new, &*session, API_ID, API_HASH, None)
         .await
@@ -787,7 +787,7 @@ async fn session_admin_lists_and_formats_sessions() {
 }
 
 #[tokio::test]
-async fn terminate_session_maps_the_150_errors() {
+async fn terminate_session_maps_the_reset_errors() {
     let fake = Fake::new("client");
     fake.ok::<account_fn::ResetAuthorization>(&true);
     client::terminate_session(&fake, 99).await.expect("reset");
@@ -1077,7 +1077,7 @@ async fn tdata_from_client_uses_the_home_dc_key_and_get_me() {
 }
 
 #[tokio::test]
-async fn post_login_requests_follow_the_150_steps() {
+async fn post_login_requests_follow_the_post_login_steps() {
     let fake = Fake::new("client");
     fake.ok::<help_fn::GetConfig>(&config(2))
         .fail::<help_fn::GetNearestDc>(500, "INTERNAL")

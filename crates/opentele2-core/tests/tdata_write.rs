@@ -1,11 +1,11 @@
-//! Tests for `TData::new` and `TData::save` against the four 1.5.0 vector
-//! folders in `tests/vectors` (described by `tdata.json`).
+//! Tests for `TData::new` and `TData::save` against the four vector folders
+//! in `tests/vectors` (described by `tdata.json`).
 //!
 //! Each folder is rebuilt from its account inputs while the recorded
 //! `os.urandom` draws are replayed in order, and the written files must be
-//! byte-identical to what 1.5.0 wrote. The pre-7.3 folders under
-//! `tdata_legacy` are loaded and saved the same way and must match what
-//! 1.5.0 migrated them to. Key bytes are never printed: every
+//! byte-identical to the vector files. The pre-7.3 folders under
+//! `tdata_legacy` are loaded and saved the same way and must match their
+//! migrated `_saved` folders. Key bytes are never printed: every
 //! comparison of file or key bytes uses `assert!` without the values.
 
 use std::fs;
@@ -83,7 +83,7 @@ impl Replay {
     }
 }
 
-/// The sizes of the draws 1.5.0 recorded for `entry`, after the first
+/// The sizes of the draws recorded for `entry`, after the first
 /// `skip`.
 fn recorded_sizes(entry: &Value, skip: usize) -> Vec<usize> {
     entry["rng_draws"]
@@ -141,7 +141,7 @@ fn assert_same_folder(folder: &str, written: &Path) {
     for name in &files {
         let ours = fs::read(written.join(name)).expect("read written file");
         let theirs = fs::read(expected.join(name)).expect("read vector file");
-        assert!(ours == theirs, "{folder}/{name} differs from 1.5.0");
+        assert!(ours == theirs, "{folder}/{name} differs from the vector");
     }
 }
 
@@ -165,7 +165,7 @@ fn accounts_of(entry: &Value) -> Vec<Account> {
         .collect()
 }
 
-/// Draws 1.5.0 makes before the first file: pass, salt, open salt, and for
+/// Draws made before the first file: pass, salt, open salt, and for
 /// a passcode the wrap salt, then the 12 bytes of wrap padding.
 fn key_generation_draws(entry: &Value) -> usize {
     let performance = entry["performance_mode"].as_bool().expect("mode");
@@ -272,22 +272,22 @@ fn check_folder(folder: &str) {
 }
 
 #[test]
-fn plain_performance_on_writes_like_1_5_0() {
+fn plain_performance_on_writes_the_vector_files() {
     check_folder("tdata_plain/performance_on");
 }
 
 #[test]
-fn plain_performance_off_writes_like_1_5_0() {
+fn plain_performance_off_writes_the_vector_files() {
     check_folder("tdata_plain/performance_off");
 }
 
 #[test]
-fn passcode_performance_on_writes_like_1_5_0() {
+fn passcode_performance_on_writes_the_vector_files() {
     check_folder("tdata_passcode/performance_on");
 }
 
 #[test]
-fn passcode_performance_off_writes_like_1_5_0() {
+fn passcode_performance_off_writes_the_vector_files() {
     check_folder("tdata_passcode/performance_off");
 }
 
@@ -326,7 +326,7 @@ fn save_random_writes_a_loadable_folder() {
 }
 
 #[test]
-fn save_refuses_what_1_5_0_cannot_write() {
+fn save_refuses_no_accounts_and_an_empty_map() {
     let entry = folder_entry("tdata_plain/performance_on");
     let mut no_draw = |_: &mut [u8]| {};
     let tdata = TData::new(accounts_of(&entry), b"", true, &mut no_draw).expect("new");
@@ -398,8 +398,8 @@ fn draw_plan_matches_the_draws_of_a_save() {
     );
 }
 
-/// Loads the pre-7.3 vector `tdata_legacy/<name>`, saves it while the draws
-/// 1.5.0's `SaveTData` made are replayed, and checks the migrated folder
+/// Loads the pre-7.3 vector `tdata_legacy/<name>`, saves it while the
+/// recorded save draws are replayed, and checks the migrated folder
 /// against `tdata_legacy/<name>_saved` byte for byte.
 fn check_legacy_migration(name: &str) {
     let source = format!("tdata_legacy/{name}");
@@ -473,17 +473,17 @@ fn check_legacy_migration(name: &str) {
 }
 
 #[test]
-fn legacy_plain_folder_migrates_like_1_5_0() {
+fn legacy_plain_folder_migrates_to_the_saved_vector() {
     check_legacy_migration("plain");
 }
 
 #[test]
-fn legacy_passcode_folder_migrates_like_1_5_0() {
+fn legacy_passcode_folder_migrates_to_the_saved_vector() {
     check_legacy_migration("passcode");
 }
 
-/// Loads `tdata_legacy/<name>`, migrates it in place with the first draws
-/// 1.5.0's `SaveTData` made, then saves it twice with the remaining draws:
+/// Loads `tdata_legacy/<name>`, migrates it in place with the first
+/// recorded save draws, then saves it twice with the remaining draws:
 /// both saves write `tdata_legacy/<name>_saved` byte for byte, so the second
 /// save does not migrate again.
 fn check_migrate_then_save_twice(name: &str) {
@@ -656,7 +656,7 @@ fn new_account_map_is_the_hardcoded_settings_key() {
 }
 
 #[test]
-fn loaded_map_reencodes_in_the_1_5_0_shape() {
+fn loaded_map_reencodes_in_the_pinned_shape() {
     let flag = 0x80u64 << 48;
     let map = MapData {
         entries: vec![
@@ -741,16 +741,16 @@ fn loaded_map_reencodes_in_the_1_5_0_shape() {
     ]
     .concat();
     assert_eq!(hex::encode(map.encode_entries().expect("encode")), expected);
-    // The same stream parsed by 1.5.0's `MapData._parseMapStream` and written
-    // by `prepareToWrite` (the bytes after the length header).
-    let from_1_5_0 = concat!(
+    // The pinned bytes of the same map once parsed and written back (the
+    // bytes after the length header).
+    let pinned = concat!(
         "00000001000000030000000000000004008000000000000500000000000000020082000000000007",
         "000000000000000600800000000000000000001d00000001000000000000001f00ff000000000001",
         "0000001000000000000000150000000000000000000000000000000000000000000000000000001",
         "9ffffffff00000001bb0000002100000002000000000000000900000000000000000000000800000",
         "002006200000014000000000000000d000000000000000c",
     );
-    assert_eq!(expected, from_1_5_0);
+    assert_eq!(expected, pinned);
 }
 
 #[test]
@@ -789,8 +789,8 @@ fn account_inputs(entry: &Value) -> Vec<(u64, i32, AuthKey)> {
 
 /// Builds `folder` with `TData::new` on no account, adds its accounts one
 /// by one with `add_account`, and saves it while the recorded draws are
-/// replayed: the files are the ones 1.5.0 wrote, since without gaps the
-/// lowest free index is 1.5.0's account count.
+/// replayed: the files are the vector files, since without gaps the
+/// lowest free index is the account count.
 fn check_added_to_new_folder(folder: &str) {
     let entry = folder_entry(folder);
     let passcode = passcode_of(&entry);
@@ -814,20 +814,20 @@ fn check_added_to_new_folder(folder: &str) {
 }
 
 #[test]
-fn accounts_added_to_a_new_plain_folder_write_like_1_5_0() {
+fn accounts_added_to_a_new_plain_folder_write_the_vector_files() {
     check_added_to_new_folder("tdata_plain/performance_on");
     check_added_to_new_folder("tdata_plain/performance_off");
 }
 
 #[test]
-fn accounts_added_to_a_new_passcode_folder_write_like_1_5_0() {
+fn accounts_added_to_a_new_passcode_folder_write_the_vector_files() {
     check_added_to_new_folder("tdata_passcode/performance_on");
     check_added_to_new_folder("tdata_passcode/performance_off");
 }
 
 /// Loads the vector `folder`, adds one account, and saves it: the recorded
 /// draws are replayed while they fit, then counted bytes are drawn, so the
-/// two loaded accounts are written byte for byte as 1.5.0 wrote them and
+/// two loaded accounts are written byte for byte as the vector files and
 /// the added one follows. The reload holds all three.
 fn check_added_to_loaded_folder(folder: &str) {
     let entry = folder_entry(folder);
@@ -868,7 +868,7 @@ fn check_added_to_loaded_folder(folder: &str) {
         if !name.starts_with("key_") {
             let ours = fs::read(written.join(&name)).expect("read written file");
             let theirs = fs::read(expected.join(&name)).expect("read vector file");
-            assert!(ours == theirs, "{folder}/{name} differs from 1.5.0");
+            assert!(ours == theirs, "{folder}/{name} differs from the vector");
         }
     }
     let part = folder_name(&data_name("data", 2));
@@ -888,7 +888,7 @@ fn account_added_to_a_loaded_folder_saves_and_reloads() {
 }
 
 #[test]
-fn seventh_account_is_refused_like_1_5_0() {
+fn seventh_account_is_refused() {
     assert_eq!(TData::MAX_ACCOUNTS, 6);
     let mut no_draw = |_: &mut [u8]| {};
     let mut tdata = TData::new(Vec::new(), b"", true, &mut no_draw).expect("new");
@@ -939,8 +939,8 @@ fn indices_of(tdata: &TData) -> Vec<i32> {
     tdata.accounts.iter().map(|account| account.index).collect()
 }
 
-/// 1.5.0 loads a folder listing seven accounts and saves an edited list of
-/// them back under the same local key (`src/td/tdesktop.py:216-238,344-350`).
+/// A folder listing seven accounts loads, and an edited list of them saves
+/// back under the same local key.
 #[test]
 fn set_accounts_keeps_a_loaded_seven_account_folder_writable() {
     let mut no_draw = |_: &mut [u8]| panic!("performance mode draws nothing");
@@ -1005,7 +1005,7 @@ fn set_accounts_caps_a_new_folder_at_six() {
     assert_eq!(indices_of(&tdata), [0, 1, 2, 3, 4, 5]);
 }
 
-/// tdesktop's rule, not 1.5.0's count: a folder holding indices `[0, 2]`
+/// tdesktop's rule, not the account count: a folder holding indices `[0, 2]`
 /// gets 1, never a second 2 that would overwrite the files of account 2.
 #[test]
 fn added_account_takes_the_lowest_free_index() {
@@ -1061,22 +1061,19 @@ fn empty_key_file_name_is_refused() {
     assert_eq!(tdata.key_file, "renamed");
 }
 
-// What 1.5.0 writes for key file "renamed" from tdata_plain/performance_on,
-// captured with `python -c` (OPENTELE_NO_FETCH=1, output under target/):
-// both accounts given the key file before `SaveTData()`, as
-// `Account.FromTelethon` does with `owner.keyFile`.
-const RENAMED_FILES_1_5_0: [&str; 5] = [
+// The files written for key file "renamed" from tdata_plain/performance_on,
+// with both accounts given the key file before the save.
+const RENAMED_FILES: [&str; 5] = [
     "41C3059FCB9A4788/maps",
     "41C3059FCB9A4788s",
     "CAAC63A284752796/maps",
     "CAAC63A284752796s",
     "key_renameds",
 ];
-// `SaveTData(keyFile="renamed")` on the first account alone. On both
-// accounts 1.5.0 hands the raw name to every account, so the second one
-// overwrites the first under `CAAC63A284752796` and the reload holds one
-// account; the composed names above are the loadable layout.
-const RENAMED_SINGLE_FILES_1_5_0: [&str; 3] =
+// The files written for key file "renamed" from the first account alone.
+// The per-account names above are composed from the key file and index, so
+// each account keeps its own folder and the reload holds both.
+const RENAMED_SINGLE_FILES: [&str; 3] =
     ["CAAC63A284752796/maps", "CAAC63A284752796s", "key_renameds"];
 
 /// The files of `count` accounts under key file `name`, from the helpers.
@@ -1093,7 +1090,7 @@ fn composed_files(name: &str, count: i32) -> Vec<String> {
 }
 
 #[test]
-fn renamed_key_file_writes_the_1_5_0_names() {
+fn renamed_key_file_writes_the_composed_names() {
     let folder = "tdata_plain/performance_on";
     let entry = folder_entry(folder);
     let mut tdata = TData::load(vectors_dir().join(folder), b"", None).expect("load vector");
@@ -1105,10 +1102,10 @@ fn renamed_key_file_writes_the_1_5_0_names() {
         .expect("save renamed");
     replay.finish();
     let files = listed_files(&written);
-    assert_eq!(files, RENAMED_FILES_1_5_0);
+    assert_eq!(files, RENAMED_FILES);
     assert_eq!(files, composed_files("renamed", 2));
 
-    // Only the names change: each file holds the bytes 1.5.0 wrote.
+    // Only the names change: each file holds the vector bytes.
     let expected = vectors_dir().join(folder);
     let renamed = |name: &str| {
         let mut name = name.replace("key_datas", "key_renameds");
@@ -1139,7 +1136,7 @@ fn renamed_key_file_writes_the_1_5_0_names() {
     let written = scratch("renamed_single");
     single.save_random(&written).expect("save single");
     let files = listed_files(&written);
-    assert_eq!(files, RENAMED_SINGLE_FILES_1_5_0);
+    assert_eq!(files, RENAMED_SINGLE_FILES);
     assert_eq!(files, composed_files("renamed", 1));
     let loaded = TData::load(&written, b"", Some("renamed")).expect("load single");
     assert_same_accounts(folder, &loaded, &single.accounts, true);
