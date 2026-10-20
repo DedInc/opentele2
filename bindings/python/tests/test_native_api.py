@@ -1,5 +1,5 @@
 """Tests of the PlatformVersions, version patch, session JSON and fingerprint
-exports of opentele2._native against the 1.5.0 values of
+exports of opentele2._native against the values of
 crates/opentele2-core/tests/{api,fingerprint}.rs and
 crates/opentele2-versions/tests/{patch,live}.rs.
 
@@ -54,7 +54,6 @@ OFFLINE = {
     "web_k_version": "2.2 K",
     "chrome_version": "155.0.0.0",
     "user_agent": WEB_USER_AGENT,
-    # A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
     "firefox_version": "150.0",
 }
 FULL_PATCH = {
@@ -126,7 +125,7 @@ def test_apply_versions_patch_skips_the_desktop_version() -> None:
     )
     assert both["ios_app_version"] == "14.1"
     assert both["ios_build_number"] == 1
-    # chrome_version became a real patch field in 2.0.0.
+    # A field outside PlatformVersions is rejected.
     bad_patch: Any = {"bogus_version": "1"}
     with pytest.raises(ValueError, match="unknown versions patch field"):
         _native.apply_versions_patch(None, bad_patch)
@@ -160,7 +159,7 @@ ACCOUNT_KEYS = (
     '"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,'
     '"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,"session_file":""'
 )
-# json.dumps(API.<X>().to_json(), separators=(",", ":")) of 1.5.0, in CLIENTS order.
+# json.dumps(API.<X>().to_json(), separators=(",", ":")), in CLIENTS order.
 SESSION_JSON_HEADS = (
     '{"app_id":2040,"app_hash":"b18441a1ff607e10a989891a5462e627","device":"Desktop",'
     '"sdk":"Windows 11 x64","app_version":"7.3.1 x64","system_lang_pack":"en-US",'
@@ -193,15 +192,15 @@ SESSION_JSON_HEADS = (
     '"sdk":"Win32","app_version":"0.7.0","system_lang_pack":"en-US",'
     '"system_lang_code":"en-US","lang_pack":"","lang_code":"en",',
 )
-SESSION_JSON_1_5_0 = tuple(head + ACCOUNT_KEYS + "}" for head in SESSION_JSON_HEADS)
+SESSION_JSON = tuple(head + ACCOUNT_KEYS + "}" for head in SESSION_JSON_HEADS)
 
 
 def compact(value: object) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
-def test_profile_to_session_json_matches_1_5_0_and_reads_back() -> None:
-    for client, want in zip(CLIENTS, SESSION_JSON_1_5_0):
+def test_profile_to_session_json_writes_the_session_json_and_reads_back() -> None:
+    for client, want in zip(CLIENTS, SESSION_JSON):
         profile = _native.profile(client)
         written = _native.profile_to_session_json(profile)
         assert compact(written) == want, client
@@ -341,7 +340,7 @@ def profile_of(
 
 
 def android(**edits: Any) -> ApiProfile:
-    """The Android base case of 1.5.0 tests/test_fingerprints.py."""
+    """The Android profile the validation cases edit."""
     profile: Any = {
         **profile_of(6, "Samsung SM-S928B", "SDK 35", "12.3.0", "en-US", "android", "en"),
         **edits,
@@ -363,7 +362,7 @@ def check(label: str, profile: ApiProfile, loose: list[str], strict: list[str]) 
     assert all(issue["severity"] == "error" for issue in issues), label
 
 
-def test_tz_offset_matches_1_5_0() -> None:
+def test_tz_offset_rounds_to_quarter_hours_and_wraps() -> None:
     cases = [
         (18000, 18000),
         (19800, 19800),
@@ -395,7 +394,7 @@ def test_tz_offset_matches_1_5_0() -> None:
         result = _native.tz_offset(offset)
         assert isinstance(result, float)
         assert result == expected, offset
-    # 1.5.0: sum(int(tdesktop_tz_offset(at(s))) // 900 * (s + 86400)).
+    # A checksum over every offset of a day: sum(int(tz_offset(s)) // 900 * (s + 86400)).
     total = sum(
         int(_native.tz_offset(offset)) // 900 * (offset + 86400) for offset in range(-86399, 86400)
     )
@@ -404,7 +403,7 @@ def test_tz_offset_matches_1_5_0() -> None:
         assert _native.tz_offset(offset) == _native.tz_offset(int(math.fmod(offset, 86400)))
 
 
-def test_validate_init_params_matches_1_5_0() -> None:
+def test_validate_init_params_reports_each_issue() -> None:
     def unknown(pack: str) -> str:
         return f"lang_pack '{pack}' is not a known official value. {PACKS}"
 
@@ -500,7 +499,7 @@ def test_validate_init_params_matches_1_5_0() -> None:
         _native.validate_init_params(android(), None, loud)
 
 
-def test_check_versions_reads_android_sdk_levels_as_1_5_0() -> None:
+def test_check_versions_reads_android_sdk_levels() -> None:
     def sdk(level: object, expected: str = "[29, 37]") -> str:
         return f"Android SDK {level} is outside the expected range {expected}"
 
@@ -540,7 +539,7 @@ def test_check_versions_reads_android_sdk_levels_as_1_5_0() -> None:
     ]
 
 
-def test_fingerprint_config_has_the_1_5_0_defaults_and_validates() -> None:
+def test_fingerprint_config_has_its_defaults_and_validates() -> None:
     config = _native.fingerprint_config(msg_id_offset=0x1234)
     assert config == {
         "strict_mode": "warn",
@@ -598,7 +597,7 @@ def test_fingerprint_config_has_the_1_5_0_defaults_and_validates() -> None:
         _native.issues_message(bogus)
 
 
-def test_msg_id_offset_and_is_valid_msg_id_match_1_5_0() -> None:
+def test_msg_id_offset_and_is_valid_msg_id() -> None:
     for _ in range(32):
         assert 0 <= _native.msg_id_offset() <= 0xFFFF
     now = 1760000000

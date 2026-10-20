@@ -1,5 +1,5 @@
 // profile_json.test.mjs: profileToSessionJson, profileFromSessionJson and
-// profilesEqual against the 1.5.0 APIData values of
+// profilesEqual against the APIData values of
 // crates/opentele2-core/tests/api.rs.
 
 import assert from 'node:assert/strict'
@@ -10,8 +10,8 @@ import { CLIENTS, core, thrown } from './helpers.mjs'
 const ACCOUNT_KEYS =
   '"twoFA":null,"role":"","id":null,"phone":null,"username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":false,"session_file":""'
 
-/** `json.dumps(API.<X>().to_json(), separators=(",", ":"))` of 1.5.0, in CLIENTS order. */
-const SESSION_JSON_1_5_0 = [
+/** `json.dumps(API.<X>().to_json(), separators=(",", ":"))`, in CLIENTS order. */
+const SESSION_JSON = [
   '{"app_id":2040,"app_hash":"b18441a1ff607e10a989891a5462e627","device":"Desktop","sdk":"Windows 11 x64","app_version":"7.3.1 x64","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"tdesktop","lang_code":"en",',
   '{"app_id":6,"app_hash":"eb06d4abfb49dc3eeb1aeb98ae0f581e","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"13.0.3 (7183)","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en",',
   '{"app_id":21724,"app_hash":"3e0cb5efcd52300aec5994fdfc5bdc16","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"0.29.1.1817","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en",',
@@ -22,26 +22,26 @@ const SESSION_JSON_1_5_0 = [
   '{"app_id":2496,"app_hash":"8da85b0d5bfe62527e5b244c209159c3","device":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36","sdk":"Win32","app_version":"0.7.0","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"","lang_code":"en",',
 ].map((head) => `${head}${ACCOUNT_KEYS}}`)
 
-test('profileToSessionJson matches 1.5.0 byte for byte and reads back', () => {
+test('profileToSessionJson writes the session JSON byte for byte and reads back', () => {
   CLIENTS.forEach((client, n) => {
     const profile = core.profile(client)
     const json = core.profileToSessionJson(profile)
-    assert.equal(JSON.stringify(json), SESSION_JSON_1_5_0[n], client)
-    assert.equal(JSON.stringify(core.profileToSessionJson(profile, {})), SESSION_JSON_1_5_0[n], `${client} {}`)
-    assert.equal(JSON.stringify(core.profileToSessionJson(profile, null)), SESSION_JSON_1_5_0[n], `${client} null`)
+    assert.equal(JSON.stringify(json), SESSION_JSON[n], client)
+    assert.equal(JSON.stringify(core.profileToSessionJson(profile, {})), SESSION_JSON[n], `${client} {}`)
+    assert.equal(JSON.stringify(core.profileToSessionJson(profile, null)), SESSION_JSON[n], `${client} null`)
     assert.deepEqual(core.profileFromSessionJson(json), profile, `${client} object`)
-    assert.deepEqual(core.profileFromSessionJson(SESSION_JSON_1_5_0[n]), profile, `${client} text`)
+    assert.deepEqual(core.profileFromSessionJson(SESSION_JSON[n]), profile, `${client} text`)
   })
 })
 
-test('the extra keys override in place and append, as 1.5.0 to_json(extra)', () => {
+test('the extra keys override in place and append, as to_json(extra)', () => {
   const want =
     '{"app_id":7,"app_hash":"eb06d4abfb49dc3eeb1aeb98ae0f581e","device":"samsungSM-S938B","sdk":"SDK 36","app_version":"13.0.3 (7183)","system_lang_pack":"en-US","system_lang_code":"en-US","lang_pack":"android","lang_code":"en","twoFA":null,"role":"","id":null,"phone":"+100","username":null,"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,"has_profile_pic":false,"spamblock":null,"register_time":null,"last_check_time":null,"avatar":null,"first_name":"","last_name":"","sex":null,"proxy":null,"ipv6":true,"session_file":"","zeta":1,"alpha":null}'
   const extra = { zeta: 1, phone: '+100', app_id: 7, ipv6: true, alpha: null }
   assert.equal(JSON.stringify(core.profileToSessionJson(core.profile('TelegramAndroid'), extra)), want)
 })
 
-test('profileFromSessionJson applies the 1.5.0 defaults and rejects malformed input', () => {
+test('profileFromSessionJson applies the defaults and rejects malformed input', () => {
   const base = '"app_id":1,"app_hash":"h","device":"d","sdk":"s","app_version":"v"'
   const cases = [
     [`{${base}}`, ['en', 'en', '']],
@@ -78,7 +78,7 @@ test('profileFromSessionJson applies the 1.5.0 defaults and rejects malformed in
   assert.equal(thrown(() => core.profileFromSessionJson([])).code, 'OT_IO')
 })
 
-test('profilesEqual ignores the language fields, as 1.5.0 APIData.__eq__', () => {
+test('profilesEqual ignores the language fields, as APIData.__eq__', () => {
   const base = core.profile('TelegramDesktop')
   assert.ok(core.profilesEqual(base, { ...base, langCode: 'ru', systemLangCode: 'ru-RU', langPack: 'x' }))
   for (const [field, value] of [

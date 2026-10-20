@@ -1,5 +1,4 @@
-"""The 1.5.0 no-suppression rule (1.5.0 tests/test_no_suppressions.py),
-retargeted at the new package: no ``noqa``, ``type: ignore``, ``ty: ignore``,
+"""The no-suppression rule: no ``noqa``, ``type: ignore``, ``ty: ignore``,
 ``pyright: ignore``, ``nocov`` or ``pragma: no cover`` comment and no
 ``cast(`` call in bindings/python/python or bindings/python/tests.
 

@@ -1,6 +1,6 @@
 """Tests of the QR login, SRP, sessions table, official api id and
-consistency exports of opentele2._native against the Telethon 1.45.0 and
-1.5.0 values of crates/opentele2-core/tests/auth.rs.
+consistency exports of opentele2._native against the Telethon 1.45.0
+values and the values of crates/opentele2-core/tests/auth.rs.
 
 Passwords are fixtures and SRP outputs are compared with ``assert_same``, so
 neither reaches the log.
@@ -102,7 +102,7 @@ SRP_TWO: dict[str, Any] = {
 }
 
 
-# A device model of the 1.5.0 fixture, with a Cyrillic er (U+0440) in it.
+# A device model with a Cyrillic er (U+0440) in it.
 PIXEL = "Pixel 8 П" + chr(0x0440) + "o"
 
 
@@ -207,7 +207,7 @@ def row(
     return values
 
 
-def test_format_sessions_matches_1_5_0() -> None:
+def test_format_sessions_renders_the_sessions_table() -> None:
     rows = [
         row(
             True,
@@ -382,7 +382,7 @@ def result(name: str, passed: bool, detail: str) -> CheckResult:
     return {"name": name, "passed": passed, "detail": detail}
 
 
-def test_consistency_report_texts_match_1_5_0() -> None:
+def test_consistency_check_names_and_report_texts() -> None:
     assert _native.consistency_checks() == [
         "get_config",
         "nearest_dc",

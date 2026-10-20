@@ -1,4 +1,4 @@
-// mtcute_flows.test.mjs: the 1.5.0 client flows of `opentele2/mtcute`
+// mtcute_flows.test.mjs: the client flows of `opentele2/mtcute`
 // driven by fake clients whose `call` answers with canned mtcute-shaped TL
 // objects; each test checks the exact call sequence. One live test runs
 // only with OPENTELE2_LIVE=1.
@@ -446,7 +446,7 @@ test('qrLoginToNewClient 2FA without srpId or srpB ends in the core OT_SRP_BAD_B
   assert.throws(() => core.srpInputs(2n ** 64n, null), { code: 'ERR_INVALID_ARG_VALUE' })
 })
 
-test('initConnectionOptions sends tz_offset params for tdesktop, as Python does', () => {
+test('initConnectionOptions sends tz_offset params for tdesktop', () => {
   const desktop = initConnectionOptions(DESKTOP)
   const offset = core.tzOffset(Math.round(-new Date().getTimezoneOffset() * 60))
   assert.deepEqual(desktop.params, {
@@ -598,7 +598,7 @@ test('qrLoginToNewClient keeps a session of the same api id and replaces one of 
   assert.equal(warnings[0].message, core.EXISTING_SESSION_KEPT)
   assert.deepEqual(log, ['fresh updates.getState', 'fresh account.getAuthorizations', 'fresh getMe'])
 
-  // Another api id: 1.5.0 warns, discards the local session file and logs
+  // Another api id: the flow warns, discards the local session file and logs
   // in again; the old authorization is never logged out on the server.
   // The fake answers auth.logOut and has logOut() so that a log-out would
   // show up in the log instead of failing as an unexpected request.
@@ -823,7 +823,7 @@ test('getSessions, getCurrentSession, sessionRow, formatSessions and isOfficialA
   assert.equal((await rejection(formatSessions(null))).message, core.SESSIONS_UNAVAILABLE)
 })
 
-test('terminateSession maps the 1.5.0 errors', async () => {
+test('terminateSession maps the RPC errors', async () => {
   const hash = AUTHORIZATIONS.authorizations[1].hash
   const log = []
   const ok = new FakeClient('client', log, { 'account.resetAuthorization': true })
@@ -907,7 +907,7 @@ test('runConsistencyChecks: every check passes', async () => {
   assert.equal(warnings.length, 0)
 })
 
-test('runConsistencyChecks: every check fails, and the 1.5.0 warning', async () => {
+test('runConsistencyChecks: every check fails, and the summary warning', async () => {
   const errors = {}
   const handlers = {}
   for (const method of CHECK_CALLS) {

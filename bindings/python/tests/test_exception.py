@@ -1,6 +1,6 @@
-"""Tests of opentele2.exception: the 1.5.0 names, hierarchy, messages,
-Expects and ExpectStreamStatus of src/exception.py, and the mapping of every
-``CoreError`` code of opentele2._native onto the 1.5.0 exceptions."""
+"""Tests of opentele2.exception: the names, hierarchy, messages, Expects and
+ExpectStreamStatus, and the mapping of every ``CoreError`` code of
+opentele2._native onto the opentele2.exception classes."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 
     from opentele2._native import SrpParams
 
-# 1.5.0 src/exception.py __all__.
-ALL_1_5_0 = [
+# opentele2.exception.__all__.
+ALL_NAMES = [
     "AccountAuthKeyNotFound",
     "ExpectStreamStatus",
     "Expects",
@@ -89,18 +89,18 @@ CORE_CODES = {
 }
 
 
-def test_all_and_hierarchy_match_1_5_0() -> None:
-    assert exception.__all__ == ALL_1_5_0
+def test_all_and_hierarchy() -> None:
+    assert exception.__all__ == ALL_NAMES
     assert issubclass(OpenTeleException, BaseException)
     assert not issubclass(OpenTeleException, Exception)
-    for name in ALL_1_5_0:
+    for name in ALL_NAMES:
         value = getattr(exception, name)
         if name in ("Expects", "ExpectStreamStatus"):
             assert callable(value)
         elif name != "OpenTeleException":
             assert isinstance(value, type)
             assert value.__bases__ == (OpenTeleException,), name
-    # 1.5.0 src/td/key_data.py: a direct OpenTeleException too.
+    # TDataKeyDataInvalid is a direct OpenTeleException too.
     assert TDataKeyDataInvalid.__bases__ == (OpenTeleException,)
 
 
@@ -121,7 +121,7 @@ def make_base() -> OpenTeleException:
     return OpenTeleException()
 
 
-def test_str_names_the_caller_as_1_5_0() -> None:
+def test_str_names_the_caller() -> None:
     error = SubCaller().make(1)
     assert str(error) == "TFileNotFound: boom [ Called by Caller.SubCaller.make() ]"
     assert error.message == "boom"
@@ -142,7 +142,7 @@ def test_str_names_the_caller_as_1_5_0() -> None:
     assert str(namespace["error"]) == "TFileNotFound: top [ Called by __main__() ]"
 
 
-def test_expects_passes_or_raises_as_1_5_0() -> None:
+def test_expects_passes_or_raises() -> None:
     done: list[str] = []
     failed: list[OpenTeleException] = []
     assert Expects(True, done=lambda: done.append("done")) is True
@@ -187,7 +187,7 @@ def test_expect_stream_status() -> None:
         ExpectStreamStatus(FakeStream(2), "short read")
 
 
-def test_every_core_code_has_its_1_5_0_exception() -> None:
+def test_every_core_code_has_its_exception() -> None:
     assert {code: kind.__name__ for code, kind in CORE_ERROR_TYPES.items()} == CORE_CODES
     for code, name in CORE_CODES.items():
         kind = CORE_ERROR_TYPES[code]
@@ -253,8 +253,8 @@ class Decryptor:
             raise_core_error(error)
 
 
-def test_raise_core_error_gives_the_1_5_0_message() -> None:
-    # 1.5.0 src/td/storage.py: TDataBadEncryptedDataSize(f"Bad encrypted part size: {size}").
+def test_raise_core_error_gives_the_legacy_message() -> None:
+    # TDataBadEncryptedDataSize carries f"Bad encrypted part size: {size}".
     with pytest.raises(exception.TDataBadEncryptedDataSize) as bad_size:
         Decryptor().decrypt(b"\x01" * 20)
     cause = bad_size.value.__cause__
@@ -264,7 +264,7 @@ def test_raise_core_error_gives_the_1_5_0_message() -> None:
     assert str(bad_size.value) == (
         "TDataBadEncryptedDataSize: Bad encrypted part size: 20 [ Called by Decryptor.decrypt() ]"
     )
-    # 1.5.0 TDesktop.LoadTData: TFileNotFound(f"Could not open key_{keyFile}").
+    # TDesktop.LoadTData raises TFileNotFound(f"Could not open key_{keyFile}").
     with pytest.raises(TFileNotFound, match="Could not open key_data"):
         raise_core_error(
             CoreError("TFILE_NOT_FOUND", "tdata file not found", "Could not open key_data")

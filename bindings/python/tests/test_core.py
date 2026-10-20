@@ -32,7 +32,7 @@ FOLDERS = (
     "tdata_passcode/performance_on",
     "tdata_passcode/performance_off",
 )
-# The first TCP endpoint of each production DC in 1.5.0, as (IPv4, IPv6).
+# The first TCP endpoint of each production DC, as (IPv4, IPv6).
 PRODUCTION = {
     1: ("149.154.175.50", "2001:b28:f23d:f001::a"),
     2: ("149.154.167.51", "2001:67c:4e8:f002::a"),
@@ -156,7 +156,7 @@ def test_local_encryption_vectors(crypto_vectors: Any) -> None:
         assert_same(cryptg.decrypt_ige(body, aes_key, aes_iv), plain, f"cryptg {n}")
         assert_same(cryptg.encrypt_ige(plain, aes_key, aes_iv), body, f"cryptg {n}")
 
-        # Random padding: a fresh encryption has the 1.5.0 size and round trips.
+        # Random padding: a fresh encryption has the vector's size and round trips.
         fresh = _native.encrypt_local(payload, key)
         assert len(fresh) == len(encrypted)
         assert_same(_native.decrypt_local(fresh, key), payload, f"round trip {n}")

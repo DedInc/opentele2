@@ -1,9 +1,8 @@
-"""Pin the arguments opentele2's TelegramClient hands to Telethon's __init__,
-ported from 1.5.0 tests/test_client_kwargs.py.
+"""Pin the arguments opentele2's TelegramClient hands to Telethon's __init__.
 
-The expected values are the ones 1.5.0 forwarded (23 recorded constructor
-cases): a None session arrives as the MemorySession Telethon would build from
-it, and api_id as an int.
+The expected values cover 23 recorded constructor cases: a None session
+arrives as the MemorySession Telethon would build from it, and api_id as an
+int.
 """
 
 from __future__ import annotations
@@ -103,14 +102,14 @@ CASES = {
     ),
     "api_int_only": ((None,), {"api": 12345}, _desktop()),
     "api_str_only": ((None,), {"api": "12345"}, _desktop()),
-    "legacy_int": (("s", 12345, "abcdef"), {}, _custom(12345, "abcdef", session="s")),
-    "legacy_str": (
+    "positional_int": (("s", 12345, "abcdef"), {}, _custom(12345, "abcdef", session="s")),
+    "positional_str": (
         ("s", "12345", "abcdef"),
         {},
         _custom(12345, "abcdef", session="s"),
     ),
     "api_id_hash_kw": ((None,), {"api_id": 1234, "api_hash": "h"}, _custom(1234, "h")),
-    # HEAD forwarded the str and Telethon int()-ed it; now it arrives as int.
+    # A str api_id arrives as int.
     "api_id_str_kw": ((None,), {"api_id": "1234", "api_hash": "h"}, _custom(1234, "h")),
     "proxy_none": ((None,), {"proxy": None}, _desktop(proxy=None)),
     "proxy_tuple": (
@@ -184,8 +183,7 @@ def test_unknown_keyword_is_pythons_binding_error(record: dict[str, object]) -> 
 def test_missing_api_hash_raises_telethons_value_error(
     record: dict[str, object],
 ) -> None:
-    # HEAD forwarded api_hash=None and Telethon raised this; now it is raised
-    # before the call, with Telethon's message.
+    # A missing api_hash is raised before the call, with Telethon's message.
     with pytest.raises(ValueError, match="cannot be empty or None"):
         _construct((None,), {"api_id": 1234})
     assert record == {}

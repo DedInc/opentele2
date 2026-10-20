@@ -1,8 +1,7 @@
 """The Telethon version 8 ``.session`` writer and the ``.session`` + ``.json``
-pair, ported from 1.5.0 tests/test_session_io.py and compared with the
-``sqlite3`` dump of a file 1.5.0 wrote (crates/opentele2-core/tests/
-session.rs) and the Telethon-written core fixture. Offline: no client
-connects.
+pair, compared with the ``sqlite3`` dump of a written file
+(crates/opentele2-core/tests/session.rs) and the Telethon-written core
+fixture. Offline: no client connects.
 
 Dumps mask the auth key blob, so key bytes never reach the log.
 """
@@ -37,9 +36,9 @@ TELETHON_FIXTURE = CORE_TESTS / "fixtures" / "telethon_v8.session"
 # The synthetic key of the fixture: byte i is 255 - i.
 FIXTURE_KEY = bytes(255 - i for i in range(256))
 
-# sqlite3 iterdump() of the file 1.5.0 write_session_file wrote for DC 2,
-# 149.154.167.51:443 (crates/opentele2-core/tests/session.rs V150_DUMP).
-V150_DUMP = [
+# sqlite3 iterdump() of the file write_session_file writes for DC 2,
+# 149.154.167.51:443 (crates/opentele2-core/tests/session.rs WRITTEN_DUMP).
+WRITTEN_DUMP = [
     "BEGIN TRANSACTION;",
     "CREATE TABLE entities (id integer primary key, hash integer not null, username text, "
     "phone integer, name text, date integer);",
@@ -149,13 +148,13 @@ def test_fresh_write_round_trips_through_sqlite_session(tmp_path: pathlib.Path) 
     assert_session(base, 2, "149.154.167.51", AUTH_KEY)
 
 
-def test_written_file_dumps_as_1_5_0_writes_it(tmp_path: pathlib.Path) -> None:
-    path = write_session_file(str(tmp_path / "v150"), 2, "149.154.167.51", 443, AUTH_KEY)
-    assert dump(path, AUTH_KEY) == V150_DUMP
+def test_written_file_dumps_as_the_recorded_dump(tmp_path: pathlib.Path) -> None:
+    path = write_session_file(str(tmp_path / "written"), 2, "149.154.167.51", 443, AUTH_KEY)
+    assert dump(path, AUTH_KEY) == WRITTEN_DUMP
     # A path already ending in .session is used as it is.
     again = write_session_file(path, 2, "149.154.167.51", 443, AUTH_KEY)
     assert again == path
-    assert dump(path, AUTH_KEY) == V150_DUMP
+    assert dump(path, AUTH_KEY) == WRITTEN_DUMP
 
 
 def test_schema_and_statements_come_from_the_core(tmp_path: pathlib.Path) -> None:
@@ -163,17 +162,17 @@ def test_schema_and_statements_come_from_the_core(tmp_path: pathlib.Path) -> Non
     for table in _native.telethon_schema():
         assert _columns(path, table["name"]) == table["columns"]
         body = table["ddl"][len("create table ") :]
-        assert f"CREATE TABLE {body};" in V150_DUMP
+        assert f"CREATE TABLE {body};" in WRITTEN_DUMP
 
 
 def test_write_over_pre_v8_session_rebuilds_schema(tmp_path: pathlib.Path) -> None:
-    base = str(tmp_path / "legacy")
+    base = str(tmp_path / "pre_v8")
     full_path = base + ".session"
     _make_pre_v8_session(full_path)
     assert _columns(full_path, "sessions") == ["dc_id", "server_address", "port", "auth_key"]
 
-    # Regression: this used to leave the narrow table stamped as version 8 and
-    # raise "table sessions has 4 columns but 6 values supplied".
+    # The write widens the table before stamping version 8; a narrow table
+    # stamped 8 would raise "table sessions has 4 columns but 6 values supplied".
     write_session_file(base, 4, "149.154.167.91", 443, AUTH_KEY)
 
     assert _columns(full_path, "sessions") == [
@@ -188,11 +187,11 @@ def test_write_over_pre_v8_session_rebuilds_schema(tmp_path: pathlib.Path) -> No
     assert_session(base, 4, "149.154.167.91", AUTH_KEY)
 
 
-def test_pre_v8_file_is_rebuilt_as_1_5_0_does(tmp_path: pathlib.Path) -> None:
+def test_pre_v8_file_is_rebuilt_as_a_fresh_write(tmp_path: pathlib.Path) -> None:
     path = str(tmp_path / "old.session")
     _make_pre_v8_session(path)
     write_session_file(path, 2, "149.154.167.51", 443, AUTH_KEY)
-    assert dump(path, AUTH_KEY) == V150_DUMP
+    assert dump(path, AUTH_KEY) == WRITTEN_DUMP
 
 
 def test_pre_v8_file_is_never_stamped_v8_with_old_schema(tmp_path: pathlib.Path) -> None:
@@ -250,7 +249,7 @@ def test_writing_over_the_telethon_fixture_keeps_its_schema(tmp_path: pathlib.Pa
     write_session_file(str(path), 2, address, 443, AUTH_KEY)
     lines = dump(path, AUTH_KEY)
     assert creates(lines) == telethon_schema, "schema kept"
-    # 1.5.0 write_session_file on a copy of the fixture, same values.
+    # write_session_file on a copy of the fixture, same values.
     assert inserts(lines) == [
         f"INSERT INTO \"sessions\" VALUES(2,'{address}',443,X'<KEY>',NULL,NULL);",
         'INSERT INTO "version" VALUES(8);',
@@ -276,7 +275,7 @@ def test_telegram_client_writer_is_the_session_io_writer(tmp_path: pathlib.Path)
     base = str(tmp_path / "static")
     path = TelegramClient._write_session_file(base, 2, "149.154.167.51", 443, AUTH_KEY)
     assert path == base + ".session"
-    assert dump(path, AUTH_KEY) == V150_DUMP
+    assert dump(path, AUTH_KEY) == WRITTEN_DUMP
 
 
 # ---------------------------------------------------------------- .session + .json
@@ -355,7 +354,7 @@ def test_from_session_json_errors(tmp_path: pathlib.Path) -> None:
             load(str(base))
 
 
-def test_save_session_json_writes_the_1_5_0_pair(tmp_path: pathlib.Path) -> None:
+def test_save_session_json_writes_the_pair(tmp_path: pathlib.Path) -> None:
     api = API.TelegramMacOS()
 
     async def save() -> tuple[str, str]:
@@ -368,7 +367,7 @@ def test_save_session_json_writes_the_1_5_0_pair(tmp_path: pathlib.Path) -> None
     session_file, json_file = asyncio.run(save())
     assert session_file == str(tmp_path / "out.session")
     assert json_file == str(tmp_path / "out.json")
-    assert dump(session_file, AUTH_KEY) == V150_DUMP
+    assert dump(session_file, AUTH_KEY) == WRITTEN_DUMP
     expected = api.to_json({"session_file": "out", "id": 4242})
     text = pathlib.Path(json_file).read_text(encoding="utf-8")
     assert text == json.dumps(expected, ensure_ascii=False, indent=2)
@@ -396,8 +395,8 @@ def test_save_session_json_api_choice_and_missing_key(tmp_path: pathlib.Path) ->
         asyncio.run(save(None, None))
 
 
-def test_save_session_json_writes_an_untyped_api_as_1_5_0(tmp_path: pathlib.Path) -> None:
-    # 1.5.0 json.dump-ed the values as they were: a str api_id, a None field.
+def test_save_session_json_writes_an_untyped_api_as_given(tmp_path: pathlib.Path) -> None:
+    # The values are json.dump-ed as they are: a str api_id, a None field.
     api_id: Any = "12345"
     api = APIData(api_id, "hash", "Устройство", "1.0", "2.0", "en", "en", None)
     assert api.lang_pack is None

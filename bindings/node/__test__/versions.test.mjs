@@ -31,7 +31,6 @@ const OFFLINE = {
   webKVersion: '2.2 K',
   chromeVersion: '155.0.0.0',
   userAgent: WEB_USER_AGENT,
-  // A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
   firefoxVersion: '150.0',
 }
 

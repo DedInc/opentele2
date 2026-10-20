@@ -23,10 +23,9 @@ if TYPE_CHECKING:
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 KEY = b"\x09" * 256
 
-# The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs, built
-# through 1.5.0's MTP classes: DC 2 has IPv4 TCP 203.0.113.2:443 first and
-# IPv6 TCP 2001:db8::2 first, DC 1 198.51.100.1 and 2001:db8::1, DC 3 only
-# the CDN IPv4 198.51.100.3.
+# The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs: DC 2
+# has IPv4 TCP 203.0.113.2:443 first and IPv6 TCP 2001:db8::2 first, DC 1
+# 198.51.100.1 and 2001:db8::1, DC 3 only the CDN IPv4 198.51.100.3.
 CUSTOM_CONFIG = bytes.fromhex(
     "000000010000000000000149fffffffe000000080000000200000005000001bb0000000b323030313a64"
     "62383a3a32000000000000000200000000000001bb0000000b3230332e302e3131332e32000000000000"
@@ -42,7 +41,7 @@ CUSTOM_CONFIG = bytes.fromhex(
     "300000271000000004000000000000000100000000000004000000000227648000000000000005ffffff"
     "f90000000800670069006600730000000c00760065006e007500650073"
 )
-# The address text of 1.5.0's built-in table per production DC, as (IPv4, IPv6).
+# The address text of the built-in table per production DC, as (IPv4, IPv6).
 TABLE_TEXT = {
     1: ("149.154.175.50", "2001:0b28:f23d:f001:0000:0000:0000:000a"),
     2: ("149.154.167.51", "2001:067c:04e8:f002:0000:0000:0000:000a"),
@@ -120,7 +119,7 @@ def test_production_default_config_and_endpoints() -> None:
     assert all(loaded.config is None for loaded in plain.accounts)
 
 
-def test_stored_custom_config_reads_as_1_5_0() -> None:
+def test_stored_custom_config_reads_back() -> None:
     config = _native.account_mtp_config(account(2, CUSTOM_CONFIG))
     assert config["environment"] == "production"
     # DCs in first-seen order; 1001 is not stored.
@@ -238,7 +237,7 @@ def test_migrate_leaves_a_7_3_folder_alone() -> None:
 # ---------------------------------------------------------------- Telethon files
 
 
-def test_schema_and_statements_are_1_5_0s() -> None:
+def test_schema_and_statements_of_the_telethon_file() -> None:
     schema = _native.telethon_schema()
     assert [table["name"] for table in schema] == [
         "version",
@@ -308,7 +307,7 @@ def test_session_rows_keep_the_stored_config_text_and_errors() -> None:
     assert unknown.value.code == "TDATA_BAD_CONFIG_DATA"
 
 
-def test_session_pair_paths_and_session_path_match_1_5_0() -> None:
+def test_session_pair_paths_and_session_path() -> None:
     cases = [
         ("acc", "acc.session", "acc.json"),
         ("acc.session", "acc.session", "acc.json"),

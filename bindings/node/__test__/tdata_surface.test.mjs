@@ -3,7 +3,7 @@
 // and migrateTdata, against crates/opentele2-core/tests/tdata_write.rs.
 //
 // Every vector folder is rebuilt byte for byte by replaying the recorded
-// 1.5.0 `os.urandom` draws of tdata.json. Key material is compared with
+// `os.urandom` draws of tdata.json. Key material is compared with
 // assertSame and differs, which never print the bytes.
 
 import assert from 'node:assert/strict'
@@ -26,12 +26,12 @@ const vectorDir = (folder) => path.join(VECTORS, ...folder.split('/'))
 const APP_VERSION = 7_003_001
 const NEW_FOLDER_ACTIVE_INDEX = -1
 const LEGACY = ['plain', 'passcode']
-// Draws 1.5.0 makes to migrate a legacy key file: the open salt, with a
+// Draws a migration of a legacy key file takes: the open salt, with a
 // passcode the wrap salt, then the wrap padding.
 const MIGRATION_DRAWS = { plain: 2, passcode: 3 }
 
-// 1.5.0's fixed performance-mode local and passcode keys
-// (src/td/tdesktop.py _PERF_LOCAL_KEY and _PERF_PASSCODE_KEY).
+// The fixed performance-mode local and passcode keys, the keys
+// crates/opentele2-core/src/tdata/mod.rs writes without a passcode.
 const PERF_LOCAL_KEY = unhex(
   'd8745944519e0d2d71309d6c8d272dc64948f5e3eba7685324d5c691ad810c20' +
     '3b31d19d29aed6ac33c014be6e09843293f6fa32dbe42b6a04e00481fae99511' +
@@ -390,7 +390,7 @@ test('addTdataAccount rejects a bad key or user id', async () => {
   assert.equal(tdata.accounts.length, 2)
 })
 
-// What 1.5.0 SaveTData writes for tdata_plain/performance_off after
+// What SaveTData writes for tdata_plain/performance_off after
 // TDesktop(folder) and accounts.pop(1), with performance mode off and
 // os.urandom replaying the first two recorded save draws (after the four
 // local key draws): the SHA-256 of every file.
@@ -401,7 +401,7 @@ const DROPPED_SAVE = {
   key_datas: '80833c6e56b542aeb2aeaa0e0bd5e6055c928bb4d5874d9e6f1370149ba86aee',
 }
 
-test('setTdataAccounts keeps the local key and saves as 1.5.0', async () => {
+test('setTdataAccounts keeps the local key and saves the recorded files', async () => {
   const folder = 'tdata_plain/performance_off'
   const tdata = await core.loadTdata(vectorDir(folder))
   tdata.performanceMode = false
@@ -423,7 +423,7 @@ test('setTdataAccounts keeps the local key and saves as 1.5.0', async () => {
   assert.deepEqual(listedFiles(dir), Object.keys(DROPPED_SAVE).sort())
   for (const [name, digest] of Object.entries(DROPPED_SAVE)) {
     const written = createHash('sha256').update(readFileSync(path.join(dir, ...name.split('/')))).digest('hex')
-    assert.equal(written, digest, `${name} differs from 1.5.0`)
+    assert.equal(written, digest, `${name} differs from the recorded digest`)
   }
 })
 
@@ -444,7 +444,7 @@ test('setTdataAccounts refuses a list the folder cannot hold', async () => {
   assert.equal(tdata.accounts.length, core.TDATA_MAX_ACCOUNTS)
 })
 
-test('setTdataAccounts keeps a loaded folder of more accounts writable, as 1.5.0', async () => {
+test('setTdataAccounts keeps a loaded folder of more accounts writable', async () => {
   const dir = freshDir()
   await core.saveTdata(await core.newTdata([0, 1, 2, 3, 4, 5, 6].map(labelledAccount)), dir)
   const tdata = await core.loadTdata(dir)

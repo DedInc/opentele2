@@ -1,6 +1,6 @@
 // telethon_sqlite.test.mjs: `opentele2/telethon` files and pairs, written
 // and read by the native module's bundled SQLite, against
-// crates/opentele2-core/tests/session.rs (the 1.5.0 dump and the
+// crates/opentele2-core/tests/session.rs (the written dump and the
 // Telethon-written fixture). Only the dump and edit helpers below use
 // node:sqlite, so only the tests that use them need it. Keys are synthetic
 // and never printed: dumps mask them and comparisons go through assertSame.
@@ -25,12 +25,12 @@ const FIXTURE = fileURLToPath(
 )
 
 /**
- * V150_DUMP of crates/opentele2-core/tests/session.rs: Python `sqlite3`
- * `iterdump()` of the file 1.5.0 writes with
- * `write_session_file(base, 2, "149.154.167.51", 443, bytes(range(256)))`,
- * the key blob masked as `<KEY>`.
+ * WRITTEN_DUMP of crates/opentele2-core/tests/session.rs: Python `sqlite3`
+ * `iterdump()` of the file
+ * `write_session_file(base, 2, "149.154.167.51", 443, bytes(range(256)))`
+ * writes, the key blob masked as `<KEY>`.
  */
-const V150_DUMP = [
+const WRITTEN_DUMP = [
   'BEGIN TRANSACTION;',
   'CREATE TABLE entities (id integer primary key, hash integer not null, username text, phone integer, name text, date integer);',
   'CREATE TABLE sent_files (md5_digest blob, file_size integer, type integer, id integer, hash integer, primary key(md5_digest, file_size, type));',
@@ -113,14 +113,14 @@ function withDb(file, fn) {
 
 const code = async (promise) => (await rejection(promise)).code
 
-test('a written file dumps as 1.5.0 writes it', { skip }, async () => {
+test('a written file dumps as the recorded dump', { skip }, async () => {
   const dir = scratch()
-  const file = await writeSessionFile(path.join(dir, 'v150'), rows(2, '149.154.167.51', countingKey(0)))
-  assert.equal(file, path.join(dir, 'v150.session'))
-  assert.deepEqual(dump(file, countingKey(0)), V150_DUMP)
+  const file = await writeSessionFile(path.join(dir, 'written'), rows(2, '149.154.167.51', countingKey(0)))
+  assert.equal(file, path.join(dir, 'written.session'))
+  assert.deepEqual(dump(file, countingKey(0)), WRITTEN_DUMP)
 })
 
-test('a pre-v8 file is rebuilt as 1.5.0 does', { skip }, async () => {
+test('a pre-v8 file is rebuilt as a fresh write', { skip }, async () => {
   const file = path.join(scratch(), 'old.session')
   withDb(file, (db) =>
     db.exec(
@@ -131,7 +131,7 @@ test('a pre-v8 file is rebuilt as 1.5.0 does', { skip }, async () => {
     ),
   )
   await writeSessionFile(file, rows(2, '149.154.167.51', countingKey(0)))
-  assert.deepEqual(dump(file, countingKey(0)), V150_DUMP)
+  assert.deepEqual(dump(file, countingKey(0)), WRITTEN_DUMP)
 })
 
 test('write then read round trips', { skip }, async () => {
@@ -168,7 +168,7 @@ test('reads the Telethon-written v8 fixture without changing it', async () => {
   assert.ok(readFileSync(FIXTURE).equals(before), 'fixture modified')
 })
 
-test('writing over the fixture keeps its schema as 1.5.0 does', { skip }, async () => {
+test('writing over the fixture keeps its schema', { skip }, async () => {
   const file = path.join(scratch(), 'over.session')
   copyFileSync(FIXTURE, file)
   const telethonSchema = creates(dump(file, fixtureKey()))
@@ -250,7 +250,7 @@ test('bad rows are refused before the file is opened', async () => {
 const ACCOUNT = { index: 0, userId: 77n, mainDc: 2, authKey: countingKey(0) }
 const companion = (extra) => JSON.stringify(core.sessionCompanionJson(core.profile('TelegramDesktop'), extra), null, 2)
 
-test('saveSessionPair writes the 1.5.0 pair at the normalised paths', { skip }, async () => {
+test('saveSessionPair writes the pair at the normalised paths', { skip }, async () => {
   const dir = scratch()
   const profile = core.profile('TelegramDesktop')
   for (const given of ['acc', 'acc.session', 'acc.json', 'acc.json.session']) {
@@ -258,7 +258,7 @@ test('saveSessionPair writes the 1.5.0 pair at the normalised paths', { skip }, 
     assert.deepEqual(paths, { session: path.join(dir, 'acc.session'), json: path.join(dir, 'acc.json') }, given)
     assert.equal(readFileSync(paths.json, 'utf8'), companion({ session_file: 'acc', id: 77 }), given)
     checkRows(await readSessionFile(paths.session), core.telethonSessionRows(ACCOUNT), given)
-    assert.deepEqual(inserts(dump(paths.session, countingKey(0))), inserts(V150_DUMP))
+    assert.deepEqual(inserts(dump(paths.session, countingKey(0))), inserts(WRITTEN_DUMP))
   }
   // Forward slashes are separators everywhere, as for Python's basename.
   const nested = await saveSessionPair(`${dir}/acc.session.json`, ACCOUNT, profile)
@@ -317,7 +317,7 @@ test('saveSessionPair options, ids and loadSessionPair', async () => {
   writeFileSync(paths.json, '{"app_id": 1}')
   assert.equal(await code(loadSessionPair(base)), 'OT_IO')
   // Profile keys not in the strict form read as Python's: the data, with
-  // no profile (this was OT_IO before).
+  // no profile, not OT_IO.
   writeFileSync(paths.json, '{"app_id": 1, "app_hash": "h", "device": 7, "id": 1152921504606846977}')
   const loose = await loadSessionPair(base)
   assert.equal(loose.profile, null)

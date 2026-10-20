@@ -1,6 +1,6 @@
-"""Tests of opentele2.api, ported from the 1.5.0 tests test_api_typing.py,
-test_desktop_version.py and the API parts of test_fingerprints.py, plus
-every case of crates/opentele2-core/tests/vectors/devices.json through
+"""Tests of opentele2.api: the public names, the class values, Generate,
+from_json and to_json, plus every case of
+crates/opentele2-core/tests/vectors/devices.json through
 ``API.<client>.Generate``."""
 
 from __future__ import annotations
@@ -41,10 +41,10 @@ WEB_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
 )
-# The class values of 1.5.0 src/api.py after _sync_api_versions applied the
-# offline PlatformVersions: api_id, api_hash, device_model, system_version,
+# The class values after _sync_api_versions applied the offline
+# PlatformVersions: api_id, api_hash, device_model, system_version,
 # app_version, lang_code, system_lang_code, lang_pack.
-CLASS_VALUES_1_5_0: dict[ApiClass, tuple[int, str, str, str, str, str]] = {
+CLASS_VALUES: dict[ApiClass, tuple[int, str, str, str, str, str]] = {
     API.TelegramDesktop: (
         2040,
         "b18441a1ff607e10a989891a5462e627",
@@ -129,7 +129,7 @@ def compact(value: object) -> str:
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
 
 
-def test_public_names_match_1_5_0() -> None:
+def test_public_names_and_class_hierarchy() -> None:
     assert api.__all__ == ["API", "APIData", "CreateNewSession", "LoginFlag", "UseCurrentSession"]
     assert API.TelegramWeb_Z is API.TelegramWeb_A
     assert issubclass(LoginFlag, int)
@@ -139,9 +139,9 @@ def test_public_names_match_1_5_0() -> None:
         assert cls.__bases__ == (APIData,)
 
 
-@pytest.mark.parametrize("cls", list(CLASS_VALUES_1_5_0))
-def test_class_values_match_1_5_0(cls: ApiClass) -> None:
-    api_id, api_hash, device_model, system_version, app_version, lang_pack = CLASS_VALUES_1_5_0[cls]
+@pytest.mark.parametrize("cls", list(CLASS_VALUES))
+def test_class_values(cls: ApiClass) -> None:
+    api_id, api_hash, device_model, system_version, app_version, lang_pack = CLASS_VALUES[cls]
     expected = (api_id, api_hash, device_model, system_version, app_version, "en", "en-US")
     assert _fields(cls()) == (*expected, lang_pack)
     assert (
@@ -285,7 +285,7 @@ def test_web_generate_is_a_browser_and_deterministic() -> None:
     assert _fields(API.TelegramWeb_A.Generate("same_seed")) == _fields(z)
 
 
-def test_generate_matches_the_exact_class_as_1_5_0() -> None:
+def test_generate_matches_the_exact_class() -> None:
     with pytest.raises(NotImplementedError, match="APIData device not supported"):
         APIData.Generate("seed")
 
@@ -442,18 +442,18 @@ def test_from_json_defaults_and_system_lang_pack_fallback() -> None:
 
 
 def test_from_json_without_credentials_raises_no_instance_matched() -> None:
-    # 1.5.0 src/api.py: APIData.__init__'s message, raised from from_json.
+    # APIData.__init__'s message, raised from from_json.
     with pytest.raises(NoInstanceMatched) as missing:
         APIData.from_json({"app_hash": "h", "device": "d", "sdk": "s", "app_version": "v"})
     assert missing.value.message == "No instace of API matches the arguments"
-    # 1.5.0 rejected only a missing app_id or app_hash, null counting as missing.
+    # Only a missing app_id or app_hash is rejected, null counting as missing.
     for data in ({"app_hash": "h"}, {"app_id": 1}, {"app_id": None, "app_hash": "h"}):
         with pytest.raises(NoInstanceMatched, match="No instace of API matches the arguments"):
             APIData.from_json(data)
 
 
-def test_from_json_takes_values_as_1_5_0_did() -> None:
-    # vars(APIData.from_json(data)) of 1.5.0: every value passes through untyped.
+def test_from_json_takes_values_untyped() -> None:
+    # vars(APIData.from_json(data)): every value passes through untyped.
     local = api._local_device_model()
     cases: list[tuple[dict[str, Any], Fields]] = [
         ({"app_id": "2040", "app_hash": "h"}, ("2040", "h", local, None, None, "en", "en", "")),
@@ -475,9 +475,9 @@ def test_from_json_takes_values_as_1_5_0_did() -> None:
         assert data == before, "from_json must not edit its argument"
 
 
-def test_from_json_is_as_lenient_as_1_5_0() -> None:
+def test_from_json_is_lenient() -> None:
     local = api._local_device_model()
-    # APIData.from_json(data) of 1.5.0 for each input, as _fields() reads it.
+    # APIData.from_json(data) for each input, as _fields() reads it.
     cases: list[tuple[dict[str, Any], Fields]] = [
         ({"app_id": 1, "app_hash": "h"}, (1, "h", local, None, None, "en", "en", "")),
         (
@@ -565,8 +565,8 @@ def test_to_json_basic_and_roundtrip() -> None:
     assert _fields(APIData.from_json(web.to_json())) == _fields(web)
 
 
-def test_to_json_matches_1_5_0_bytes() -> None:
-    # json.dumps(..., separators=(",", ":")) of 1.5.0 for the same calls.
+def test_to_json_bytes() -> None:
+    # json.dumps(..., separators=(",", ":")) of each call.
     account = (
         '"twoFA":null,"role":"","id":12345,"phone":"+1234567890","username":null,'
         '"date_of_birth":null,"date_of_birth_integrity":null,"is_premium":false,'
@@ -593,8 +593,8 @@ def test_to_json_matches_1_5_0_bytes() -> None:
     )
 
 
-def test_to_json_writes_values_untyped_as_1_5_0() -> None:
-    # APIData(api_id="12345", api_hash="h").to_json(extra) of 1.5.0: an api_id
+def test_to_json_writes_values_untyped() -> None:
+    # APIData(api_id="12345", api_hash="h").to_json(extra): an api_id
     # read from os.environ and extras json cannot encode pass through as given.
     registered = datetime.datetime(2024, 1, 2, 3, 4, 5)
     from_environment: Any = "12345"
@@ -642,7 +642,7 @@ def test_desktop_generate_follows_edited_platform_versions(
 
     monkeypatch.setattr(PLATFORM_VERSIONS, "desktop_app_version", "9.9.9")
     monkeypatch.setattr(PLATFORM_VERSIONS, "desktop_app_version_suffix", "beta")
-    # API.TelegramDesktop.Generate(system, "abc") of 1.5.0 after the same edits.
+    # API.TelegramDesktop.Generate(system, "abc") after these edits.
     expected = {
         "windows": ("B660M DS3H", "Windows 11 x64", "9.9.9 x64"),
         "macos": ("MacBook Pro M4 Pro", "macOS 27.0.1", "9.9.9 arm64"),

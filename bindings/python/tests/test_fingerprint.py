@@ -1,7 +1,6 @@
-"""Tests of opentele2.fingerprint, ported from the 1.5.0 tests
-test_fingerprints.py (TestFingerprintValidation, TestFingerprintConfig,
-TestPlatformVersions) and test_init_connection.py (tz_offset), plus the
-1.5.0 outputs of every public name the module keeps."""
+"""Tests of opentele2.fingerprint: fingerprint validation, FingerprintConfig,
+PlatformVersions and tz_offset, plus the outputs of every public name the
+module exports."""
 
 from __future__ import annotations
 
@@ -50,11 +49,11 @@ ANDROID_MAJOR = "Android app_version '12.3.0' major does not match latest known 
 
 
 def android(**edits: Any) -> dict[str, Any]:
-    """The Android base case of 1.5.0 test_fingerprints.py, with ``edits``."""
+    """The Android profile the validation cases edit, with ``edits``."""
     return {**ANDROID, **edits}
 
 
-def test_public_names_are_the_1_5_0_names() -> None:
+def test_public_names() -> None:
     assert fingerprint.__all__ == [
         "LAYER",
         "FingerprintConfig",
@@ -92,7 +91,7 @@ def test_recommended_layer_warns_on_a_far_telethon_layer(monkeypatch: pytest.Mon
 # ---------------------------------------------------------------- versions
 
 
-def test_platform_versions_are_the_1_5_0_defaults() -> None:
+def test_platform_versions_defaults() -> None:
     pv = get_platform_versions()
     assert pv is PLATFORM_VERSIONS
     assert dataclasses.asdict(PlatformVersions()) == {
@@ -117,7 +116,6 @@ def test_platform_versions_are_the_1_5_0_defaults() -> None:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
         ),
-        # A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
         "firefox_version": "150.0",
     }
     # OPENTELE_NO_FETCH is set for the tests: nothing was applied on import.
@@ -289,7 +287,7 @@ def test_strict_checks_read_the_current_platform_versions(
         "Android app_version '13.0.3' major does not match latest known '14.0'",
         "Android SDK 37 is outside the expected range [29, 36]",
     ]
-    # The module global is read at call time, as 1.5.0 read it.
+    # The module global is read at call time.
     monkeypatch.setattr(fingerprint, "PLATFORM_VERSIONS", PlatformVersions())
     assert validate_init_connection_params(**current, strict=True) == []
 
@@ -387,10 +385,10 @@ def test_msg_id_offset_range() -> None:
 
 
 def test_msg_id_offsets_come_from_the_core_not_random_seed() -> None:
-    # Deliberate difference from 1.5.0: 1.5.0 drew offsets with Python's
-    # random, so random.seed(198) reproduced [6944, 62977, 13221]. The core
-    # now draws them from the OS random source, so random.seed has no effect.
-    seeded_1_5_0 = [6944, 62977, 13221]
+    # Offsets drawn with Python's random after random.seed(198) would be
+    # [6944, 62977, 13221]. The core draws them from the OS random source, so
+    # random.seed has no effect.
+    seeded_by_random = [6944, 62977, 13221]
     assert _native.MSG_ID_OFFSET_MAX == 0xFFFF
     draws = (
         generate_msg_id_offset,
@@ -407,12 +405,12 @@ def test_msg_id_offsets_come_from_the_core_not_random_seed() -> None:
             random.seed(198)
             second = [draw() for _ in range(3)]
             assert first != second
-            assert seeded_1_5_0 not in (first, second)
+            assert seeded_by_random not in (first, second)
     finally:
         random.setstate(state)
 
 
-def test_is_valid_msg_id_matches_1_5_0() -> None:
+def test_is_valid_msg_id_checks_the_time_window_and_the_sender() -> None:
     now = int(time.time())
     client = (now << 32) | 1
     server = now << 32
@@ -426,14 +424,14 @@ def test_is_valid_msg_id_matches_1_5_0() -> None:
     assert is_valid_msg_id(((now + 200) << 32) | 1)
     assert not is_valid_msg_id(((now + 400) << 32) | 1)
     assert not is_valid_msg_id(((now - 400) << 32) | 1)
-    # 1.5.0 answered False, not an error, for ids outside the signed 64 bits.
+    # Ids outside the signed 64 bits answer False, not an error.
     for msg_id in (0, -1, -2, 1, 2**63 - 1, 2**63, 2**63 + 1, 2**64 + 1, -(2**70)):
         assert not is_valid_msg_id(msg_id)
         assert not is_valid_msg_id(msg_id, from_client=False)
 
 
-# validate_init_connection_params(**params, strict=strict) of 1.5.0 with one
-# value None, on the API.TelegramDesktop values; 1.5.0 tested None as empty.
+# validate_init_connection_params(**params, strict=strict) with one value
+# None, on the API.TelegramDesktop values; None is tested as empty.
 DESKTOP: dict[str, Any] = {
     "api_id": 2040,
     "device_model": "Desktop",
@@ -463,8 +461,8 @@ NONE_REPORTS: list[tuple[str, bool, list[str]]] = [
     ("lang_code", True, ["lang_code 'None' looks invalid (too short)"]),
 ]
 
-# validate_init_connection_params(**{**DESKTOP, "api_id": api_id}, strict=strict)
-# of 1.5.0, which compared api_id with the official id by != and formatted it.
+# validate_init_connection_params(**{**DESKTOP, "api_id": api_id}, strict=strict),
+# which compares api_id with the official id by != and formats it.
 API_ID_REPORTS: list[tuple[object, bool, list[str]]] = [
     ("2040", False, []),
     ("2040", True, ["api_id 2040 does not match lang_pack 'tdesktop' (expected 2040)"]),
@@ -475,20 +473,18 @@ API_ID_REPORTS: list[tuple[object, bool, list[str]]] = [
 
 
 @pytest.mark.parametrize(("api_id", "strict", "expected"), API_ID_REPORTS)
-def test_api_ids_of_any_type_are_accepted_as_1_5_0(
-    api_id: Any, strict: bool, expected: list[str]
-) -> None:
+def test_api_ids_of_any_type_are_accepted(api_id: Any, strict: bool, expected: list[str]) -> None:
     params = {**DESKTOP, "api_id": api_id}
     assert validate_init_connection_params(**params, strict=strict) == expected
 
 
 @pytest.mark.parametrize(("field", "strict", "expected"), NONE_REPORTS)
-def test_none_values_are_reported_as_1_5_0(field: str, strict: bool, expected: list[str]) -> None:
+def test_none_values_are_reported_as_empty(field: str, strict: bool, expected: list[str]) -> None:
     params = {**DESKTOP, field: None}
     assert validate_init_connection_params(**params, strict=strict) == expected
 
 
-def test_validate_params_reports_a_none_value_as_1_5_0() -> None:
+def test_validate_params_reports_a_none_value() -> None:
     config = FingerprintConfig(strict_mode=StrictMode.STRICT)
     with pytest.raises(ValueError, match="system_version is empty") as raised:
         config.validate_params(**{**DESKTOP, "system_version": None})

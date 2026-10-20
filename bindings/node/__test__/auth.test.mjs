@@ -1,6 +1,6 @@
 // auth.test.mjs: QR login URLs, the SRP check, the sessions table, official
-// api ids and the consistency texts against the Telethon 1.45.0 and 1.5.0
-// values of crates/opentele2-core/tests/auth.rs. Passwords are fixtures and
+// api ids and the consistency texts against the Telethon 1.45.0 values and
+// the values of crates/opentele2-core/tests/auth.rs. Passwords are fixtures and
 // SRP outputs are compared with assertSame, so neither reaches the log.
 
 import assert from 'node:assert/strict'
@@ -144,7 +144,7 @@ test('srpCheck matches Telethon compute_check, redraws and refuses alike', async
   }
   const badG = await refused({ g: 9 }, 'OT_SRP_BAD_PRIME_OR_GENERATOR')
   assert.equal(badG.message, 'bad p/g in password')
-  // A refusal that is not a core error repeats its message as the 1.5.0 one.
+  // A refusal that is not a core error repeats its message as legacyMessage.
   assert.equal(badG.legacyMessage, 'bad p/g in password')
   await refused({ p: p.subarray(1) }, 'OT_SRP_BAD_PRIME_OR_GENERATOR')
   assert.equal((await refused({ srpB: Buffer.alloc(0) }, 'OT_SRP_BAD_B')).message, 'bad b in check')
@@ -170,7 +170,7 @@ const row = (current, officialApp, apiId, [deviceModel, platform, systemVersion,
   appVersion,
 })
 
-test('formatSessions matches 1.5.0 PrintSessions', () => {
+test('formatSessions renders the PrintSessions table', () => {
   const rows = [
     row(true, true, 2040, ['Desktop', 'Windows', 'Windows 11 x64', 'Telegram Desktop', '6.1.3 x64']),
     row(false, true, 6, ['samsungSM-S938B', 'android', 'SDK 36', 'Telegram Android', '12.0.1 (61234)']),
@@ -208,7 +208,7 @@ test('formatSessions matches 1.5.0 PrintSessions', () => {
   assert.deepEqual(core.SESSION_COLUMNS, [' ', 'Device', 'Platform', 'System', 'API_ID', 'App name', 'Official App'])
 })
 
-test('the session admin messages and official api ids are 1.5.0s', () => {
+test('the session admin messages and official api ids', () => {
   assert.equal(
     core.FRESH_RESET_FORBIDDEN,
     "You can't logout other sessions if less than 24 hours have passed since you logged on the current session.",
@@ -289,7 +289,7 @@ test('layerResult tolerates fifteen layers', () => {
   assert.equal(core.layerDetail(229, 228), 'Telethon layer=229, advertised schema layer=228, diff=1')
 })
 
-test('the consistency report texts match 1.5.0', () => {
+test('the consistency check names and report texts', () => {
   assert.deepEqual(core.consistencyChecks(), [
     'get_config',
     'nearest_dc',

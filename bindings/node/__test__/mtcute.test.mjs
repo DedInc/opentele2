@@ -47,7 +47,7 @@ test('initConnectionOptions carries the six initConnection fields', () => {
     langPack: profile.langPack,
     langCode: profile.langCode,
   })
-  // tdesktop also sends params ({tz_offset}), as 1.5.0 Python does.
+  // tdesktop also sends params ({tz_offset}).
   assert.equal(params?._, 'jsonObject')
   assert.ok(!('apiId' in options) && !('apiHash' in options))
 })

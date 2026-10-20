@@ -1,5 +1,5 @@
 """opentele2.browser: browserforge-shaped header and fingerprint generation
-over the Rust port, and the natives it draws through."""
+over the Rust core, and the natives it draws through."""
 
 from __future__ import annotations
 

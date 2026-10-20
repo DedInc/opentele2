@@ -1,11 +1,9 @@
-// compat_data.test.mjs: the 1.5.0 compatibility data the addon exposes from
-// the core: `legacyMessage` on errors, the session JSON tables,
-// formatAppVersion, the device catalog listings, formatTable, TDF_MAGIC and
-// drawPlan.
+// core_data.test.mjs: the data the addon exposes from the core:
+// `legacyMessage` on errors, the session JSON tables, formatAppVersion, the
+// device catalog listings, formatTable, TDF_MAGIC and drawPlan.
 //
 // Expected values are the literals of crates/opentele2-core/tests/
-// {legacy_messages,api,devices,auth,tdata_write}.rs, which were captured by
-// running 1.5.0.
+// {messages,api,devices,auth,tdata_write}.rs.
 
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
@@ -16,7 +14,7 @@ import { after, test } from 'node:test'
 
 import { VECTORS, core, rejection, thrown } from './helpers.mjs'
 
-const scratch = mkdtempSync(path.join(tmpdir(), 'opentele2-compat-'))
+const scratch = mkdtempSync(path.join(tmpdir(), 'opentele2-core-data-'))
 after(() => rmSync(scratch, { recursive: true, force: true }))
 
 let counter = 0
@@ -31,9 +29,9 @@ function withKeyFile(content) {
   return dir
 }
 
-// ---------------------------------------------------------------- legacy messages
+// ---------------------------------------------------------------- legacyMessage
 
-test('read file rejections carry the 1.5.0 messages', async () => {
+test('read file rejections carry their legacyMessage', async () => {
   const missing = await rejection(core.loadTdata(path.join(scratch, 'missing')))
   assert.ok(missing instanceof Error)
   assert.equal(missing.code, 'OT_TFILE_NOT_FOUND')
@@ -61,7 +59,7 @@ test('read file rejections carry the 1.5.0 messages', async () => {
   assert.equal(checksum.legacyMessage, 'Invalid checksum 78e20993e8b2d57b5f190eb51b1e8d63 in file key_data')
 })
 
-test('loadMany errors carry the 1.5.0 message', async () => {
+test('loadMany errors carry the legacyMessage', async () => {
   const [missing, loaded] = await core.loadMany([path.join(scratch, 'missing'), vectorDir('tdata_plain/performance_on')])
   assert.ok(missing instanceof Error)
   assert.equal(missing.code, 'OT_TFILE_NOT_FOUND')
@@ -69,13 +67,13 @@ test('loadMany errors carry the 1.5.0 message', async () => {
   assert.ok(loaded instanceof core.TData)
 })
 
-test('a wrong passcode rejects with the 1.5.0 message', async () => {
+test('a wrong passcode rejects with its legacyMessage', async () => {
   const error = await rejection(core.loadTdata(vectorDir('tdata_plain/performance_on'), 'opentele2'))
   assert.equal(error.code, 'OT_TDATA_BAD_DECRYPT_KEY')
   assert.equal(error.legacyMessage, 'Bad decrypt key, data not decrypted - incorrect password?')
 })
 
-test('synchronous throws carry the 1.5.0 message', async () => {
+test('synchronous throws carry the legacyMessage', async () => {
   const accounts = Array.from({ length: 6 }, (_, index) => ({ index, userId: 1n, mainDc: 2, authKey: Buffer.alloc(256) }))
   const tdata = await core.newTdata(accounts)
   const limit = thrown(() => core.addTdataAccount(tdata, 1n, 2, Buffer.alloc(256)))
@@ -88,12 +86,12 @@ test('synchronous throws carry the 1.5.0 message', async () => {
   assert.equal(keyless.code, 'OT_TDATA_AUTH_KEY_NOT_FOUND')
   assert.equal(keyless.legacyMessage, 'Could not find the main authKey')
 
-  // Without a 1.5.0 message of its own, the core's text is given.
+  // Without a legacyMessage of its own, the core's text is given.
   const short = thrown(() => core.aesIgeEncrypt(Buffer.alloc(16), Buffer.alloc(16), Buffer.alloc(32)))
   assert.equal(short.code, 'OT_BAD_LENGTH')
   assert.equal(short.legacyMessage, short.message)
 
-  // Arguments the core never sees carry no legacy message.
+  // Arguments the core never sees carry no legacyMessage.
   const negative = thrown(() => core.addTdataAccount(tdata, -1n, 2, Buffer.alloc(256)))
   assert.equal(negative.code, 'ERR_INVALID_ARG_VALUE')
   assert.equal('legacyMessage' in negative, false)
@@ -101,7 +99,7 @@ test('synchronous throws carry the 1.5.0 message', async () => {
 
 // ---------------------------------------------------------------- session JSON and versions
 
-test('formatAppVersion matches 1.5.0', () => {
+test('formatAppVersion', () => {
   const cases = [
     [7003001, '7.3.1'],
     [7003000, '7.3'],
@@ -117,12 +115,12 @@ test('formatAppVersion matches 1.5.0', () => {
   assert.equal(core.formatAppVersion(7003001), core.platformVersions().desktopAppVersion)
 })
 
-test('TDF_MAGIC is 1.5.0s', () => {
+test('TDF_MAGIC is TDF$', () => {
   assert.equal(core.TDF_MAGIC, 'TDF$')
   assert.deepEqual(Buffer.from(core.TDF_MAGIC, 'latin1'), Buffer.from([0x54, 0x44, 0x46, 0x24]))
 })
 
-test('the session JSON tables match 1.5.0', () => {
+test('the session JSON tables', () => {
   const expectedExtra = JSON.parse(
     '[["twoFA", null], ["role", ""], ["id", null], ["phone", null], ["username", null], ' +
       '["date_of_birth", null], ["date_of_birth_integrity", null], ["is_premium", false], ' +
@@ -159,7 +157,7 @@ function linesDigest(lines) {
   return hash.digest('hex')
 }
 
-test('catalogEntries list the 1.5.0 device lists', () => {
+test('catalogEntries list the device lists', () => {
   const expected = [
     ['windows', 232, 'ad3775a3cc0e8a0a305aac31af80c3f5be39fb89'],
     ['linux', 3944, 'd5f46c6619554458fa5b51b4f3a131086f1fbd86'],
@@ -183,7 +181,7 @@ test('catalogEntries list the 1.5.0 device lists', () => {
   }
 })
 
-test('deviceModels and systemVersions match 1.5.0', () => {
+test('deviceModels and systemVersions', () => {
   const expected = [
     ['windows', [116, '5c52da02e390eac9e3753d929c3360cfabbc705a'], [2, 'e6bb592d547ca159c19720732b2b5cbfd6adb4ba']],
     ['linux', [116, '5c52da02e390eac9e3753d929c3360cfabbc705a'], [34, 'f248aeedf61275d7a4b90fcc3ec72d873d5eaac7']],
@@ -213,7 +211,7 @@ test('the web catalog entries are listed for both clients', () => {
   assert.deepEqual(pairs(webA), pairs(webK))
 })
 
-test('webBrowserWeights are 1.5.0s', () => {
+test('webBrowserWeights', () => {
   assert.deepEqual(Object.entries(core.webBrowserWeights()), [['chrome', 19], ['edge', 2], ['firefox', 1]])
 })
 
@@ -227,7 +225,7 @@ test('an unknown platform is refused', () => {
 
 // ---------------------------------------------------------------- formatTable
 
-test('formatTable matches 1.5.0 PrettyTable', () => {
+test('formatTable renders a PrettyTable', () => {
   assert.equal(
     core.formatTable(['a', 'bb'], [['1', 'x'], ['long value', '']]),
     '|------------+----|\n|     a      | bb |\n|------------+----|\n' +
@@ -257,7 +255,7 @@ test('formatTable matches 1.5.0 PrettyTable', () => {
 
 const replayable = (plan) => plan.map((size) => randomBytes(size))
 
-test('drawPlan of a new folder matches 1.5.0', () => {
+test('drawPlan of a new folder', () => {
   assert.deepEqual(core.drawPlan('new', { hasPasscode: false, performanceMode: true }), [])
   assert.deepEqual(core.drawPlan('new', { hasPasscode: true, performanceMode: true }), [256, 32, 32, 32, 12])
   assert.deepEqual(core.drawPlan('new', { hasPasscode: false, performanceMode: false }), [256, 32, 32, 12])

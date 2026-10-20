@@ -84,7 +84,7 @@ test('no account reads the production default, as Python does', () => {
   assert.equal(core.accountEndpoints(null, 6), null)
 })
 
-test('a stored custom config is read as 1.5.0 reads it', () => {
+test('a stored custom config reads back', () => {
   const config = core.accountMtpConfig(account(2, unhex(CUSTOM_CONFIG)))
   assert.equal(config.environment, 'production')
   assert.deepEqual(

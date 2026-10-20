@@ -7,7 +7,7 @@ import { test } from 'node:test'
 
 import { CUSTOM_CONFIG, VECTORS, assertSame, core, loadJson, thrown, unhex } from './helpers.mjs'
 
-/** The address text of 1.5.0's built-in table per production DC, as [IPv4, IPv6]. */
+/** The address text of the built-in table per production DC, as [IPv4, IPv6]. */
 const TABLE_TEXT = {
   1: ['149.154.175.50', '2001:0b28:f23d:f001:0000:0000:0000:000a'],
   2: ['149.154.167.51', '2001:067c:04e8:f002:0000:0000:0000:000a'],
@@ -19,7 +19,7 @@ const TABLE_TEXT = {
 const key = Buffer.alloc(256, 9)
 const withConfig = (mainDc, config) => ({ index: 0, userId: 77n, mainDc, authKey: key, config })
 
-test('the schema and statements are the ones 1.5.0 runs', () => {
+test('the schema and statements of the Telethon file', () => {
   const schema = core.telethonSchema()
   assert.deepEqual(
     schema.map((table) => table.name),
@@ -52,7 +52,7 @@ test('the schema and statements are the ones 1.5.0 runs', () => {
   assert.equal(core.TELETHON_JSON_SUFFIX, '.json')
 })
 
-test('telethonSessionRows of the vector accounts carry 1.5.0 address text', async () => {
+test('telethonSessionRows of the vector accounts carry the built-in address text', async () => {
   for (const folder of ['tdata_plain/performance_on', 'tdata_plain/performance_off']) {
     const entry = loadJson('tdata.json').folders[folder]
     const tdata = await core.loadTdata(path.join(VECTORS, ...folder.split('/')))
@@ -93,7 +93,7 @@ test('telethonSessionRows keep the stored config text and its errors', () => {
   assert.equal(thrown(() => core.telethonSessionRows(keyless)).code, 'OT_TDATA_AUTH_KEY_NOT_FOUND')
 })
 
-test('sessionPairPaths and sessionPath match 1.5.0', () => {
+test('sessionPairPaths and sessionPath', () => {
   const cases = [
     ['acc', 'acc.session', 'acc.json'],
     ['acc.session', 'acc.session', 'acc.json'],

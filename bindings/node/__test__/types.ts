@@ -116,7 +116,7 @@ export async function tdataSurface(account: AccountInput): Promise<void> {
   void [migrated, passcodeKey, appVersion, index, limit, offsetMax]
 }
 
-export function compatData(tdata: TData): void {
+export function coreData(tdata: TData): void {
   const newPlan: number[] = drawPlan('new', { hasPasscode: true, performanceMode: false })
   const savePlan: number[] = drawPlan('save', tdata)
   const entries: CatalogEntry[] = catalogEntries('macos')

@@ -1,11 +1,10 @@
-"""Tests of the 1.5.0 compatibility data opentele2._native exposes from the
-core: ``CoreError.legacy_message``, the session JSON tables,
+"""Tests of the data opentele2._native exposes from the core:
+``CoreError.legacy_message``, the session JSON tables,
 ``format_app_version``, the device catalog listings, ``format_table``,
 ``TDF_MAGIC`` and ``draw_plan``.
 
 Expected values are the literals of crates/opentele2-core/tests/
-{legacy_messages,api,devices,auth,tdata_write}.rs, which were captured by
-running 1.5.0.
+{messages,api,devices,auth,tdata_write}.rs.
 """
 
 from __future__ import annotations
@@ -35,7 +34,7 @@ def core_error(call: Any, *args: Any) -> CoreError:
     return caught.value
 
 
-# ---------------------------------------------------------------- legacy messages
+# ---------------------------------------------------------------- legacy_message
 
 
 def test_core_error_keeps_its_legacy_message() -> None:
@@ -62,7 +61,7 @@ def _with_key_file(folder: Path, content: bytes) -> Path:
     return folder
 
 
-def test_read_file_messages_match_1_5_0(tmp_path: Path) -> None:
+def test_read_file_messages(tmp_path: Path) -> None:
     missing = core_error(TData.load, tmp_path / "missing")
     assert missing.code == "TFILE_NOT_FOUND"
     assert missing.message == "tdata file not found"
@@ -97,7 +96,7 @@ def test_load_many_errors_carry_the_legacy_message(tmp_path: Path) -> None:
     assert missing.legacy_message == "Could not open key_data"
 
 
-def test_decrypt_local_messages_match_1_5_0() -> None:
+def test_decrypt_local_messages() -> None:
     assert (
         core_error(_native.decrypt_local, bytes(16), COUNTING_KEY).legacy_message
         == "Bad encrypted part size: 16"
@@ -120,13 +119,13 @@ def test_decrypt_local_messages_match_1_5_0() -> None:
     assert error.legacy_message == "Bad decrypted part size: 48, fullLen: 32, decrypted size: 32"
 
 
-def test_wrong_passcode_message_matches_1_5_0() -> None:
+def test_wrong_passcode_message() -> None:
     error = core_error(TData.load, VECTORS / "tdata_plain" / "performance_on", "opentele2")
     assert error.code == "TDATA_BAD_DECRYPT_KEY"
     assert error.legacy_message == "Bad decrypt key, data not decrypted - incorrect password?"
 
 
-def test_account_limit_message_matches_1_5_0() -> None:
+def test_account_limit_message() -> None:
     accounts = [Account(index, 1, 2, [(2, bytes(256))]) for index in range(6)]
     tdata = TData.new(accounts)
     error = core_error(tdata.add_account, 1, 2, bytes(256))
@@ -134,7 +133,7 @@ def test_account_limit_message_matches_1_5_0() -> None:
     assert error.legacy_message == "You can't have more than 6 accounts in one TDesktop client"
 
 
-def test_errors_without_a_1_5_0_message_give_their_text() -> None:
+def test_errors_without_a_legacy_message_give_their_text() -> None:
     error = core_error(_native.aes_ige_encrypt, bytes(16), bytes(16), bytes(32))
     assert error.code == "BAD_LENGTH"
     assert error.legacy_message == error.message
@@ -143,7 +142,7 @@ def test_errors_without_a_1_5_0_message_give_their_text() -> None:
 # ---------------------------------------------------------------- session JSON and versions
 
 
-def test_format_app_version_matches_1_5_0() -> None:
+def test_format_app_version() -> None:
     cases = [
         (7_003_001, "7.3.1"),
         (7_003_000, "7.3"),
@@ -161,11 +160,11 @@ def test_format_app_version_matches_1_5_0() -> None:
         _native.format_app_version(-1)
 
 
-def test_tdf_magic_is_1_5_0s() -> None:
+def test_tdf_magic() -> None:
     assert _native.TDF_MAGIC == b"TDF$"
 
 
-def test_session_json_tables_match_1_5_0() -> None:
+def test_session_json_tables() -> None:
     expected_extra = json.loads(
         '[["twoFA", null], ["role", ""], ["id", null], ["phone", null], ["username", null], '
         '["date_of_birth", null], ["date_of_birth_integrity", null], ["is_premium", false], '
@@ -216,7 +215,7 @@ def lines_digest(lines: Iterable[str]) -> str:
         ("ios", 1166, "77c5f221cd8683c02ba0f0a451c427029cab7740"),
     ],
 )
-def test_catalog_entries_list_the_1_5_0_device_lists(platform: Any, runs: int, digest: str) -> None:
+def test_catalog_entries_list_the_device_lists(platform: Any, runs: int, digest: str) -> None:
     merged: list[list[Any]] = []
     for entry in _native.catalog_entries(platform):
         assert entry["weight"] > 0
@@ -255,7 +254,7 @@ def test_catalog_entries_list_the_1_5_0_device_lists(platform: Any, runs: int, d
         ),
     ],
 )
-def test_catalog_lists_match_1_5_0_models_and_versions(
+def test_catalog_lists_of_models_and_versions(
     platform: Any, models: tuple[int, str], versions: tuple[int, str]
 ) -> None:
     device_models = _native.device_models(platform)
@@ -280,7 +279,7 @@ def test_web_catalog_entries_are_listed_for_both_clients() -> None:
     assert [(e["model"], e["weight"]) for e in web_a] == [(e["model"], e["weight"]) for e in web_k]
 
 
-def test_web_browser_weights_are_1_5_0s() -> None:
+def test_web_browser_weights() -> None:
     weights = list(_native.WEB_BROWSER_WEIGHTS.items())
     assert weights == [("chrome", 19), ("edge", 2), ("firefox", 1)]
 
@@ -295,7 +294,7 @@ def test_unknown_platform_is_refused() -> None:
 # ---------------------------------------------------------------- format_table
 
 
-def test_format_table_matches_1_5_0_pretty_table() -> None:
+def test_format_table_renders_a_pretty_table() -> None:
     assert _native.format_table(["a", "bb"], [["1", "x"], ["long value", ""]]) == (
         "|------------+----|\n|     a      | bb |\n|------------+----|\n"
         "|     1      | x  |\n| long value |    |\n|------------+----|"
@@ -326,7 +325,7 @@ def test_format_table_pads_short_rows_and_drops_extra_cells() -> None:
 # ---------------------------------------------------------------- draw_plan
 
 
-def test_draw_plan_of_new_matches_1_5_0() -> None:
+def test_draw_plan_of_new() -> None:
     assert _native.draw_plan("new", {"has_passcode": False, "performance_mode": True}) == []
     assert _native.draw_plan("new", {"has_passcode": True, "performance_mode": True}) == [
         256,

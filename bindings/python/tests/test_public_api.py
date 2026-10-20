@@ -1,21 +1,19 @@
-"""Every 1.5.0 public name imports from the same dotted path in the new package.
+"""Every public name imports from its dotted path in the package.
 
-``PUBLIC_NAMES`` was generated once, with ``ast``, from the 1.5.0 sources in
-the root ``src/`` (the 1.5.0 ``opentele2`` package): the ``__all__`` of every
-module, with ``tl/configs.py``'s ``__all__ += _exception.__all__`` and
-``__all__ += _utils.__all__`` expanded, and the names ``src/__init__.py``,
-``src/td/__init__.py`` and ``src/tl/__init__.py`` import. It is pasted as
-literals so the check does not depend on the legacy tree.
+``PUBLIC_NAMES`` lists, as literals, the ``__all__`` of every public module,
+with ``tl/configs.py``'s ``__all__ += _exception.__all__`` and
+``__all__ += _utils.__all__`` expanded, and the names the ``opentele2``,
+``opentele2.td`` and ``opentele2.tl`` package ``__init__`` modules import.
 
-Left out, as ARCHITECTURE.md (Removal) documents:
+Not public, as ARCHITECTURE.md documents:
 - the names ``td.MTP``, ``td.MapData``, ``td.Serialize``, ``td.Storage`` and
   ``td.StorageAccount`` and the modules ``qt_compat``, ``utils``, ``debug`` and
-  ``version_fetcher`` ("Deliberately not kept as public names");
-- the modules ``td.configs``, ``td.key_data`` and ``td.shared``, which the
-  Removal table deletes with the rest of the Python tdata format code (core
-  ``tdata``, ``kdf``, ``crypto``; ``td/__init__.py`` re-exports the facades);
-- ``annotations`` in ``src/td/__init__.py``: ``from __future__ import
-  annotations`` is a compiler directive, not an export.
+  ``version_fetcher``;
+- the modules ``td.configs``, ``td.key_data`` and ``td.shared``: the tdata
+  format lives in the core (``tdata``, ``kdf``, ``crypto``) and
+  ``td/__init__.py`` re-exports the facades;
+- ``annotations``: ``from __future__ import annotations`` is a compiler
+  directive, not an export.
 """
 
 from __future__ import annotations
@@ -24,8 +22,8 @@ import importlib
 
 import pytest
 
-# From each module's 1.5.0 ``__all__``: the new module lists the name in its
-# own ``__all__`` too, so ``from <module> import *`` brings the same names.
+# Each module's ``__all__``: the module lists every name, so
+# ``from <module> import *`` brings them all.
 ALL_NAMES: dict[str, list[str]] = {
     "opentele2.api": ["API", "APIData", "CreateNewSession", "LoginFlag", "UseCurrentSession"],
     "opentele2.consistency": ["CheckResult", "ConsistencyChecker", "ConsistencyReport"],
@@ -169,14 +167,14 @@ ALL_NAMES: dict[str, list[str]] = {
     ],
 }
 
-# From the 1.5.0 package ``__init__.py`` imports (none of them has __all__).
+# The package ``__init__.py`` imports (checked by attribute, not __all__).
 INIT_NAMES: dict[str, list[str]] = {
     "opentele2": ["consistency", "fingerprint", "td", "tl"],
     "opentele2.td": ["Account", "AuthKey", "AuthKeyType", "TDesktop"],
     "opentele2.tl": ["TelegramClient"],
 }
 
-DROPPED_TD_NAMES = ["MTP", "MapData", "Serialize", "Storage", "StorageAccount"]
+INTERNAL_TD_NAMES = ["MTP", "MapData", "Serialize", "Storage", "StorageAccount"]
 
 PUBLIC_NAMES = sorted(
     {
@@ -189,18 +187,18 @@ PUBLIC_NAMES = sorted(
 
 
 @pytest.mark.parametrize(("module", "name"), PUBLIC_NAMES)
-def test_every_1_5_0_public_name_imports_from_its_1_5_0_path(module: str, name: str) -> None:
+def test_every_public_name_imports_from_its_path(module: str, name: str) -> None:
     imported = importlib.import_module(module)
     assert hasattr(imported, name), f"{module}.{name}"
 
 
 @pytest.mark.parametrize("module", sorted(ALL_NAMES))
-def test_every_1_5_0_all_name_is_in_the_new_all(module: str) -> None:
+def test_every_listed_name_is_in_the_module_all(module: str) -> None:
     exported = set(importlib.import_module(module).__all__)
     missing = [name for name in ALL_NAMES[module] if name not in exported]
     assert not missing, f"{module}.__all__ lacks {missing}"
 
 
-def test_the_td_names_architecture_drops_are_gone() -> None:
+def test_the_internal_td_names_are_not_public() -> None:
     td = importlib.import_module("opentele2.td")
-    assert [name for name in DROPPED_TD_NAMES if hasattr(td, name)] == []
+    assert [name for name in INTERNAL_TD_NAMES if hasattr(td, name)] == []

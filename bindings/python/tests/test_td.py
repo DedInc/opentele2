@@ -1,10 +1,8 @@
-"""Tests of the 1.5.0 ``opentele2.td`` facades (TDesktop, Account, AuthKey,
-AuthKeyType) over opentele2._native, ported from the public tdata
-assertions of 1.5.0's tests/test_full.py, tests/tdata_test.py and
-tests/test_tdata_*.py, on the vector folders of
-crates/opentele2-core/tests/vectors.
+"""Tests of the ``opentele2.td`` facades (TDesktop, Account, AuthKey,
+AuthKeyType) over opentele2._native: loads, saves, key data, MTP config and
+auth keys on the vector folders of crates/opentele2-core/tests/vectors.
 
-Saves replay the recorded 1.5.0 ``os.urandom`` draws of tdata.json through
+Saves replay the recorded ``os.urandom`` draws of tdata.json through
 the ``draws`` hook and are compared with the vectors byte for byte. Key
 material is compared with ``assert_same``, which never prints the bytes.
 """
@@ -70,7 +68,7 @@ def draws_of(folder: str) -> list[bytes]:
 
 
 def key_draws(entry: Any) -> int:
-    """The draws 1.5.0 made for a new local key: pass, salt, open salt, a
+    """The draws a new local key takes: pass, salt, open salt, a
     wrap salt with a passcode, and the wrap padding; none for the fixed
     performance-mode keys."""
     if entry["performance_mode"] and not entry["passcode"]:
@@ -110,7 +108,7 @@ def performance_mode(monkeypatch: pytest.MonkeyPatch) -> Any:
 # ---------------------------------------------------------------- public surface
 
 
-def test_td_exports_the_1_5_0_public_classes_only() -> None:
+def test_td_exports_the_public_classes_only() -> None:
     assert opentele2.td.__all__ == ["Account", "AuthKey", "AuthKeyType", "TDesktop"]
     for internal in ("MTP", "MapData", "Serialize", "Storage", "StorageAccount"):
         assert not hasattr(opentele2.td, internal), internal
@@ -159,7 +157,7 @@ def test_performance_mode_classmethod(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize("folder", ALL_FOLDERS)
-def test_every_vector_loads_as_1_5_0(folder: str) -> None:
+def test_every_vector_loads(folder: str) -> None:
     entry = entry_of(folder)
     tdesk = load(folder)
     path = str(VECTORS / folder)
@@ -208,7 +206,7 @@ def test_main_account_follows_the_stored_active_index(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("folder", PASSCODE_FOLDERS)
-def test_wrong_passcode_raises_bad_decrypt_key_with_1_5_0_message(folder: str) -> None:
+def test_wrong_passcode_raises_bad_decrypt_key_with_its_message(folder: str) -> None:
     path = str(VECTORS / folder)
     with pytest.raises(TDataBadDecryptKey) as missing:
         TDesktop(path)
@@ -269,11 +267,11 @@ def key_file_with_accounts_count(folder: str, count: int, target: Path) -> None:
 
 
 @pytest.mark.parametrize("count", [0, -1])
-def test_a_bad_accounts_count_raises_a_plain_open_tele_exception_as_1_5_0(
+def test_a_bad_accounts_count_raises_a_plain_open_tele_exception(
     count: int, tmp_path: Path
 ) -> None:
-    # 1.5.0 src/td/tdesktop.py: Expects(count > 0, f"Bad accounts count
-    # {count}, the data might have been corrupted"), a bare OpenTeleException.
+    # Expects(count > 0, f"Bad accounts count {count}, the data might have
+    # been corrupted") raises a bare OpenTeleException.
     key_file_with_accounts_count("tdata_legacy/plain", count, tmp_path / "tdata")
     with pytest.raises(OpenTeleException) as raised:
         TDesktop(str(tmp_path / "tdata"))
@@ -404,7 +402,7 @@ def test_performance_mode_picks_the_configs_files(
 # ---------------------------------------------------------------- save failures
 
 
-def test_save_without_folder_or_accounts_fails_as_1_5_0(tmp_path: Path) -> None:
+def test_save_without_folder_or_accounts_fails(tmp_path: Path) -> None:
     with pytest.raises(OpenTeleException, match="No folder provided"):
         TDesktop().SaveTData()
     empty = TDesktop()
@@ -412,7 +410,7 @@ def test_save_without_folder_or_accounts_fails_as_1_5_0(tmp_path: Path) -> None:
         empty.SaveTData(str(tmp_path), draws=[])
     assert failed.value.message == SAVE_FAILED
     assert isinstance(failed.value.__cause__, OpenTeleException)
-    assert empty.isLoaded(), "1.5.0 generates the local key before writing"
+    assert empty.isLoaded(), "the local key is generated before writing"
     assert empty.localKey is not None
     assert empty.basePath == os.path.abspath(str(tmp_path))
     assert listed_files(tmp_path) == []
@@ -457,8 +455,8 @@ def test_an_empty_key_file_name_fails_the_save(tmp_path: Path) -> None:
     assert listed_files(tmp_path) == []
 
 
-def test_saves_write_the_accounts_list_as_1_5_0(tmp_path: Path) -> None:
-    # TDesktop(...).SaveTData after editing tdesk.accounts, reloaded, in 1.5.0.
+def test_saves_write_the_accounts_list(tmp_path: Path) -> None:
+    # TDesktop(...).SaveTData after editing tdesk.accounts, then reloaded.
     tdesk = load("tdata_plain/performance_on")
     removed = tdesk.accounts.pop(1)
     assert removed.index == 1
@@ -487,7 +485,7 @@ def test_saves_write_the_accounts_list_as_1_5_0(tmp_path: Path) -> None:
         assert account.localKey is tdesk.localKey
 
 
-# What 1.5.0 SaveTData writes after TDesktop(folder) and accounts.pop(1),
+# What SaveTData writes after TDesktop(folder) and accounts.pop(1),
 # under the folder's performance mode, with os.urandom replaying the first
 # recorded save draws of the folder: the number of draws it made and the
 # SHA-256 of every file. KEPT is the data name of account 0, the one kept.
@@ -523,7 +521,7 @@ DROPPED_SAVES = {
 
 
 @pytest.mark.parametrize("folder", sorted(DROPPED_SAVES))
-def test_dropping_an_account_keeps_the_local_key_as_1_5_0(
+def test_dropping_an_account_keeps_the_local_key(
     folder: str, tmp_path: Path, performance_mode: Any
 ) -> None:
     entry = entry_of(folder)
@@ -540,14 +538,14 @@ def test_dropping_an_account_keeps_the_local_key_as_1_5_0(
     assert listed_files(tmp_path) == sorted(digests)
     for name, digest in digests.items():
         written = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
-        assert written == digest, f"{folder} {name} differs from 1.5.0"
+        assert written == digest, f"{folder} {name} differs from the recorded digest"
     reloaded = TDesktop(str(tmp_path), passcode=entry["passcode"])
     first = entry["accounts"][0]
     assert [(a.index, a.UserId) for a in reloaded.accounts] == [(0, first["user_id"])]
 
 
-def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
-    # TDesktop(folder).accounts[0].MtpConfig of 1.5.0: the production default,
+def test_mtp_config_reads_the_account_config() -> None:
+    # TDesktop(folder).accounts[0].MtpConfig: the production default,
     # and endpoints(MainDcId) sorted by address family and protocol.
     dc2_ipv4 = [
         {"id": 2, "flags": 16, "ip": "149.154.167.51", "port": 443, "secret": b""},
@@ -583,10 +581,9 @@ def test_mtp_config_reads_the_account_config_as_1_5_0() -> None:
         assert len(config.dcOptions[2]) == 3, "a read returns a copy"
 
 
-def test_an_unloaded_account_has_the_production_default_mtp_config_as_1_5_0() -> None:
-    # Account(TDesktop()).MtpConfig of 1.5.0: the production default its
-    # StorageAccount starts with, DCs 1 to 5, three endpoints of DC 2, no
-    # CDN key.
+def test_an_unloaded_account_has_the_production_default_mtp_config() -> None:
+    # Account(TDesktop()).MtpConfig: the production default, DCs 1 to 5,
+    # three endpoints of DC 2, no CDN key.
     config = Account(TDesktop()).MtpConfig
     assert config.environment == "production"
     assert not config.isTestMode()
@@ -606,9 +603,9 @@ def test_an_unloaded_account_has_the_production_default_mtp_config_as_1_5_0() ->
         config.endpoints()
 
 
-def test_endpoints_of_an_unlisted_dc_raise_tdata_dc_id_not_found_as_1_5_0() -> None:
-    # 1.5.0 MTP.Config.endpoints(dcId=DcId._0): Expects(dcId in _dcOptions._data,
-    # TDataDcIdNotFound(dcId)), so the default DC 0 is never found either.
+def test_endpoints_of_an_unlisted_dc_raise_tdata_dc_id_not_found() -> None:
+    # endpoints(dcId) raises TDataDcIdNotFound(dcId) for a DC the config does
+    # not list, so the default DC 0 is never found either.
     assert TDataDcIdNotFound.__bases__ == (OpenTeleException,)
     config = load("tdata_plain/performance_on").accounts[0].MtpConfig
     for dcId in (0, 6, -1):
@@ -622,10 +619,10 @@ def test_endpoints_of_an_unlisted_dc_raise_tdata_dc_id_not_found_as_1_5_0() -> N
     assert default.value.message == "No endpoints for dc id 0"
 
 
-def test_an_account_added_after_a_removal_takes_the_freed_place_as_1_5_0(
+def test_an_account_added_after_a_removal_takes_the_freed_place(
     tmp_path: Path,
 ) -> None:
-    # 1.5.0 Account.FromTelethon on TDesktop(six) after accounts.pop():
+    # Account.FromTelethon on TDesktop(six) after accounts.pop():
     # index = accountsCount = 5, no MaxAccountLimit.
     key = bytes(range(256))
     accounts = [_native.Account(i, 1000 + i, 2, [(2, key)]) for i in range(6)]
@@ -645,8 +642,8 @@ def test_an_account_added_after_a_removal_takes_the_freed_place_as_1_5_0(
     ]
 
 
-def test_an_edited_seven_account_folder_keeps_its_local_key_as_1_5_0(tmp_path: Path) -> None:
-    # 1.5.0 SaveTData of TDesktop(seven) with its accounts reordered writes
+def test_an_edited_seven_account_folder_keeps_its_local_key(tmp_path: Path) -> None:
+    # SaveTData of TDesktop(seven) with its accounts reordered writes
     # them under the loaded local key.
     key = bytes(range(256))
     accounts = [_native.Account(i, 1000 + i, 2, [(2, key)]) for i in range(7)]
@@ -664,7 +661,7 @@ def test_an_edited_seven_account_folder_keeps_its_local_key_as_1_5_0(tmp_path: P
 
 def test_a_list_the_folder_refuses_fails_the_save_without_a_rekey(tmp_path: Path) -> None:
     # Two accounts of one index would overwrite each other's files; the
-    # save fails with 1.5.0's TDataSaveFailed instead of writing the list
+    # save fails with TDataSaveFailed instead of writing the list
     # under a new local key.
     tdesk = load("tdata_plain/performance_on")
     local_key = tdesk.localKey
@@ -704,7 +701,7 @@ def test_auth_key_fields_and_key_id() -> None:
     key = bytes(range(256))
     auth_key = AuthKey(key, AuthKeyType.ReadFromFile, 4)
     assert (auth_key.type, auth_key.dcId) == (AuthKeyType.ReadFromFile, 4)
-    # 1.5.0's __countKeyId.
+    # The key id is the last 8 bytes of SHA-1(key), read little-endian.
     want = int.from_bytes(hashlib.sha1(key).digest()[12:20], "little")
     assert auth_key.keyId == want
 

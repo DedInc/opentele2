@@ -3,7 +3,7 @@ surface of opentele2._native, and of the ``draws`` replay hook, against
 crates/opentele2-core/tests/tdata_write.rs and the tdata vectors.
 
 Every vector folder is rebuilt byte for byte by replaying the recorded
-1.5.0 ``os.urandom`` draws of tdata.json through ``new``/``save``/
+``os.urandom`` draws of tdata.json through ``new``/``save``/
 ``migrate``. Key material is compared with ``assert_same``, which never
 prints the bytes.
 """
@@ -31,12 +31,11 @@ MODERN = [
     "tdata_passcode/performance_off",
 ]
 LEGACY = ["plain", "passcode"]
-# Draws 1.5.0 makes to migrate a legacy key file: the open salt, with a
+# Draws a migration of a legacy key file takes: the open salt, with a
 # passcode the wrap salt, then the wrap padding.
 MIGRATION_DRAWS = {"plain": 2, "passcode": 3}
 
-# 1.5.0's fixed performance-mode local and passcode keys
-# (src/td/tdesktop.py _PERF_LOCAL_KEY and _PERF_PASSCODE_KEY), the keys
+# The fixed performance-mode local and passcode keys, the keys
 # crates/opentele2-core/src/tdata/mod.rs writes without a passcode.
 PERF_LOCAL_KEY = bytes.fromhex(
     "d8745944519e0d2d71309d6c8d272dc64948f5e3eba7685324d5c691ad810c20"
@@ -450,8 +449,8 @@ def test_setting_accounts_refuses_a_list_the_folder_cannot_hold() -> None:
 
 
 def test_setting_accounts_keeps_a_loaded_seven_account_folder_writable(tmp_path: Path) -> None:
-    # 1.5.0 loads a folder listing seven accounts and saves an edited list
-    # of them under the same local key.
+    # A folder listing seven accounts loads, and an edited list of them saves
+    # under the same local key.
     TData.new([labelled_account(n) for n in range(7)]).save(tmp_path / "seven")
     tdata = TData.load(tmp_path / "seven")
     local_key = tdata.local_key

@@ -1,8 +1,7 @@
 """Tests of the import-time platform-versions fetch, its cache and
-OPENTELE_NO_FETCH, and the API class sync, ported from the 1.5.0 tests
-test_platform_versions.py, test_version_fetcher.py and the TestVersionFetcher
-class of test_fingerprints.py. ``_native.fetch_versions`` is mocked; only the
-``live`` tests reach the network."""
+OPENTELE_NO_FETCH, the version fetcher and the API class sync.
+``_native.fetch_versions`` is mocked; only the ``live`` tests reach the
+network."""
 
 from __future__ import annotations
 
@@ -209,7 +208,7 @@ def test_fetched_versions_are_applied_and_synced(monkeypatch: pytest.MonkeyPatch
 
     pv = fingerprint.PLATFORM_VERSIONS
     fingerprint._apply_fetched_versions()
-    # 1.5.0 kept the fetched desktop version in the result, and skipped it.
+    # The fetched desktop version stays in the result and is not applied.
     assert _version_fetcher.fetch_all_versions() == FULL_PATCH
     assert fingerprint.PLATFORM_VERSIONS is pv
     assert dataclasses.asdict(pv) == {

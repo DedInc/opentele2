@@ -1,8 +1,7 @@
-"""The 1.5.0 ``src/utils.py`` names ``opentele2.tl.configs`` re-exports
+"""The ``opentele2._compat`` names ``opentele2.tl.configs`` re-exports
 (APP_VERSION, APP_VERSION_STR, TDF_MAGIC, PrettyTable, format_app_version),
-ported from 1.5.0 tests/test_desktop_version.py and the TestAppVersion class
-of tests/test_version_layer.py. ``PrettyTable`` outputs are the strings 1.5.0
-``src/utils.py`` rendered for the same inputs."""
+the desktop app version and ``format_app_version``. ``PrettyTable`` outputs
+are compared with the exact strings for each input."""
 
 from __future__ import annotations
 
@@ -39,7 +38,7 @@ UTILS_NAMES = [
 ]
 
 
-def test_configs_re_exports_the_1_5_0_utils_names() -> None:
+def test_configs_re_exports_the_utils_names() -> None:
     assert _compat.__all__ == UTILS_NAMES
     for name in UTILS_NAMES:
         assert name in configs.__all__, name
@@ -134,7 +133,7 @@ def test_a_corrupted_trailer_fails_the_checksum(tmp_path: Path) -> None:
         ),
     ],
 )
-def test_pretty_table_renders_as_1_5_0(
+def test_pretty_table_renders_each_table(
     table: list[dict[str, object]], add_split: list[int] | None, rendered: str
 ) -> None:
     assert PrettyTable(table, add_split) == rendered

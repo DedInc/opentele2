@@ -1,6 +1,5 @@
 """The tdata <-> Telethon conversions of ``opentele2.td`` and ``opentele2.tl``,
-ported from 1.5.0 tests/test_full.py (TestConversion, TestTDataSaveLoad,
-TestTelegramClientChecks) and tests/tdata_test.py, on the vector folders of
+their saves and loads and the client checks, on the vector folders of
 crates/opentele2-core/tests/vectors.
 
 The default tests are offline: ``UseCurrentSession`` conversions never
@@ -45,10 +44,9 @@ from opentele2.tl import TelegramClient
 VECTORS = Path(__file__).resolve().parents[3] / "crates" / "opentele2-core" / "tests" / "vectors"
 PLAIN = "tdata_plain/performance_on"
 KEY = b"\x09" * 256
-# The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs, built
-# through 1.5.0's MTP classes: DC 2 has IPv4 TCP 203.0.113.2:443 first and
-# IPv6 TCP 2001:db8::2 first, DC 1 198.51.100.1 and 2001:db8::1, DC 3 only
-# the CDN IPv4 198.51.100.3.
+# The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs: DC 2
+# has IPv4 TCP 203.0.113.2:443 first and IPv6 TCP 2001:db8::2 first, DC 1
+# 198.51.100.1 and 2001:db8::1, DC 3 only the CDN IPv4 198.51.100.3.
 CUSTOM_CONFIG = bytes.fromhex(
     "000000010000000000000149fffffffe000000080000000200000005000001bb0000000b323030313a64"
     "62383a3a32000000000000000200000000000001bb0000000b3230332e302e3131332e32000000000000"
@@ -64,9 +62,9 @@ CUSTOM_CONFIG = bytes.fromhex(
     "300000271000000004000000000000000100000000000004000000000227648000000000000005ffffff"
     "f90000000800670069006600730000000c00760065006e007500650073"
 )
-# sqlite3 iterdump() of the file 1.5.0 wrote for DC 2, 149.154.167.51:443
-# (crates/opentele2-core/tests/session.rs V150_DUMP).
-V150_DUMP = [
+# sqlite3 iterdump() of the session file written for DC 2, 149.154.167.51:443
+# (crates/opentele2-core/tests/session.rs WRITTEN_DUMP).
+WRITTEN_DUMP = [
     "BEGIN TRANSACTION;",
     "CREATE TABLE entities (id integer primary key, hash integer not null, username text, "
     "phone integer, name text, date integer);",
@@ -180,7 +178,7 @@ def test_tdata_to_telethon_uses_the_main_account(tmp_path: Path) -> None:
         assert_same(session_key(client), bytes.fromhex(want["auth_key"]), "vector key")
         assert client.UserId == main.UserId == want["user_id"]
         assert client.api_id == API.TelegramDesktop.api_id
-        # The Telethon string session of 1.5.0's conversion is the core's.
+        # The Telethon string session of the conversion is the core's.
         core = main._core
         assert core is not None
         assert StringSession.save(client.session) == _native.telethon_string_session(core)
@@ -307,7 +305,7 @@ def test_round_trip_tdesk_telethon_tdesk() -> None:
     assert main2.MainDcId == main.MainDcId
     assert main2.UserId == main.UserId
     assert main2.owner is tdesk2
-    # A new folder in performance mode takes 1.5.0's fixed local key.
+    # A new folder in performance mode takes the fixed local key.
     assert tdesk2.localKey is not None
     assert tdesk.localKey is not None
     assert_same(tdesk2.localKey.key, tdesk.localKey.key, "performance local key")
@@ -321,7 +319,7 @@ def test_round_trip_tdesk_telethon_tdesk() -> None:
 
 def test_telethon_to_tdata_reproduces_the_vector(tmp_path: Path, performance_mode: Any) -> None:
     """Both vector accounts through Telethon and back, saved with the
-    recorded 1.5.0 draws: byte for byte the folder 1.5.0 wrote."""
+    recorded draws: byte for byte the vector folder."""
     performance_mode(True)
     tdesk = load()
     clients = [run(account.ToTelethon(flag=UseCurrentSession)) for account in tdesk.accounts]
@@ -370,7 +368,7 @@ def test_account_from_telethon_without_owner(tmp_path: Path) -> None:
     close(client)
     owner = account.owner
     assert isinstance(owner, TDesktop)
-    # 1.5.0's new owner holds the account without a local key until saved.
+    # The new owner holds the account without a local key until saved.
     assert not owner.isLoaded()
     assert owner.accounts == [account]
     assert owner.mainAccount is account
@@ -420,12 +418,12 @@ def test_from_telethon_refusals() -> None:
 # ---------------------------------------------------------------- .session + .json
 
 
-def test_tdesktop_save_session_json_writes_the_1_5_0_pair(tmp_path: Path) -> None:
+def test_tdesktop_save_session_json_writes_the_pair(tmp_path: Path) -> None:
     tdesk = load()
     main = main_of(tdesk)
     session_file, json_file = run(tdesk.SaveSessionJson(str(tmp_path / "acc")))
     assert (session_file, json_file) == (str(tmp_path / "acc.session"), str(tmp_path / "acc.json"))
-    assert dump(session_file, key_of(main)) == V150_DUMP
+    assert dump(session_file, key_of(main)) == WRITTEN_DUMP
 
     expected = API.TelegramDesktop().to_json({"session_file": "acc", "id": main.UserId})
     text = Path(json_file).read_text(encoding="utf-8")
@@ -495,7 +493,7 @@ def test_a_new_instance_saves_under_its_key_file(tmp_path: Path) -> None:
     assert (tmp_path / "again" / "key_customs").is_file()
 
 
-# ---------------------------------------------------------------- live (1.5.0 tdata_test)
+# ---------------------------------------------------------------- live
 
 X1 = "!DedInc#opentele"
 X2 = "opentele#DedInc!"

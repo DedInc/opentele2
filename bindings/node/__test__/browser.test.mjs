@@ -1,5 +1,5 @@
 // browser.test.mjs: generateHeaders and generateFingerprint, the
-// opentele2-browser port of browserforge, against the option semantics of
+// browserforge-shaped generation of opentele2-browser, against the option semantics of
 // bindings/python/python/opentele2/browser.py.
 
 import assert from 'node:assert/strict'

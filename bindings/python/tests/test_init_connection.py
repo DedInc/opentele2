@@ -1,5 +1,5 @@
-"""The initConnection ``params`` and desktop app versions, ported from 1.5.0
-tests/test_init_connection.py; clients are built offline (MemorySession)."""
+"""The initConnection ``params`` and desktop app versions; clients are built
+offline (MemorySession)."""
 
 from __future__ import annotations
 
@@ -85,7 +85,7 @@ def test_other_clients_keep_telethon_params(api: type[APIData]) -> None:
     ],
 )
 def test_lang_pack_reaches_init_connection(api: type[APIData]) -> None:
-    # Telethon hardcodes lang_pack to ''; 1.5.0 sets the profile's.
+    # Telethon hardcodes lang_pack to ''; opentele2 sets the profile's.
     client = offline_client(None, api=api)
     assert client._init_request.lang_pack == (api.lang_pack or "")
     assert client._init_request.device_model == api.device_model

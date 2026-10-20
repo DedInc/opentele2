@@ -1,5 +1,5 @@
 // fingerprint.test.mjs: tzOffset, validateInitParams, checkVersions, the
-// fingerprint config and the msg id helpers against the 1.5.0 values of
+// fingerprint config and the msg id helpers against the values of
 // crates/opentele2-core/tests/fingerprint.rs.
 
 import assert from 'node:assert/strict'
@@ -21,7 +21,7 @@ const profileOf = (apiId, deviceModel, systemVersion, appVersion, systemLangCode
   langPack,
 })
 
-/** The Android base case of 1.5.0 tests/test_fingerprints.py. */
+/** The Android profile the validation cases edit. */
 const android = (edits = {}) => ({
   ...profileOf(6, 'Samsung SM-S928B', 'SDK 35', '12.3.0', 'en-US', 'android', 'en'),
   ...edits,
@@ -44,7 +44,7 @@ function check(label, profile, loose, strict) {
   assert.ok(issues.every((issue) => issue.severity === 'error'), `${label} strict severity`)
 }
 
-test('tzOffset matches 1.5.0 for fixed offsets and odd zones', () => {
+test('tzOffset rounds fixed offsets and odd zones to quarter hours', () => {
   const cases = [
     [18000, 18000],
     [19800, 19800],
@@ -75,7 +75,7 @@ test('tzOffset matches 1.5.0 for fixed offsets and odd zones', () => {
   for (const [offset, expected] of cases) {
     assert.ok(Object.is(core.tzOffset(offset), expected), `offset ${offset}`)
   }
-  // 1.5.0: sum(int(tdesktop_tz_offset(at(s))) // 900 * (s + 86400)).
+  // A checksum over every offset of a day: sum(int(tz_offset(s)) // 900 * (s + 86400)).
   let total = 0n
   for (let offset = -86399; offset < 86400; offset++) {
     total += BigInt(Math.floor(core.tzOffset(offset) / 900)) * BigInt(offset + 86400)
@@ -86,7 +86,7 @@ test('tzOffset matches 1.5.0 for fixed offsets and odd zones', () => {
   }
 })
 
-test('validateInitParams matches 1.5.0 for its own test cases', () => {
+test('validateInitParams reports each issue of the validation cases', () => {
   check('android_ok', android(), [], [ANDROID_MAJOR])
   check(
     'desktop_ok',
@@ -142,7 +142,7 @@ test('validateInitParams matches 1.5.0 for its own test cases', () => {
   assert.equal(thrown(() => core.validateInitParams(android(), null, 'WARN')).code, 'ERR_INVALID_ARG_VALUE')
 })
 
-test('checkVersions reads Android SDK levels as 1.5.0 does and follows the versions', () => {
+test('checkVersions reads Android SDK levels and follows the versions', () => {
   const sdk = (level, range = '[29, 37]') => `Android SDK ${level} is outside the expected range ${range}`
   const cases = [
     ['SDK 29', null],
@@ -178,7 +178,7 @@ test('checkVersions reads Android SDK levels as 1.5.0 does and follows the versi
   assert.deepEqual(messages(core.checkVersions(android({ systemVersion: 'SDK 41' }), versions)), [sdk(41, '[21, 40]')])
 })
 
-test('fingerprintConfig has the 1.5.0 defaults and validates as 1.5.0', () => {
+test('fingerprintConfig has its defaults and validates', () => {
   const config = core.fingerprintConfig({ msgIdOffset: 0x1234 })
   assert.deepEqual(config, {
     strictMode: 'warn',
@@ -223,7 +223,7 @@ test('fingerprintConfig has the 1.5.0 defaults and validates as 1.5.0', () => {
   assert.equal(thrown(() => core.validateFingerprint({ ...config, msgIdOffset: 0x10000 }, profile)).code, 'ERR_INVALID_ARG_VALUE')
 })
 
-test('msgIdOffset and isValidMsgId match 1.5.0', () => {
+test('msgIdOffset and isValidMsgId', () => {
   assert.equal(core.MSG_ID_OFFSET_MAX, 0xffff)
   for (let n = 0; n < 32; n++) {
     const offset = core.msgIdOffset()

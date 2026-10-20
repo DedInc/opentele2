@@ -1,6 +1,5 @@
-"""Tests of ``opentele2.tl.TelegramClient`` and ``opentele2.consistency``,
-ported from the Telethon parts of 1.5.0 tests/test_full.py,
-tests/test_version_layer.py and tests/tdata_test.py.
+"""Tests of ``opentele2.tl.TelegramClient`` and ``opentele2.consistency``:
+construction, sessions, the advertised layer and the consistency checks.
 
 Every client is offline: a MemorySession that never connects, and a
 ``FakeClient`` that answers requests from a table instead of the network.
@@ -155,8 +154,8 @@ def authorizations(*auths: Any) -> Any:
     return types.account.Authorizations(authorization_ttl_days=180, authorizations=list(auths))
 
 
-def pretty_table_1_5_0(table: list[dict[str, object]], addSplit: list[int]) -> str:
-    """1.5.0 ``src/utils.py`` ``PrettyTable``, the reference for PrintSessions."""
+def reference_pretty_table(table: list[dict[str, object]], addSplit: list[int]) -> str:
+    """A reference ``PrettyTable`` renderer, the expected PrintSessions output."""
     padding = {}
     result = ""
     for label in table[0]:
@@ -188,7 +187,7 @@ def pretty_table_1_5_0(table: list[dict[str, object]], addSplit: list[int]) -> s
 # ---------------------------------------------------------------- package
 
 
-def test_package_imports_td_and_tl_like_1_5_0() -> None:
+def test_package_imports_td_and_tl() -> None:
     assert opentele2.tl is tl
     assert opentele2.consistency is consistency
     assert opentele2.td.TDesktop.__module__ == "opentele2.td.tdesktop"
@@ -211,7 +210,7 @@ def test_package_imports_td_and_tl_like_1_5_0() -> None:
     assert shared.LAYER == fingerprint.LAYER
 
 
-def test_configs_namespace_keeps_the_1_5_0_names() -> None:
+def test_configs_namespace_names() -> None:
     from opentele2.tl import configs
 
     for name in ("API", "APIData", "AuthKey", "MemorySession", "StringSession", "td", "tl"):
@@ -238,7 +237,7 @@ class TestTelegramClientConstructor:
         assert client.api_hash == "testhash"
         assert client._api_data is None
 
-    def test_legacy_forms_from_tdata_test(self) -> None:
+    def test_positional_api_id_and_hash_forms(self) -> None:
         assert offline_client(None, 1234, "opentele").api_id == 1234
         assert offline_client(None, None, 1234, "opentele").api_id == 1234
 
@@ -406,7 +405,7 @@ class TestTelegramClientSessions:
         with pytest.raises(OpenTeleException, match="Could not fetch the account's sessions"):
             run(client.PrintSessions())
 
-    def test_print_sessions_prints_the_1_5_0_table(self, capsys: pytest.CaptureFixture) -> None:
+    def test_print_sessions_prints_the_sessions_table(self, capsys: pytest.CaptureFixture) -> None:
         auths = authorizations(
             authorization(True, True),
             authorization(False, False, api_id=6, app_name="Telegram Android", platform="ab"),
@@ -427,7 +426,7 @@ class TestTelegramClientSessions:
             }
             for index, auth in enumerate(auths.authorizations)
         ]
-        assert printed == pretty_table_1_5_0(table, [1]) + "\n"
+        assert printed == reference_pretty_table(table, [1]) + "\n"
         # A given Authorizations is printed without a request.
         silent = fake({})
         run(silent.PrintSessions(auths))
@@ -471,7 +470,7 @@ class TestTelegramClientSessions:
         client = fake({functions.account.ResetAuthorizationRequest: error(None)})
         with pytest.raises(error) as raised:
             run(client.TerminateSession(5))
-        # 1.5.0 hands its text to the error as the request, which Telethon
+        # TerminateSession hands its text to the error as the request, which Telethon
         # names in its own message.
         assert str(raised.value).endswith("(caused by str)")
 
@@ -627,7 +626,7 @@ class TestConsistencyChecker:
         source = inspect.getsource(ConsistencyChecker.run_all)
         assert "check_nearest_dc" in source
 
-    def test_run_all_details_are_1_5_0s(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_run_all_details(self, monkeypatch: pytest.MonkeyPatch) -> None:
         advertised = fingerprint.get_advertised_layer()
         monkeypatch.setattr(fingerprint, "_detect_telethon_layer", lambda: advertised)
         client = fake(
@@ -666,7 +665,7 @@ class TestConsistencyChecker:
         assert report.checks[1].server_response == types.NearestDc("DE", 2, 4)
         assert [c.name for c in report.checks] == _native.consistency_checks()
 
-    def test_run_all_failures_are_1_5_0s(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_run_all_failures(self, monkeypatch: pytest.MonkeyPatch) -> None:
         advertised = fingerprint.get_advertised_layer()
         monkeypatch.setattr(fingerprint, "_detect_telethon_layer", lambda: advertised)
         client = fake(

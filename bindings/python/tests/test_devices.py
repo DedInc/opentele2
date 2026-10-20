@@ -1,9 +1,7 @@
-"""Tests of opentele2.devices, ported from the 1.5.0 tests
-test_{android,ios,mac,desktop,web}_devices.py and
-test_device_catalog_currency.py.
+"""Tests of opentele2.devices: the Android, iOS, macOS, desktop and web
+device catalogs and their currency.
 
-1.5.0 inspected its catalogs through ``deviceList`` and ``__gen__``; the
-catalogs now live in the core, so the same properties are asserted on the
+The catalogs live in the core, so their properties are asserted on the
 devices ``RandomDevice`` picks for a fixed set of seeds, and every device of
 crates/opentele2-core/tests/vectors/devices.json is checked byte for byte.
 """
@@ -143,7 +141,7 @@ def test_vector_devices_are_byte_identical() -> None:
 
 
 def test_random_device_is_deterministic_and_takes_str_of_other_seeds() -> None:
-    # 1.5.0 hashed str(unique_id) for any unique_id that is not a str.
+    # A unique_id that is not a str is hashed as str(unique_id).
     int_seed: Any = 1234
     float_seed: Any = 1.5
     for pick in (
@@ -295,7 +293,7 @@ def _digest(lines: list[str]) -> str:
     return hashlib.sha256("".join(lines).encode()).hexdigest()[:16]
 
 
-# 1.5.0 after cls.__gen__(): len and the digest above of deviceList (one
+# After cls.__gen__(): len and the digest above of deviceList (one
 # "model\tversion\n" per entry), device_models ("\n"-joined) and
 # system_versions ("\n"-joined).
 CATALOG_ATTRIBUTES: list[tuple[type[SystemInfo], int, str, int, str, int, str]] = [
@@ -319,7 +317,7 @@ CATALOG_ATTRIBUTES: list[tuple[type[SystemInfo], int, str, int, str, int, str]] 
     ),
     CATALOG_ATTRIBUTES,
 )
-def test_catalog_class_attributes_match_1_5_0(
+def test_catalog_class_attributes(
     cls: type[SystemInfo],
     devices_len: int,
     devices_digest: str,
@@ -344,7 +342,6 @@ def test_catalog_class_attributes_are_read_only_copies() -> None:
         [],
         [],
     )
-    # 1.5.0 src/devices.py WebBrowserDevice.BROWSER_WEIGHTS.
     assert WebBrowserDevice.BROWSER_WEIGHTS == {"chrome": 19, "edge": 2, "firefox": 1}
     assert WebBrowserDevice.deviceList, "the Web A browsers"
     picked = WindowsDevice.RandomDevice("seed").model

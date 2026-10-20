@@ -25,7 +25,7 @@ export const FOLDERS = [
   'tdata_passcode/performance_off',
 ]
 
-// The first TCP endpoint of each production DC in 1.5.0, as [IPv4, IPv6].
+// The first TCP endpoint of each production DC, as [IPv4, IPv6].
 export const PRODUCTION = {
   1: ['149.154.175.50', '2001:b28:f23d:f001::a'],
   2: ['149.154.167.51', '2001:67c:4e8:f002::a'],
@@ -59,8 +59,8 @@ export const PROFILE_FIELDS = [
 export const MTCUTE_BOOL_FALSE = 0xbc799737
 
 /**
- * The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs,
- * built through 1.5.0's MTP classes: DC 2 has IPv4 TCP `203.0.113.2:443`
+ * The MTP config of crates/opentele2-core/tests/{session,tdata_read}.rs:
+ * DC 2 has IPv4 TCP `203.0.113.2:443`
  * first and IPv6 TCP `2001:db8::2` first, DC 1 `198.51.100.1` and
  * `2001:db8::1`, DC 3 only the CDN IPv4 `198.51.100.3`.
  */
