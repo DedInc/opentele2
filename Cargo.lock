@@ -1120,7 +1120,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "opentele2-core"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 dependencies = [
  "argon2",
  "base64",
@@ -1141,19 +1141,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentele2-core-python"
-version = "2.0.0-alpha.1"
-dependencies = [
- "getrandom 0.4.3",
- "opentele2-core",
- "opentele2-versions",
- "pyo3",
- "serde_json",
-]
-
-[[package]]
 name = "opentele2-grammers"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 dependencies = [
  "grammers-client",
  "grammers-mtsender",
@@ -1166,7 +1155,7 @@ dependencies = [
 
 [[package]]
 name = "opentele2-node"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 dependencies = [
  "getrandom 0.4.3",
  "napi",
@@ -1178,8 +1167,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentele2-python"
+version = "2.0.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "opentele2-core",
+ "opentele2-versions",
+ "pyo3",
+ "serde_json",
+]
+
+[[package]]
 name = "opentele2-versions"
-version = "2.0.0-alpha.1"
+version = "2.0.0"
 dependencies = [
  "opentele2-core",
  "regex",

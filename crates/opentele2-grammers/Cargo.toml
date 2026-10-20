@@ -10,7 +10,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-opentele2-core = { version = "2.0.0-alpha.1", path = "../opentele2-core", default-features = false }
+opentele2-core = { version = "2.0.0", path = "../opentele2-core", default-features = false }
 grammers-session = { version = "0.11.0", default-features = false }
 grammers-mtsender = { version = "0.11.0", default-features = false }
 grammers-client = { version = "0.11.0", default-features = false, optional = true }

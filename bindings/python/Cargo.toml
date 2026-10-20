@@ -1,5 +1,5 @@
 [package]
-name = "opentele2-core-python"
+name = "opentele2-python"
 description = "Python bindings of opentele2-core: Telegram Desktop tdata formats and crypto for CPython 3.8+"
 version.workspace = true
 edition.workspace = true
