@@ -69,6 +69,7 @@ pub(crate) fn versions(overrides: Option<&Bound<'_, PyDict>>) -> PyResult<Versio
             "web_k_version" => v.web_k_version = value.extract()?,
             "chrome_version" => v.chrome_version = value.extract()?,
             "user_agent" => v.user_agent = value.extract()?,
+            "firefox_version" => v.firefox_version = value.extract()?,
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown versions field {other:?}"
@@ -109,6 +110,7 @@ pub(crate) fn versions_dict<'py>(
     dict.set_item("web_k_version", &versions.web_k_version)?;
     dict.set_item("chrome_version", &versions.chrome_version)?;
     dict.set_item("user_agent", &versions.user_agent)?;
+    dict.set_item("firefox_version", &versions.firefox_version)?;
     Ok(dict)
 }
 

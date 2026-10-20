@@ -54,6 +54,8 @@ OFFLINE = {
     "web_k_version": "2.2 K",
     "chrome_version": "155.0.0.0",
     "user_agent": WEB_USER_AGENT,
+    # A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
+    "firefox_version": "150.0",
 }
 FULL_PATCH = {
     "desktop_app_version": "9.9.9",

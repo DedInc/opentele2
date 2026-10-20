@@ -117,6 +117,8 @@ def test_platform_versions_are_the_1_5_0_defaults() -> None:
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36"
         ),
+        # A 2.0.0 addition; 1.5.0 PlatformVersions had no Firefox version.
+        "firefox_version": "150.0",
     }
     # OPENTELE_NO_FETCH is set for the tests: nothing was applied on import.
     assert pv == PlatformVersions()
@@ -131,6 +133,36 @@ def test_versions_not_empty() -> None:
     assert pv.web_a_version
     assert pv.web_k_version
     assert pv.chrome_version
+
+
+def test_a_patched_firefox_version_reaches_the_web_user_agents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fingerprint, "PLATFORM_VERSIONS", PlatformVersions())
+    pv = get_platform_versions()
+    patched = _native.apply_versions_patch(
+        fingerprint._native_versions(pv), {"firefox_version": "155.0"}
+    )
+    fingerprint._assign_versions(pv, patched)
+    assert fingerprint.PLATFORM_VERSIONS.firefox_version == "155.0"
+
+    versions = fingerprint._native_versions(pv)
+    agents = {
+        _native.generate("TelegramWeb_K", f"firefox {seed}", None, versions)["device_model"]
+        for seed in range(2000)
+    }
+    majors = {
+        int(agent.split("Firefox/")[1].split(".")[0]) for agent in agents if "Firefox/" in agent
+    }
+    # The pool draws Firefox from the four majors up to the patched one; the
+    # dataset's draws for 152..155 all land on 154, so 155 itself is not
+    # required. None is left in the offline window up to 150.
+    assert majors, agents
+    assert all(152 <= major <= 155 for major in majors), majors
+
+    monkeypatch.undo()
+    assert get_platform_versions().firefox_version == "150.0"
+    assert get_platform_versions() == PlatformVersions()
 
 
 # ---------------------------------------------------------------- tz_offset

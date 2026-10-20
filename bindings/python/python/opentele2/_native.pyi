@@ -85,6 +85,7 @@ class Versions(TypedDict, total=False):
     web_k_version: str
     chrome_version: str
     user_agent: str
+    firefox_version: str
 
 # Every field of 1.5.0 PlatformVersions; also a valid override set.
 class PlatformVersions(TypedDict):
@@ -106,6 +107,7 @@ class PlatformVersions(TypedDict):
     web_k_version: str
     chrome_version: str
     user_agent: str
+    firefox_version: str
 
 _VersionsArg: TypeAlias = Versions | PlatformVersions
 

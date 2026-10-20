@@ -113,6 +113,8 @@ class PlatformVersions:
 
     chrome_version: str = _OFFLINE["chrome_version"]
     user_agent: str = _OFFLINE["user_agent"]
+    # A 2.0.0 addition: the Firefox major of the generated web user agents.
+    firefox_version: str = _OFFLINE["firefox_version"]
 
 
 PLATFORM_VERSIONS = PlatformVersions()
@@ -138,6 +140,7 @@ def _native_versions(pv: PlatformVersions) -> _NativeVersions:
         "web_k_version": pv.web_k_version,
         "chrome_version": pv.chrome_version,
         "user_agent": pv.user_agent,
+        "firefox_version": pv.firefox_version,
     }
 
 
@@ -160,6 +163,7 @@ def _assign_versions(pv: PlatformVersions, values: _NativeVersions) -> None:
     pv.web_k_version = values["web_k_version"]
     pv.chrome_version = values["chrome_version"]
     pv.user_agent = values["user_agent"]
+    pv.firefox_version = values["firefox_version"]
 
 
 def _apply_fetched_versions() -> None:
