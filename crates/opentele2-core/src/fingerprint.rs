@@ -120,6 +120,31 @@ pub enum Severity {
     Error,
 }
 
+impl Severity {
+    /// Every severity, from the mildest.
+    pub const ALL: [Self; 3] = [Self::Note, Self::Warning, Self::Error];
+
+    /// The name the bindings give the severity: `note`, `warning` or
+    /// `error`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Note => "note",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+
+    /// The severity whose [`Severity::name`] is exactly `name`; `None` for
+    /// any other text, including other cases.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|severity| severity.name() == name)
+    }
+}
+
 /// The check that produced an [`Issue`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IssueKind {
@@ -141,6 +166,45 @@ pub enum IssueKind {
     AppVersionMajor,
     /// Strict: an Android SDK level is outside `android_sdk_range`.
     AndroidSdkRange,
+}
+
+impl IssueKind {
+    /// Every kind, in the order [`validate_init_params`] checks them.
+    pub const ALL: [Self; 9] = [
+        Self::UnknownLangPack,
+        Self::ShortLangCode,
+        Self::MissingRegion,
+        Self::EmptyDeviceModel,
+        Self::EmptySystemVersion,
+        Self::EmptyAppVersion,
+        Self::ApiIdMismatch,
+        Self::AppVersionMajor,
+        Self::AndroidSdkRange,
+    ];
+
+    /// The name the bindings give the kind: the variant's name, for example
+    /// `UnknownLangPack`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::UnknownLangPack => "UnknownLangPack",
+            Self::ShortLangCode => "ShortLangCode",
+            Self::MissingRegion => "MissingRegion",
+            Self::EmptyDeviceModel => "EmptyDeviceModel",
+            Self::EmptySystemVersion => "EmptySystemVersion",
+            Self::EmptyAppVersion => "EmptyAppVersion",
+            Self::ApiIdMismatch => "ApiIdMismatch",
+            Self::AppVersionMajor => "AppVersionMajor",
+            Self::AndroidSdkRange => "AndroidSdkRange",
+        }
+    }
+
+    /// The kind whose [`IssueKind::name`] is exactly `name`; `None` for any
+    /// other text, including other cases.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
 }
 
 /// One finding, with the message 1.5.0 reports for it.
@@ -575,6 +639,114 @@ impl FingerprintConfig {
         }
         validate_init_params(profile, versions, self.strict_mode)
     }
+}
+
+/// The options a binding's `fingerprint_config` takes: each field that is
+/// set replaces the [`FingerprintConfig::new`] default of the same name.
+///
+/// Bindings read their text and integer arguments into these types first,
+/// with [`StrictMode::from_value`] and [`to_offset`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct FingerprintConfigOptions {
+    /// Replaces [`FingerprintConfig::strict_mode`].
+    pub strict_mode: Option<StrictMode>,
+    /// Replaces [`FingerprintConfig::auto_validate`].
+    pub auto_validate: Option<bool>,
+    /// Replaces [`FingerprintConfig::preferred_transport`].
+    pub preferred_transport: Option<String>,
+    /// Replaces [`FingerprintConfig::warn_on_layer_mismatch`].
+    pub warn_on_layer_mismatch: Option<bool>,
+    /// Sets [`FingerprintConfig::layer_override`]; unset keeps no override.
+    pub layer_override: Option<i32>,
+    /// Replaces [`FingerprintConfig::randomize_msg_id_offset`].
+    pub randomize_msg_id_offset: Option<bool>,
+    /// Replaces the drawn [`FingerprintConfig::msg_id_offset`]; when set,
+    /// nothing is drawn.
+    pub msg_id_offset: Option<u16>,
+}
+
+impl FingerprintConfig {
+    /// The 1.5.0 defaults with every option that is set in `options`
+    /// replacing its default. Without
+    /// [`FingerprintConfigOptions::msg_id_offset`] the offset is drawn from
+    /// `rng` as [`FingerprintConfig::new`] draws it; with it, `rng` is not
+    /// called.
+    #[must_use]
+    pub fn with_options(options: FingerprintConfigOptions, rng: &mut dyn FnMut(&mut [u8])) -> Self {
+        let mut config = match options.msg_id_offset {
+            Some(offset) => {
+                let bytes = offset.to_le_bytes();
+                Self::new(&mut |buf| buf.copy_from_slice(&bytes))
+            }
+            None => Self::new(rng),
+        };
+        config.apply(options);
+        config
+    }
+
+    /// [`FingerprintConfig::with_options`] drawing a missing offset from the
+    /// operating system, as the bindings' `fingerprint_config` does.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when no offset is given and the operating system has
+    /// no randomness to give.
+    pub fn from_options(options: FingerprintConfigOptions) -> Result<Self> {
+        let mut config = match options.msg_id_offset {
+            Some(offset) => {
+                let bytes = offset.to_le_bytes();
+                Self::new(&mut |buf| buf.copy_from_slice(&bytes))
+            }
+            None => Self::from_os_rng()?,
+        };
+        config.apply(options);
+        Ok(config)
+    }
+
+    /// Replaces every field `options` sets except the offset, which the
+    /// constructors take.
+    fn apply(&mut self, options: FingerprintConfigOptions) {
+        if let Some(mode) = options.strict_mode {
+            self.strict_mode = mode;
+        }
+        if let Some(auto) = options.auto_validate {
+            self.auto_validate = auto;
+        }
+        if let Some(transport) = options.preferred_transport {
+            self.preferred_transport = transport;
+        }
+        if let Some(warn) = options.warn_on_layer_mismatch {
+            self.warn_on_layer_mismatch = warn;
+        }
+        if options.layer_override.is_some() {
+            self.layer_override = options.layer_override;
+        }
+        if let Some(randomize) = options.randomize_msg_id_offset {
+            self.randomize_msg_id_offset = randomize;
+        }
+    }
+}
+
+/// A msg id offset given as an integer: `Some` within `0..=0xFFFF`, `None`
+/// outside it, where the bindings raise
+/// `msg_id_offset must be in 0..=0xFFFF`.
+#[must_use]
+pub fn to_offset(value: i64) -> Option<u16> {
+    u16::try_from(value).ok()
+}
+
+/// A random msg id offset in `0..=0xFFFF` from the operating system's
+/// CSPRNG: [`msg_id_offset`] over two bytes of OS randomness, as the
+/// bindings' `msg_id_offset` draws it.
+///
+/// # Errors
+///
+/// [`Error::Io`] when the operating system has no randomness to give.
+pub fn msg_id_offset_for_os() -> Result<u16> {
+    let mut bytes = [0u8; 2];
+    getrandom::fill(&mut bytes).map_err(|e| Error::Io(std::io::Error::other(e)))?;
+    // `msg_id_offset` draws exactly these two bytes.
+    Ok(msg_id_offset(&mut |buf| buf.copy_from_slice(&bytes)))
 }
 
 /// A random msg id offset in `0..=0xFFFF`, as 1.5.0

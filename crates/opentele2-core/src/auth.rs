@@ -120,6 +120,22 @@ pub enum SrpError {
     RandomUnavailable,
 }
 
+impl SrpError {
+    /// The stable error code of the refusal, in the style of
+    /// [`crate::Error::code`]: `SRP_BAD_PRIME_OR_GENERATOR`, `SRP_BAD_B`,
+    /// `SRP_NO_GOOD_RANDOM` or `SRP_RANDOM_UNAVAILABLE`. The Python binding
+    /// raises it as is; the Node binding prefixes `OT_`.
+    #[must_use]
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::BadPrimeOrGenerator => "SRP_BAD_PRIME_OR_GENERATOR",
+            Self::BadB => "SRP_BAD_B",
+            Self::NoGoodRandom => "SRP_NO_GOOD_RANDOM",
+            Self::RandomUnavailable => "SRP_RANDOM_UNAVAILABLE",
+        }
+    }
+}
+
 /// The `inputCheckPasswordSRP` for `password` (Telethon
 /// `password.compute_check`), drawing each 256-byte secret exponent `a`
 /// from `rng`.

@@ -83,6 +83,32 @@ impl Client {
     pub fn is_web(self) -> bool {
         matches!(self, Self::WebA | Self::WebK | Self::Webogram)
     }
+
+    /// The 1.5.0 class name of the client, as the bindings name it:
+    /// `TelegramDesktop`, `TelegramAndroid`, `TelegramAndroidX`,
+    /// `TelegramIOS`, `TelegramMacOS`, `TelegramWeb_A`, `TelegramWeb_K` or
+    /// `Webogram`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Desktop => "TelegramDesktop",
+            Self::Android => "TelegramAndroid",
+            Self::AndroidX => "TelegramAndroidX",
+            Self::Ios => "TelegramIOS",
+            Self::MacOS => "TelegramMacOS",
+            Self::WebA => "TelegramWeb_A",
+            Self::WebK => "TelegramWeb_K",
+            Self::Webogram => "Webogram",
+        }
+    }
+
+    /// The client whose [`Client::name`] is exactly `name`; `None` for any
+    /// other text, including other cases and the 1.5.0 alias
+    /// `TelegramWeb_Z`, which the bindings do not accept.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|client| client.name() == name)
+    }
 }
 
 /// Every field of 1.5.0 `PlatformVersions`, in its declaration order.

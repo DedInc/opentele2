@@ -75,6 +75,58 @@ pub enum Platform {
     },
 }
 
+impl Platform {
+    /// Every platform a catalog name selects, in the order the bindings list
+    /// the names: `windows`, `linux`, `macos`, `android`, `ios`, `web_a`,
+    /// `web_k`. `macos` is Telegram Desktop's Mac; the Swift client shares
+    /// its catalog.
+    pub const NAMED: [Self; 7] = [
+        Self::Windows,
+        Self::Linux,
+        Self::MacOS { swift: false },
+        Self::Android,
+        Self::Ios,
+        Self::Web {
+            client: WebClient::A,
+        },
+        Self::Web {
+            client: WebClient::K,
+        },
+    ];
+
+    /// The catalog name of the platform, as the bindings' `catalog_entries`,
+    /// `device_models` and `system_versions` take it.
+    ///
+    /// Both Mac clients read one catalog, so `MacOS { swift: true }` is also
+    /// `macos`, and [`Platform::from_name`] gives it back as
+    /// `MacOS { swift: false }`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Windows => "windows",
+            Self::Linux => "linux",
+            Self::MacOS { .. } => "macos",
+            Self::Android => "android",
+            Self::Ios => "ios",
+            Self::Web {
+                client: WebClient::A,
+            } => "web_a",
+            Self::Web {
+                client: WebClient::K,
+            } => "web_k",
+        }
+    }
+
+    /// The platform of [`Platform::NAMED`] whose [`Platform::name`] is
+    /// exactly `name`; `None` for any other text, including other cases.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::NAMED
+            .into_iter()
+            .find(|platform| platform.name() == name)
+    }
+}
+
 /// A Telegram web client. Both share one browser pool, so a seed picks the
 /// same user agent for either; they differ in the platform string they send.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
