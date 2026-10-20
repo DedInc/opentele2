@@ -103,9 +103,11 @@ export interface Account {
 /**
  * The endpoints of DC `dcId` (default the main DC) in the MTP config of
  * `account`, by address family and protocol (1.5.0
- * `MTP.Config.endpoints`); `null` when the config has no such DC.
+ * `MTP.Config.endpoints`); `null` when the config has no such DC. No
+ * account reads the production default, whose main DC is 0, a DC no
+ * config lists.
  */
-export declare function accountEndpoints(account: AccountInput, dcId?: number | undefined | null): Endpoints | null
+export declare function accountEndpoints(account?: AccountInput | undefined | null, dcId?: number | undefined | null): Endpoints | null
 
 /**
  * An account given to `newTdata` or a session function; every `Account`
@@ -133,9 +135,10 @@ export interface AccountInput {
 /**
  * The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
  * `config` parsed, or the production default when there is none or it
- * does not parse.
+ * does not parse. No account, one never loaded, has the production
+ * default.
  */
-export declare function accountMtpConfig(account: AccountInput): MtpConfig
+export declare function accountMtpConfig(account?: AccountInput | undefined | null): MtpConfig
 
 /**
  * Adds an account to `tdata` with `authKey` as the key of `mainDc`, as

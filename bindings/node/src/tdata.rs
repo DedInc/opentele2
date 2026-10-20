@@ -6,27 +6,27 @@
 //! thread pool from one such task.
 
 use std::convert::identity;
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::{Arc, PoisonError, RwLock};
 
-use napi::bindgen_prelude::{AsyncTask, BigInt, Buffer, ClassInstance, Either, Env, Uint8Array};
+use napi::bindgen_prelude::{
+    AsyncTask, BigInt, Buffer, ClassInstance, Either, Env, Object, ToNapiValue, Uint8Array, Unknown,
+};
 use napi::{JsString, Task};
 use napi_derive::napi;
+use serde_json::{Map, Value};
 
 use opentele2_core::Error;
 use opentele2_core::batch::{self, BatchOptions, LoadRequest as CoreLoadRequest};
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::session::{mtcute, telethon};
 use opentele2_core::tdata::account::Account as CoreAccount;
-use opentele2_core::tdata::mtp_config::{
-    self, ConfigFields, Endpoint as CoreEndpoint, Endpoints as CoreEndpoints, Environment,
-    MtpConfig as CoreMtpConfig, ProtocolEndpoints as CoreProtocolEndpoints,
+use opentele2_core::tdata::mtp_config::{self, Environment, MtpConfig as CoreMtpConfig};
+use opentele2_core::tdata::{
+    self, DrawOperation, DrawSource, NEW_FOLDER_ACTIVE_INDEX, TData as CoreTData,
 };
-use opentele2_core::tdata::{self, DrawOperation, NEW_FOLDER_ACTIVE_INDEX, TData as CoreTData};
 
 use crate::convert::{to_auth_key, to_passcode, to_user_id, with_text};
-use crate::draws::{Draws, Failure};
 use crate::error::{CodedError, Result, check, core_error, invalid_arg, rejection, thrown};
 
 /// One authorization key of an account.
@@ -305,9 +305,22 @@ impl Task for LoadTask {
     }
 }
 
+/// `error` of a call with a `draws` argument: a replay that does not match
+/// the draws is `ERR_INVALID_ARG_VALUE` `draws: {reason}`, any other error
+/// `OT_<CODE>`.
+fn draws_error(error: &Error) -> CodedError {
+    match error {
+        Error::InvalidInput {
+            what: "draws",
+            reason,
+        } => invalid_arg(format!("draws: {reason}")),
+        error => core_error(error),
+    }
+}
+
 /// Settles a task that may also have failed to replay its draws.
-fn settle<T>(env: Env, output: std::result::Result<T, Failure>) -> napi::Result<T> {
-    output.map_err(|failure| rejection(env, failure.into_error()))
+fn settle<T>(env: Env, output: opentele2_core::Result<T>) -> napi::Result<T> {
+    output.map_err(|error| rejection(env, draws_error(&error)))
 }
 
 /// The `draws` argument copied into owned bytes.
@@ -315,8 +328,8 @@ fn to_draws(draws: Option<Vec<Uint8Array>>) -> Option<Vec<Vec<u8>>> {
     draws.map(|draws| draws.iter().map(|draw| draw.to_vec()).collect())
 }
 
-/// `TData::new` off the JavaScript thread, with keys from the OS random
-/// source or the replayed draws.
+/// `TData::new_with_draws` off the JavaScript thread, with keys from the OS
+/// random source or the replayed draws.
 pub struct NewTask {
     accounts: Vec<CoreAccount>,
     passcode: Vec<u8>,
@@ -327,26 +340,17 @@ pub struct NewTask {
 
 #[napi]
 impl Task for NewTask {
-    type Output = std::result::Result<CoreTData, Failure>;
+    type Output = opentele2_core::Result<CoreTData>;
     type JsValue = TData;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        let mut draws = Draws::new(self.draws.take());
-        let created = CoreTData::new(
+        Ok(CoreTData::new_with_draws(
             std::mem::take(&mut self.accounts),
             &self.passcode,
             self.performance_mode,
-            &mut |buf| draws.fill(buf),
-        );
-        // A failed draw leaves the buffer unspecified, so the folder is
-        // discarded rather than returned with weak keys.
-        if let Err(failure) = draws.finish() {
-            return Ok(Err(failure));
-        }
-        Ok(created.map_err(Failure::from).map(|mut created| {
-            created.active_index = self.active_index;
-            created
-        }))
+            self.active_index,
+            DrawSource::new(self.draws.take()),
+        ))
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<TData> {
@@ -354,26 +358,26 @@ impl Task for NewTask {
     }
 }
 
-/// `TData::save_random`, or `TData::save` with the replayed draws, off the
-/// JavaScript thread.
+/// `TData::save_with_draws` off the JavaScript thread, with padding from
+/// the OS random source or the replayed draws.
 pub struct SaveTask {
     tdata: Arc<CoreTData>,
     dir: PathBuf,
+    performance_mode: Option<bool>,
     draws: Option<Vec<Vec<u8>>>,
 }
 
 #[napi]
 impl Task for SaveTask {
-    type Output = std::result::Result<(), Failure>;
+    type Output = opentele2_core::Result<()>;
     type JsValue = ();
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
-        let mut draws = Draws::new(self.draws.take());
-        if !draws.is_replay() {
-            return Ok(self.tdata.save_random(&self.dir).map_err(Failure::from));
-        }
-        let saved = self.tdata.save(&self.dir, &mut |buf| draws.fill(buf));
-        Ok(draws.finish().and(saved.map_err(Failure::from)))
+        Ok(self.tdata.save_with_draws(
+            &self.dir,
+            self.performance_mode,
+            DrawSource::new(self.draws.take()),
+        ))
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<()> {
@@ -418,11 +422,7 @@ pub fn load_tdata(
     key_file: Option<String>,
 ) -> AsyncTask<LoadTask> {
     AsyncTask::new(LoadTask {
-        request: CoreLoadRequest {
-            dir: PathBuf::from(path),
-            passcode: to_passcode(passcode),
-            key_file,
-        },
+        request: CoreLoadRequest::new(path, to_passcode(passcode), key_file),
     })
 }
 
@@ -440,21 +440,16 @@ pub fn save_tdata(
     performance_mode: Option<bool>,
     draws: Option<Vec<Uint8Array>>,
 ) -> AsyncTask<SaveTask> {
-    let mut folder = tdata.folder();
-    if let Some(mode) = performance_mode
-        && mode != folder.performance_mode
-    {
-        Arc::make_mut(&mut folder).performance_mode = mode;
-    }
     AsyncTask::new(SaveTask {
-        tdata: folder,
+        tdata: tdata.folder(),
         dir: PathBuf::from(path),
+        performance_mode,
         draws: to_draws(draws),
     })
 }
 
-/// `TData::migrate` off the JavaScript thread, with keys from the OS random
-/// source or the replayed draws.
+/// `TData::migrate_with_draws` off the JavaScript thread, with keys from the
+/// OS random source or the replayed draws.
 pub struct MigrateTask {
     tdata: Shared,
     draws: Option<Vec<Vec<u8>>>,
@@ -462,25 +457,18 @@ pub struct MigrateTask {
 
 #[napi]
 impl Task for MigrateTask {
-    type Output = std::result::Result<bool, Failure>;
+    type Output = opentele2_core::Result<bool>;
     type JsValue = bool;
 
     fn compute(&mut self) -> napi::Result<Self::Output> {
         let mut folder = CoreTData::clone(&snapshot(&self.tdata));
-        let mut draws = Draws::new(self.draws.take());
-        let migrated = folder.migrate(&mut |buf| draws.fill(buf));
-        // A failed draw leaves the new wrap unspecified, so the folder
-        // stays as it was.
-        if let Err(failure) = draws.finish() {
-            return Ok(Err(failure));
+        // A failed draw leaves `folder` as it was, so only a migration that
+        // happened replaces the shared folder.
+        let migrated = folder.migrate_with_draws(DrawSource::new(self.draws.take()));
+        if let Ok(true) = migrated {
+            *self.tdata.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
         }
-        Ok(match migrated {
-            Ok(true) => {
-                *self.tdata.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(folder);
-                Ok(true)
-            }
-            other => other.map_err(Failure::from),
-        })
+        Ok(migrated)
     }
 
     fn resolve(&mut self, env: Env, output: Self::Output) -> napi::Result<bool> {
@@ -543,7 +531,8 @@ pub fn new_tdata(
 /// Most accounts one folder holds (1.5.0's `kMaxAccounts`);
 /// `addTdataAccount` refuses more.
 #[napi]
-pub const TDATA_MAX_ACCOUNTS: u32 = 6;
+#[allow(clippy::cast_possible_truncation)] // 6; the assertion below checks it.
+pub const TDATA_MAX_ACCOUNTS: u32 = CoreTData::MAX_ACCOUNTS as u32;
 
 const _: () = assert!(TDATA_MAX_ACCOUNTS as usize == CoreTData::MAX_ACCOUNTS);
 
@@ -569,28 +558,27 @@ fn planned(
     operation: &str,
     target: Either<ClassInstance<'_, TData>, NewDrawPlan>,
 ) -> Result<Vec<u32>> {
-    let plan = match (operation, target) {
-        ("new", Either::B(params)) => tdata::draw_plan(DrawOperation::New {
-            has_passcode: params.has_passcode.unwrap_or(false),
-            performance_mode: params.performance_mode.unwrap_or(true),
-        }),
-        ("migrate", Either::A(tdata)) => tdata::draw_plan(DrawOperation::Migrate(&tdata.folder())),
-        ("save", Either::A(tdata)) => tdata::draw_plan(DrawOperation::Save(&tdata.folder())),
-        ("new", Either::A(_)) => {
-            return Err(invalid_arg(
-                "the 'new' plan takes the hasPasscode and performanceMode options",
-            ));
-        }
-        ("migrate" | "save", Either::B(_)) => {
-            return Err(invalid_arg(format!("the {operation:?} plan takes a TData")));
-        }
-        (other, _) => {
-            return Err(invalid_arg(format!(
-                "unknown operation {other:?}; expected one of new, migrate, save"
-            )));
-        }
+    let (folder, params) = match target {
+        Either::A(tdata) => (Some(tdata.folder()), None),
+        Either::B(params) => (None, Some(params)),
     };
-    check(plan)?
+    let named = DrawOperation::from_name(
+        operation,
+        params.as_ref().and_then(|params| params.has_passcode),
+        params.as_ref().and_then(|params| params.performance_mode),
+        folder.as_deref(),
+    );
+    // `Error::InvalidInput` of `from_name`: an unknown name or a target of
+    // the wrong kind, `ERR_INVALID_ARG_VALUE` with the core's text, except
+    // that the "new" plan names its JavaScript options.
+    let named = named.map_err(|error| match error {
+        Error::InvalidInput { what: "target", .. } if folder.is_some() => {
+            invalid_arg("the 'new' plan takes the hasPasscode and performanceMode options")
+        }
+        Error::InvalidInput { reason, .. } => invalid_arg(reason),
+        error => core_error(&error),
+    })?;
+    check(tdata::draw_plan(named))?
         .into_iter()
         .map(|size| {
             u32::try_from(size).map_err(|_| core_error(&Error::QDataStreamFailed { context: None }))
@@ -678,34 +666,25 @@ pub fn load_many(
     requests: Vec<Either<String, LoadRequest>>,
     threads: Option<u32>,
 ) -> Result<AsyncTask<LoadManyTask>> {
-    let threads = match threads {
-        None => None,
-        Some(count) => Some(
-            usize::try_from(count)
-                .ok()
-                .and_then(NonZeroUsize::new)
-                .ok_or_else(|| invalid_arg("threads must be at least 1"))?,
-        ),
-    };
+    let options = BatchOptions::from_threads(threads).map_err(|error| match error {
+        Error::InvalidInput {
+            what: "threads",
+            reason,
+        } => invalid_arg(reason),
+        error => core_error(&error),
+    })?;
     let requests = requests
         .into_iter()
         .map(|request| match request {
-            Either::A(path) => CoreLoadRequest {
-                dir: PathBuf::from(path),
-                passcode: Vec::new(),
-                key_file: None,
-            },
-            Either::B(request) => CoreLoadRequest {
-                dir: PathBuf::from(request.path),
-                passcode: to_passcode(request.passcode),
-                key_file: request.key_file,
-            },
+            Either::A(path) => CoreLoadRequest::new(path, Vec::new(), None),
+            Either::B(request) => CoreLoadRequest::new(
+                request.path,
+                to_passcode(request.passcode),
+                request.key_file,
+            ),
         })
         .collect();
-    Ok(AsyncTask::new(LoadManyTask {
-        requests,
-        options: BatchOptions { threads },
-    }))
+    Ok(AsyncTask::new(LoadManyTask { requests, options }))
 }
 
 /// The Telethon string session of `account`: the first production endpoint
@@ -756,8 +735,16 @@ pub const MTP_FLAG_THIS_PORT_ONLY: i32 = mtp_config::FLAG_THIS_PORT_ONLY;
 #[napi]
 pub const MTP_FLAG_SECRET: i32 = mtp_config::FLAG_SECRET;
 
+// The objects below declare the TypeScript shapes of `accountMtpConfig` and
+// `accountEndpoints` only: the values are the core's MTP config maps, keys
+// in camelCase, built by `config_object`.
+
 /// One DC endpoint (`MTP.DcOptions.Endpoint`).
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct Endpoint {
     /// DC id, as stored.
     pub id: i32,
@@ -771,25 +758,12 @@ pub struct Endpoint {
     pub secret: Buffer,
 }
 
-impl From<&CoreEndpoint> for Endpoint {
-    fn from(endpoint: &CoreEndpoint) -> Self {
-        Self {
-            id: endpoint.id,
-            flags: endpoint.flags,
-            ip: endpoint.ip.clone(),
-            port: endpoint.port,
-            secret: Buffer::from(endpoint.secret.clone()),
-        }
-    }
-}
-
-/// `endpoints` as JavaScript objects.
-fn to_js_endpoints(endpoints: &[CoreEndpoint]) -> Vec<Endpoint> {
-    endpoints.iter().map(Endpoint::from).collect()
-}
-
 /// The endpoints of one address family, by protocol.
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct ProtocolEndpoints {
     /// Every endpoint of the family, in insertion order.
     pub tcp: Vec<Endpoint>,
@@ -797,18 +771,13 @@ pub struct ProtocolEndpoints {
     pub http: Vec<Endpoint>,
 }
 
-impl From<&CoreProtocolEndpoints> for ProtocolEndpoints {
-    fn from(family: &CoreProtocolEndpoints) -> Self {
-        Self {
-            tcp: to_js_endpoints(&family.tcp),
-            http: to_js_endpoints(&family.http),
-        }
-    }
-}
-
 /// The endpoints of one DC by address family and protocol, as 1.5.0
 /// `MTP.Config.endpoints` returns them.
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct Endpoints {
     /// Endpoints without `MTP_FLAG_IPV6`.
     pub ipv4: ProtocolEndpoints,
@@ -822,19 +791,12 @@ pub struct Endpoints {
     pub selected_ipv6: Option<Endpoint>,
 }
 
-impl From<&CoreEndpoints> for Endpoints {
-    fn from(endpoints: &CoreEndpoints) -> Self {
-        Self {
-            ipv4: (&endpoints.ipv4).into(),
-            ipv6: (&endpoints.ipv6).into(),
-            selected_ipv4: endpoints.select(false).map(Endpoint::from),
-            selected_ipv6: endpoints.select(true).map(Endpoint::from),
-        }
-    }
-}
-
 /// The endpoints of one DC of a config.
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct DcEndpoints {
     /// DC id.
     pub dc_id: i32,
@@ -843,7 +805,11 @@ pub struct DcEndpoints {
 }
 
 /// One CDN RSA public key (`MTP.RSAPublicKey`).
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct RsaPublicKey {
     /// DC id of the CDN.
     pub dc_id: i32,
@@ -854,7 +820,11 @@ pub struct RsaPublicKey {
 }
 
 /// The config fields (`MTP.ConfigFields`), in serialization order.
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct MtpConfigFields {
     /// `chatSizeMax`.
     pub chat_size_max: i32,
@@ -928,50 +898,12 @@ pub struct MtpConfigFields {
     pub venue_search_username: String,
 }
 
-impl From<ConfigFields> for MtpConfigFields {
-    fn from(fields: ConfigFields) -> Self {
-        Self {
-            chat_size_max: fields.chat_size_max,
-            megagroup_size_max: fields.megagroup_size_max,
-            forwarded_count_max: fields.forwarded_count_max,
-            online_update_period: fields.online_update_period,
-            offline_blur_timeout: fields.offline_blur_timeout,
-            offline_idle_timeout: fields.offline_idle_timeout,
-            online_focus_timeout: fields.online_focus_timeout,
-            online_cloud_timeout: fields.online_cloud_timeout,
-            notify_cloud_delay: fields.notify_cloud_delay,
-            notify_default_delay: fields.notify_default_delay,
-            saved_gifs_limit: fields.saved_gifs_limit,
-            edit_time_limit: fields.edit_time_limit,
-            revoke_time_limit: fields.revoke_time_limit,
-            revoke_private_time_limit: fields.revoke_private_time_limit,
-            revoke_private_inbox: fields.revoke_private_inbox,
-            stickers_recent_limit: fields.stickers_recent_limit,
-            stickers_faved_limit: fields.stickers_faved_limit,
-            pinned_dialogs_count_max: fields.pinned_dialogs_count_max,
-            pinned_dialogs_in_folder_max: fields.pinned_dialogs_in_folder_max,
-            internal_links_domain: fields.internal_links_domain,
-            channels_read_media_period: fields.channels_read_media_period,
-            call_receive_timeout_ms: fields.call_receive_timeout_ms,
-            call_ring_timeout_ms: fields.call_ring_timeout_ms,
-            call_connect_timeout_ms: fields.call_connect_timeout_ms,
-            call_packet_timeout_ms: fields.call_packet_timeout_ms,
-            web_file_dc_id: fields.web_file_dc_id,
-            txt_domain_string: fields.txt_domain_string,
-            phone_calls_enabled: fields.phone_calls_enabled,
-            blocked_mode: fields.blocked_mode,
-            caption_length_max: fields.caption_length_max,
-            reaction_default_emoji: fields.reaction_default_emoji,
-            reaction_default_custom: fields.reaction_default_custom,
-            rating_decay: fields.rating_decay,
-            gif_search_username: fields.gif_search_username,
-            venue_search_username: fields.venue_search_username,
-        }
-    }
-}
-
 /// An account's MTP config (`MTP.Config`).
-#[napi(object, object_from_js = false)]
+#[napi(object, object_to_js = false, object_from_js = false)]
+#[expect(
+    dead_code,
+    reason = "a TypeScript declaration; `config_object` builds the value"
+)]
 pub struct MtpConfig {
     /// Server environment.
     #[napi(ts_type = "'production' | 'test'")]
@@ -984,64 +916,124 @@ pub struct MtpConfig {
     pub fields: MtpConfigFields,
 }
 
-impl From<CoreMtpConfig> for MtpConfig {
-    fn from(config: CoreMtpConfig) -> Self {
-        let environment = match config.environment {
-            Environment::Production => "production",
-            Environment::Test => "test",
-        };
-        Self {
-            environment: environment.to_owned(),
-            dcs: config
-                .dc_options
-                .dcs()
-                .map(|(dc_id, endpoints)| DcEndpoints {
-                    dc_id,
-                    endpoints: to_js_endpoints(endpoints),
-                })
-                .collect(),
-            cdn_public_keys: config
-                .dc_options
-                .cdn_public_keys
-                .iter()
-                .map(|key| RsaPublicKey {
-                    dc_id: key.dc_id,
-                    n: Buffer::from(key.n.clone()),
-                    e: Buffer::from(key.e.clone()),
-                })
-                .collect(),
-            fields: config.fields.into(),
+/// The keys whose values the core MTP config maps give as lists of 0 to
+/// 255: an endpoint `secret` and a CDN key's `n` and `e`, Node `Buffer`s.
+const BYTES_KEYS: [&str; 3] = ["secret", "n", "e"];
+
+/// The key whose value the core MTP config maps give as a `u64` number, a
+/// JavaScript `bigint` since it may exceed `2**53`.
+const BIGINT_KEY: &str = "reaction_default_custom";
+
+/// `key`, a `snake_case` key of a core MTP config map, in camelCase.
+fn camel_case(key: &str) -> String {
+    let mut out = String::with_capacity(key.len());
+    let mut upper = false;
+    for ch in key.chars() {
+        if ch == '_' {
+            upper = true;
+        } else if upper {
+            out.push(ch.to_ascii_uppercase());
+            upper = false;
+        } else {
+            out.push(ch);
         }
     }
+    out
+}
+
+/// `value`, the value of `key` in a core MTP config map, as JavaScript: a
+/// byte list under [`BYTES_KEYS`] as a `Buffer`, the [`BIGINT_KEY`] number
+/// as a `bigint`, maps and lists item by item, the rest as JSON values.
+fn config_value<'env>(env: &'env Env, key: &str, value: &Value) -> napi::Result<Unknown<'env>> {
+    match value {
+        Value::Array(items) if BYTES_KEYS.contains(&key) => {
+            let bytes = items
+                .iter()
+                .map(|item| {
+                    item.as_u64()
+                        .and_then(|byte| u8::try_from(byte).ok())
+                        .ok_or_else(|| {
+                            napi::Error::from_reason(format!("{key} is not a byte list"))
+                        })
+                })
+                .collect::<napi::Result<Vec<u8>>>()?;
+            Buffer::from(bytes).into_unknown(env)
+        }
+        Value::Array(items) => {
+            let length = u32::try_from(items.len())
+                .map_err(|_| napi::Error::from_reason(format!("{key} lists too many items")))?;
+            let mut array = env.create_array(length)?;
+            for (index, item) in (0..length).zip(items) {
+                array.set(index, config_value(env, key, item)?)?;
+            }
+            array.into_unknown(env)
+        }
+        Value::Object(map) => config_object(env, map)?.into_unknown(env),
+        Value::Number(number) if key == BIGINT_KEY => {
+            let number = number
+                .as_u64()
+                .ok_or_else(|| napi::Error::from_reason(format!("{key} is not a u64")))?;
+            BigInt::from(number).into_unknown(env)
+        }
+        value => env.to_js_value(value),
+    }
+}
+
+/// A core MTP config map as a JavaScript object with camelCase keys, in its
+/// order. A `null` value, an endpoint `selected_ipv4`/`selected_ipv6` the
+/// config has none for, is left out.
+fn config_object<'env>(env: &'env Env, map: &Map<String, Value>) -> napi::Result<Object<'env>> {
+    let mut object = Object::new(env)?;
+    for (key, value) in map {
+        if !value.is_null() {
+            object.set(camel_case(key), config_value(env, key, value)?)?;
+        }
+    }
+    Ok(object)
+}
+
+/// The MTP config of an account, or the production default 1.5.0 starts
+/// every account with (`StorageAccount.__init__`).
+fn config_of(account: Option<&CoreAccount>) -> CoreMtpConfig {
+    account.map_or_else(
+        || CoreMtpConfig::new(Environment::Production),
+        CoreAccount::mtp_config,
+    )
+}
+
+/// The core account of an optional `account` argument.
+fn to_optional_account(
+    env: Env,
+    account: Option<AccountInput>,
+) -> napi::Result<Option<CoreAccount>> {
+    thrown(env, account.map(to_account).transpose())
 }
 
 /// The MTP config of `account` (1.5.0 `_readMtpConfig`): its stored
 /// `config` parsed, or the production default when there is none or it
-/// does not parse.
-#[napi]
-pub fn account_mtp_config(env: Env, account: AccountInput) -> napi::Result<MtpConfig> {
-    thrown(
-        env,
-        to_account(account).map(|account| account.mtp_config().into()),
-    )
+/// does not parse. No account, one never loaded, has the production
+/// default.
+#[napi(ts_return_type = "MtpConfig")]
+pub fn account_mtp_config(env: &Env, account: Option<AccountInput>) -> napi::Result<Object<'_>> {
+    let account = to_optional_account(*env, account)?;
+    config_object(env, &config_of(account.as_ref()).to_map())
 }
 
 /// The endpoints of DC `dcId` (default the main DC) in the MTP config of
 /// `account`, by address family and protocol (1.5.0
-/// `MTP.Config.endpoints`); `null` when the config has no such DC.
-#[napi]
+/// `MTP.Config.endpoints`); `null` when the config has no such DC. No
+/// account reads the production default, whose main DC is 0, a DC no
+/// config lists.
+#[napi(ts_return_type = "Endpoints | null")]
 pub fn account_endpoints(
-    env: Env,
-    account: AccountInput,
+    env: &Env,
+    account: Option<AccountInput>,
     dc_id: Option<i32>,
-) -> napi::Result<Option<Endpoints>> {
-    let endpoints = to_account(account).map(|account| {
-        let dc_id = dc_id.unwrap_or(account.main_dc);
-        account
-            .mtp_config()
-            .endpoints(dc_id)
-            .as_ref()
-            .map(Endpoints::from)
-    });
-    thrown(env, endpoints)
+) -> napi::Result<Option<Object<'_>>> {
+    let account = to_optional_account(*env, account)?;
+    let main_dc = account.as_ref().map_or(0, |account| account.main_dc);
+    config_of(account.as_ref())
+        .endpoints(dc_id.unwrap_or(main_dc))
+        .map(|endpoints| config_object(env, &endpoints.to_map()))
+        .transpose()
 }

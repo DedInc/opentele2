@@ -72,6 +72,18 @@ test('the production default config and its endpoints', async () => {
   assert.ok(plain.accounts.every((loaded) => loaded.config === undefined))
 })
 
+test('no account reads the production default, as Python does', () => {
+  const production = core.accountMtpConfig(account(2))
+  assert.deepEqual(core.accountMtpConfig(), production)
+  assert.deepEqual(core.accountMtpConfig(null), production)
+  // The default main DC is 0, a DC no config lists; an explicit DC is read.
+  assert.equal(core.accountEndpoints(), null)
+  assert.equal(core.accountEndpoints(undefined), null)
+  assert.deepEqual(core.accountEndpoints(null, 2), core.accountEndpoints(account(2)))
+  assert.deepEqual(core.accountEndpoints(undefined, 4), core.accountEndpoints(account(2), 4))
+  assert.equal(core.accountEndpoints(null, 6), null)
+})
+
 test('a stored custom config is read as 1.5.0 reads it', () => {
   const config = core.accountMtpConfig(account(2, unhex(CUSTOM_CONFIG)))
   assert.equal(config.environment, 'production')
