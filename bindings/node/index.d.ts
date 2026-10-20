@@ -208,6 +208,120 @@ export declare function appUpdateError(error: string): string
 export declare function argon2id(passcode: string | Uint8Array, salt: Uint8Array, memoryKib: number, time: number, lanes: number): Promise<Buffer>
 
 /**
+ * A browser fingerprint with its matching headers, keyed and ordered as
+ * browserforge's `Fingerprint` dumps it.
+ */
+export interface BrowserFingerprint {
+  /** The screen attributes. */
+  screen: FingerprintScreen
+  /** The navigator attributes. */
+  navigator: FingerprintNavigator
+  /** The headers the fingerprint was drawn for, in sending order. */
+  headers: Record<string, string>
+  /** `canPlayType` answers per video format. */
+  videoCodecs: Record<string, string>
+  /** `canPlayType` answers per audio format. */
+  audioCodecs: Record<string, string>
+  /** `navigator.plugins` and `navigator.mimeTypes`. */
+  pluginsData: Record<string, unknown>
+  /** The Battery Status API state, or `null`. */
+  battery: Record<string, unknown> | null
+  /** The WebGL renderer and vendor, or `null`. */
+  videoCard: FingerprintVideoCard | null
+  /** The media devices by kind. */
+  multimediaDevices: Record<string, unknown>
+  /** The installed fonts. */
+  fonts: Array<string>
+  /** Whether an injector should mock WebRTC. */
+  mockWebRTC: boolean
+  /** Whether an injector should skip performance-heavy evasions. */
+  slim: boolean
+}
+
+/**
+ * Options of `generateFingerprint`, browserforge's `FingerprintGenerator`
+ * arguments; every field is optional.
+ */
+export interface BrowserFingerprintOptions {
+  /** The screen constraint; none by default. */
+  screen?: ScreenConstraint
+  /**
+   * Fail instead of dropping the screen constraint when no fingerprint
+   * meets it; `false` by default.
+   */
+  strict?: boolean
+  /** Carried to the output as `mockWebRTC`; `false` by default. */
+  mockWebRtc?: boolean
+  /** Carried to the output as `slim`; `false` by default. */
+  slim?: boolean
+  /**
+   * The options of the headers the fingerprint is drawn for, as
+   * `generateHeaders` takes them.
+   */
+  header?: BrowserHeaderOptions
+}
+
+/**
+ * Options of `generateHeaders`, browserforge's `HeaderGenerator` arguments;
+ * every field is optional and defaults as browserforge does.
+ */
+export interface BrowserHeaderOptions {
+  /**
+   * The browsers to draw from, by name or as a `BrowserSpec`; all four by
+   * default.
+   */
+  browsers?: string | BrowserSpec | Array<string | BrowserSpec>
+  /**
+   * The operating systems to draw from: `'windows'`, `'macos'`,
+   * `'linux'`, `'android'`, `'ios'`; all by default.
+   */
+  os?: string | Array<string>
+  /** The devices to draw from: `'desktop'`, `'mobile'`; both by default. */
+  devices?: string | Array<string>
+  /**
+   * The `Accept-Language` locales, most preferred first, at most ten;
+   * `'en-US'` by default.
+   */
+  locales?: string | Array<string>
+  /**
+   * The HTTP version, also that of every browser given by name; `2` by
+   * default. HTTP/1 falls back to HTTP/2 when no HTTP/1 sample fits.
+   */
+  httpVersion?: 1 | 2 | '1' | '2'
+  /**
+   * Fail instead of relaxing the options when nothing fits them; `false`
+   * by default.
+   */
+  strict?: boolean
+  /** When given, the generated `User-Agent` is one of these. */
+  userAgent?: string | Array<string>
+  /**
+   * Headers that depend on the request (`Referer`, `Cookie`, ...): one
+   * matching a generated header (ignoring case) replaces its value in
+   * place, any other is appended after the generated headers.
+   */
+  requestDependentHeaders?: Record<string, string>
+}
+
+/**
+ * A browser the headers may come from, with optional bounds on its major
+ * version.
+ */
+export interface BrowserSpec {
+  /** `'chrome'`, `'firefox'`, `'safari'` or `'edge'`. */
+  name: string
+  /** The lowest major version, inclusive. */
+  minVersion?: number
+  /** The highest major version, inclusive. */
+  maxVersion?: number
+  /**
+   * The HTTP version the browser speaks; the options' `httpVersion` by
+   * default.
+   */
+  httpVersion?: 1 | 2 | '1' | '2'
+}
+
+/**
  * The weighted device pairs of the `platform` catalog in 1.5.0's
  * `deviceList` order; the weight is how many times 1.5.0 repeats the pair.
  */
@@ -492,6 +606,101 @@ export interface FingerprintConfigOptions {
   msgIdOffset?: number
 }
 
+/** The `window.navigator` attributes of a fingerprint. */
+export interface FingerprintNavigator {
+  /** `navigator.userAgent`, equal to the headers' `User-Agent`. */
+  userAgent: string
+  /** `navigator.userAgentData`, or `null`. */
+  userAgentData: Record<string, unknown> | null
+  /** `navigator.doNotTrack`. */
+  doNotTrack: string | null
+  /** `navigator.appCodeName`. */
+  appCodeName: string
+  /** `navigator.appName`. */
+  appName: string
+  /** `navigator.appVersion`. */
+  appVersion: string
+  /** `navigator.oscpu` (Firefox only), or `null`. */
+  oscpu: string | null
+  /** `navigator.webdriver`. */
+  webdriver: unknown
+  /** `navigator.language`, the first of `languages`. */
+  language: string
+  /** `navigator.languages`, the `Accept-Language` locales in order. */
+  languages: Array<string>
+  /** `navigator.platform`. */
+  platform: string
+  /** `navigator.deviceMemory` in GiB, or `null`. */
+  deviceMemory: number | null
+  /** `navigator.hardwareConcurrency`. */
+  hardwareConcurrency: number
+  /** `navigator.product`. */
+  product: string
+  /** `navigator.productSub`. */
+  productSub: string
+  /** `navigator.vendor`, or `null`. */
+  vendor: string | null
+  /** `navigator.vendorSub`, or `null`. */
+  vendorSub: string | null
+  /** `navigator.maxTouchPoints`. */
+  maxTouchPoints: number
+  /**
+   * Browser-specific extras (`vendorFlavors`, `globalPrivacyControl`,
+   * ...).
+   */
+  extraProperties: Record<string, unknown>
+}
+
+/** The `window.screen` and window-geometry attributes of a fingerprint. */
+export interface FingerprintScreen {
+  /** `screen.availTop`. */
+  availTop: number
+  /** `screen.availLeft`. */
+  availLeft: number
+  /** `window.pageXOffset`. */
+  pageXOffset: number
+  /** `window.pageYOffset`. */
+  pageYOffset: number
+  /** `window.screenX`. */
+  screenX: number
+  /** Whether the display reports HDR. */
+  hasHDR: boolean
+  /** `screen.width`. */
+  width: number
+  /** `screen.height`. */
+  height: number
+  /** `screen.availWidth`. */
+  availWidth: number
+  /** `screen.availHeight`. */
+  availHeight: number
+  /** `document.documentElement.clientWidth`. */
+  clientWidth: number
+  /** `document.documentElement.clientHeight`. */
+  clientHeight: number
+  /** `window.innerWidth`. */
+  innerWidth: number
+  /** `window.innerHeight`. */
+  innerHeight: number
+  /** `window.outerWidth`. */
+  outerWidth: number
+  /** `window.outerHeight`. */
+  outerHeight: number
+  /** `screen.colorDepth`. */
+  colorDepth: number
+  /** `screen.pixelDepth`. */
+  pixelDepth: number
+  /** `window.devicePixelRatio`. */
+  devicePixelRatio: number
+}
+
+/** The unmasked WebGL renderer and vendor of a fingerprint. */
+export interface FingerprintVideoCard {
+  /** The unmasked WebGL renderer. */
+  renderer: string
+  /** The unmasked WebGL vendor. */
+  vendor: string
+}
+
 /**
  * 1.5.0 `format_app_version`: a packed Telegram Desktop version as
  * `major.minor.patch`, without a zero patch, so `7003001` is `"7.3.1"` and
@@ -528,6 +737,35 @@ export declare const FRESH_RESET_FORBIDDEN: string
  * Web clients get a browser user agent picked from the web catalog.
  */
 export declare function generate(client: 'TelegramDesktop' | 'TelegramAndroid' | 'TelegramAndroidX' | 'TelegramIOS' | 'TelegramMacOS' | 'TelegramWeb_A' | 'TelegramWeb_K' | 'Webogram', seed?: string | number | bigint | undefined | null, system?: 'windows' | 'macos' | 'linux' | null, versions?: Versions | undefined | null): ApiProfile
+
+/**
+ * One browser fingerprint with its matching headers, as browserforge's
+ * `FingerprintGenerator(...).generate()`, keyed as browserforge's
+ * `Fingerprint` (`screen`, `navigator`, `headers`, `videoCodecs`,
+ * `audioCodecs`, `pluginsData`, `battery`, `videoCard`,
+ * `multimediaDevices`, `fonts`, `mockWebRTC`, `slim`). `seed` as for
+ * `generateHeaders`.
+ *
+ * Runs as an async task: the first call parses the embedded networks.
+ * Invalid options reject with `ERR_INVALID_ARG_VALUE`; options nothing
+ * satisfies (`strict`, or a `screen` no sample has with `strict`) with
+ * `OT_INVALID_INPUT`.
+ */
+export declare function generateFingerprint(options?: BrowserFingerprintOptions | undefined | null, seed?: string | number | bigint | undefined | null): Promise<BrowserFingerprint>
+
+/**
+ * One set of browser HTTP headers, name to value in sending order, as
+ * browserforge's `HeaderGenerator(...).generate()`. A `seed` (a string, or
+ * an integer `number` or `bigint` as its decimal text, as Python's `str()`
+ * of an `int`) makes the draw reproducible, the same as
+ * `opentele2.browser.generate_headers` of the Python binding with that
+ * seed; without one it comes from the operating system's entropy.
+ *
+ * Runs as an async task: the first call parses the embedded networks.
+ * Invalid options reject with `ERR_INVALID_ARG_VALUE`; options nothing
+ * satisfies (`strict`) with `OT_INVALID_INPUT`.
+ */
+export declare function generateHeaders(options?: BrowserHeaderOptions | undefined | null, seed?: string | number | bigint | undefined | null): Promise<Record<string, string>>
 
 /** The `get_config` detail on success; an absent `thisDc` prints `None`. */
 export declare function getConfigDetail(thisDc?: number | undefined | null): string
@@ -975,6 +1213,21 @@ export declare function readTelethonSessionFile(path: string): Promise<TelethonF
  * and the promise rejects with `ERR_INVALID_ARG_VALUE`.
  */
 export declare function saveTdata(tdata: TData, path: string, performanceMode?: boolean | undefined | null, draws?: Array<Uint8Array> | undefined | null): Promise<void>
+
+/**
+ * Bounds on the screen of a generated fingerprint, in CSS pixels, each
+ * inclusive and optional.
+ */
+export interface ScreenConstraint {
+  /** The smallest screen width. */
+  minWidth?: number
+  /** The largest screen width. */
+  maxWidth?: number
+  /** The smallest screen height. */
+  minHeight?: number
+  /** The largest screen height. */
+  maxHeight?: number
+}
 
 /** The column labels of the 1.5.0 `PrintSessions` table, in order. */
 export declare const SESSION_COLUMNS: string[]

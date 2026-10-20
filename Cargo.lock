@@ -1177,6 +1177,7 @@ dependencies = [
  "napi",
  "napi-build",
  "napi-derive",
+ "opentele2-browser",
  "opentele2-core",
  "opentele2-versions",
  "serde_json",

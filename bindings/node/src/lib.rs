@@ -4,8 +4,10 @@
 //! Every function copies its inputs into owned Rust values. Per-packet
 //! AES-IGE, the string sessions and the pure fingerprint, session and
 //! formatting helpers run synchronously; the KDFs, every tdata file
-//! operation, legacy key migration, the SRP check and the version fetch are
-//! async tasks returning promises. Core failures
+//! operation, legacy key migration, the SRP check, the version fetch and the
+//! browser header and fingerprint generation (opentele2-browser, whose first
+//! call parses the embedded networks) are async tasks returning promises.
+//! Core failures
 //! are JavaScript `Error`s whose `code` is `"OT_"` plus the core's stable
 //! error code.
 //!
@@ -18,6 +20,8 @@
 mod api;
 #[cfg(not(test))]
 mod auth;
+#[cfg(not(test))]
+mod browser;
 #[cfg(not(test))]
 mod convert;
 #[cfg(not(test))]

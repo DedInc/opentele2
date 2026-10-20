@@ -19,6 +19,9 @@ doctest = false
 # `telethon-sqlite`: the Telethon `.session` file over a bundled SQLite, so
 # `opentele2/telethon` works on every supported Node.
 opentele2-core = { path = "../../crates/opentele2-core", features = ["telethon-sqlite"] }
+# `generateHeaders` and `generateFingerprint`: browserforge's header and
+# fingerprint generation, run as async tasks.
+opentele2-browser = { path = "../../crates/opentele2-browser", version = "2.0.0" }
 # `fetchVersions`: the release feeds over blocking HTTP, run as an async task.
 opentele2-versions = { path = "../../crates/opentele2-versions" }
 # Already a dependency of the core, with `preserve_order`; the session JSON
