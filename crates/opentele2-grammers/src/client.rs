@@ -28,11 +28,23 @@
 //!   [`qr_login`] exports the token again as soon as
 //!   `auth.acceptLoginToken` returns, which the server answers after it has
 //!   authorised the token. An export that still yields a plain
-//!   `auth.loginToken` counts as 1.5.0's timed-out attempt.
+//!   `auth.loginToken` counts as 1.5.0's timed-out attempt, so
+//!   [`auth::QR_EXPIRE_SAFETY_SECONDS`] has no wait to extend.
+//! - The crate has no warning channel: 1.5.0's per-attempt
+//!   [`auth::qr_attempt_timeout_warning`] and
+//!   [`auth::qr_attempt_retry_warning`] are not emitted, and the
+//!   consistency warning is left to the caller
+//!   ([`ConsistencyReport::warning`]).
 //! - `QRLoginToNewClient`'s connect, its first `_switch_dc` to the
 //!   authorised client's DC and its existing-session branch are left to
 //!   the caller, who builds the new client's session; a home DC that
-//!   differs is handled by the `auth.loginTokenMigrateTo` step.
+//!   differs is handled by the `auth.loginTokenMigrateTo` step. 1.5.0 warns
+//!   [`auth::EXISTING_SESSION_KEPT`] or [`auth::EXISTING_SESSION_REPLACED`]
+//!   there. A caller replacing a session of another `api_id` replaces it
+//!   locally only, as 1.5.0 deletes the session file: it drops that
+//!   session and builds the new client on a fresh one, and never sends
+//!   `auth.logOut`, which would end the authorisation on the server. No
+//!   flow here logs out.
 //! - A DC migration sets the session's home DC and invokes
 //!   `auth.importLoginToken` there; grammers' private
 //!   `disconnect_from_dc` of the old DC is not reachable, so its idle
@@ -55,7 +67,8 @@ use grammers_mtsender::{InvocationError, RpcError};
 use grammers_session::Session;
 use grammers_session::types::{PeerAuth, PeerInfo};
 use opentele2_core::auth::{
-    self, Check, CheckResult, ConsistencyExpectations, SessionRow, SrpError, SrpParams,
+    self, Check, CheckOutcome, ConsistencyExpectations, ConsistencyReport, PostLoginRequest,
+    RawAuthorization, SessionRow, SrpError, SrpParams,
 };
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::tdata::TData;
@@ -85,13 +98,6 @@ impl Invoker for Client {
     }
 }
 
-/// How many QR login attempts [`qr_login`] makes, 1.5.0's
-/// `_DEFAULT_REQUEST_RETRIES`.
-pub const QR_LOGIN_ATTEMPTS: usize = 5;
-
-/// The 1.5.0 `TimeoutError` message when no QR login attempt succeeded.
-pub const QR_LOGIN_TIMEOUT: &str = "Something went wrong, i couldn't perform the QR login";
-
 /// The 1.5.0 `TelethonUnauthorized` message when the self user is unknown.
 pub const USER_ID_UNRESOLVED: &str = "Could not resolve the account's user id";
 
@@ -110,16 +116,18 @@ pub enum ClientError {
     AuthTokenExpired(RpcError),
     /// `AuthTokenInvalidError`, re-raised by 1.5.0.
     AuthTokenInvalid(RpcError),
-    /// `TimeoutError`: every QR login attempt ended without a login.
+    /// `TimeoutError`: every QR login attempt ended without a login
+    /// ([`auth::QR_LOGIN_TIMEOUT`]).
     QrLoginTimeout,
     /// `FreshResetAuthorisationForbiddenError` of `TerminateSession`.
     FreshResetAuthorisationForbidden(RpcError),
     /// `HashInvalidError` of `TerminateSession`.
     HashInvalid(RpcError),
     /// The account's password uses an algorithm other than
-    /// `passwordKdfAlgoSHA256SHA256PBKDF2HMACSHA512iter100000SHA256ModPow`,
-    /// or lacks its `srp_B` or `srp_id` (Telethon `compute_check`).
-    UnsupportedPasswordAlgorithm,
+    /// [`auth::SRP_ALGORITHM`] (Telethon `compute_check`), named by its
+    /// Telethon class name: `PasswordKdfAlgoUnknown`, or `NoneType`
+    /// without one.
+    UnsupportedPasswordAlgorithm(String),
     /// The SRP check could not be computed.
     Srp(SrpError),
     /// The server answered a login with `auth.authorizationSignUpRequired`.
@@ -140,10 +148,12 @@ impl fmt::Display for ClientError {
             | Self::AuthTokenAlreadyAccepted(error)
             | Self::AuthTokenExpired(error)
             | Self::AuthTokenInvalid(error) => write!(f, "{error}"),
-            Self::QrLoginTimeout => f.write_str(QR_LOGIN_TIMEOUT),
+            Self::QrLoginTimeout => f.write_str(auth::QR_LOGIN_TIMEOUT),
             Self::FreshResetAuthorisationForbidden(_) => f.write_str(auth::FRESH_RESET_FORBIDDEN),
             Self::HashInvalid(_) => f.write_str(auth::HASH_INVALID),
-            Self::UnsupportedPasswordAlgorithm => f.write_str("unsupported password algorithm"),
+            Self::UnsupportedPasswordAlgorithm(algorithm) => {
+                f.write_str(&auth::unsupported_password_algorithm(algorithm))
+            }
             Self::Srp(error) => write!(f, "{error}"),
             Self::SignUpRequired => {
                 f.write_str("the server asked to sign up instead of logging in")
@@ -329,17 +339,35 @@ fn authorized_user(
 
 /// The `inputCheckPasswordSRP` for `password` against `info` (Telethon
 /// `compute_check`), through [`auth::srp_check_random`].
+///
+/// Only [`auth::SRP_ALGORITHM`] is supported; any other algorithm is named
+/// by its Telethon class name, as the Python binding names it. Without
+/// `srp_id` or `srp_B` the check runs with id 0 and an empty `B`, which
+/// the core refuses as [`SrpError::BadB`], as the Python binding does; the
+/// wire carries the three under one flag, so a decoded answer has either
+/// all of them or none.
 fn password_check(
     info: &tl::types::account::Password,
     password: &str,
 ) -> Result<tl::enums::InputCheckPasswordSrp, ClientError> {
-    let (
-        Some(tl::enums::PasswordKdfAlgo::Sha256Sha256Pbkdf2Hmacsha512iter100000Sha256ModPow(algo)),
-        Some(srp_b),
-        Some(srp_id),
-    ) = (&info.current_algo, &info.srp_b, info.srp_id)
-    else {
-        return Err(ClientError::UnsupportedPasswordAlgorithm);
+    let algo = match &info.current_algo {
+        Some(tl::enums::PasswordKdfAlgo::Sha256Sha256Pbkdf2Hmacsha512iter100000Sha256ModPow(
+            algo,
+        )) => algo,
+        Some(tl::enums::PasswordKdfAlgo::Unknown) => {
+            return Err(ClientError::UnsupportedPasswordAlgorithm(
+                "PasswordKdfAlgoUnknown".to_owned(),
+            ));
+        }
+        None => {
+            return Err(ClientError::UnsupportedPasswordAlgorithm(
+                "NoneType".to_owned(),
+            ));
+        }
+    };
+    let (srp_id, srp_b) = match (info.srp_id, &info.srp_b) {
+        (Some(srp_id), Some(srp_b)) => (srp_id, srp_b.as_slice()),
+        _ => (0, &[][..]),
     };
     let params = SrpParams {
         srp_id,
@@ -389,7 +417,7 @@ where
 ///
 /// `new_session` is the session `new`'s `SenderPool` was built with; it
 /// receives the home DC of a migration and the self user. Each of up to
-/// [`QR_LOGIN_ATTEMPTS`] attempts:
+/// [`auth::QR_LOGIN_ATTEMPTS`] attempts:
 ///
 /// 1. From the second attempt on, stops when `new` is already authorised
 ///    ([`is_authorized`]) and returns [`get_me_id`].
@@ -407,8 +435,9 @@ where
 /// # Errors
 /// - [`ClientError::NoPasswordProvided`] when 2FA is needed and `password`
 ///   is `None`; [`ClientError::PasswordIncorrect`] when it is wrong;
-///   [`ClientError::UnsupportedPasswordAlgorithm`] and
-///   [`ClientError::Srp`] when the password parameters are unusable.
+///   [`ClientError::UnsupportedPasswordAlgorithm`] for an algorithm other
+///   than [`auth::SRP_ALGORITHM`] and [`ClientError::Srp`] when the
+///   password parameters are unusable.
 /// - [`ClientError::AuthTokenAlreadyAccepted`],
 ///   [`ClientError::AuthTokenExpired`] and [`ClientError::AuthTokenInvalid`]
 ///   for the RPC errors of those names.
@@ -429,7 +458,7 @@ where
     S: Session + ?Sized,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    for attempt in 0..QR_LOGIN_ATTEMPTS {
+    for attempt in 0..auth::QR_LOGIN_ATTEMPTS {
         if attempt > 0 && is_authorized(new).await? {
             return get_me_id(new).await;
         }
@@ -456,26 +485,15 @@ where
     Err(ClientError::QrLoginTimeout)
 }
 
-/// The delay range in milliseconds before each 1.5.0 post-login request,
-/// `None` for no delay, in `_POST_LOGIN_STEPS` order.
-pub const POST_LOGIN_DELAYS_MS: [Option<(u64, u64)>; 7] = [
-    None,
-    Some((100, 300)),
-    Some((200, 400)),
-    Some((100, 200)),
-    Some((300, 500)),
-    Some((100, 300)),
-    Some((50, 150)),
-];
-
-/// 1.5.0 `_run_post_login_requests`: `help.getConfig`, `help.getNearestDc`,
-/// `account.updateStatus(offline=false)`, `langpack.getLanguages` (only
-/// for a non-empty `lang_pack`), `help.getAppUpdate(source="")`,
-/// `help.getTermsOfServiceUpdate` and `help.getCountriesList("en", 0)`,
-/// each after `delay(min_ms, max_ms)` of [`POST_LOGIN_DELAYS_MS`] where it
-/// has one. 1.5.0 sleeps a random whole number of milliseconds in that
-/// inclusive range; `delay` does the waiting, so the caller picks the
-/// timer and the random source.
+/// 1.5.0 `_run_post_login_requests`: the steps of
+/// [`auth::post_login_steps`] for `lang_pack` (`help.getConfig`,
+/// `help.getNearestDc`, `account.updateStatus(offline=false)`,
+/// `langpack.getLanguages` only for a non-empty `lang_pack`,
+/// `help.getAppUpdate(source="")`, `help.getTermsOfServiceUpdate` and
+/// `help.getCountriesList("en", 0)`), each after `delay(min_ms, max_ms)`
+/// of its [`auth::PostLoginStep::delay_ms`] where it has one. 1.5.0 sleeps
+/// [`auth::random_delay_ms`]`(min_ms, max_ms)` milliseconds; `delay` does
+/// the waiting, so the caller picks the timer.
 ///
 /// Failures are ignored, as in 1.5.0; the number of requests that failed
 /// is returned.
@@ -486,45 +504,42 @@ where
     F: Future<Output = ()> + Send,
 {
     let mut failed = 0;
-    for (step, range) in POST_LOGIN_DELAYS_MS.iter().enumerate() {
-        if step == 3 && lang_pack.is_empty() {
-            continue;
-        }
-        if let Some((min, max)) = *range {
+    for step in auth::post_login_steps(lang_pack) {
+        if let Some((min, max)) = step.delay_ms {
             delay(min, max).await;
         }
-        let ok = match step {
-            0 => invoker
+        let ok = match step.request {
+            PostLoginRequest::GetConfig => invoker
                 .invoke(&tl::functions::help::GetConfig {})
                 .await
                 .is_ok(),
-            1 => invoker
+            PostLoginRequest::GetNearestDc => invoker
                 .invoke(&tl::functions::help::GetNearestDc {})
                 .await
                 .is_ok(),
-            2 => invoker
+            PostLoginRequest::UpdateStatus => invoker
                 .invoke(&tl::functions::account::UpdateStatus { offline: false })
                 .await
                 .is_ok(),
-            3 => invoker
+            PostLoginRequest::GetLanguages => invoker
                 .invoke(&tl::functions::langpack::GetLanguages {
                     lang_pack: lang_pack.to_owned(),
                 })
                 .await
                 .is_ok(),
-            4 => invoker
+            PostLoginRequest::GetAppUpdate => invoker
                 .invoke(&tl::functions::help::GetAppUpdate {
-                    source: String::new(),
+                    source: auth::POST_LOGIN_APP_UPDATE_SOURCE.to_owned(),
                 })
                 .await
                 .is_ok(),
-            5 => invoker
+            PostLoginRequest::GetTermsOfServiceUpdate => invoker
                 .invoke(&tl::functions::help::GetTermsOfServiceUpdate {})
                 .await
                 .is_ok(),
-            _ => invoker
+            PostLoginRequest::GetCountriesList => invoker
                 .invoke(&tl::functions::help::GetCountriesList {
-                    lang_code: "en".to_owned(),
+                    lang_code: auth::POST_LOGIN_COUNTRIES_LANG_CODE.to_owned(),
                     hash: 0,
                 })
                 .await
@@ -627,19 +642,21 @@ pub async fn terminate_all_sessions<I: Invoker>(invoker: &I) -> Result<usize, Cl
     Ok(ended)
 }
 
-/// The 1.5.0 `PrintSessions` fields of `authorization`.
+/// The 1.5.0 `PrintSessions` fields of `authorization`, through
+/// [`SessionRow::from_authorization`]; grammers always decodes the
+/// `current` and `official_app` flags.
 #[must_use]
 pub fn session_row(authorization: &tl::types::Authorization) -> SessionRow {
-    SessionRow {
-        current: authorization.current,
-        device_model: authorization.device_model.clone(),
-        platform: authorization.platform.clone(),
-        system_version: authorization.system_version.clone(),
+    SessionRow::from_authorization(&RawAuthorization {
+        current: Some(authorization.current),
+        device_model: &authorization.device_model,
+        platform: &authorization.platform,
+        system_version: &authorization.system_version,
         api_id: authorization.api_id,
-        app_name: authorization.app_name.clone(),
-        app_version: authorization.app_version.clone(),
-        official_app: authorization.official_app,
-    }
+        app_name: &authorization.app_name,
+        app_version: &authorization.app_version,
+        official_app: Some(authorization.official_app),
+    })
 }
 
 /// The table 1.5.0 `PrintSessions` prints ([`auth::format_sessions`]) for
@@ -663,74 +680,52 @@ pub async fn is_official_app<I: Invoker>(invoker: &I) -> Result<bool, ClientErro
         .is_some_and(|authorization| authorization.official_app))
 }
 
-/// A [`CheckResult`] for `check`.
-fn result(check: Check, passed: bool, detail: String) -> CheckResult {
-    CheckResult {
-        name: check.name().to_owned(),
-        passed,
-        detail,
-    }
+/// A check that ended with its own result.
+fn finished(passed: bool, detail: String) -> CheckOutcome {
+    CheckOutcome::Finished { passed, detail }
 }
 
-async fn check_get_config<I: Invoker>(invoker: &I) -> CheckResult {
+async fn check_get_config<I: Invoker>(invoker: &I) -> CheckOutcome {
     match invoker.invoke(&tl::functions::help::GetConfig {}).await {
-        Ok(tl::enums::Config::Config(config)) => result(
-            Check::GetConfig,
-            true,
-            auth::get_config_detail(Some(config.this_dc)),
-        ),
-        Err(error) => result(
-            Check::GetConfig,
-            false,
-            auth::get_config_error(&error.to_string()),
-        ),
+        Ok(tl::enums::Config::Config(config)) => {
+            finished(true, auth::get_config_detail(Some(config.this_dc)))
+        }
+        Err(error) => finished(false, auth::get_config_error(&error.to_string())),
     }
 }
 
-async fn check_nearest_dc<I: Invoker>(invoker: &I) -> CheckResult {
+async fn check_nearest_dc<I: Invoker>(invoker: &I) -> CheckOutcome {
     match invoker.invoke(&tl::functions::help::GetNearestDc {}).await {
-        Ok(tl::enums::NearestDc::Dc(nearest)) => result(
-            Check::NearestDc,
+        Ok(tl::enums::NearestDc::Dc(nearest)) => finished(
             true,
             auth::nearest_dc_detail(&nearest.country, nearest.this_dc, nearest.nearest_dc),
         ),
-        Err(error) => result(
-            Check::NearestDc,
-            false,
-            auth::nearest_dc_error(&error.to_string()),
-        ),
+        Err(error) => finished(false, auth::nearest_dc_error(&error.to_string())),
     }
 }
 
-async fn check_current_session<I: Invoker>(invoker: &I) -> CheckResult {
+async fn check_current_session<I: Invoker>(invoker: &I) -> CheckOutcome {
     match current_session(invoker).await {
         Ok(Some(authorization)) => {
             let row = session_row(&authorization);
-            result(
-                Check::CurrentSession,
-                row.official_app,
-                auth::current_session_detail(&row),
-            )
+            finished(row.official_app, auth::current_session_detail(&row))
         }
-        Ok(None) => result(
-            Check::CurrentSession,
-            false,
-            auth::CURRENT_SESSION_MISSING.to_owned(),
-        ),
-        Err(error) => result(
-            Check::CurrentSession,
-            false,
-            auth::check_error(&error.to_string()),
-        ),
+        Ok(None) => finished(false, auth::CURRENT_SESSION_MISSING.to_owned()),
+        Err(error) => finished(false, auth::check_error(&error.to_string())),
     }
+}
+
+fn check_layer_match(expectations: &ConsistencyExpectations) -> CheckOutcome {
+    let result = expectations.layer_result(tl::LAYER);
+    finished(result.passed, result.detail)
 }
 
 async fn check_lang_pack<I: Invoker>(
     invoker: &I,
     expectations: &ConsistencyExpectations,
-) -> CheckResult {
+) -> CheckOutcome {
     if expectations.lang_pack_skipped() {
-        return result(Check::LangPack, true, auth::LANG_PACK_EMPTY.to_owned());
+        return finished(true, auth::LANG_PACK_EMPTY.to_owned());
     }
     let lang_pack = &expectations.lang_pack;
     match invoker
@@ -739,20 +734,12 @@ async fn check_lang_pack<I: Invoker>(
         })
         .await
     {
-        Ok(languages) => result(
-            Check::LangPack,
-            true,
-            auth::lang_pack_detail(lang_pack, languages.len()),
-        ),
-        Err(error) => result(
-            Check::LangPack,
-            false,
-            auth::lang_pack_error(lang_pack, &error.to_string()),
-        ),
+        Ok(languages) => finished(true, auth::lang_pack_detail(lang_pack, languages.len())),
+        Err(error) => finished(false, auth::lang_pack_error(lang_pack, &error.to_string())),
     }
 }
 
-async fn check_app_update<I: Invoker>(invoker: &I) -> CheckResult {
+async fn check_app_update<I: Invoker>(invoker: &I) -> CheckOutcome {
     match invoker
         .invoke(&tl::functions::help::GetAppUpdate {
             source: String::new(),
@@ -760,41 +747,45 @@ async fn check_app_update<I: Invoker>(invoker: &I) -> CheckResult {
         .await
     {
         Ok(tl::enums::help::AppUpdate::NoAppUpdate) => {
-            result(Check::AppUpdate, true, auth::NO_APP_UPDATE.to_owned())
+            finished(true, auth::NO_APP_UPDATE.to_owned())
         }
-        Ok(tl::enums::help::AppUpdate::Update(update)) => result(
-            Check::AppUpdate,
-            true,
-            auth::app_update_detail(Some(&update.version)),
-        ),
-        Err(error) => result(
-            Check::AppUpdate,
-            false,
-            auth::app_update_error(&error.to_string()),
-        ),
+        Ok(tl::enums::help::AppUpdate::Update(update)) => {
+            finished(true, auth::app_update_detail(Some(&update.version)))
+        }
+        Err(error) => finished(false, auth::app_update_error(&error.to_string())),
     }
 }
 
-async fn check_terms_of_service<I: Invoker>(invoker: &I) -> CheckResult {
+async fn check_terms_of_service<I: Invoker>(invoker: &I) -> CheckOutcome {
     match invoker
         .invoke(&tl::functions::help::GetTermsOfServiceUpdate {})
         .await
     {
-        Ok(_) => result(
-            Check::TermsOfService,
-            true,
-            auth::TERMS_OF_SERVICE_OK.to_owned(),
-        ),
-        Err(error) => result(
-            Check::TermsOfService,
-            false,
-            auth::check_error(&error.to_string()),
-        ),
+        Ok(_) => finished(true, auth::TERMS_OF_SERVICE_OK.to_owned()),
+        Err(error) => finished(false, auth::check_error(&error.to_string())),
     }
 }
 
-/// The seven checks of 1.5.0 `ConsistencyChecker.run_all`, in
-/// [`Check::ALL`] order, with the core's details.
+/// Runs `check` over `invoker`.
+async fn run_check<I: Invoker>(
+    invoker: &I,
+    expectations: &ConsistencyExpectations,
+    check: Check,
+) -> CheckOutcome {
+    match check {
+        Check::GetConfig => check_get_config(invoker).await,
+        Check::NearestDc => check_nearest_dc(invoker).await,
+        Check::CurrentSession => check_current_session(invoker).await,
+        Check::LayerMatch => check_layer_match(expectations),
+        Check::LangPack => check_lang_pack(invoker, expectations).await,
+        Check::AppUpdate => check_app_update(invoker).await,
+        Check::TermsOfService => check_terms_of_service(invoker).await,
+    }
+}
+
+/// The seven checks of 1.5.0 `ConsistencyChecker.run_all`, run one after
+/// the other in [`Check::ALL`] order, as [`auth::consistency_report`]
+/// builds the report from their outcomes.
 ///
 /// - `get_config`, `nearest_dc`, `app_update` and `terms_of_service` pass
 ///   when their request succeeds.
@@ -806,21 +797,24 @@ async fn check_terms_of_service<I: Invoker>(invoker: &I) -> CheckResult {
 ///   `lang_pack`, and passes without a request when it is empty.
 ///
 /// No check raises out of its own handling, so 1.5.0's `Exception:` entry
-/// ([`auth::check_exception`]) never appears. Join the results with
-/// [`auth::consistency_summary`] for 1.5.0's report text.
+/// ([`auth::check_exception`]) never appears.
+/// [`ConsistencyReport::summary`] is 1.5.0's report text and
+/// [`ConsistencyReport::warning`] the warning its `auto_warn` emits, which
+/// this crate leaves to the caller.
 pub async fn run_consistency_checks<I: Invoker>(
     invoker: &I,
     expectations: &ConsistencyExpectations,
-) -> Vec<CheckResult> {
-    vec![
-        check_get_config(invoker).await,
-        check_nearest_dc(invoker).await,
-        check_current_session(invoker).await,
-        expectations.layer_result(tl::LAYER),
-        check_lang_pack(invoker, expectations).await,
-        check_app_update(invoker).await,
-        check_terms_of_service(invoker).await,
-    ]
+) -> ConsistencyReport {
+    let [c0, c1, c2, c3, c4, c5, c6] = Check::ALL;
+    auth::consistency_report([
+        run_check(invoker, expectations, c0).await,
+        run_check(invoker, expectations, c1).await,
+        run_check(invoker, expectations, c2).await,
+        run_check(invoker, expectations, c3).await,
+        run_check(invoker, expectations, c4).await,
+        run_check(invoker, expectations, c5).await,
+        run_check(invoker, expectations, c6).await,
+    ])
 }
 
 /// The account at `index` for the session behind `invoker`, 1.5.0

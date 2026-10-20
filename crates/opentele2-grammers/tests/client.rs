@@ -17,13 +17,12 @@ use grammers_session::Session;
 use grammers_session::storages::MemorySession;
 use grammers_session::types::{PeerId, PeerInfo};
 use opentele2_core::api::{self, Versions};
-use opentele2_core::auth::{self, Check, ConsistencyExpectations};
+use opentele2_core::auth::{
+    self, Check, ConsistencyExpectations, POST_LOGIN_STEPS, QR_LOGIN_ATTEMPTS, QR_LOGIN_TIMEOUT,
+};
 use opentele2_core::crypto::AuthKey;
 use opentele2_core::tdata::account::Account;
-use opentele2_grammers::client::{
-    self, ClientError, Invoker, POST_LOGIN_DELAYS_MS, QR_LOGIN_ATTEMPTS, QR_LOGIN_TIMEOUT,
-    USER_ID_UNRESOLVED,
-};
+use opentele2_grammers::client::{self, ClientError, Invoker, USER_ID_UNRESOLVED};
 use opentele2_grammers::session_data;
 use tl::functions::account as account_fn;
 use tl::functions::auth as auth_fn;
@@ -600,14 +599,27 @@ async fn qr_login_2fa_errors() {
     assert!(cached_self(&session, SELF_ID).is_none(), "no self user");
     new.assert_done();
 
-    // No SRP algorithm: Telethon's unsupported password algorithm.
-    let (session, new, authorized) = two_factor_script();
-    new.ok::<account_fn::GetPassword>(&password(None));
-    let error = client::qr_login(&authorized, &new, &*session, API_ID, API_HASH, Some("pw"))
-        .await
-        .expect_err("no algorithm");
-    assert!(matches!(error, ClientError::UnsupportedPasswordAlgorithm));
-    new.assert_done();
+    // No SRP algorithm, or an unknown one: Telethon's unsupported password
+    // algorithm, named by its Telethon class as the Python binding names it.
+    for (algo, class) in [
+        (None, "NoneType"),
+        (
+            Some(tl::enums::PasswordKdfAlgo::Unknown),
+            "PasswordKdfAlgoUnknown",
+        ),
+    ] {
+        let (session, new, authorized) = two_factor_script();
+        new.ok::<account_fn::GetPassword>(&password(algo));
+        let error = client::qr_login(&authorized, &new, &*session, API_ID, API_HASH, Some("pw"))
+            .await
+            .expect_err("unsupported algorithm");
+        assert!(matches!(&error, ClientError::UnsupportedPasswordAlgorithm(name) if name == class));
+        assert_eq!(
+            error.to_string(),
+            auth::unsupported_password_algorithm(class)
+        );
+        new.assert_done();
+    }
 
     // Other checkPassword failures pass through.
     let (session, new, authorized) = two_factor_script();
@@ -871,15 +883,14 @@ async fn consistency_checks_pass() {
             },
         ));
 
-    let results = client::run_consistency_checks(&fake, &expectations).await;
+    let report = client::run_consistency_checks(&fake, &expectations).await;
     fake.assert_done();
+    let results = &report.checks;
     let names: Vec<&str> = results.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, Check::ALL.map(Check::name));
-    assert!(
-        results.iter().all(|r| r.passed),
-        "{}",
-        auth::consistency_summary(&results)
-    );
+    assert!(report.all_passed(), "{}", report.summary());
+    assert_eq!(report.warning(), None);
+    assert_eq!(report.summary(), auth::consistency_summary(results));
     let details: Vec<String> = results.iter().map(|r| r.detail.clone()).collect();
     let row = client::session_row(&session_entry(22, true, true, API_ID));
     assert_eq!(
@@ -914,12 +925,17 @@ async fn consistency_checks_fail() {
     // A layer far from the advertised one fails layer_match as well.
     library.advertised_layer = tl::LAYER + 16;
 
-    let results = client::run_consistency_checks(&fake, &library).await;
+    let report = client::run_consistency_checks(&fake, &library).await;
     fake.assert_done();
-    assert!(
-        results.iter().all(|r| !r.passed),
-        "{}",
-        auth::consistency_summary(&results)
+    let results = &report.checks;
+    assert!(results.iter().all(|r| !r.passed), "{}", report.summary());
+    assert_eq!(
+        report.warning(),
+        Some(format!(
+            "{}{}",
+            auth::CONSISTENCY_WARNING_PREFIX,
+            auth::consistency_summary(results)
+        ))
     );
     let error = |code: i32, name: &str| InvocationError::Rpc(rpc(code, name)).to_string();
     let details: Vec<String> = results.iter().map(|r| r.detail.clone()).collect();
@@ -981,7 +997,9 @@ async fn consistency_checks_other_outcomes() {
             .ok::<account_fn::GetAuthorizations>(&authorizations(sessions))
             .ok::<help_fn::GetAppUpdate>(&update)
             .ok::<help_fn::GetTermsOfServiceUpdate>(&terms);
-        let results = client::run_consistency_checks(&fake, &expectations).await;
+        let results = client::run_consistency_checks(&fake, &expectations)
+            .await
+            .checks;
         fake.assert_done();
         assert_eq!(
             (results[2].passed, results[2].detail.as_str()),
@@ -1077,7 +1095,10 @@ async fn post_login_requests_follow_the_150_steps() {
     .await;
     fake.assert_done();
     assert_eq!(failed, 1);
-    let want: Vec<(u64, u64)> = POST_LOGIN_DELAYS_MS.iter().flatten().copied().collect();
+    let want: Vec<(u64, u64)> = POST_LOGIN_STEPS
+        .iter()
+        .filter_map(|step| step.delay_ms)
+        .collect();
     assert_eq!(*delays.lock().expect("delays"), want);
     let calls = fake.calls();
     assert_eq!(
@@ -1159,9 +1180,9 @@ async fn live_smoke() {
         .collect();
     assert!(rows.iter().any(|row| row.current), "a current session");
     let expectations = ConsistencyExpectations::new(&profile, &versions);
-    let results = client::run_consistency_checks(&grammers, &expectations).await;
-    assert_eq!(results.len(), Check::ALL.len());
-    println!("{}", auth::consistency_summary(&results));
+    let report = client::run_consistency_checks(&grammers, &expectations).await;
+    assert_eq!(report.checks.len(), Check::ALL.len());
+    println!("{}", report.summary());
 
     grammers.disconnect();
     runner.await.expect("runner");
