@@ -14,7 +14,7 @@ use opentele2_core::session::telethon_file::{self, SessionRows};
 use crate::api::{profile_dict, to_profile};
 use crate::convert::{path_text, to_auth_key, to_bytes};
 use crate::error::{check, core_error, core_error_type};
-use crate::json::{from_json, from_json_object, to_json_object};
+use crate::json::{from_json, from_json_object, to_json, to_json_object};
 use crate::tdata::PyAccount;
 
 /// `rows` as the dict `telethon_session_rows` and `read_session_file` give.
@@ -135,19 +135,14 @@ fn session_companion_json<'py>(
     from_json(py, &telethon_file::companion_json(&profile, Some(&extra)))
 }
 
-/// The `.json` companion text 1.5.0 `save_session_json` writes for
-/// `profile` and `extra`, byte for byte: `session_companion_json` as
-/// `json.dump(..., ensure_ascii=False, indent=2)` prints it, with no
-/// trailing newline.
+/// `obj` as 1.5.0 `save_session_json` writes the `.json` companion, byte
+/// for byte: `json.dumps(obj, indent=2, ensure_ascii=False)`, with no
+/// trailing newline. The values are taken as they are, so an untyped
+/// `APIData.to_json` prints as 1.5.0 printed it; a value JSON cannot hold
+/// raises `TypeError`, as `json.dump` does.
 #[pyfunction]
-#[pyo3(signature = (profile, extra = None))]
-fn session_companion_text(
-    profile: &Bound<'_, PyDict>,
-    extra: Option<&Bound<'_, PyDict>>,
-) -> PyResult<String> {
-    let profile = to_profile(profile)?;
-    let extra = extra.map(to_json_object).transpose()?.unwrap_or_default();
-    Ok(telethon_file::companion_text(&profile, Some(&extra)))
+fn py_json_text(obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    Ok(telethon_file::py_json_text(&to_json(obj)?))
 }
 
 /// The `CoreError` of a companion that `read_session_companion` rejects,
@@ -220,7 +215,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(session_pair_paths, module)?)?;
     module.add_function(wrap_pyfunction!(session_path, module)?)?;
     module.add_function(wrap_pyfunction!(session_companion_json, module)?)?;
-    module.add_function(wrap_pyfunction!(session_companion_text, module)?)?;
+    module.add_function(wrap_pyfunction!(py_json_text, module)?)?;
     module.add_function(wrap_pyfunction!(read_session_companion, module)?)?;
     module.add_function(wrap_pyfunction!(write_session_file, module)?)?;
     module.add_function(wrap_pyfunction!(read_session_file, module)?)?;

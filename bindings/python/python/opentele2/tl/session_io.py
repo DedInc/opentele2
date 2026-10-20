@@ -175,12 +175,8 @@ async def save_session_json(
     if client.UserId and "id" not in extra:
         extra["id"] = client.UserId
 
-    profile = api_data._profile()
-    if profile is None:
-        raise TypeError(
-            "the session JSON needs every APIData field set, api_id an int and the rest str"
-        )
-    text = _native.session_companion_text(profile, extra)
+    # The values as they are, as 1.5.0 json.dump-ed them.
+    text = _native.py_json_text(api_data.to_json(extra))
     await _to_thread(_write_companion, json_file, text)
 
     return (session_file, json_file)

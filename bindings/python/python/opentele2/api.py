@@ -96,31 +96,6 @@ def _defaults(client: _ClientName) -> tuple[int, str, str, str, str, str, str, s
     )
 
 
-# The keys of the session JSON the core's typed profile reads.
-_PROFILE_KEYS = tuple(key for key, _, _, _ in _native.SESSION_JSON_FIELDS)
-# The keys the core's typed profile cannot do without.
-_REQUIRED_PROFILE_KEYS = ("app_hash", "device", "sdk", "app_version")
-
-
-def _is_api_id(value: object) -> bool:
-    # Not a bool, which the core would read as 0 or 1; the core holds an i32.
-    return isinstance(value, int) and not isinstance(value, bool) and -(2**31) <= value < 2**31
-
-
-def _typed_session_json(data: dict) -> dict[str, Any] | None:
-    """The profile keys of ``data`` when the core's typed read gives what
-    1.5.0's untyped read gives: ``app_id`` an int, the required keys
-    present, and every profile key that is present a str, never None."""
-    typed = {key: data[key] for key in _PROFILE_KEYS if key in data}
-    if not _is_api_id(typed.get("app_id")):
-        return None
-    if not all(key in typed for key in _REQUIRED_PROFILE_KEYS):
-        return None
-    if not all(isinstance(value, str) for key, value in typed.items() if key != "app_id"):
-        return None
-    return typed
-
-
 def _desktop_system(name: str | None) -> _DesktopSystem | None:
     # Matched case-sensitively, as 1.5.0 _DESKTOP_SYSTEMS was.
     if name == "windows":
@@ -227,11 +202,7 @@ class APIData(metaclass=BaseAPIMetaClass):
         key's default, a falsy value falling back to its fallback key; the
         values are taken as they are. A missing ``app_id`` or ``app_hash``
         raises NoInstanceMatched, and a missing ``device`` is the local
-        machine's model. Typed JSON (see ``_typed_session_json``) is read by
-        ``_native.profile_from_session_json``, which gives the same values."""
-        typed = _typed_session_json(data)
-        if typed is not None:
-            return APIData(**_native.profile_from_session_json(typed))
+        machine's model."""
         defaults = {key: default for key, _, default, _ in _native.SESSION_JSON_FIELDS}
         values: dict[str, Any] = {}
         for key, attribute, default, fallback in _native.SESSION_JSON_FIELDS:
@@ -246,59 +217,15 @@ class APIData(metaclass=BaseAPIMetaClass):
         """1.5.0's session JSON of this API: every key of
         ``_native.SESSION_JSON_FIELDS`` holding its attribute, then
         ``_native.DEFAULT_EXTRA_FIELDS`` updated with ``extra``; the values
-        are written as they are. A typed instance (see ``_profile``) is
-        written by ``_native.profile_to_session_json``; ``extra`` is applied
-        here either way, so its values stay the objects given."""
-        profile = self._profile()
-        result: dict[str, Any]
-        if profile is not None:
-            result = _native.profile_to_session_json(profile)
-        else:
-            result = {
-                key: getattr(self, attribute)
-                for key, attribute, _, _ in _native.SESSION_JSON_FIELDS
-            }
-            result.update(_native.DEFAULT_EXTRA_FIELDS)
-        # Updating after the defaults keeps 1.5.0's order: a known key is
-        # overridden in place, another is appended in extra's order.
-        if extra:
-            result.update(extra)
-        return result
-
-    def _profile(self) -> _native.ApiProfile | None:
-        """The core profile of this API when every field holds its exact
-        type (``api_id`` an int, the rest str), else None: 1.5.0 wrote
-        other values as they were, which the core's typed profile cannot."""
-        api_id: object = self.api_id
-        api_hash: object = self.api_hash
-        device_model: object = self.device_model
-        system_version = self.system_version
-        app_version = self.app_version
-        lang_code = self.lang_code
-        system_lang_code = self.system_lang_code
-        lang_pack = self.lang_pack
-        if not (
-            isinstance(api_id, int)
-            and _is_api_id(api_id)
-            and isinstance(api_hash, str)
-            and isinstance(device_model, str)
-            and isinstance(system_version, str)
-            and isinstance(app_version, str)
-            and isinstance(lang_code, str)
-            and isinstance(system_lang_code, str)
-            and isinstance(lang_pack, str)
-        ):
-            return None
-        return {
-            "api_id": api_id,
-            "api_hash": api_hash,
-            "device_model": device_model,
-            "system_version": system_version,
-            "app_version": app_version,
-            "lang_code": lang_code,
-            "system_lang_code": system_lang_code,
-            "lang_pack": lang_pack,
+        are written as they are."""
+        result: dict[str, Any] = {
+            key: getattr(self, attribute) for key, attribute, _, _ in _native.SESSION_JSON_FIELDS
         }
+        extras: dict[str, Any] = dict(_native.DEFAULT_EXTRA_FIELDS)
+        if extra:
+            extras.update(extra)
+        result.update(extras)
+        return result
 
     def __eq__(self, other: object, /) -> bool:
         if not isinstance(other, APIData):

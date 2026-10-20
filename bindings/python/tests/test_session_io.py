@@ -396,6 +396,31 @@ def test_save_session_json_api_choice_and_missing_key(tmp_path: pathlib.Path) ->
         asyncio.run(save(None, None))
 
 
+def test_save_session_json_writes_an_untyped_api_as_1_5_0(tmp_path: pathlib.Path) -> None:
+    # 1.5.0 json.dump-ed the values as they were: a str api_id, a None field.
+    api_id: Any = "12345"
+    api = APIData(api_id, "hash", "Устройство", "1.0", "2.0", "en", "en", None)
+    assert api.lang_pack is None
+
+    async def save() -> str:
+        client = TelegramClient(None, api=api)
+        client.session.set_dc(2, "149.154.167.51", 443)
+        client.session.auth_key = AuthKey(AUTH_KEY)
+        _, json_file = await save_session_json(client, str(tmp_path / "untyped"))
+        return json_file
+
+    json_file = asyncio.run(save())
+    data = api.to_json({"session_file": "untyped"})
+    assert (data["app_id"], data["lang_pack"]) == ("12345", None)
+    text = pathlib.Path(json_file).read_text(encoding="utf-8")
+    assert text == json.dumps(data, indent=2, ensure_ascii=False)
+    assert _native.py_json_text(data) == json.dumps(data, indent=2, ensure_ascii=False)
+    with pytest.raises(TypeError):
+        json.dumps({"bad": object()})
+    with pytest.raises(TypeError):
+        _native.py_json_text({"bad": object()})
+
+
 def test_from_session_json_round_trips_save_session_json(tmp_path: pathlib.Path) -> None:
     api = API.TelegramAndroidX()
 
