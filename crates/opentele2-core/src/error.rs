@@ -171,7 +171,8 @@ pub enum ConfigFailure {
 /// Every failure the core can report.
 ///
 /// Variants map 1:1 onto the tdata exceptions of the Python package
-/// (`src/exception.py`), plus [`Error::BadLength`] and [`Error::Io`]. Bindings
+/// (`src/exception.py`), plus [`Error::BadLength`], [`Error::InvalidInput`]
+/// and [`Error::Io`]. Bindings
 /// dispatch on [`Error::code`], which is stable across releases; the
 /// `Display` text is for humans and may change. [`Error::legacy_message`]
 /// is the message 1.5.0 gave the matching exception, built from the context
@@ -293,6 +294,16 @@ pub enum Error {
         actual: usize,
     },
 
+    /// A caller-supplied argument is outside what the operation accepts, for
+    /// a reason other than its length (that is [`Error::BadLength`]).
+    #[error("Invalid {what}: {reason}")]
+    InvalidInput {
+        /// Name of the argument that was rejected.
+        what: &'static str,
+        /// Why the argument was rejected.
+        reason: String,
+    },
+
     /// An I/O operation on a caller-supplied path failed.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
@@ -321,6 +332,7 @@ impl Error {
             Self::SaveFailed => "TDATA_SAVE_FAILED",
             Self::KeyDataInvalid { .. } => "TDATA_KEY_DATA_INVALID",
             Self::BadLength { .. } => "BAD_LENGTH",
+            Self::InvalidInput { .. } => "INVALID_INPUT",
             Self::Io(_) => "IO",
         }
     }
@@ -354,8 +366,9 @@ impl Error {
     ///   checks the Python 3.8 `UnicodeDecodeError` and `ValueError` text),
     ///   and a plain description for the checks 1.5.0 does not make.
     ///
-    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadLength`]
-    /// and [`Error::Io`] give their `Display` text.
+    /// [`Error::WrongPasscode`] (never raised by 1.5.0), [`Error::BadLength`],
+    /// [`Error::InvalidInput`] (`Invalid {what}: {reason}`) and [`Error::Io`]
+    /// give their `Display` text.
     #[must_use]
     pub fn legacy_message(&self) -> String {
         match self {
@@ -408,7 +421,10 @@ impl Error {
             Self::KeyDataInvalid { context } => key_data_message(*context),
             Self::SaveFailed => "Could not save tdata, something went wrong".to_owned(),
             Self::BadConfigData { context } => config_message(*context),
-            Self::WrongPasscode | Self::BadLength { .. } | Self::Io(_) => self.to_string(),
+            Self::WrongPasscode
+            | Self::BadLength { .. }
+            | Self::InvalidInput { .. }
+            | Self::Io(_) => self.to_string(),
         }
     }
 }
@@ -561,6 +577,10 @@ mod tests {
                 expected: 32,
                 actual: 16,
             },
+            Error::InvalidInput {
+                what: "PBKDF2 iterations",
+                reason: "must be at least 1".to_owned(),
+            },
             Error::Io(std::io::Error::other("disk gone")),
         ];
         for error in &all {
@@ -581,6 +601,7 @@ mod tests {
                 | Error::SaveFailed
                 | Error::KeyDataInvalid { .. }
                 | Error::BadLength { .. }
+                | Error::InvalidInput { .. }
                 | Error::Io(_) => {}
             }
         }
@@ -648,6 +669,10 @@ mod tests {
             ("TDATA_SAVE_FAILED", "failed to save tdata"),
             ("TDATA_KEY_DATA_INVALID", "tdata key data is invalid"),
             ("BAD_LENGTH", "key has a bad length: expected 32, got 16"),
+            (
+                "INVALID_INPUT",
+                "Invalid PBKDF2 iterations: must be at least 1",
+            ),
             ("IO", "I/O error: disk gone"),
         ];
         let all = every_variant();
@@ -706,6 +731,20 @@ mod tests {
         let error: Error = std::io::Error::other("disk gone").into();
         assert_eq!(error.code(), "IO");
         assert_eq!(error.to_string(), "I/O error: disk gone");
+    }
+
+    #[test]
+    fn invalid_input_message_is_its_display() {
+        let error = Error::InvalidInput {
+            what: "pq",
+            reason: "7 is not a product of two factors greater than 1".to_owned(),
+        };
+        assert_eq!(error.code(), "INVALID_INPUT");
+        assert_eq!(
+            error.legacy_message(),
+            "Invalid pq: 7 is not a product of two factors greater than 1"
+        );
+        assert_eq!(error.legacy_message(), error.to_string());
     }
 
     #[test]

@@ -345,8 +345,7 @@ impl Digest {
     /// Parses `"sha1"`, `"sha256"` or `"sha512"`, ignoring ASCII case.
     ///
     /// # Errors
-    /// [`Error::Io`] of kind [`io::ErrorKind::InvalidInput`] for any other
-    /// name.
+    /// [`Error::InvalidInput`] for any other name.
     pub fn from_name(name: &str) -> Result<Self> {
         [
             ("sha1", Self::Sha1),
@@ -355,11 +354,9 @@ impl Digest {
         ]
         .into_iter()
         .find_map(|(known, digest)| name.eq_ignore_ascii_case(known).then_some(digest))
-        .ok_or_else(|| {
-            Error::Io(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("unknown PBKDF2 digest {name:?}"),
-            ))
+        .ok_or_else(|| Error::InvalidInput {
+            what: "PBKDF2 digest",
+            reason: format!("unknown digest {name:?}"),
         })
     }
 }
@@ -367,8 +364,8 @@ impl Digest {
 /// PBKDF2 (RFC 8018) with HMAC over `digest`, producing `key_len` bytes.
 ///
 /// # Errors
-/// [`Error::Io`] of kind [`io::ErrorKind::InvalidInput`] when `iterations`
-/// is 0, which RFC 8018 does not define.
+/// [`Error::InvalidInput`] when `iterations` is 0, which RFC 8018 does not
+/// define.
 pub fn pbkdf2(
     password: &[u8],
     salt: &[u8],
@@ -377,10 +374,10 @@ pub fn pbkdf2(
     digest: Digest,
 ) -> Result<Vec<u8>> {
     if iterations == 0 {
-        return Err(Error::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "PBKDF2 needs at least one iteration",
-        )));
+        return Err(Error::InvalidInput {
+            what: "PBKDF2 iterations",
+            reason: "needs at least one iteration".to_owned(),
+        });
     }
     let mut key = vec![0u8; key_len];
     match digest {
@@ -439,8 +436,8 @@ impl fmt::Debug for AesCtr {
 ///
 /// # Errors
 /// - [`Error::BadLength`] when `pq` is empty or longer than 8 bytes.
-/// - [`Error::Io`] of kind [`io::ErrorKind::InvalidInput`] when `pq` is 0, 1,
-///   or a prime, so it is not a product of two factors greater than 1.
+/// - [`Error::InvalidInput`] when `pq` is 0, 1, or a prime, so it is not a
+///   product of two factors greater than 1.
 pub fn factorize_pq(pq: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     if pq.is_empty() || pq.len() > PQ_MAX_SIZE {
         return Err(Error::BadLength {
@@ -452,11 +449,9 @@ pub fn factorize_pq(pq: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut be = [0u8; PQ_MAX_SIZE];
     be[PQ_MAX_SIZE - pq.len()..].copy_from_slice(pq);
     let n = u64::from_be_bytes(be);
-    let factor = find_factor(n).ok_or_else(|| {
-        Error::Io(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("pq {n} is not a product of two factors greater than 1"),
-        ))
+    let factor = find_factor(n).ok_or_else(|| Error::InvalidInput {
+        what: "pq",
+        reason: format!("{n} is not a product of two factors greater than 1"),
     })?;
     let (p, q) = (factor.min(n / factor), factor.max(n / factor));
     Ok((minimal_be(p), minimal_be(q)))

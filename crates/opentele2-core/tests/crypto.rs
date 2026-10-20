@@ -315,8 +315,11 @@ fn scrypt_matches_rfc7914_and_enforces_read_caps() {
 
 fn assert_invalid_input<T: std::fmt::Debug>(result: Result<T, Error>) {
     match result {
-        Err(Error::Io(e)) => assert_eq!(e.kind(), std::io::ErrorKind::InvalidInput),
-        other => panic!("expected an InvalidInput Io error, got {other:?}"),
+        Err(error @ Error::InvalidInput { .. }) => {
+            assert_eq!(error.code(), "INVALID_INPUT");
+            assert!(error.legacy_message().starts_with("Invalid "), "{error:?}");
+        }
+        other => panic!("expected an InvalidInput error, got {other:?}"),
     }
 }
 
