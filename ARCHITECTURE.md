@@ -40,8 +40,7 @@ bindings/node/                npm `opentele2`, napi-rs Node-API addon, engines >
 ```
 
 Tests live with the code they test. `tests/vectors` and `tests/fixtures` are
-excluded from the published core crate. The agent kernel (AGENTS.md,
-install.py, tools/, .agents/) is not part of the product tree.
+excluded from the published core crate.
 
 ## Crates
 
