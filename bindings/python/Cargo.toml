@@ -29,7 +29,7 @@ opentele2-versions = { path = "../../crates/opentele2-versions" }
 opentele2-browser = { path = "../../crates/opentele2-browser", version = "2.0.0" }
 pyo3 = { version = "0.29.3", features = ["abi3-py38"] }
 # Already a dependency of the core, with `preserve_order`; the session JSON
-# dicts keep 1.5.0's key order on their way to and from Python.
+# dicts keep the documented key order on their way to and from Python.
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 
 [lints]

@@ -181,9 +181,9 @@ default-off feature `telethon-sqlite`, the same writer the Python and Node packa
 
 Guides, API reference and examples: **[https://opentele2.github.io/](https://opentele2.github.io/)**
 
-- [Getting Started](https://opentele2.github.io/)
-- [Documentation & API Reference](https://opentele2.github.io/documentation)
-- [Examples & Recipes](https://opentele2.github.io/examples)
+- [Getting started](https://opentele2.github.io/getting-started/)
+- [Guides](https://opentele2.github.io/guides/)
+- [API reference](https://opentele2.github.io/reference/)
 
 Release notes are in [CHANGELOG.md](CHANGELOG.md); the internals are in
 [ARCHITECTURE.md](ARCHITECTURE.md).

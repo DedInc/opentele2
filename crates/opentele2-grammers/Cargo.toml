@@ -17,7 +17,7 @@ grammers-client = { version = "0.11.0", default-features = false, optional = tru
 
 [features]
 default = []
-# The 1.5.0 client flows (QR login, session admin, consistency checks) over
+# The client flows (QR login, session admin, consistency checks) over
 # grammers-client. Off by default so the default crate has no client.
 client = ["dep:grammers-client"]
 

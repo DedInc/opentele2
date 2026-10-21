@@ -14,7 +14,7 @@ exclude = ["tests/vectors", "tests/fixtures"]
 
 [dependencies]
 thiserror.workspace = true
-# Draws the web device pool as 1.5.0 drew it with browserforge.
+# Draws the web device pool from browser fingerprints.
 opentele2-browser = { path = "../opentele2-browser", version = "2.0.0" }
 md-5 = "0.11.0"
 grammers-crypto = "0.11.0"
@@ -32,7 +32,7 @@ getrandom = "0.4.3"
 base64 = "0.23.1"
 serde = { version = "1.0.229", features = ["derive"] }
 # `preserve_order` keeps object keys in insertion order, which the session
-# JSON of `api::ApiProfile::to_session_json` needs to match 1.5.0 byte for byte.
+# JSON of `api::ApiProfile::to_session_json` needs to keep its documented key order.
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 rayon = { version = "1.12.0", optional = true }
 rusqlite = { version = "0.40.2", default-features = false, features = ["bundled"], optional = true }

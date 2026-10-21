@@ -25,7 +25,7 @@ opentele2-browser = { path = "../../crates/opentele2-browser", version = "2.0.0"
 # `fetchVersions`: the release feeds over blocking HTTP, run as an async task.
 opentele2-versions = { path = "../../crates/opentele2-versions" }
 # Already a dependency of the core, with `preserve_order`; the session JSON
-# objects keep 1.5.0's key order on their way to and from JavaScript.
+# objects keep the documented key order on their way to and from JavaScript.
 serde_json = "1.0.154"
 # Node-API 4 is the baseline every call needs. `napi6` adds only the BigInt
 # conversions of `userId`, seeds and msg ids; with `dyn-symbols` the addon
