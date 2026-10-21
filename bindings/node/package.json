@@ -14,6 +14,7 @@
     "napi-rs"
   ],
   "license": "MIT",
+  "homepage": "https://opentele2.github.io/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DedInc/opentele2.git",

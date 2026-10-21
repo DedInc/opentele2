@@ -8,6 +8,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 # The golden vectors, their generator and the test fixtures stay in the
 # repository; tests read them through CARGO_MANIFEST_DIR.
 exclude = ["tests/vectors", "tests/fixtures"]

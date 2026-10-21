@@ -8,6 +8,7 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 repository = "https://github.com/DedInc/opentele2"
+homepage = "https://opentele2.github.io/"
 
 [workspace.dependencies]
 thiserror = "2.0.21"

@@ -10,6 +10,7 @@ rust-version.workspace = true
 # browserforge, so it carries that licence rather than the workspace MIT.
 license = "Apache-2.0"
 repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
 thiserror.workspace = true
