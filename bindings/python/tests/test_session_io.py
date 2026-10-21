@@ -376,6 +376,34 @@ def test_save_session_json_writes_the_pair(tmp_path: pathlib.Path) -> None:
     )
 
 
+def test_save_session_json_over_the_clients_own_session_file(tmp_path: pathlib.Path) -> None:
+    # After a request Telethon holds its entity rows in an open transaction;
+    # saving onto that same .session must not fail with "database is locked".
+    base = str(tmp_path / "own")
+
+    async def save() -> tuple[str, str]:
+        session = SQLiteSession(base)
+        client = TelegramClient(session, api=API.TelegramDesktop)
+        session.set_dc(2, "149.154.167.51", 443)
+        session.auth_key = AuthKey(AUTH_KEY)
+        session.save()
+        cursor = session._cursor()
+        cursor.execute(
+            "insert or replace into entities values (?,?,?,?,?,?)",
+            (4242, 1, "someone", None, "Someone", 0),
+        )
+        cursor.close()
+        try:
+            return await client.SaveSessionJson(base)
+        finally:
+            _close(client)
+
+    session_file, _ = asyncio.run(save())
+    assert_session(base, 2, "149.154.167.51", AUTH_KEY)
+    with sqlite3.connect(session_file) as conn:
+        assert conn.execute("select username from entities").fetchall() == [("someone",)]
+
+
 def test_save_session_json_api_choice_and_missing_key(tmp_path: pathlib.Path) -> None:
     async def save(api: type[APIData] | APIData | None, key: bytes | None) -> dict[str, Any]:
         client = TelegramClient(None, api=API.TelegramIOS)

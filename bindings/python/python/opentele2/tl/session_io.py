@@ -153,6 +153,11 @@ async def save_session_json(
     if auth_key is None:
         raise SessionFileInvalid("Session has no auth_key")
 
+    # Telethon keeps entity rows uncommitted after a request; when the client's
+    # own .session is the target, that open transaction locks the file.
+    if isinstance(ss, SQLiteSession):
+        ss.save()
+
     write_session_file(base, ss.dc_id, ss.server_address, ss.port, auth_key.key)
 
     extra: dict[str, typing.Any] = {}
