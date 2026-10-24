@@ -8,6 +8,7 @@ description = "Telegram client identity toolkit: Telegram Desktop tdata, Teletho
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "DedInc.", email = "visitanimation@gmail.com" }]
 keywords = ["telegram", "tdata", "tdesktop", "telethon", "mtproto", "fingerprint", "opentele2"]
 classifiers = [
