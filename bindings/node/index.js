@@ -87,8 +87,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-android-arm64')
-        const bindingPackageVersion = require('opentele2-android-arm64/package.json').version
+        const binding = require('@opentele2/opentele2-android-arm64')
+        const bindingPackageVersion = require('@opentele2/opentele2-android-arm64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -103,8 +103,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-android-arm-eabi')
-        const bindingPackageVersion = require('opentele2-android-arm-eabi/package.json').version
+        const binding = require('@opentele2/opentele2-android-arm-eabi')
+        const bindingPackageVersion = require('@opentele2/opentele2-android-arm-eabi/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -124,8 +124,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-win32-x64-gnu')
-          const bindingPackageVersion = require('opentele2-win32-x64-gnu/package.json').version
+          const binding = require('@opentele2/opentele2-win32-x64-gnu')
+          const bindingPackageVersion = require('@opentele2/opentele2-win32-x64-gnu/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -140,8 +140,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-win32-x64-msvc')
-          const bindingPackageVersion = require('opentele2-win32-x64-msvc/package.json').version
+          const binding = require('@opentele2/opentele2-win32-x64-msvc')
+          const bindingPackageVersion = require('@opentele2/opentele2-win32-x64-msvc/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -157,8 +157,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-win32-ia32-msvc')
-        const bindingPackageVersion = require('opentele2-win32-ia32-msvc/package.json').version
+        const binding = require('@opentele2/opentele2-win32-ia32-msvc')
+        const bindingPackageVersion = require('@opentele2/opentele2-win32-ia32-msvc/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -173,8 +173,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-win32-arm64-msvc')
-        const bindingPackageVersion = require('opentele2-win32-arm64-msvc/package.json').version
+        const binding = require('@opentele2/opentele2-win32-arm64-msvc')
+        const bindingPackageVersion = require('@opentele2/opentele2-win32-arm64-msvc/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -192,8 +192,8 @@ function requireNative() {
       loadErrors.push(e)
     }
     try {
-      const binding = require('opentele2-darwin-universal')
-      const bindingPackageVersion = require('opentele2-darwin-universal/package.json').version
+      const binding = require('@opentele2/opentele2-darwin-universal')
+      const bindingPackageVersion = require('@opentele2/opentele2-darwin-universal/package.json').version
       if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
         throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
@@ -208,8 +208,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-darwin-x64')
-        const bindingPackageVersion = require('opentele2-darwin-x64/package.json').version
+        const binding = require('@opentele2/opentele2-darwin-x64')
+        const bindingPackageVersion = require('@opentele2/opentele2-darwin-x64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -224,8 +224,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-darwin-arm64')
-        const bindingPackageVersion = require('opentele2-darwin-arm64/package.json').version
+        const binding = require('@opentele2/opentele2-darwin-arm64')
+        const bindingPackageVersion = require('@opentele2/opentele2-darwin-arm64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -244,8 +244,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-freebsd-x64')
-        const bindingPackageVersion = require('opentele2-freebsd-x64/package.json').version
+        const binding = require('@opentele2/opentele2-freebsd-x64')
+        const bindingPackageVersion = require('@opentele2/opentele2-freebsd-x64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -260,8 +260,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-freebsd-arm64')
-        const bindingPackageVersion = require('opentele2-freebsd-arm64/package.json').version
+        const binding = require('@opentele2/opentele2-freebsd-arm64')
+        const bindingPackageVersion = require('@opentele2/opentele2-freebsd-arm64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -281,8 +281,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-x64-musl')
-          const bindingPackageVersion = require('opentele2-linux-x64-musl/package.json').version
+          const binding = require('@opentele2/opentele2-linux-x64-musl')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-x64-musl/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -297,8 +297,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-x64-gnu')
-          const bindingPackageVersion = require('opentele2-linux-x64-gnu/package.json').version
+          const binding = require('@opentele2/opentele2-linux-x64-gnu')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-x64-gnu/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -315,8 +315,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-arm64-musl')
-          const bindingPackageVersion = require('opentele2-linux-arm64-musl/package.json').version
+          const binding = require('@opentele2/opentele2-linux-arm64-musl')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-arm64-musl/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -331,8 +331,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-arm64-gnu')
-          const bindingPackageVersion = require('opentele2-linux-arm64-gnu/package.json').version
+          const binding = require('@opentele2/opentele2-linux-arm64-gnu')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-arm64-gnu/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -349,8 +349,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-arm-musleabihf')
-          const bindingPackageVersion = require('opentele2-linux-arm-musleabihf/package.json').version
+          const binding = require('@opentele2/opentele2-linux-arm-musleabihf')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-arm-musleabihf/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -365,8 +365,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-arm-gnueabihf')
-          const bindingPackageVersion = require('opentele2-linux-arm-gnueabihf/package.json').version
+          const binding = require('@opentele2/opentele2-linux-arm-gnueabihf')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-arm-gnueabihf/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -383,8 +383,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-loong64-musl')
-          const bindingPackageVersion = require('opentele2-linux-loong64-musl/package.json').version
+          const binding = require('@opentele2/opentele2-linux-loong64-musl')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-loong64-musl/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -399,8 +399,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-loong64-gnu')
-          const bindingPackageVersion = require('opentele2-linux-loong64-gnu/package.json').version
+          const binding = require('@opentele2/opentele2-linux-loong64-gnu')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-loong64-gnu/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -417,8 +417,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-riscv64-musl')
-          const bindingPackageVersion = require('opentele2-linux-riscv64-musl/package.json').version
+          const binding = require('@opentele2/opentele2-linux-riscv64-musl')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-riscv64-musl/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -433,8 +433,8 @@ function requireNative() {
           loadErrors.push(e)
         }
         try {
-          const binding = require('opentele2-linux-riscv64-gnu')
-          const bindingPackageVersion = require('opentele2-linux-riscv64-gnu/package.json').version
+          const binding = require('@opentele2/opentele2-linux-riscv64-gnu')
+          const bindingPackageVersion = require('@opentele2/opentele2-linux-riscv64-gnu/package.json').version
           if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
@@ -450,8 +450,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-linux-ppc64-gnu')
-        const bindingPackageVersion = require('opentele2-linux-ppc64-gnu/package.json').version
+        const binding = require('@opentele2/opentele2-linux-ppc64-gnu')
+        const bindingPackageVersion = require('@opentele2/opentele2-linux-ppc64-gnu/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -466,8 +466,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-linux-s390x-gnu')
-        const bindingPackageVersion = require('opentele2-linux-s390x-gnu/package.json').version
+        const binding = require('@opentele2/opentele2-linux-s390x-gnu')
+        const bindingPackageVersion = require('@opentele2/opentele2-linux-s390x-gnu/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -486,8 +486,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-openharmony-arm64')
-        const bindingPackageVersion = require('opentele2-openharmony-arm64/package.json').version
+        const binding = require('@opentele2/opentele2-openharmony-arm64')
+        const bindingPackageVersion = require('@opentele2/opentele2-openharmony-arm64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -502,8 +502,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-openharmony-x64')
-        const bindingPackageVersion = require('opentele2-openharmony-x64/package.json').version
+        const binding = require('@opentele2/opentele2-openharmony-x64')
+        const bindingPackageVersion = require('@opentele2/opentele2-openharmony-x64/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -518,8 +518,8 @@ function requireNative() {
         loadErrors.push(e)
       }
       try {
-        const binding = require('opentele2-openharmony-arm')
-        const bindingPackageVersion = require('opentele2-openharmony-arm/package.json').version
+        const binding = require('@opentele2/opentele2-openharmony-arm')
+        const bindingPackageVersion = require('@opentele2/opentele2-openharmony-arm/package.json').version
         if (bindingPackageVersion !== '2.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
@@ -656,16 +656,16 @@ if (!nativeBinding || forceWasi) {
     let candidateError = null
     let candidateFailed = false
     try {
-      candidateError = __napiWasiResolveCandidate('opentele2-wasm32-wasi', true, undefined)
+      candidateError = __napiWasiResolveCandidate('@opentele2/opentele2-wasm32-wasi', true, undefined)
       candidateFailed = candidateError !== null
       if (!candidateFailed) {
         if (process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          const bindingPackageVersion = require('opentele2-wasm32-wasi/package.json').version
+          const bindingPackageVersion = require('@opentele2/opentele2-wasm32-wasi/package.json').version
           if (bindingPackageVersion !== '2.0.0') {
             throw new Error(`WASI binding package version mismatch, expected 2.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
         }
-        wasiBinding = require('opentele2-wasm32-wasi')
+        wasiBinding = require('@opentele2/opentele2-wasm32-wasi')
         nativeBinding = wasiBinding
         __napiLoadedBindingTarget = 'wasm32-wasi'
         wasiBindingLoaded = true

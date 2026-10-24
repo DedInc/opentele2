@@ -1,5 +1,5 @@
 {
-  "name": "opentele2-darwin-x64",
+  "name": "@opentele2/opentele2-darwin-x64",
   "version": "2.0.0",
   "cpu": [
     "x64"
@@ -8,15 +8,19 @@
   "files": [
     "opentele2.darwin-x64.node"
   ],
-  "description": "Telegram Desktop tdata formats, crypto, string sessions and API fingerprints from the Rust core of opentele2, with mtcute helpers",
+  "description": "Telegram client identity toolkit on a Rust core: Telegram Desktop tdata, mtcute and Telethon sessions, official API profiles and devices, fingerprint checks, an mtcute crypto provider and browser fingerprints",
   "keywords": [
     "telegram",
     "tdata",
     "tdesktop",
-    "opentele",
     "mtcute",
+    "telethon",
+    "mtproto",
+    "fingerprint",
+    "opentele2",
     "napi-rs"
   ],
+  "homepage": "https://opentele2.github.io/",
   "license": "MIT",
   "engines": {
     "node": ">=18"
@@ -25,6 +29,9 @@
     "type": "git",
     "url": "git+https://github.com/DedInc/opentele2.git",
     "directory": "bindings/node"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "os": [
     "darwin"

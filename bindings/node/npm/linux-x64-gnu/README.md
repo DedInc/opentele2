@@ -1,3 +1,3 @@
-# `opentele2-linux-x64-gnu`
+# `@opentele2/opentele2-linux-x64-gnu`
 
-This is the **x86_64-unknown-linux-gnu** binary for `opentele2`
+This is the **x86_64-unknown-linux-gnu** binary for `@opentele2/opentele2`
