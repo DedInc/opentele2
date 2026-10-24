@@ -311,7 +311,8 @@ def test_draws_of_another_size_missing_or_unused_raise() -> None:
     not_bytes: Any = ["not bytes"]
     with pytest.raises(TypeError):
         TData.new(accounts, performance_mode=False, draws=not_bytes)
-    assert TData.new(accounts, performance_mode=False, draws=[bytearray(d) for d in draws])
+    built = TData.new(accounts, performance_mode=False, draws=[bytearray(d) for d in draws])
+    assert [a.user_id for a in built.accounts] == [a.user_id for a in accounts]
 
 
 def test_save_and_migrate_reject_mismatched_draws(tmp_path: Path) -> None:

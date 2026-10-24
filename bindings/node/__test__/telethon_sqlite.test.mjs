@@ -275,7 +275,9 @@ test('sessionFileName is Python os.path.basename of the pair stem on this platfo
     ['dir/', ''],
     ['dir\\acc', windows ? 'acc' : 'dir\\acc'],
     ['C:acc', windows ? 'acc' : 'C:acc'],
-    ['C:\\dir/acc.json', windows ? 'acc' : 'C:\\dir/acc'],
+    // On POSIX `/` still splits, so `C:\dir` is just the parent directory.
+    ['C:\\dir/acc.json', 'acc'],
+    ['C:\\dir\\acc.json', windows ? 'acc' : 'C:\\dir\\acc'],
     // ntpath.splitdrive takes `\\server\share` whole as the drive.
     ['\\\\server\\share', windows ? '' : '\\\\server\\share'],
     ['//server/share/acc', 'acc'],
