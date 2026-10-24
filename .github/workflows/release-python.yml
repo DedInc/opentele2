@@ -41,6 +41,8 @@ jobs:
       fail-fast: false
       matrix:
         target: [x86_64, x86, aarch64, armv7]
+    env:
+        CFLAGS_aarch64_unknown_linux_gnu: -D__ARM_ARCH=8
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
